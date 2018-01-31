@@ -96,8 +96,8 @@
       <file leaf-file-name="Plot_H2.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/../Plot_H2.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="647">
-              <caret line="1601" column="35" lean-forward="false" selection-start-line="1601" selection-start-column="35" selection-end-line="1601" selection-end-column="35" />
+            <state relative-caret-position="494">
+              <caret line="1592" column="43" lean-forward="true" selection-start-line="1592" selection-start-column="43" selection-end-line="1592" selection-end-column="43" />
               <folding />
             </state>
           </provider>
@@ -298,7 +298,7 @@
   <component name="PropertiesComponent">
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="last_opened_file_path" value="C:/Anaconda3/python.exe" />
-    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
+    <property name="settings.editor.selected.configurable" value="project.propVCSSupport.Mappings" />
     <property name="SearchEverywhereHistoryKey" value="&#9;FILE&#9;file://D:/science/python/spectro/sviewer/graphics.py" />
   </component>
   <component name="PyConsoleOptionsProvider">
@@ -1058,8 +1058,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/../Plot_H2.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="647">
-          <caret line="1601" column="35" lean-forward="false" selection-start-line="1601" selection-start-column="35" selection-end-line="1601" selection-end-column="35" />
+        <state relative-caret-position="494">
+          <caret line="1592" column="43" lean-forward="true" selection-start-line="1592" selection-start-column="43" selection-end-line="1592" selection-end-column="43" />
           <folding />
         </state>
       </provider>
