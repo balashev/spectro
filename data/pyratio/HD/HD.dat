@@ -1,0 +1,59 @@
+Serj Balashev, following PopRatio data
+
+last change: November 21, 2015.
+
+Always enter the atomic data immediately after the symbol # ;
+any comments inserted before this symbol will be ignored by the routine.
+
+Name of atom or ion this atomic data set refers to (up to 10 characters):
+#
+HD
+
+Number of levels that belong to the ground term:
+#
+molecular structure
+
+Number of levels covered in this atomic data:
+#
+9
+
+Energy levels and statistical weights:
+(one by line, from lowest to highest)
+(only the first two numbers are read by the subroutine)
+
+source: 
+
+	Flower et al. (2000)
+
+E [cm^-1]	g(i)	i	level
+#
+0		1	1	J=0
+128	3	2	J=1
+384	5	3	J=2
+766	7	4	J=3
+1271 9	5	J=4
+1895 11 6 J=5
+2636 13 7 J=6
+3488 15 8 J=7
+4445 17 9 J=8
+
+Transition probabilities:
+(one by line)
+(there's no need to enter null probabilities)
+
+source:
+ 
+	Flower et al. (2000)
+
+number of transitions listed
+j	i	Aij [s^-1]
+#
+8
+1 2 5.1e-8
+2 3 4.9e-7 
+3 4 1.7e-6 
+4 5 4.1e-6 
+5 6 7.9e-6 
+6 7 1.3e-5 
+7 8 2.0e-5 
+8 9 2.9e-4 

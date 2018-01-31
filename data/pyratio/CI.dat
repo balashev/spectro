@@ -1,0 +1,305 @@
+Alex Ignácio da Silva	ignacioalex@yahoo.com
+
+last change: March 9, 2000.
+
+Always enter the atomic data immediately after the symbol # ;
+any comments inserted before this symbol will be ignored by the routine.
+
+Name of atom or ion this atomic data set refers to (up to 10 characters):
+(C I must be entered exactly "CI")
+#
+CI
+
+Number of levels that belong to the ground term:
+#
+3
+
+Number of levels covered in this atomic data:
+#
+5
+
+Energy levels and statistical weights:
+(one by line, from lowest to highest)
+(only the first two numbers are read by the subroutine)
+
+source: 
+
+	C. E. Moore, NSRDS-NBS 3, Section 3 (1970)
+
+E [cm^-1]	g(i)	i	level
+#
+0.0		1	1	2s2 2p2 3P0
+16.40		3	2	2s2 2p2 3P1
+43.40		5	3	2s2 2p2 3P2
+10192.63	5	4	2s2 2p2 1D2
+21648.01	1	5	2s2 2p2 1S0
+
+Transition probabilities:
+(one by line)
+(there's no need to enter null probabilities)
+
+source:
+ 
+	M.E. Galavís, C. Mendoza and C.J.Zeippen, 1997: A&AS 123, 159
+	(Iron Project calculation)
+
+number of transitions listed
+j	i	Aij [s^-1]
+#
+9
+1	2	7.932E-8
+1	3	2.054E-14
+2	3	2.654E-7
+1	4	5.593E-8
+2	4	7.467E-5
+3	4	2.229E-4
+2	5	2.382E-3
+3	5	2.117E-5
+4	5	6.424E-1
+
+Transitions involving the ground term and higher excited levels:
+(SORTED BY Ej)
+(The inclusion of a level connected to only one of the ground-state levels does not change
+ the relative population ratios. That level is ignored by the program, anyway.)
+
+source:
+
+	Allowed transitions listed in Verner et al. 1996: Atomic Data Nucl. Data Tables 64, 1
+	(based on Opacity Project calculations)
+	
+	(wavelength range: 1128-1659 Å)
+
+number of transitions listed (may be zero)
+Ej [cm^-1]	g(j)	i	Aji [s^-1]
+#
+108
+60333.43	1	2	3.59E+08	
+60352.63	3	1	1.20E+08	
+60352.63	3	2	8.96E+07	
+60352.63	3	3	1.49E+08	
+60393.14	5	2	8.99E+07	
+60393.14	5	3	2.70E+08	
+64086.92	7	3	1.17E+08	
+64089.85	3	1	6.52E+07	
+64089.85	3	2	4.90E+07	
+64089.85	3	3	3.26E+06	
+64090.95	5	2	8.81E+07	
+64090.95	5	3	2.93E+07	
+75253.97	3	1	7.66E+07	
+75253.97	3	2	5.74E+07	
+75253.97	3	3	9.56E+07	
+75255.27	5	2	5.75E+07	
+75255.27	5	3	1.72E+08	
+75256.12	1	2	2.30E+08	
+78104.98	1	2	8.60E+07	
+78116.74	3	1	2.88E+07	
+78116.74	3	2	2.15E+07	
+78116.74	3	3	3.58E+07	
+78148.09	5	2	2.15E+07	
+78148.09	5	3	6.47E+07	
+78293.49	3	1	1.46E+08	
+78293.49	3	2	1.09E+08	
+78293.49	3	3	7.28E+06	
+78307.63	5	2	1.97E+08	
+78307.63	5	3	6.58E+07	
+78318.25	7	3	2.63E+08	
+79310.85	5	2	4.05E+07	
+79310.85	5	3	1.22E+08	
+79318.78	3	1	5.41E+07	
+79318.78	3	2	4.06E+07	
+79318.78	3	3	6.76E+07	
+79323.16	1	2	1.62E+08	
+83740.06	1	2	4.92E+07	
+83752.41	3	1	1.64E+07	
+83752.41	3	2	1.23E+07	
+83752.41	3	3	2.06E+07	
+83791.04	5	2	1.24E+07	
+83791.04	5	3	3.70E+07	
+83820.13	3	1	7.44E+07	
+83820.13	3	2	5.57E+07	
+83820.13	3	3	3.71E+06	
+83838.08	5	2	1.00E+08	
+83838.08	5	3	3.34E+07	
+83848.83	7	3	1.34E+08	
+84103.10	5	2	1.52E+07	
+84103.10	5	3	4.57E+07	
+84116.09	3	1	2.03E+07	
+84116.09	3	2	1.52E+07	
+84116.09	3	3	2.54E+07	
+84121.22	1	2	6.10E+07	
+86321.94	1	2	2.77E+07	
+86331.63	3	1	9.23E+06	
+86331.63	3	2	6.91E+06	
+86331.63	3	3	1.16E+07	
+86362.52	3	1	4.05E+07	
+86362.52	3	2	3.03E+07	
+86362.52	3	3	2.02E+06	
+86369.60	5	2	6.95E+06	
+86369.60	5	3	2.08E+07	
+86389.38	5	2	5.46E+07	
+86389.38	5	3	1.82E+07	
+86397.80	7	3	7.28E+07	
+86506.70	5	2	7.54E+06	
+86506.70	5	3	2.26E+07	
+86519.47	3	1	1.01E+07	
+86519.47	3	2	7.59E+06	
+86519.47	3	3	1.26E+07	
+86523.16	1	2	3.01E+07	
+87711.37	1	2	1.68E+07	
+87718.56	3	1	5.61E+06	
+87718.56	3	2	4.21E+06	
+87718.56	3	3	7.00E+06	
+87735.30	3	1	2.41E+07	
+87735.30	3	2	1.81E+07	
+87735.30	3	3	1.21E+06	
+87753.73	5	2	4.22E+06	
+87753.73	5	3	1.26E+07	
+87773.09	5	2	3.27E+07	
+87773.09	5	3	1.09E+07	
+87777.17	7	3	4.33E+07	
+87832.54	5	2	4.32E+06	
+87832.54	5	3	1.29E+07	
+87843.91	3	1	5.73E+06	
+87843.91	3	2	4.31E+06	
+87843.91	3	3	7.17E+06	
+87846.90	1	2	1.71E+07	
+88543.76	1	2	1.09E+07	
+88549.06	3	1	3.63E+06	
+88549.06	3	2	2.72E+06	
+88549.06	3	3	4.54E+06	
+88558.60	3	1	1.54E+07	
+88558.60	3	2	1.16E+07	
+88558.60	3	3	7.67E+05	
+88584.26	5	2	2.73E+06	
+88584.26	5	3	8.16E+06	
+88604.75	5	2	2.08E+07	
+88604.75	5	3	6.91E+06	
+88606.80	7	3	2.77E+07	
+88636.80	5	2	2.67E+06	
+88636.80	5	3	8.01E+06	
+88646.60	3	1	3.56E+06	
+88646.60	3	2	2.67E+06	
+88646.60	3	3	4.45E+06	
+88649.10	1	2	1.07E+07	
+
+Number of collision partners (may be zero):
+#
+6
+
+Enter the collision rates, except for electrons, where the Maxwellian-averaged
+collision strengths should be entered instead.
+(in that case the collision partner name entered should be exactly "electron")
+
+source:
+
+	C. T. Johnson, P. G. Burke and A. E. Kingston, 1987: J. Phys. B 20, 2553
+	(fits to the transitions involving the ground term levels 3PJ - 3PJ')
+
+	D. Péquignot and S. M. V. Aldrovandi, 1976: A&A 50, 141
+	(fits to the transitions involving the ground term and levels 1D and 1S)
+
+The program actually calls subroutine CI_gam to get the fits to
+the Maxwellian averaged collision strengths.
+
+collision partner name (up to 10 characters)
+number n of levels included in collisions with this partner (always the first n lower levels)
+total number of interpolations listed
+partial number of interpolations	number of points in this interpolation set
+temperature values [K]
+i	j	gamma(i,j)
+..............................
+partial number of interpolations	number of points in this interpolation set
+temperature values [K]
+i	j	gamma(i,j)
+..............................
+#
+electron
+3
+3
+3	12
+		100 200 300 500 700 1000 2000 3000 5000 7000 10000 20000
+2	1	2.27e-10  4.70e-10 7.05e-10 1.12e-9 1.49e-9 2.00e-9 4.62e-9 7.11e-9 9.82e-9 1.08e-8 1.06e-8 1.24e-8
+3	1	1.25e-10  2.14e-10 2.84e-10 4.23e-10 5.84e-10 8.76e-10 2.35e-9 3.46e-9 4.37e-9 4.41e-9 4.23e-9 4.76e-9
+3	2	4.73e-10  8.38e-10 1.17e-9 1.77e-9 2.38e-9 3.46e-9 8.74e-9 1.31e-8 1.72e-8 1.80e-8 1.76e-8 2.01e-8
+
+source:
+
+	E. Roueff and J. le Bourlot, 1990: A&A 236, 515	
+
+collision partner name (up to 10 characters)
+number n of levels included in collisions with this partner (always the first n lower levels)
+total number of interpolations listed
+partial number of interpolations	number of points in this interpolation set
+temperature values [K]
+i	j	q(i->j) [cm^3 s^-1]
+..............................
+partial number of interpolations	number of points in this interpolation set
+temperature values [K]
+i	j	q(i->j) [cm^3 s^-1]
+..............................
+#
+proton
+3
+3
+3	12
+		100.	200.	300.	500.	700.	1000.	2000.	3000.	5000.	7000.	10000.	20000.	
+1	2	1.8E-09	2.7E-09	3.3E-09	4.1E-09	4.6E-09	5.2E-09	6.1E-09	6.6E-09	7.2E-09	7.6E-09	7.9E-09	8.5E-09	
+1	3	8.1E-10	2.0E-09	3.5E-09	6.4E-09	9.1E-09	1.2E-08	1.9E-08	2.3E-08	2.6E-08	2.7E-08	2.8E-08	3.0E-08	
+2	3	2.6E-09	5.4E-09	8.0E-09	1.2E-08	1.5E-08	1.7E-08	2.1E-08	2.3E-08	2.4E-08	2.5E-08	2.5E-08	2.6E-08	
+
+source: 
+
+	J. M. Launay and E. Roueff, 1977: A&A 56, 289
+
+#
+H0
+3
+3
+3 22
+4 5 7 8 9 10 12 14 20 30 40 70 100 200 250 300 400 500 700 800 900 1000
+1 2 0.122E-11 0.382E-11 1.400E-11 2.100E-11 2.870E-11 3.680E-11 5.330E-11 6.930E-11 11.080E-11 16.000E-11 19.440E-11 25.860E-11 29.750E-11 37.560E-11 40.410E-11 42.900E-11 47.120E-11 50.680E-11 56.670E-11 59.320E-11 61.800E-11 64.150E-11
+1 3 0.0001E-11 0.0001E-11 0.005E-11 0.014E-11 0.033E-11 0.065E-11 0.180E-11 0.372E-11 1.390E-11 4.000E-11 7.035E-11 16.080E-11 23.830E-11 41.190E-11 46.940E-11 51.700E-11 59.450E-11 65.800E-11 76.200E-11 80.670E-11 84.800E-11 88.640E-11
+2 3 0.002E-11 0.015E-11 0.132E-11 0.261E-11 0.444E-11 0.678E-11 1.280E-11 2.020E-11 4.610E-11 9.030E-11 13.020E-11 22.590E-11 29.790E-11 45.200E-11 50.410E-11 54.790E-11 62.060E-11 68.120E-11 78.240E-11 82.650E-11 86.750E-11 90.610E-11
+      
+source:
+   
+   	Abrahamsson et al 2007	
+
+#
+para-H2
+3
+3
+3	28
+		10.	20.	30.	40.	50.	60.	70.	80.	90.	100.	120.	140.	160.	180.	200.	250.	300.	350.	400.	450.	500.	600.	700.	800.	900.	1000.	1100.	1200.	
+2	1	9.60E-11	1.00E-10	9.10E-11	8.30E-11	7.70E-11	7.30E-11	7.00E-11	6.90E-11	6.70E-11	6.70E-11	6.60E-11	6.60E-11	6.60E-11	6.70E-11	6.70E-11	6.90E-11	7.10E-11	7.20E-11	7.40E-11	7.50E-11	7.60E-11	7.80E-11	8.00E-11	8.10E-11	8.20E-11	8.10E-11	8.10E-11	8.00E-11	
+3	1	9.60E-11	9.90E-11	9.70E-11	9.50E-11	9.20E-11	9.00E-11	8.90E-11	8.70E-11	8.60E-11	8.60E-11	8.50E-11	8.40E-11	8.40E-11	8.40E-11	8.50E-11	8.70E-11	8.80E-11	9.10E-11	9.30E-11	9.50E-11	9.60E-11	1.00E-10	1.02E-10	1.04E-10	1.04E-10	1.04E-10	1.04E-10	1.03E-10	
+3	2	1.75E-10	1.84E-10	1.84E-10	1.81E-10	1.79E-10	1.77E-10	1.76E-10	1.75E-10	1.75E-10	1.75E-10	1.77E-10	1.79E-10	1.81E-10	1.84E-10	1.88E-10	1.96E-10	2.04E-10	2.12E-10	2.19E-10	2.26E-10	2.32E-10	2.43E-10	2.51E-10	2.57E-10	2.60E-10	2.62E-10	2.61E-10	2.60E-10	
+
+source:
+
+	K. Schroder, V. Staemmler, M. D. Smith, D. R. Flower and R. Jaquet, 1991: 
+a												J. Phys. B 24, 2487	
+
+#
+ortho-H2
+3
+3
+3	28
+		10.	20.	30.	40.	50.	60.	70.	80.	90.	100.	120.	140.	160.	180.	200.	250.	300.	350.	400.	450.	500.	600.	700.	800.	900.	1000.	1100.	1200.	
+2	1	7.30E-11	8.10E-11	8.00E-11	7.80E-11	7.60E-11	7.40E-11	7.30E-11	7.20E-11	7.10E-11	7.10E-11	7.10E-11	7.00E-11	7.10E-11	7.10E-11	7.10E-11	7.30E-11	7.40E-11	7.60E-11	7.70E-11	7.90E-11	8.00E-11	8.30E-11	8.40E-11	8.60E-11	8.60E-11	8.60E-11	8.60E-11	8.50E-11	
+3	1	5.20E-11	5.80E-11	6.00E-11	6.20E-11	6.30E-11	6.40E-11	6.50E-11	6.70E-11	6.80E-11	6.90E-11	7.10E-11	7.30E-11	7.50E-11	7.70E-11	7.90E-11	8.30E-11	8.70E-11	9.10E-11	9.40E-11	9.70E-11	1.00E-10	1.04E-10	1.08E-10	1.10E-10	1.11E-10	1.12E-10	1.12E-10	1.11E-10	
+3	2	9.20E-11	1.05E-10	1.13E-10	1.19E-10	1.25E-10	1.30E-10	1.35E-10	1.39E-10	1.43E-10	1.48E-10	1.55E-10	1.63E-10	1.70E-10	1.76E-10	1.82E-10	1.96E-10	2.08E-10	2.18E-10	2.28E-10	2.37E-10	2.45E-10	2.58E-10	2.69E-10	2.76E-10	2.81E-10	2.83E-10	2.84E-10	2.83E-10	
+
+source:
+
+	V. Staemmler and D. R. Flower, 1991: J. Phys. B 24, 2343
+
+#
+helium
+3
+3
+3	9
+		10.	20.	30.	40.	60.	80.	100.	120.	150.	
+2	1	8.49E-12	1.35E-11	1.53E-11	1.59E-11	1.65E-11	1.69E-11	1.74E-11	1.79E-11	1.86E-11	
+3	1	4.05E-11	4.23E-11	4.30E-11	4.34E-11	4.37E-11	4.39E-11	4.42E-11	4.46E-11	4.53E-11	
+3	2	7.15E-11	7.48E-11	7.64E-11	7.75E-11	7.92E-11	8.09E-11	8.29E-11	8.51E-11	8.83E-11	

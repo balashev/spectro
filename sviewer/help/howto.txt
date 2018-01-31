@@ -1,0 +1,151 @@
+How to work with SViewer:
+Here you can find following information
+ - Key command
+ - Menu description
+ - How to make simple actions
+ - Console command description
+
+--------------------------------------------------------------------------------
+Key commands (when plot window is active):
+b: b-splain:
+   b                              :  add b-splain point (if key is quickly pressed)
+   b + <Left mouse click>         :  add b-splain point
+   b + <Right mouse click>        :  remove nearest b-splain point
+   b + <select region>            :  remove all b-splain points in selected region
+  
+c: component mode:
+   c                              :  show/select next component
+   c + CTRL                       :  change show component mode (none, one, all)
+   c + <mouse left click>         :  shift comnonent center at the position (line indicator have to be selected)
+   c + mouse wheel                :  increase/decrease b parameter of the component
+   c + <mouse drag>               :  increase/decrease column density of the component 
+
+d: deselect data points:
+   d + <select by mouse>          :  deselect data points
+   d + SHIFT + <select by mouse>  :  deselect data points for all exposures
+     
+e: select exposure:
+   e                              :  select next exposure
+   e + <key_Up> / <key_Down>      :  select next/previous exposure
+   e + click on exposure          :  choose exposure which is clicked
+   e + Ctrl                       :  remove exposure 
+
+f: construct fit
+   f                              :  construct fit (only lines nearby fitting points)
+   f + SHIFT                      :  show full fit (all lines in the full wavelenght range)
+   f + CTRL                       :  show fit options
+   
+h: choose lya
+   h + <mouse left click>         :  set redshift for lya line to be at the position of mouse
+
+m: rebin spectrum
+   m + <mouse wheel forward>      : increase rebinning
+   m + <mouse wheel backward>     : decrease rebinning
+
+n: normalize/unnormalize the spectrum
+
+o: change UVES setup
+    
+r: select region:
+   r + <select by mouse>          :  add region (how to work with regions see Tutorial)
+   r + CTRL                       :  show/hide Residuals Panel
+
+s: select data points:
+   s + <select by mouse>          :  select data points
+   s + SHIFT + <select by mouse>  :  select data points for all exposures
+
+t: show fit results:
+   t + CTRL                       :  show/hide fit result window
+   
+u: find doublet:
+   u + <mouse left click>         :  add line to doublet guess   
+   
+v: change view of spectra
+
+w: width of region:
+   w + <select by mouse>          :  select area to calculate equivalent width of absorption line.
+                                     Continuum should be set for width calculation! 
+   w                              :  hide w-region
+
+x: select bad pixels:
+   s + <select by mouse>          :  select bad pixels
+   s + SHIFT + <select by mouse>  :  unselect bad pixels
+
+z: zoom mode:
+   z + <select by mouse>          :  zoom into region
+   ctrl + z                       :  return to the previous view 
+    
+shift: 
+  1. when shift is pressed you can shift absortion pointers using mouse
+ 
+Hotkeys:
+CTRL + s                          :  save to recent file
+CTRL + o                          :  open file
+
+-------------------------------------------------------------------------------- 
+Menu:
+ - MainMenu / File / Open              :  load working process from file (default extension is .spv)
+ - MainMenu / File / Save              :  save working process to latest file with latest options 
+ - MainMenu / File / Save as           :  save working process to latest file
+                                          (with choice of preferences)
+ - MainMenu / File / Import spectrum   :  import spectrum from file 
+                                          (can be either ascii '.dat' or '.fits')                                        
+ - MainMenu / File / Export spectrum   :  export spectrum to file 
+                                          (ascii only)
+ - MainMenu / File / Export data       :  export various type of data (continuum, lines, etc)
+                                          (choice by folded menu) 
+ - MainMenu / File / Import list       :  import list of spectra from file with paths
+                                          (lines in file can be commented by '!' or '#' or '%')                                                                                   
+ - MainMenu / File / Import folder     :  import all files as a list from selected folder
+ - MainMenu / File / Export list       :  <<not-worked>>
+ - MainMenu / File / Import list       :  import list of spectra from file with paths                                          
+  --------------------------------------------------------------------------------
+ - MainMenu / Lines / H2 lines              :  load working process from file
+
+
+--------------------------------------------------------------------------------
+Some Key Actions:
+
+Loading / Saving / Importing / Exporting data:
+ - see avaliable functions in "File" Menu
+ - it is possible to Import spectra / load File by drag and drop method
+     NB: Spectrum will be added to existing 
+     
+Zooming / Shifting spectral window:
+There are several options to do this: 
+ - Shifting: Moving mouse with hilding left mouse click
+ - Zooming: Moving mouse with holding right mouse click.
+ - Zooming: zoom to region using pressed z key.
+ - Zooming: using mouse Wheel.  
+                                                                              
+
+--------------------------------------------------------------------------------
+Console:
+There is a console in the right bottom part of the main window.
+This console is used to input/output. 
+
+The list of commands:
+>>> y <min> <max>         :  set scale y axis to (<min>, <max>) values
+>>> x <min> <max>         :  set scale y axis to (<min>, <max>) values
+>>> rescale y <factor>    :  rescale y of the spectrum by <factor>. It rescaling spectrum only in shown window  
+>>> rescale err <factor>  :  rescale err of the spectrum by <factor>. It rescaling spectrum only in shown window
+>>> z <value>             :  set the absorption redshift to <value>
+>>> load <name>           :  load file with <name>.sss from the data/template folder
+>>> save <name>           :  save file with <name>.sss from the data/template folder
+>>> <species>             :  print in the console the atomic lines of <species>, eg FeII, OI, HI, etc
+>>> show FeII             :  show indicators of FeII lines in plot window
+>>> show H2 <x>           :  show spectral lines of H2. if <x> < 100 then show J=<x> level. if <x> > 100 from J with E_J (in K) < <x>
+>>> show all              :  show all atomic data loaded in spectral line database, including atomic data from the ground levels only
+>>> show full             :  show all atomic data loaded in spectral line database, including all levels
+>>> hide FeII             :  remove indicators of FeII lines in plot window
+>>> hide all              :  remove all indicators of spectral lines   
+>>> fit                   :  fit using Levenberg-Marquardt algorithm
+>>> fitcomp               :  fit only selected component in the fit model
+>>> fitmcmc               :  fit using MCMC
+>>> fitcont               :  fit only continuum, specified by chebyshev polinomials
+>>> logN <species> <list> :  summed column densities of given <species>. If <list> is given use only component in the list, else summed over all components in fit model
+>>> lines save            :  save highlighted lines indicators to data/lines/saved.dat file
+>>> lines load <name>     :  save highlighted lines indicators to 'data/lines/<name>.dat'. If name is not specified use data/lines/saved.dat file
+>>> lines all             :  highlight all lines with shown indicators
+>>> lines none            :  unhighlight all lines      
+>>> ston                  :  return ston ratios in the selected regions. (how to select regions see Key command 'r')                                       

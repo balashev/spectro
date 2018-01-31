@@ -1,0 +1,21 @@
+SII
+show SII
+show CII
+show MnII
+MnII
+show MgII
+show SiIV
+show CI
+hide all
+show CII*
+show FeI
+x 3500 4500
+SiII
+show H2 0 1
+show all
+CrII
+ArI
+40ArI
+show H2 0 1
+show FeII
+show HD

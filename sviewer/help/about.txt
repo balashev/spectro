@@ -1,0 +1,6 @@
+SViewer - view and fit spectra    
+
+version: 0.1
+created by: Serj Balashev
+licence: GPL?
+dependensies: PyQT, pyqtgraph, mendeleev, emcee, lmfit, ChainConsumer, ...

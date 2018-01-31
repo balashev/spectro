@@ -1,0 +1,263 @@
+Alex Ignácio da Silva	ignacioalex@yahoo.com
+
+last change: July 10, 2000.
+
+Always enter the atomic data immediately after the symbol # ;
+any comments inserted before this symbol will be ignored by the routine.
+
+Name of atom or ion this atomic data set refers to (up to 10 characters):
+#
+SiII
+
+Number of levels that belong to the ground term:
+#
+2
+
+Number of levels covered in this atomic data:
+#
+11
+
+Energy levels and statistical weights:
+(one by line, from lowest to highest)
+(only the first two numbers are read by the subroutine)
+
+source: 
+
+      W. C. Martin and R. Zalubas, 1983: J. Phys. Chem. Ref. Data 12, 323 . 
+
+E [cm^-1]	g(i)	i	level
+#
+0.0		2	1	3s2 3p 2P1/2o	
+287.24	4	2	3s2 3p 2P3/2o
+42824.29	2	3	3s 3p2 4P1/2
+42932.62	4	4	3s 3p2 4P3/2
+43107.91	6	5	3s 3p2 4P5/2
+55309.35	4	6	3s 3p2 2D3/2
+55325.18	6	7	3s 3p2 2D5/2
+65500.47	2	8	3s2 4s 2S1/2
+76665.35	2	9	3s 3p2 2S1/2
+79338.50	4	10	3s2 3d 2D3/2
+79355.02	6	11	3s2 3d 2D5/2
+
+Transition probabilities:
+(one by line)
+(there's no need to enter null probabilities)
+
+source:
+
+	2P3/2 - 2P1/2 taken from:
+	H. Nussbaumer, A&A 58, 291 (1977)
+
+	4PJ - 2PJ' taken from:
+	Anthony G. Calamai, Peter L. Smith and S. D. Bergeson, ApJ 415, L59 (1993)
+
+	other allowed transitions taken from:
+	Nahar, S.N., 1998, ADNDT, 68, 183
+
+number of transitions listed
+j	i	Aij [s^-1]
+#
+16
+1	2	2.17E-4
+1	3	5.2E3
+2	3	4.41E3
+1	4	1.E1
+2	4	1.22E3
+2	5	2.46E3
+1	6	2.507E+06
+2	6	4.936E+05
+2	7	2.964E+06
+1	8	3.837E+08
+2	8	7.573E+08
+1	9	3.301E+08
+2	9	6.528E+08
+1	10	2.492E+09
+2	10	4.930E+08
+2	11	2.960E+09
+
+Transitions involving the ground term and higher excited levels:
+(SORTED BY Ej)
+(The inclusion of a level connected to only one of the ground-state levels does not change
+ the relative population ratios. That level is ignored by the program, anyway.)
+
+source:
+
+	Nahar, S.N., 1998, ADNDT, 68, 183
+	
+	(wavelength range: 803-1818 Å)
+
+number of transitions listed (may be zero)
+Ej [cm^-1]	g(j)	i	Aji [s^-1]
+#
+39
+55309.35	4	1	2.507E+06	
+55309.35	4	2	4.936E+05	
+55325.18	6	2	2.964E+06	
+65500.47	2	1	3.837E+08	
+65500.47	2	2	7.573E+08	
+76665.35	2	1	3.301E+08	
+76665.35	2	2	6.528E+08	
+79338.50	4	1	2.492E+09	
+79338.50	4	2	4.930E+08	
+79355.02	6	2	2.960E+09	
+83801.95	2	1	2.725E+09	
+83801.95	2	2	1.349E+09	
+84004.26	4	1	6.863E+08	
+84004.26	4	2	3.396E+09	
+97972.09	2	1	9.322E+07	
+97972.09	2	2	1.848E+08	
+101023.05	4	1	5.518E+08	
+101023.05	4	2	1.094E+08	
+101024.35	6	2	6.565E+08	
+111184.46	2	1	4.612E+07	
+111184.46	2	2	9.153E+07	
+112394.56	4	1	1.719E+08	
+112394.56	4	2	3.411E+07	
+112394.72	6	2	2.047E+08	
+117914.80	2	1	2.595E+07	
+117914.80	2	2	5.152E+07	
+118522.86	4	1	7.477E+07	
+118522.86	4	2	1.485E+07	
+118522.93	6	2	8.908E+07	
+121814.38	2	1	1.595E+07	
+121814.38	2	2	3.167E+07	
+122163.48	4	1	3.906E+07	
+122163.48	4	2	7.757E+06	
+122163.54	6	2	4.654E+07	
+124276.70	2	1	1.049E+07	
+124276.70	2	2	2.083E+07	
+124495.70	4	1	2.291E+07	
+124495.70	4	2	4.551E+06	
+124495.70001	6	2	2.731E+07	
+
+
+Number of collision partners (may be zero):
+#
+5
+
+Enter the collision rates, except for electrons, where the Maxwellian-averaged
+collision strengths should be entered instead.
+(in that case the collision partner name entered should be exactly "electron")
+(the rates corresponding to transitions not entered are automatically set to zero)
+
+source:
+
+	Dufton, P.L. and Kingston, A.E. 1991: MNRAS 248, 827
+	(levels 8-11 are connected only to the ground levels, 1-2)
+
+collision partner name (up to 10 characters)
+number n of levels included in collisions with this partner (always the first n lower levels)
+total number of interpolations listed
+partial number of interpolations	number of points in this interpolation set
+temperature values [K]
+i	j	gamma(i,j)
+..............................
+partial number of interpolations	number of points in this interpolation set
+temperature values [K]
+i	j	gamma(i,j)
+..............................
+#
+electron
+11
+29
+29	6
+		3.981071705534980E+03	6.309573444801940E+03	1.000000000000000E+04	1.584893192461110E+04	2.511886431509590E+04	3.981071705534970E+04	
+2	1	5.58E+00	5.61E+00	5.70E+00	5.79E+00	5.75E+00	5.47E+00	
+3	1	5.58E-01	5.42E-01	5.16E-01	4.84E-01	4.49E-01	4.13E-01	
+3	2	4.42E-01	4.24E-01	4.02E-01	3.78E-01	3.52E-01	3.23E-01	
+4	1	8.44E-01	8.19E-01	7.80E-01	7.31E-01	6.80E-01	6.26E-01	
+4	2	1.15E+00	1.11E+00	1.05E+00	9.90E-01	9.21E-01	8.43E-01	
+4	3	5.03E+00	4.81E+00	4.51E+00	4.14E+00	3.73E+00	3.33E+00	
+5	1	5.81E-01	5.61E-01	5.34E-01	5.04E-01	4.71E-01	4.32E-01	
+5	2	2.35E+00	2.30E+00	2.19E+00	2.06E+00	1.92E+00	1.76E+00	
+5	3	1.68E+00	1.68E+00	1.67E+00	1.63E+00	1.51E+00	1.32E+00	
+5	4	7.46E+00	7.26E+00	6.94E+00	6.53E+00	6.10E+00	5.69E+00	
+6	1	2.77E+00	2.76E+00	2.74E+00	2.66E+00	2.49E+00	2.24E+00	
+6	2	3.50E+00	3.49E+00	3.48E+00	3.41E+00	3.23E+00	2.93E+00	
+6	3	1.20E+00	1.21E+00	1.20E+00	1.14E+00	1.04E+00	9.27E-01	
+6	4	1.84E+00	1.87E+00	1.85E+00	1.76E+00	1.62E+00	1.44E+00	
+6	5	1.38E+00	1.40E+00	1.40E+00	1.35E+00	1.27E+00	1.15E+00	
+7	1	2.45E+00	2.45E+00	2.44E+00	2.38E+00	2.23E+00	2.00E+00	
+7	2	6.90E+00	6.86E+00	6.79E+00	6.55E+00	6.05E+00	5.35E+00	
+7	3	6.43E-01	6.54E-01	6.53E-01	6.33E-01	5.93E-01	5.39E-01	
+7	4	1.84E+00	1.87E+00	1.86E+00	1.78E+00	1.65E+00	1.49E+00	
+7	5	4.14E+00	4.20E+00	4.16E+00	3.96E+00	3.64E+00	3.25E+00	
+7	6	6.09E+00	5.99E+00	5.92E+00	5.83E+00	5.67E+00	5.45E+00	
+8	1	1.25E+00	1.24E+00	1.20E+00	1.11E+00	9.97E-01	8.84E-01	
+8	2	2.50E+00	2.49E+00	2.41E+00	2.25E+00	2.04E+00	1.84E+00	
+9	1	6.65E-01	7.66E-01	8.40E-01	8.87E-01	9.17E-01	9.39E-01	
+9	2	1.33E+00	1.54E+00	1.69E+00	1.79E+00	1.87E+00	1.93E+00
+10	1	3.10E+00	3.23E+00	3.38E+00	3.62E+00	3.92E+00	4.33E+00	
+10	2	2.14E+00	2.12E+00	2.12E+00	2.18E+00	2.25E+00	2.36E+00
+11	1	1.23E+00	1.16E+00	1.09E+00	1.02E+00	9.60E-01	8.98E-01	
+11	2	6.41E+00	6.58E+00	6.75E+00	7.11E+00	7.49E+00	8.03E+00	
+
+source: 
+
+	Bely, O. & Faucher, P., 1970: A&A 6, 88
+
+collision partner name (up to 10 characters)
+number n of levels included in collisions with this partner (always the first n lower levels)
+total number of interpolations listed
+partial number of interpolations	number of points in this interpolation set
+temperature values [K]
+i	j	q(i->j) [cm^3 s^-1]
+..............................
+partial number of interpolations	number of points in this interpolation set
+temperature values [K]
+i	j	q(i->j) [cm^3 s^-1]
+..............................
+#
+proton
+2
+1
+1	13
+		10000.	20000.	30000.	40000.	50000.	60000.	70000.	80000.	100000.	120000.	140000.	170000.		200000.	
+1	2	3.41E-09	1.49E-08	2.48E-08	3.22E-08	3.73E-08	4.10E-08	4.34E-08	4.50E-08	4.64E-08	4.63E-08	4.53E-08	4.30E-08	4.04E-08	
+
+source: 
+
+	E. Roueff, 1990: A&A 234, 567
+
+collision partner name (up to 10 characters)
+number n of levels included in collisions with this partner (always the first n lower levels)
+total number of interpolations listed
+partial number of interpolations	number of points in this interpolation set
+temperature values [K]
+i	j	q(i->j) [cm^3 s^-1]
+..............................
+partial number of interpolations	number of points in this interpolation set
+temperature values [K]
+i	j	q(i->j) [cm^3 s^-1]
+..............................
+#
+H0
+2
+1
+1	12
+		100.	200.	300.	400.	500.	600.	700.	800.	900.	1000.	1500.	2000.	
+1	2	1.6E-11	1.4E-10	3.0E-10	4.6E-10	6.1E-10	7.4E-10	8.5E-10	9.57E-10	1.05E-09	1.14E-09	1.5E-09	1.8E-09	
+
+source:  !!!!!!!!!! Note this rates is from C+ (see meudon code description) !!!!!!!!!!!!!!
+
+	L Wiesenfeld and P F Goldsmith, 2014: ApJ 780, 183
+
+#
+para-H2
+2
+1
+1	7
+		10.	20.	50.	100.	200.	300.	500.	
+2	1	4.36e-10 4.53e-10 4.63e-10 4.72e-10 5.13e-10 5.55e-10 6.01e-10
+
+source:
+
+	L Wiesenfeld and P F Goldsmith, 2014: ApJ 780, 183
+
+#
+ortho-H2
+2
+1
+1	7
+		10.	20.	50.	100.	200.	300.	500.	
+2	1	5.29e-10 5.33e-10 5.37e-10 5.45e-10 5.62e-10 5.71e-10 5.79e-10

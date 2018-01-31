@@ -1,0 +1,48 @@
+Absorption line analysis:
+
+1. Load spectrum or list of spectra
+   a. Load the 
+   b. Set the resolution of the spectrum (in the last column), by pressing <F3> or menu View/Exposures
+    
+2. Construct continuum:
+   a. B-splain:
+       to add points for B-splain: 
+          - mouse right click while <b> key is hold.  
+          - short press <b> key while fixed mouse
+       to remove points for B-splain:
+          - hold <b> key. Choose to region using Left button of mouse
+          - hold <b> key. Press Right Button of Mouse. The closer to cursor position splain point will be removed.
+2'. Normalize the spectrum (unnecessary, but reasonable):
+   a. Pressing <n> button or Normalize button in the bottom panel - will switch between Normalize and Nonnormalized view
+             
+3. Construct fit model.
+   a. Press Ctrl+f.
+   b. Choose parameters in opened window
+   c. Add absorption system by pressing Add System
+   d. Add species to system by typing species name (like OI, H2j0, e.t.c.) or select in <add species> window. 
+   e. Select appropriate intervals of min, max for the fitting parameters, e.g. z, b, N, e.t.c
+    
+4. Fit:
+   press Fit button at the bottom panel, or in the Fit Menu.
+
+5. Made figures:
+   a. Press Ctrl + L or Main Menu / View / Plot lines
+   b. Choose lines or regions:
+      line can be seleted by
+         - double click on line indicator
+         - writing in the window at right-hand side in Plot lines window
+         - choosing from the list at the bottom of right-hand side
+      selected lines will be highlighted by red color
+      you can specify yaxis scale for specific line just adding it to the line, like "FeI2434 0.5 1.2"  
+      
+   c. Set parameters of Matplotlib figures
+-----------------------------
+Optional:
+
+2' (not worked). Working with regions:
+- Region is the wavelenght range that can be collapsed to reduced unused wavelenght range
+- To construct region press <r> Key and select region by left mouse button
+- Region can be adjusted by moving its boundaries, or gragged by mouse when SHIFT is pressed
+- To collapse/expand region use left mouse button double click.
+- To remove region click on it when pressing CTRL. 
+

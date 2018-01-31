@@ -1,0 +1,331 @@
+Alex Ignácio da Silva	ignacioalex@yahoo.com
+
+last change: March 19, 2000.
+
+Always enter the atomic data immediately after the symbol # ;
+any comments inserted before this symbol will be ignored by the routine.
+
+Name of atom or ion this atomic data set refers to (up to 10 characters):
+#
+OI
+
+Number of levels that belong to the ground term:
+#
+3
+
+Number of levels covered in this atomic data:
+#
+5
+
+Energy levels and statistical weights:
+(one by line, from lowest to highest)
+(only the first two numbers are read by the subroutine)
+
+source:
+
+	Tables of Spectra of Hydrogen, Carbon, Nitrogen, and Oxygen Atoms and Ions
+	C.E. Moore, edited by J.W. Gallagher
+	CRC Handbook of Chemistry and Physics, Edition 76 (CRC Press, Boca Raton, FL), 336 pp. (1993) 
+
+E [cm^-1]	g(i)	i	level
+#
+0.0		5	1	2s2 2p4 3P2
+158.265	3	2	2s2 2p4 3P1
+226.977	1	3	2s2 2p4 3P0
+15867.862	5	4	2s2 2p4 1D2
+33792.583	1	5	2s2 2p4 1S0
+
+
+Transition probabilities:
+(one by line)
+(there's no need to enter null probabilities)
+
+source:
+ 
+	M.E. Galavís, C. Mendoza and C.J.Zeippen, 1997: A&AS 123, 159
+	(Iron Project calculation)
+
+number of transitions listed
+j	i	Aij [s^-1]
+#
+9
+1	2	8.865E-5
+1	3	1.275E-10
+2	3	1.772E-5
+1	4	6.535E-3
+2	4	2.111E-3
+3	4	6.388E-7
+1	5	2.945E-4
+2	5	7.909E-2
+4	5	1.124E0
+
+
+Transitions involving the ground term and higher excited levels:
+(SORTED BY Ej)
+(The inclusion of a level connected to only one of the ground-state levels does not change
+ the relative population ratios. That level is ignored by the program, anyway.)
+
+source:
+
+	Allowed transitions listed in Verner et al. 1996: Atomic Data Nucl. Data Tables 64, 1
+	(based on Opacity Project calculations)
+	
+	(wavelength range: 737-1307 Å)
+
+number of transitions listed (may be zero)
+Ej [cm^-1]	g(j)	i	Aji [s^-1]
+#
+135
+76794.798	3	1	3.30E+08	
+76794.798	3	2	1.97E+08	
+76794.798	3	3	6.54E+07	
+96225.049	3	1	9.31E+07	
+96225.049	3	2	5.56E+07	
+96225.049	3	3	1.85E+07	
+97488.378	3	1	1.99E+06	
+97488.378	3	2	2.97E+07	
+97488.378	3	3	3.95E+07	
+97488.448	5	1	1.79E+07	
+97488.448	5	2	5.35E+07	
+97488.538	7	1	7.15E+07	
+101135.407	7	1	2.19E+08	
+101147.526	5	1	5.48E+07	
+101147.526	5	2	1.64E+08	
+101155.422	3	1	6.09E+06	
+101155.422	3	2	9.12E+07	
+101155.422	3	3	1.21E+08	
+102411.995	3	1	3.81E+07	
+102411.995	3	2	2.27E+07	
+102411.995	3	3	7.57E+06	
+102908.374	7	1	6.56E+07	
+102908.443	5	1	1.63E+07	
+102908.443	5	2	4.86E+07	
+102908.489	3	1	1.81E+06	
+102908.489	3	2	2.70E+07	
+102908.489	3	3	3.59E+07	
+105165.232	3	1	1.93E+07	
+105165.232	3	2	1.15E+07	
+105165.232	3	3	3.82E+06	
+105409.008	7	1	2.77E+07	
+105409.008	5	1	6.94E+06	
+105409.008	3	1	7.72E+05	
+105409.008	5	2	2.07E+07	
+105409.008	3	2	1.15E+07	
+105409.008	3	3	1.53E+07	
+106627.934	3	1	1.10E+07	
+106627.934	3	2	6.54E+06	
+106627.934	3	3	2.18E+06	
+106765.803	7	1	1.64E+07	
+106765.803	5	1	4.11E+06	
+106765.803	3	1	4.56E+05	
+106765.803	5	2	1.23E+07	
+106765.803	3	2	6.81E+06	
+106765.803	3	3	9.06E+06	
+107497.224	3	1	6.83E+06	
+107497.224	3	2	4.08E+06	
+107497.224	3	3	1.36E+06	
+107582.777	7	1	1.05E+07	
+107582.777	5	1	2.63E+06	
+107582.777	3	1	2.92E+05	
+107582.777	5	2	7.85E+06	
+107582.777	3	2	4.36E+06	
+107582.777	3	3	5.82E+06	
+108056.0	3	1	4.54E+06	
+108056.0	3	2	2.72E+06	
+108056.0	3	3	9.02E+05	
+108114.0	7	1	7.18E+06	
+108114.0	5	1	1.79E+06	
+108114.0	3	1	1.99E+05	
+108114.0	5	2	5.36E+06	
+108114.0	3	2	2.96E+06	
+108114.0	3	3	3.93E+06	
+108436.3	3	1	3.16E+06	
+108436.3	3	2	1.89E+06	
+108436.3	3	3	6.30E+05	
+108476.7	7	1	5.06E+06	
+108476.7	5	1	1.27E+06	
+108476.7	3	1	1.41E+05	
+108476.7	5	2	3.78E+06	
+108476.7	3	2	2.10E+06	
+108476.7	3	3	2.79E+06	
+108705.5	3	1	2.31E+06	
+108705.5	3	2	1.38E+06	
+108705.5	3	3	4.58E+05	
+108736.1	7	1	3.71E+06	
+108736.1	5	1	9.31E+05	
+108736.1	3	1	1.03E+05	
+108736.1	5	2	2.77E+06	
+108736.1	3	2	1.54E+06	
+108736.1	3	3	2.05E+06	
+113910.957	5	1	5.10E+08	
+113910.957	5	2	1.69E+08	
+113921.391	3	1	2.84E+08	
+113921.391	3	2	1.69E+08	
+113921.391	3	3	2.25E+08	
+113927.534	1	2	6.76E+08	
+123296.777	5	1	2.25E+07	
+123296.777	5	2	7.46E+06	
+123355.512	3	1	1.25E+07	
+123355.512	3	2	7.47E+06	
+123355.512	3	3	9.94E+06	
+123387.339	1	2	2.99E+07	
+126266.896	5	1	4.94E+08	
+126266.896	5	2	1.64E+08	
+126340.225	3	1	2.75E+08	
+126340.225	3	2	1.65E+08	
+126340.225	3	3	2.19E+08	
+126383.751	1	2	6.60E+08	
+129970.000	5	1	1.61E+08	
+129970.000	5	2	5.35E+07	
+129979.384	3	1	8.96E+07	
+129979.384	3	2	5.35E+07	
+129979.384	3	3	7.11E+07	
+129984.553	1	2	2.14E+08	
+132311.1	5	1	6.97E+07	
+132311.1	5	2	2.31E+07	
+132316.2	3	1	3.87E+07	
+132316.2	3	2	2.31E+07	
+132316.2	3	3	3.08E+07	
+133622.0	5	1	3.97E+07	
+133622.0	5	2	1.32E+07	
+133626.5	3	1	2.20E+07	
+133626.5	3	2	1.32E+07	
+133626.5	3	3	1.76E+07	
+134421.4	5	1	2.57E+07	
+134421.4	5	2	8.58E+06	
+134426.5	3	1	1.42E+07	
+134426.5	3	2	8.53E+06	
+134426.5	3	3	1.13E+07	
+134943.8	5	1	1.80E+07	
+134943.8	5	2	5.97E+06	
+134947.1	3	1	9.98E+06	
+134947.1	3	2	5.96E+06	
+134947.1	3	3	7.95E+06	
+135303.5	5	1	1.33E+07	
+135303.5	5	2	4.42E+06	
+135305.0	3	1	7.39E+06	
+135305.0	3	2	4.42E+06	
+135305.0	3	3	5.88E+06	
+135560.3	5	1	1.04E+07	
+135560.3	5	2	3.46E+06	
+135562.2	3	1	5.76E+06	
+135562.2	3	2	3.45E+06	
+135562.2	3	3	4.60E+06	
+
+Number of collision partners (may be zero):
+#
+4
+
+Enter the collision rates, except for electrons, where the Maxwellian-averaged
+collision strengths should be entered instead.
+(in that case the collision partner name entered should be exactly "electron")
+
+source:
+
+	for the 3PJ-3PJ' transitions:
+	Bell, K.L., Berrington, K.A. & Thomas, M.R.J., 1998: MNRAS 293, L83
+
+	for the 3P-1D and 3P-1S transitions:
+	Berrington, K.A. & Burke, P.G., 1981: Planet. Space Sci. 29, 377
+	(transformed to 3PJ according to the statistical weights, e.g.: 
+a							3PJ-1D = (2J+1)/9 * 3P-1D)
+
+collision partner name (up to 10 characters)
+number n of levels included in collisions with this partner (always the first n lower levels)
+total number of interpolations listed
+partial number of interpolations	number of points in this interpolation set
+temperature values [K]
+i	j	gamma(i,j)
+..............................
+partial number of interpolations	number of points in this interpolation set
+temperature values [K]
+i	j	gamma(i,j)
+..............................
+#
+electron
+5
+10
+3	7
+		50.		100.		200.		500.		1000.		2000.		3000.	
+2	1	8.34E-04	1.26E-03	1.79E-03	2.58E-03	3.35E-03	4.61E-03	5.92E-03	
+3	1	3.23E-04	5.00E-04	7.34E-04	1.12E-03	1.49E-03	2.08E-03	2.64E-03	
+3	2	2.74E-07	8.92E-07	2.78E-06	1.05E-05	2.38E-05	4.62E-05	6.98E-05	
+7	7
+		500.	1000.	5000.	10000.	20000.	50000.	100000.
+4	1	3.22222222222222E-03	8.38888888888889E-03	6.88888888888889E-02	1.47777777777778E-01	2.78333333333333E-01	5.23333333333333E-01	7.33333333333333E-01	
+4	2	1.93333333333333E-03	5.03333333333333E-03	4.13333333333333E-02	8.86666666666667E-02	1.67000000000000E-01	3.14000000000000E-01	4.40000000000000E-01	
+4	3	6.44444444444444E-04	1.67777777777778E-03	1.37777777777778E-02	2.95555555555556E-02	5.56666666666667E-02	1.04666666666667E-01	1.46666666666667E-01	
+5	1	3.61111111111111E-04	1.02222222222222E-03	8.50000000000000E-03	1.80000000000000E-02	3.37222222222222E-02	6.27777777777778E-02	8.77777777777778E-02	
+5	2	2.16666666666667E-04	6.13333333333333E-04	5.10000000000000E-03	1.08000000000000E-02	2.02333333333333E-02	3.76666666666667E-02	5.26666666666667E-02	
+5	3	7.22222222222222E-05	2.04444444444444E-04	1.70000000000000E-03	3.60000000000000E-03	6.74444444444444E-03	1.25555555555556E-02	1.75555555555556E-02	
+5	4	0.0221	0.0310	0.0732	0.1050	0.1480	0.2380	0.3340	
+
+source:
+
+	Péquignot, D., 1990: A&A 231, 499
+	(analytical fits for 3PJ - 3PJ' transitions)
+
+collision partner name (up to 10 characters)
+number n of levels included in collisions with this partner (always the first n lower levels)
+total number of interpolations listed
+partial number of interpolations	number of points in this interpolation set
+temperature values [K]
+i	j	q(i->j) [cm^3 s^-1]
+..............................
+partial number of interpolations	number of points in this interpolation set
+temperature values [K]
+i	j	q(i->j) [cm^3 s^-1]
+..............................
+#
+proton
+3
+3
+3	2
+		1.E30		1.E30
+2	1	1.E-30	1.E-30
+3	1	1.E-30	1.E-30
+3	2	1.E-30	1.E-30
+
+source:
+
+	for the 3PJ-3PJ' transitions:
+	Launay, J.M. & Roueff, E., 1977: A&A 56, 289
+
+	for the 3P-1D transitions:
+	Federman, S.R. & Shipsey, E.J., 1983: ApJ 269, 791
+	(transformed to 3PJ according to the statistical weights: 
+a							3PJ-1D = (2J+1)/9 * 3P-1D)
+#
+H0
+4
+6
+1	14
+100.	150.	200.	250.	300.	350.	400.	450.	500.	600.	700.	800.	900.	1000.	
+1	2	5.6E-12		1.66E-11	2.98E-11	4.37E-11	5.74E-11	7.06E-11	8.33E-11	9.54E-11	1.069E-10	1.28E-10	1.48E-10	1.66E-10	1.83E-10	1.99E-10	
+1	13
+150.	200.	250.	300.	350.	400.	450.	500.	600.	700.	800.	900.	1000.	
+1	3	1.3E-12		2.9E-12		4.9E-12		7.1E-12		9.4E-12		1.18E-11	1.42E-11	1.66E-11	2.13E-11	2.57E-11	3.00E-11	3.41E-11	3.80E-11	
+1	15
+50.	100.	150.	200.	250.	300.	350.	400.	450.	500.	600.	700.	800.	900.	1000.	
+2	3	3.9E-12		1.33E-11	2.13E-11	2.81E-11	3.39E-11	3.92E-11	4.40E-11	4.85E-11	5.28E-11	5.69E-11	6.48E-11	7.21E-11	7.91E-11	8.58E-11	9.22E-11	
+3	8
+		1000.	2000.	3000.	4000.	5000.	6000.	8000.	10000.
+4	1	2.88888888888889E-13	3.55555555555556E-13	3.94444444444444E-13	4.27777777777778E-13	4.50000000000000E-13	4.66666666666667E-13	4.88888888888889E-13	5.05555555555556E-13	
+4	2	1.73333333333333E-13	2.13333333333333E-13	2.36666666666667E-13	2.56666666666667E-13	2.70000000000000E-13	2.80000000000000E-13	2.93333333333333E-13	3.03333333333333E-13	
+4	3	5.77777777777778E-14	7.11111111111111E-14	7.88888888888889E-14	8.55555555555555E-14	9.00000000000000E-14	9.33333333333333E-14	9.77777777777778E-14	1.01111111111111E-13	
+
+
+source: 
+
+	Monteiro, T.S. & Flower, D.R., 1987: MNRAS 228, 101
+
+#
+helium
+3
+3
+3	10
+100.	200.	300.	400.	500.	600.	700.	800.	900.	1000.	
+3	2	1.44E-12	4.60E-12	8.55E-12	1.28E-11	1.71E-11	2.15E-11	2.59E-11	3.01E-11	3.43E-11	3.86E-11	
+3	1	5.78E-11	9.92E-11	1.32E-10	1.60E-10	1.85E-10	2.06E-10	2.25E-10	2.45E-10	2.62E-10	2.77E-10	
+2	1	3.80E-11	6.15E-11	8.09E-11	9.96E-11	1.17E-10	1.31E-10	1.45E-10	1.60E-10	1.74E-10	1.88E-10	
+
