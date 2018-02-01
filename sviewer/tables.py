@@ -119,6 +119,9 @@ class expTableWidget(TableWidget):
         if key == Qt.Key_F3:
             self.close()
 
+        if key == Qt.Key_Delete:
+            self.parent.s.remove(self.parent.s.ind)
+
     def row_clicked(self):
         #self.parent.s.ind = self.currentItem().row()
         #self.parent.s.redraw(self.currentItem().row())
@@ -255,7 +258,7 @@ class QSOlistTable(pg.TableWidget):
                     if 0:
                         ind = np.where((sdss['meta']['PLATE'] == int(plate)) & (sdss['meta']['FIBERID'] == int(fiber)))[0][0]
                         self.parent.importSpectrum(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'),
-                                                   data=[sdss['spec'][ind]['wave'], sdss['spec'][ind]['flux'],
+                                                   spec=[sdss['spec'][ind]['wave'], sdss['spec'][ind]['flux'],
                                                          sdss['spec'][ind]['sig']])
                     else:
                         print('C:/science/Noterdaeme/ESDLA/DR14/data/spSpec-{:}-{:05d}-{:04d}.fits'.format(MJD, int(plate), int(fiber)))
@@ -469,7 +472,7 @@ class QSOlistTable(pg.TableWidget):
                 ind = np.where(np.logical_and(sdss['meta']['FIBERID'] == int(self.cell_value('fiber')), sdss['meta']['PLATE'] == int(self.cell_value('plate'))))[0][0]
                 print(sdss['meta'][ind]['SPEC_FILE'].decode())
                 self.parent.importSpectrum(sdss['meta'][ind]['SPEC_FILE'].decode(),
-                                           data=[sdss['spec'][ind]['wave'], sdss['spec'][ind]['flux'],
+                                           spec=[sdss['spec'][ind]['wave'], sdss['spec'][ind]['flux'],
                                                  sdss['spec'][ind]['sig']])
                 mask = (sdss['spec'][ind]['wave'] != 0)
                 inter = interp1d(sdss['spec'][ind]['wave'][mask], sdss['spec'][ind]['co'][mask], bounds_error=False, fill_value='extrapolate')
@@ -655,7 +658,7 @@ class IGMspecTable(pg.TableWidget):
             ind = int(self.cell_value('ind'))
             print(ind, self.data['meta']['SPEC_FILE'][ind])
             print('IGMspec/'+self.cat+'/'+self.cell_value('SPEC_FILE'))
-            self.parent.importSpectrum('IGMspec/'+self.cat+'/'+self.cell_value('SPEC_FILE'), data=[self.data['spec'][ind]['wave'], self.data['spec'][ind]['flux'], self.data['spec'][ind]['sig']])
+            self.parent.importSpectrum('IGMspec/'+self.cat+'/'+self.cell_value('SPEC_FILE'), spec=[self.data['spec'][ind]['wave'], self.data['spec'][ind]['flux'], self.data['spec'][ind]['sig']])
             if self.cat == 'KODIAQ_DR1':
                 self.parent.s[-1].spec.raw.clean(min=-1, max=2)
             try:

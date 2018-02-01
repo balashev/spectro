@@ -1,6 +1,3 @@
-SII
-show SII
-show CII
 show MnII
 MnII
 show MgII
@@ -19,3 +16,6 @@ ArI
 show H2 0 1
 show FeII
 show HD
+FeII
+x 4000 5000
+FeII

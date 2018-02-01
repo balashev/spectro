@@ -238,7 +238,7 @@ def makeH2Stack(self, beta=-0.9, Nmin=16, Nmax=22, norm=0, load=True, draw=True)
     #spec = convolveflux(x, spec, res=1300, kind='direct')
     if draw:
         print(x, spec)
-        self.importSpectrum('mock_b={:.2f}_min={:}_max={:}'.format(beta, Nmin, Nmax), data=[x, spec], append=True)
+        self.importSpectrum('mock_b={:.2f}_min={:}_max={:}'.format(beta, Nmin, Nmax), spec=[x, spec], append=True)
     else:
         return x, spec
 
@@ -394,7 +394,7 @@ def makeHIStack(self, beta=-1.5, N_g=None, Nmin=20.0, Nmax=22.0, load=True, draw
 
     #spec = convolveflux(x, spec, res=800, kind='direct')
     if draw:
-        self.importSpectrum('mock_b={:.2f}_min={:}_max={:}'.format(beta, Nmin, Nmax), data=[x, spec], append=True)
+        self.importSpectrum('mock_b={:.2f}_min={:}_max={:}'.format(beta, Nmin, Nmax), spec=[x, spec], append=True)
     else:
         return x, spec
 

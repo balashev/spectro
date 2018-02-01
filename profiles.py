@@ -283,7 +283,7 @@ def convolveflux(l, f, res, vel=False, kind='astropy', verbose=False, debug=Fals
                         specified type of convolution:
                            'astropy'     : convolution from astropy package (for evenly spaced data)
                            'gauss'       : convolution with fixed gaussian function
-                           'resolution'  : convolution with fixed resolution
+                           'direct'      : brut force convolution (can be used for non evenly spaced data)
 
     returns:
         - fc        : float array, shape(N)

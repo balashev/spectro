@@ -578,6 +578,7 @@ class Spectrum():
             self.points_size = 15
             self.sm_pen = pg.mkPen(245, 0, 80)
             self.bad_brush = pg.mkBrush(252, 58, 38)
+            self.region_brush = pg.mkBrush(147, 185, 69, 60)
         else:
             if self.parent.showinactive:
                 self.view = self.parent.specview.replace('err', '')
@@ -586,6 +587,7 @@ class Spectrum():
                 self.points_size = 8 if self.parent.normview else 3
                 self.sm_pen = pg.mkPen(105, 30, 30, style=Qt.DashLine)
                 self.bad_brush = pg.mkBrush(252, 58, 38, 10)
+                self.region_brush = pg.mkBrush(92, 132, 232, 40)
             else:
                 return None
 
@@ -770,7 +772,6 @@ class Spectrum():
         self.mask.set(x=np.zeros_like(self.spec.raw.x, dtype=bool))
         self.bad_mask.set(x=np.isnan(self.spec.raw.y))
         self.set_res()
-        
 
     def update_fit(self):
         if len(self.fit.norm.x) > 0 and self.cont.n > 0 and self.active():
@@ -931,7 +932,7 @@ class Spectrum():
             self.regions = []
             for i, k in enumerate(range(0, len(ind), 2)):
                 self.regions.append(VerticalRegionItem([self.spec.x()[ind[k]], self.spec.x()[ind[k + 1]]],
-                                                       brush=pg.mkBrush(223, 193, 31, 40)))
+                                                       brush=self.region_brush))
                 # self.regions.append(pg.LinearRegionItem([self.spec.x()[ind[k]], self.spec.x()[ind[k+1]]], movable=False, brush=pg.mkBrush(100, 100, 100, 30)))
                 self.parent.vb.addItem(self.regions[-1])
 

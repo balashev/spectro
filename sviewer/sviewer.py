@@ -29,7 +29,7 @@ import threading
 
 from ..XQ100 import load_QSO
 from ..plot_spec import *
-from ..profiles import add_LyaForest, add_ext, add_ext_bump, add_LyaCutoff
+from ..profiles import add_LyaForest, add_ext, add_ext_bump, add_LyaCutoff, convolveflux
 from .console import *
 from .external import spectres
 from .fit_model import *
@@ -262,7 +262,8 @@ class plotSpectrum(pg.PlotWidget):
                         self.parent.fitResults.close()
 
             if event.key() == Qt.Key_Q:
-                self.parent.importSpectrum(r'D:\science\spectra_program\synthetic\synthetic\temp\fit.dat', append=True)
+                pass
+                #self.parent.importSpectrum(r'D:\science\spectra_program\synthetic\synthetic\temp\fit.dat', append=True)
 
             if event.key() == Qt.Key_U:
                 self.u_status = True
@@ -2113,16 +2114,22 @@ class rebinWidget(QWidget):
         self.exp_ind = self.parent.s.ind
         
     def addItems(self, parent):
-        self.fixednumber_item = self.addParent(parent, 'by bins', expanded=True)
-        self.fixedscale_item = self.addParent(parent, 'Fixed scale', expanded=True)
-        self.fixedres_item = self.addParent(parent, 'Fixed Resolution')
-        self.loglinear_item = self.addParent(parent, 'Log-linear scale')
-        self.fromfile_item = self.addParent(parent, 'From file')
-        self.convolve_item = self.addParent(parent, 'Convolve')
+        self.d = {'fixednumber': 'Merge bins', 'fixedscale': 'Fixed scale', 'fixedres': 'Fixed Resolution',
+             'loglinear': 'Log-linear scale', 'fromexp': 'From exposure', 'fromfile' : 'From file', 'convolve': 'Convolve'}
+        for k, v in self.d.items():
+            setattr(self, k+'_item', self.addParent(parent, v))
+            #getattr(self, k+'_item').itemExpanded[bool].connect(partial(self.collapseAll, k))
+
+        #self.fixednumber_item = self.addParent(parent, 'Merge bins', expanded=True)
+        #self.fixedscale_item = self.addParent(parent, 'Fixed scale')
+        #self.fixedres_item = self.addParent(parent, 'Fixed Resolution')
+        #self.loglinear_item = self.addParent(parent, 'Log-linear scale')
+        #self.fromfile_item = self.addParent(parent, 'From file')
+        #self.convolve_item = self.addParent(parent, 'Convolve')
         
         self.addChild(self.fixednumber_item, 0, 'binnum', 'Bin number', 2)
-        
-        firstbin = self.parent.s[self.parent.s.ind].spec.x()[0]
+
+        firstbin = self.parent.s[self.parent.s.ind].spec.x()[0] if len(self.parent.s) > 0 else 0
         self.addChild(self.fixedscale_item, 0, 'binsize', 'Bin size, A', 0.025)
         self.addChild(self.fixedscale_item, 1, 'zeropoint_bin', 'First bin, A', firstbin)
         
@@ -2133,13 +2140,26 @@ class rebinWidget(QWidget):
         self.addChild(self.loglinear_item, 0, 'binsize_log', 'step', 0.0001)
         self.addChild(self.loglinear_item, 1, 'zeropoint_log', 'First bin', np.log10(firstbin))
 
-        self.addChild(self.convolve_item, 0, 'resol', 'First bin', np.log10(firstbin))
-        
-        self.fromfile = QPushButton('load from file', self)
+        self.fromexpchoose = QComboBox(self)
+        for s in self.parent.s:
+            self.fromexpchoose.addItem(s.filename)
+        self.fromexpchoose.setCurrentIndex(self.parent.s.ind)
+        item = QTreeWidgetItem(self.fromexp_item, [''])
+        self.treeWidget.setItemWidget(item, 2, self.fromexpchoose)
+
+        self.fromfile = QPushButton('Load from file', self)
         self.fromfile.clicked[bool].connect(self.loadfromfile)
         item = QTreeWidgetItem(self.fromfile_item, [''])
-        #item = QTreeWidgetItem(self.fromfile, )
+        ##item = QTreeWidgetItem(self.fromfile, )
         self.treeWidget.setItemWidget(item, 1, self.fromfile)
+
+        self.addChild(self.convolve_item, 0, 'resol', 'Resolution', 50000)
+        self.addChild(self.convolve_item, 1, 'res_b', 'FWHM [km/s]', 6)
+
+        self.resol.textEdited.connect(partial(self.setResolution, 'resol'))
+        self.res_b.textEdited.connect(partial(self.setResolution, 'res_b'))
+
+        self.treeWidget.itemExpanded.connect(self.collapseAll)
         
     def addParent(self, parent, text, checkable=False, expanded=False):
         item = QTreeWidgetItem(parent, [text])
@@ -2152,7 +2172,6 @@ class rebinWidget(QWidget):
         item.setExpanded(expanded)
         return item
         
-    
     def addChild(self, parent, column, name, title, data):
         item = QTreeWidgetItem(parent, [title])
         setattr(self, name, QLineEdit())
@@ -2161,7 +2180,18 @@ class rebinWidget(QWidget):
         #item.setData(1, Qt.UserRole, data)
         return item
 
-    
+    def collapseAll(self, excl):
+        for k, v in self.d.items():
+            if getattr(self, k+'_item') is not excl:
+                self.treeWidget.collapseItem(getattr(self, k+'_item'))
+
+    def setResolution(self, item):
+        print(item)
+        if item == 'resol':
+            self.res_b.setText('{:.3f}'.format(299792.45 / float(self.resol.text())))
+        elif item == 'res_b':
+            self.resol.setText('{:.1f}'.format(299792.45 / float(self.res_b.text())))
+
     def loadfromfile(self):
         fname = QFileDialog.getOpenFileName(self, 'Import instrument function', '')
 
@@ -2170,7 +2200,7 @@ class rebinWidget(QWidget):
             
     def onExpChoose(self, index):
         self.exp_ind = index
-        firstbin = self.parent.s[self.exp_ind].spec.x[0]
+        firstbin = self.parent.s[self.exp_ind].spec.x()[0]
         self.zeropoint_bin.setText(str(firstbin))
         self.zeropoint_res.setText(str(firstbin))
         self.zeropoint_log.setText(str(np.log10(firstbin)))
@@ -2185,32 +2215,26 @@ class rebinWidget(QWidget):
         return np.sqrt(a.sum(1))
 
     def rebin(self):
-        if self.treeWidget.currentItem() == self.fixednumber_item:
+        if self.fixednumber_item.isExpanded():
             n = int(self.binnum.text())
             x = self.rebin_arr(self.parent.s[self.exp_ind].spec.x(), n)
             y = self.rebin_arr(self.parent.s[self.exp_ind].spec.y(), n)
             print(self.parent.s[self.exp_ind].spec.err()/self.parent.s[self.exp_ind].spec.y())
             err = y / self.rebin_err(self.parent.s[self.exp_ind].spec.y()/self.parent.s[self.exp_ind].spec.err(), n)
             
-            self.parent.s.append(Spectrum(self.parent, name='rebinned', data=[x, y, err]))
-            self.parent.s[-1].specClicked()
-            
-            self.close()
-            
-        if self.treeWidget.currentItem() == self.fixedscale_item:
+            self.parent.s.append(Spectrum(self.parent, name='rebinned '+str(self.exp_ind+1), data=[x, y, err]))
+
+        elif self.fixedscale_item.isExpanded():
             zero, binsize = float(self.zeropoint_bin.text()), float(self.binsize.text())
             num = int((self.parent.s[self.exp_ind].spec.x()[-1] - zero) / binsize)
             x = np.linspace(zero, zero + (num+1) * binsize, num)
             y, err = spectres.spectres(self.parent.s[self.exp_ind].spec.raw.x, self.parent.s[self.exp_ind].spec.raw.y, x,
                                                          spec_errs=self.parent.s[self.exp_ind].spec.raw.err)
 
-            self.parent.s.append(Spectrum(self.parent, name='rebinned', data=[x, y, err]))
+            self.parent.s.append(Spectrum(self.parent, name='rebinned '+str(self.exp_ind+1), data=[x, y, err]))
             self.parent.s[-1].Resolution = np.median(self.parent.s[-1])/(float(self.binsize.text()) * 2.5)
-            self.parent.s[-1].specClicked()
 
-            self.close()
-
-        elif self.treeWidget.currentItem() == self.fixedres_item:
+        elif self.fixedres_item.isExpanded():
             print('fixed res')
             zero = np.log10(float(self.zeropoint_res.text()))
             step = np.log10(1 + 1 / float(self.resolution.text()) / float(self.pp_fwhm.text()))
@@ -2221,20 +2245,45 @@ class rebinWidget(QWidget):
             y, err = spectres.spectres(self.parent.s[self.exp_ind].spec.raw.x, self.parent.s[self.exp_ind].spec.raw.y, x,
                               spec_errs=self.parent.s[self.exp_ind].spec.raw.err)
 
-            self.parent.s.append(Spectrum(self.parent, name='rebinned'))
+            self.parent.s.append(Spectrum(self.parent, name='rebinned '+str(self.exp_ind+1)))
             self.parent.s[-1].set_data([x, y, err])
-            self.parent.s[-1].Resolution = float(self.resolution.text())
-            self.parent.s[-1].specClicked()
-            self.close()
+            self.parent.s[-1].resolution = float(self.resolution.text())
 
-        elif self.treeWidget.currentItem() == self.loglinear_item:
+        elif self.loglinear_item.isExpanded():
             print('loglinear')
-            self.close()
-        elif self.treeWidget.currentItem() == self.fromfile_item:
+
+        elif self.fromexp_item.isExpanded():
+
+            ind = self.fromexpchoose.currentIndex()
+            lmin = np.max([self.parent.s[ind].spec.raw.x[0], self.parent.s[self.exp_ind].spec.raw.x[0]])
+            lmax = np.min([self.parent.s[ind].spec.raw.x[-1], self.parent.s[self.exp_ind].spec.raw.x[-1]])
+            mask = np.logical_and(self.parent.s[self.exp_ind].spec.raw.x >= lmin, self.parent.s[self.exp_ind].spec.raw.x <= lmax)
+            mask_r = np.logical_and(self.parent.s[ind].spec.raw.x >= self.parent.s[self.exp_ind].spec.raw.x[mask][0],
+                                    self.parent.s[ind].spec.raw.x <= self.parent.s[self.exp_ind].spec.raw.x[mask][-1])
+            x = self.parent.s[ind].spec.raw.x[mask_r][1:-1]
+            y, err = spectres(self.parent.s[self.exp_ind].spec.raw.x[mask], self.parent.s[self.exp_ind].spec.raw.y[mask],
+                                       x, spec_errs=self.parent.s[self.exp_ind].spec.raw.err[mask])
+            self.parent.s.append(Spectrum(self.parent, name='rebinned '+str(self.exp_ind+1)))
+            self.parent.s[-1].set_data([x, y, err])
+
+        elif self.fromfile_item.isExpanded():
             print('from file')
-            self.close()
-        
-        #self.close()
+
+        elif self.convolve_item.isExpanded():
+            x = self.parent.s[self.exp_ind].spec.x()
+            print(float(self.resol.text()))
+            y = convolveflux(x, self.parent.s[self.exp_ind].spec.y(), res=float(self.resol.text()), kind='direct')
+            err = convolveflux(x, self.parent.s[self.exp_ind].spec.err(), res=float(self.resol.text()), kind='direct')
+            self.parent.s.append(Spectrum(self.parent, name='convolved '+str(self.exp_ind+1)))
+            self.parent.s[-1].set_data([x, y, err])
+            if self.parent.s[self.exp_ind].resolution not in [0, None]:
+                self.parent.s[-1].resolution = 1 / np.sqrt(1 / float(self.resol.text())**2 + 1 / self.parent.s[self.exp_ind].resolution**2)
+            else:
+                self.parent.s[-1].resolution = float(self.resol.text())
+
+        self.parent.s.redraw()
+        self.parent.s[-1].specClicked()
+        self.close()
 
 class GenerateAbsWidget(QWidget):
     def __init__(self, parent):
@@ -3388,7 +3437,7 @@ class sviewer(QMainWindow):
             self.abs.redraw()
             self.statusBar.setText('Spectrum is imported from ' + fname[0])
     
-    def importSpectrum(self, filelist, data=None, header=0, dir_path='', scale_factor=1, append=False, corr=True):
+    def importSpectrum(self, filelist, spec=None, header=0, dir_path='', scale_factor=1, append=False, corr=True):
 
         if not append:
             for s in self.s:
@@ -3403,7 +3452,7 @@ class sviewer(QMainWindow):
             print(filename)
             s = Spectrum(self, name=filename)
 
-            if data is None:
+            if spec is None:
                 if ':' not in filename:
                     filename = dir_path+filename
                 if 'IGMspec' in filename:
@@ -3495,15 +3544,15 @@ class sviewer(QMainWindow):
                             print('aborted Hadi fits')
                 else:
                     try:
-                        args = filename.split()
+                        args = line.split()
                         print(args[0])
                         f, header = open(args[0], 'r'), 0
                         while f.readline().startswith('#'):
                             header += 1
                         data = np.genfromtxt(args[0], skip_header=header, unpack=True)
-                        data[1] *= scale_factor
-                        if len(data) > 2:
-                            data[2] *= scale_factor
+                        #data[1] *= scale_factor
+                        #if len(data) > 2:
+                        #    data[2] *= scale_factor
                         s.set_data(data)
 
                         if len(args) == 2:
@@ -3517,7 +3566,7 @@ class sviewer(QMainWindow):
                         print('aborted dat')
                         raise Exception
             else:
-                s.set_data(data)
+                s.set_data(spec)
 
             s.wavelmin = np.min(s.spec.raw.x)
             s.wavelmax = np.max(s.spec.raw.x)
@@ -3599,11 +3648,11 @@ class sviewer(QMainWindow):
 
         # correct error in the list given by parameters in the line
         for fl in flist:
-            if len(fl.split()) > 1:
+            if len(fl.split()) > 2:
                 if not any([x in fl for x in ['#', '!', '%']]):
                     for s in self.s:
                         if s.filename == fl.split()[0]:
-                            s.spec.raw.err *= float(fl.split()[1])
+                            s.spec.raw.err *= float(fl.split()[2])
 
 
         self.plot.vb.enableAutoRange()
@@ -4135,7 +4184,7 @@ class sviewer(QMainWindow):
                 print(ra, dec)
                 ind = np.argmin((sdss['meta']['RA_GROUP'] - ra) ** 2 + (sdss['meta']['DEC_GROUP'] - dec) ** 2)
             print(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'))
-            self.importSpectrum(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'), data=[sdss['spec'][ind]['wave'], sdss['spec'][ind]['flux'],
+            self.importSpectrum(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'), spec=[sdss['spec'][ind]['wave'], sdss['spec'][ind]['flux'],
                                              sdss['spec'][ind]['sig']])
 
             self.s[-1].resolution = int(sdss['meta'][ind]['R'])
