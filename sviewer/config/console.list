@@ -1,14 +1,3 @@
-show MnII
-MnII
-show MgII
-show SiIV
-show CI
-hide all
-show CII*
-show FeI
-x 3500 4500
-SiII
-show H2 0 1
 show all
 CrII
 ArI
@@ -18,4 +7,15 @@ show FeII
 show HD
 FeII
 x 4000 5000
+FeII
+MgII
+SIIv
+SiIV
+hide FeII
+CIV
+HI
+CIV
+OIV
+OVI
+show FeII
 FeII

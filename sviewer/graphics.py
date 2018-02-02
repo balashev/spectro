@@ -1026,7 +1026,7 @@ class Spectrum():
                             l.cf = -1
                             if self.parent.fit.cf_fit:
                                 for i in range(self.parent.fit.cf_num):
-                                    cf = getattr(self.parent.fit, 'cf'+str(i))
+                                    cf = getattr(self.parent.fit, 'cf_'+str(i))
                                     if (cf.addinfo == 'all' or sys.ind == int(cf.addinfo[3:])) and l.l*(1+l.z) > cf.min and l.l*(1+l.z) < cf.max:
                                         l.cf = i
                             if all:
@@ -1103,7 +1103,7 @@ class Spectrum():
                         cfs.append(line.cf)
                 cfs = np.array(cfs)
                 for i in np.unique(cfs[cfs > -1]):
-                    cf = getattr(self.parent.fit, 'cf' + str(i)).val
+                    cf = getattr(self.parent.fit, 'cf_' + str(i)).val
                     profile = np.zeros_like(x)
                     for k in np.where(cfs == i)[0]:
                         profile += self.fit_lines[k].profile
@@ -1211,7 +1211,7 @@ class Spectrum():
                         cfs.append(line.cf)
                 cfs = np.array(cfs)
                 for i in np.unique(cfs[cfs > -1]):
-                    cf = getattr(self.parent.fit, 'cf' + str(i)).val
+                    cf = getattr(self.parent.fit, 'cf_' + str(i)).val
                     profile = np.zeros_like(x)
                     for k in np.where(cfs == i)[0]:
                         profile += self.fit_lines[k].profile
@@ -1307,7 +1307,7 @@ class Spectrum():
                 cfs = np.array(cfs)
                 for i in np.unique(cfs):
                     if i > -1:
-                        cf = getattr(self.parent.fit, 'cf' + str(i)).val
+                        cf = getattr(self.parent.fit, 'cf_' + str(i)).val
                     else:
                         cf = 0
                     profile = np.zeros_like(x)

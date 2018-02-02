@@ -172,7 +172,7 @@ class fitModelWidget(QWidget):
         self.cf_num.returnPressed.connect(self.numCfChanged)
         self.treeWidget.setItemWidget(self.cf_m, 4, self.cf_num)
         for i in range(self.parent.fit.cf_num):
-            self.addChild('cf', 'cf' + str(i))
+            self.addChild('cf', 'cf_' + str(i))
         self.cf.setExpanded(self.parent.fit.cf_fit)
 
         self.treeWidget.itemExpanded.connect(self.stateChanged)
@@ -294,7 +294,7 @@ class fitModelWidget(QWidget):
                         setattr(getattr(self.parent.fit, s), 'vary', getattr(self, s + '_vary').isChecked())
             if self.parent.fit.cf_num > 0:
                 for i in range(self.parent.fit.cf_num):
-                    s = 'cf' + str(i)
+                    s = 'cf_' + str(i)
                     if hasattr(self.parent.fit, s):
                         setattr(getattr(self.parent.fit, s), 'vary', getattr(self, s + '_vary').isChecked())
         else:
@@ -321,12 +321,12 @@ class fitModelWidget(QWidget):
 
         if item.name == 'cf':
             self.parent.fit.cf_fit = self.cf.isExpanded()
-            self.parent.fit.cf_num = int(self.cf_num.text())
+            #self.parent.fit.cf_num = int(self.cf_num.text())
             for i in range(self.parent.fit.cf_num):
                 if self.cf.isExpanded():
-                    self.parent.fit.add('cf'+str(i))
+                    self.parent.fit.add('cf_'+str(i))
                 else:
-                    self.parent.fit.remove('cf'+str(i))
+                    self.parent.fit.remove('cf_'+str(i))
         if self.refr:
             self.refresh('stateChanged')
 
@@ -350,14 +350,16 @@ class fitModelWidget(QWidget):
         k = int(self.cf_num.text())
         sign = 1 if k > self.parent.fit.cf_num else -1
         if k != self.parent.fit.cf_num:
-            rang = range(self.parent.fit.cf_num, k) if sign == 1 else range(self.fit.cf_num-1, k-1, -1)
+            rang = range(self.parent.fit.cf_num, k) if sign == 1 else range(self.parent.fit.cf_num-1, k-1, -1)
             for i in list(rang):
                 if k > self.parent.fit.cf_num:
-                    self.parent.fit.add('cf'+str(i))
-                    self.addChild('cf', 'cf'+str(i))
+                    #self.parent.fit.add('cf_'+str(i))
+                    self.parent.plot.add_pcRegion(self.parent.vb.viewRange()[0][0], self.parent.vb.viewRange()[0][1])
                 else:
-                    self.parent.fit.remove('cf' + str(i))
-                    getattr(self, 'cf').removeChild(getattr(self, 'cf' + str(i)))
+                    print(i)
+                    self.parent.fit.remove('cf_' + str(i))
+                    getattr(self, 'cf').removeChild(getattr(self, 'cf_' + str(i)))
+                    self.parent.plot.remove_pcRegion(i)
             self.parent.fit.cf_num = k
             if self.refr:
                 self.refresh()
@@ -373,8 +375,10 @@ class fitModelWidget(QWidget):
             if hasattr(self.parent.fit, s):
                 setattr(getattr(self.parent.fit, s), attr, float(getattr(self, s + '_' + attr).text()))
                 print(getattr(getattr(self.parent.fit, s), attr))
+
         if s == 'res':
             self.parent.s[self.parent.s.ind].resolution = self.parent.fit.res.val
+
         if self.refr:
             self.refresh(s + '_' + attr)
 

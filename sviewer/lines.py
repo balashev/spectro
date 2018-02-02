@@ -439,7 +439,7 @@ class Doublet():
         self.y = np.median(s.spec.y()[imin:imax])*1.5
 
     def find(self, x1, x2, toll=9e-2):
-        """
+        """uuu
         Function which found most appropriate doublet using two wavelengths.    
 
         :param x1: first wavelength 
@@ -505,27 +505,31 @@ class doubletLabel(pg.TextItem):
         print("clicked: %s" % pts)
 
 class pcRegion():
-    def __init__(self, parent, ind, x1, x2):
+    def __init__(self, parent, ind, x1=None, x2=None):
         self.parent = parent
         self.setInd(ind)
         self.color = pg.mkColor(220, 20, 60)
         if x1 is not None and x2 is not None:
-            self.x1, self.x2 = np.min([x1.x(), x2.x()]), np.max([x1.x(), x2.x()])
-            self.value = (x1.y() + x2.y()) / 2
+            if isinstance(x1, float) and isinstance(x2, float):
+                self.x1, self.x2 = x1, x2
+                self.value = 0.1
+            else:
+                self.x1, self.x2 = np.min([x1.x(), x2.x()]), np.max([x1.x(), x2.x()])
+                self.value = (x1.y() + x2.y()) / 2
         else:
-            self.x1, self.x2 = 3000, 3000
+            self.x1, self.x2 = 3000, 9000
             self.value = 0.0
         self.draw()
         if not self.parent.parent.fit.cf_fit:
             self.parent.parent.fit.cf_fit = True
         try:
             self.parent.parent.fitModel.cf.setExpanded(self.parent.parent.fit.cf_fit)
-            self.parent.parent.fitModel.addChild('cf', 'cf' + str(ind))
+            self.parent.parent.fitModel.addChild('cf', 'cf_' + str(ind))
         except:
             pass
         self.parent.parent.fit.cf_num += 1
         if x1 is not None and x2 is not None:
-            self.parent.parent.fit.add('cf' + str(self.parent.parent.fit.cf_num))
+            self.parent.parent.fit.add('cf_' + str(self.parent.parent.fit.cf_num))
             self.updateFitModel()
 
     def draw(self):
@@ -541,7 +545,7 @@ class pcRegion():
 
     def setInd(self, ind):
         self.ind = ind
-        self.name = 'cf' + str(ind)
+        self.name = 'cf_' + str(ind)
         self.labelname = 'LFR ' + str(ind)
 
     def updateFromFit(self):
@@ -566,7 +570,7 @@ class pcRegion():
         self.parent.pcRegions.remove(self)
         try:
             for i in range(self.ind, len(self.parent.pcRegions) + 1):
-                self.parent.parent.fitModel.cf.removeChild(getattr(self.parent.parent.fitModel, 'cf' + str(i)))
+                self.parent.parent.fitModel.cf.removeChild(getattr(self.parent.parent.fitModel, 'cf_' + str(i)))
         except:
             pass
 
@@ -574,11 +578,11 @@ class pcRegion():
             for i in range(self.ind, len(self.parent.pcRegions)):
                 print(i)
                 self.parent.pcRegions[i].setInd(i)
-                cf = getattr(self.parent.parent.fit, 'cf' + str(i + 1))
-                setattr(self.parent.parent.fit, 'cf' + str(i), par(self, 'cf' + str(i), cf.val, cf.min, cf.max, cf.step, addinfo=cf.addinfo))
+                cf = getattr(self.parent.parent.fit, 'cf_' + str(i + 1))
+                setattr(self.parent.parent.fit, 'cf_' + str(i), par(self, 'cf_' + str(i), cf.val, cf.min, cf.max, cf.step, addinfo=cf.addinfo))
                 self.parent.pcRegions[i].redraw()
 
-        self.parent.parent.fit.remove('cf'+str(len(self.parent.pcRegions)))
+        self.parent.parent.fit.remove('cf_' + str(len(self.parent.pcRegions)))
         self.parent.parent.fit.cf_num = len(self.parent.pcRegions)
         if self.parent.parent.fit.cf_num == 0:
             self.parent.parent.fit.cf_fit = False
@@ -586,7 +590,7 @@ class pcRegion():
         try:
             if self.ind < len(self.parent.pcRegions):
                 for i in range(self.ind, len(self.parent.pcRegions)):
-                    self.parent.parent.fitModel.addChild('cf', 'cf' + str(i))
+                    self.parent.parent.fitModel.addChild('cf', 'cf_' + str(i))
 
             self.parent.parent.fitModel.refresh()
         except:

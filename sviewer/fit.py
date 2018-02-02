@@ -244,10 +244,15 @@ class fitPars:
         elif attr in ['vary', 'fit']:
             val = int(val)
 
-        if s[0] in ['mu', 'me', 'dtoh', 'res'] or any([x in s[0] for x in ['cont', 'cf']]):
+        if s[0] in ['mu', 'me', 'dtoh', 'res']:
             if not hasattr(self, s[0]):
                 self.add(s[0])
             res = getattr(self, s[0]).set(val, attr)
+
+        if s[0] in ['cont', 'cf']:
+            if not hasattr(self, name):
+                self.add(name)
+            res = getattr(self, name).set(val, attr)
 
         if s[0] in ['z', 'turb', 'kin']:
             while len(self.sys) <= int(s[1]):
@@ -291,12 +296,18 @@ class fitPars:
         s = name.split('_')
 
         par = None
-        if s[0] in ['mu', 'me', 'dtoh', 'res'] or any([x in s[0] for x in ['cont', 'cf']]):
+        if s[0] in ['mu', 'me', 'dtoh', 'res']:
             if hasattr(self, s[0]):
                 par = getattr(self, s[0])
+
+        if s[0] in ['cont', 'cf']:
+            if hasattr(self, name):
+                par = getattr(self, name)
+
         if s[0] in ['z', 'turb', 'kin']:
             if len(self.sys) > int(s[1]) and hasattr(self.sys[int(s[1])], s[0]):
                 par = getattr(self.sys[int(s[1])], s[0])
+
         if s[0] in ['b', 'N']:
             if len(self.sys) > int(s[1]) and s[2] in self.sys[int(s[1])].sp and hasattr(self.sys[int(s[1])].sp[s[2]], s[0]):
                 par = getattr(self.sys[int(s[1])].sp[s[2]], s[0])
@@ -333,7 +344,7 @@ class fitPars:
                     pars[str(p)] = p
         if self.cf_fit and self.cf_num > 0:
             for i in range(self.cf_num):
-                attr = 'cf'+str(i)
+                attr = 'cf_'+str(i)
                 if hasattr(self, attr):
                     p = getattr(self, attr)
                     pars[str(p)] = p
@@ -350,23 +361,24 @@ class fitPars:
                             pars[str(p)] = p
         return pars
 
-    def readPars(self, s):
-        data = s.split()
+    def readPars(self, name):
+        s = name.split()
         attrs = ['val', 'min', 'max', 'step', 'vary', 'addinfo']
-        if len(data) == len(attrs):
-            data.append('')
+        if len(s) == len(attrs):
+            s.append('')
 
-        if 'cont' in data[0]:
-            self.cont_num = max(self.cont_num, int(data[0][4:]) + 1)
+        if 'cont' in s[0]:
+            self.cont_num = max(self.cont_num, int(s[0][5:]) + 1)
             self.cont_fit = True
-        if 'cf' in data[0]:
+
+        if 'cf' in s[0]:
             self.cf_fit = True
             self.parent.plot.add_pcRegion()
 
-        for attr, val in zip(reversed(attrs), reversed(data[1:])):
-            self.setValue(data[0], val, attr)
+        for attr, val in zip(reversed(attrs), reversed(s[1:])):
+            self.setValue(s[0], val, attr)
 
-        if 'cf' in data[0]:
+        if 'cf' in s[0]:
             self.parent.plot.pcRegions[-1].updateFromFit()
 
     def fromLMfit(self, result):

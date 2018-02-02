@@ -629,9 +629,12 @@ class plotSpectrum(pg.PlotWidget):
         self.pcRegions.append(pcRegion(self, len(self.pcRegions), x1, x2))
 
     def remove_pcRegion(self, ind=None):
-        if ind is None and len(self.pcRegions) > 0:
-            for p in reversed(self.pcRegions):
-                p.remove()
+        if len(self.pcRegions) > 0:
+            if ind is None:
+                for p in reversed(self.pcRegions):
+                    p.remove()
+            elif isinstance(ind, int):
+                self.pcRegions[ind].remove()
 
     def dataSelection(self,MouseRectCoords):
         print(MouseRectCoords)       
@@ -3322,6 +3325,7 @@ class sviewer(QMainWindow):
                 self.fit = fitPars(self)
                 for k in range(int(d[i].split()[1])):
                     i += 1
+                    print(d[i])
                     self.fit.readPars(d[i])
                 self.setz_abs(self.fit.sys[0].z.val)
 
