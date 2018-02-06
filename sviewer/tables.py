@@ -495,6 +495,9 @@ class QSOlistTable(pg.TableWidget):
         if 'Lya' == self.cat:
             if colInd == 0:
                 filename = self.cell_value('name').strip()
+                for r in self.parent.plot.regions:
+                    r.remove()
+                self.parent.regions = []
                 self.parent.importSpectrum(self.folder + '/spectra/' + filename + '.dat')
                 self.parent.s[-1].spec.raw.clean(min=-1, max=2)
                 self.parent.s[-1].set_data()
@@ -516,6 +519,9 @@ class QSOlistTable(pg.TableWidget):
                 filename = self.cell_value('name').strip()
                 if self.filename_saved != filename:
                     self.parent.normview = False
+                    for r in reversed(self.parent.plot.regions[:]):
+                        r.remove()
+                    self.parent.regions = []
                     if 0:
                         self.parent.importSpectrum(self.folder + '/norm/' + filename)
                         self.parent.s[-1].spec.raw.clean(min=-1, max=2)

@@ -1,21 +1,21 @@
-show all
-CrII
-ArI
-40ArI
-show H2 0 1
-show FeII
-show HD
-FeII
-x 4000 5000
-FeII
 MgII
-SIIv
-SiIV
+NV
+FeII
+SII
+FeII
+AlIII
+NI
 hide FeII
-CIV
-HI
+show H2 0 1
+show CII*
+CII*
+SiII
+hide H2 0 1
+hide H2
+show H2 0 1 2 3
+hide H2
+FeII
 CIV
 OIV
 OVI
-show FeII
-FeII
+	FeII													

@@ -1,6 +1,7 @@
 from astropy import constants as const
 from collections import OrderedDict
 from functools import partial
+from itertools import combinations
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import (QFont)
 from PyQt5.QtWidgets import (QWidget, QLabel, QGridLayout, QPushButton,
@@ -399,10 +400,11 @@ class choiceLinesWidget(QWidget):
 
         # self.close()
 
-class Doublet():
-    def __init__(self, parent):
+class Doublet_saved():
+    def __init__(self, parent, color=pg.mkColor(45, 217, 207)):
         self.parent = parent
-        self.color = pg.mkColor(45, 217, 207)
+        self.color = color
+        self.doublet = np.genfromtxt('data/doublet.dat', unpack=True, dtype=None)
 
     def draw(self):
         self.determineY()
@@ -432,6 +434,24 @@ class Doublet():
         self.parent.doublets.remove(self)
         del self
 
+    def draw_temp(self, x):
+        self.line_temp = pg.InfiniteLine(x, angle=90, pen=pg.mkPen(color=(44, 160, 44), width=2, style=Qt.SolidLine))
+        self.parent.vb.addItem(self.line_temp)
+        self.temp = []
+        for d in self.doublet:
+            for i in [1, -1]:
+                x = self.line_temp.value() * (d[1] / d[2])**i
+                self.temp.append(pg.InfiniteLine(x, angle=90, pen=pg.mkPen(color=(160, 80, 44), width=1, style=Qt.SolidLine)))
+                self.parent.vb.addItem(self.temp[-1])
+
+    def remove_temp(self):
+        try:
+            self.parent.vb.removeItem(self.line_temp)
+            for t in self.temp:
+                self.parent.vb.removeItem(t)
+        except:
+            pass
+
     def determineY(self):
         s = self.parent.parent.s[self.parent.parent.s.ind]
         imin, imax = s.spec.index([self.l1*(1+self.z), self.l2*(1+self.z)])[:]
@@ -439,25 +459,132 @@ class Doublet():
         self.y = np.median(s.spec.y()[imin:imax])*1.5
 
     def find(self, x1, x2, toll=9e-2):
-        """uuu
+        """
         Function which found most appropriate doublet using two wavelengths.    
-
-        :param x1: first wavelength 
-        :param x2: second wavelength
+        parameters:
+            - x1        :  first wavelength
+            - x2        :  second wavelength
+            - toll      :  tollerance for relative position
 
         """
         x1, x2 = np.min([x1, x2]), np.max([x1, x2])
         diff = 1-x1/x2
-        doublet = np.genfromtxt('data/doublet.dat', unpack=True, usecols=(0, 1, 2), dtype=None)
+
         res = []
-        for d in doublet:
+        for d in self.doublet:
             res.append(1- (diff / (1- d[1]/d[2])))
-        d = doublet[np.argmin(np.abs(res))]
+        d = self.doublet[np.argmin(np.abs(res))]
+        self.remove_temp()
         if -toll < 1- (diff / (1- d[1]/d[2])) < toll:
             self.name = d[0].decode('UTF-8').replace('_', '')
             self.l1 = d[1]
             self.l2 = d[2]
             self.z = (x1/d[1] + x2/d[2]) / 2 - 1
+            self.parent.parent.console.exec_command('show '+self.name)
+            self.parent.parent.setz_abs(self.z)
+            self.draw()
+        else:
+            self.parent.doublets.remove(self)
+            del self
+
+class Doublet():
+    def __init__(self, parent, color=pg.mkColor(45, 217, 207)):
+        self.parent = parent
+        self.color = color
+        self.read()
+
+    def read(self):
+        self.doublet = {}
+        with open('data/doublet_v2.dat') as f:
+            for line in f:
+                self.doublet[line.split()[0]] = [float(d) for d in line.split()[1:]]
+        print(self.doublet)
+
+    def draw(self, name=None, style=None):
+        #self.determineY()
+        if name is None:
+            print(self.name)
+            self.l, self.line, self.label = [], [], []
+            self.draw(self.name, style=Qt.SolidLine)
+            for l in [['CIV', 'SiIV'], ['MgII', 'FeII']]:
+                if self.name in l:
+                    l.remove(self.name)
+                    for name in l:
+                        self.draw(name, style=Qt.DashLine)
+
+        else:
+            self.l = self.l + self.doublet[name]
+            print(name, self.doublet[name])
+            for l in self.doublet[name]:
+                self.line.append(pg.InfiniteLine(l * (1 + self.z), angle=90,
+                                                 pen=pg.mkPen(color=self.color, width=0.5, style=style)))
+                self.parent.vb.addItem(self.line[-1])
+                self.label.append(doubletLabel(self, name, l, angle=90, anchor=(0, 1), color=self.color))
+                self.parent.vb.addItem(self.label[-1])
+
+    def redraw(self):
+        #self.determineY()
+        for l, line, label in zip(self.l, self.line, self.label):
+            line.setPos(l * (1 + self.z))
+            label.redraw()
+
+    def remove(self):
+        for line, label in zip(self.line, self.label):
+            self.parent.vb.removeItem(line)
+            self.parent.vb.removeItem(label)
+        self.parent.doublets.remove(self)
+        del self
+
+    def draw_temp(self, x):
+        self.line_temp = pg.InfiniteLine(x, angle=90, pen=pg.mkPen(color=(44, 160, 44), width=2, style=Qt.SolidLine))
+        self.parent.vb.addItem(self.line_temp)
+        self.temp = []
+        for lines in self.doublet.values():
+            for d in combinations(lines, 2):
+                for i in [-1,1]:
+                    x = self.line_temp.value() * (d[0] / d[1])**i
+                    self.temp.append(pg.InfiniteLine(x, angle=90, pen=pg.mkPen(color=(160, 80, 44), width=1, style=Qt.SolidLine)))
+                    self.parent.vb.addItem(self.temp[-1])
+
+    def remove_temp(self):
+        try:
+            self.parent.vb.removeItem(self.line_temp)
+            for t in self.temp:
+                self.parent.vb.removeItem(t)
+        except:
+            pass
+
+    def determineY(self):
+        s = self.parent.parent.s[self.parent.parent.s.ind]
+        imin, imax = s.spec.index([self.l1*(1+self.z), self.l2*(1+self.z)])[:]
+        imin, imax = max(0, int(imin - (imax-imin)/2)), min(int(imax + (imax-imin)/2), s.spec.n())
+        self.y = np.median(s.spec.y()[imin:imax])*1.5
+
+
+    def find(self, x1, x2, toll=9e-2):
+        """
+        Function which found most appropriate doublet using two wavelengths.
+        parameters:
+            - x1        :  first wavelength
+            - x2        :  second wavelength
+            - toll      :  tollerance for relative position
+
+        """
+        x1, x2 = np.min([x1, x2]), np.max([x1, x2])
+        diff = 1-x1/x2
+
+        res, ind = [], []
+        for k, v in self.doublet.items():
+            for d in combinations(v, 2):
+                if -toll < 1 - (diff / (1 - d[0] / d[1])) < toll:
+                    res.append(1- (diff / (1- d[0]/d[1])))
+                    ind.append((k, d[0]))
+        self.remove_temp()
+        print(res)
+        if len(res) > 0:
+            i = np.argmin(np.abs(res))
+            self.name = ind[0][0] #.decode('UTF-8').replace('_', '')
+            self.z = x1 / ind[i][1] - 1
             self.parent.parent.console.exec_command('show '+self.name)
             self.parent.parent.setz_abs(self.z)
             self.draw()
@@ -472,11 +599,22 @@ class doubletLabel(pg.TextItem):
         self.line = line
         pg.TextItem.__init__(self, text=self.name, fill=pg.mkBrush(0, 0, 0, 0), **kwrds)
         self.setFont(QFont("SansSerif", 8))
+        self.determineY()
         self.redraw()
 
+    def determineY(self):
+        s = self.parent.parent.parent.s[self.parent.parent.parent.s.ind]
+        imin, imax = s.spec.index([self.line * (1 + self.parent.z) * (1 - 0.001), self.line * (1 + self.parent.z) * (1 + 0.001)])[:]
+        imin, imax = max(0, int(imin - (imax - imin) / 2)), min(int(imax + (imax - imin) / 2), s.spec.n())
+        if imin < imax:
+            self.y = np.median(s.spec.y()[imin:imax]) * 1.5
+        else:
+            self.y = s.spec.y()[imin-1] * 1.5
+
     def redraw(self):
+        self.determineY()
         self.setText(self.name + ' ' + str(self.line)[:str(self.line).index('.')] + '   z=' + str(self.parent.z)[:6])
-        self.setPos(self.line * (1 + self.parent.z), self.parent.y)
+        self.setPos(self.line * (1 + self.parent.z), self.y)
 
     def mouseDragEvent(self, ev):
 

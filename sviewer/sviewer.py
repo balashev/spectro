@@ -22,7 +22,6 @@ from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
 from scipy.integrate import quad
 import sys
 sys.path.append('C:/science/python')
-#sys.path.append('/media/serj/3078FE3678FDFB04/science/python')
 import threading
 
 #from H2_summary import load_P94
@@ -40,7 +39,7 @@ from .sdss_fit import *
 from .tables import *
 from .obs_tool import *
 from .colorcolor import *
-from .utils import debug, Timer, hms_to_deg, dms_to_deg, labelLine, include
+from .utils import debug, Timer, hms_to_deg, dms_to_deg, labelLine, include, roman
 class syn_abs():
     def __init__(self, z):
         self.z = z
@@ -376,12 +375,9 @@ class plotSpectrum(pg.PlotWidget):
                 self.p_status = False
 
             if event.key() == Qt.Key_U:
+                if self.u_status == 2:
+                    self.doublets[-1].remove_temp()
                 self.u_status = False
-                try:
-                    self.vb.removeItem(self.doublet[0])
-                    self.vb.removeItem(self.doublet[1])
-                except:
-                    pass
 
             if event.key() == Qt.Key_W:
                 self.w_status = False
@@ -504,15 +500,12 @@ class plotSpectrum(pg.PlotWidget):
             self.parent.s.chi2()
 
         if self.u_status:
-            try:
-                self.vb.removeItem(self.doublet[self.u_status-1])
-            except:
-                pass
-            self.doublet[self.u_status-1] = pg.InfiniteLine(self.mousePoint.x(), angle=90, pen=pg.mkPen(44, 160, 44))
-            self.vb.addItem(self.doublet[self.u_status-1])
+            if self.u_status == 1:
+                self.doublets.append(Doublet(self))
+                self.doublets[-1].draw_temp(self.mousePoint.x())
             if self.u_status == 2:
-                self.add_doublet(self.doublet[0].getXPos(), self.doublet[1].getXPos())
-            self.u_status = 1 if self.u_status == 2 else 2
+                self.doublets[-1].find(self.doublets[-1].line_temp.value(), self.mousePoint.x())
+            self.u_status += 1
 
         if self.w_status:
             s = self.parent.s[self.parent.s.ind]
@@ -546,7 +539,7 @@ class plotSpectrum(pg.PlotWidget):
         super(plotSpectrum, self).mouseMoveEvent(event)
         self.mousePoint = self.vb.mapSceneToView(event.pos())
         self.mouse_moved = True
-        self.cursorpos.setText('x={0:.3f}, y={1:.2f}'.format(self.mousePoint.x(), self.mousePoint.y()))
+        self.cursorpos.setText('x={0:.3f}, y={1:.2f}, rest={2:.3f}'.format(self.mousePoint.x(), self.mousePoint.y(), self.mousePoint.x()/(1+self.parent.z_abs)))
         #self.cursorpos.setText("<span style='font-size: 12pt'>x={0:.3f}, <span style='color: red'>y={1:.2f}</span>".format(mousePoint.x(),mousePoint.y()))
         pos = self.vb.sceneBoundingRect()
         self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(pos.left()+10,pos.bottom()-10)))

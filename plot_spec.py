@@ -6,12 +6,12 @@ from matplotlib import patches
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
 from mendeleev import element
 import numpy as np
-import roman
 from pathlib import Path
+from scipy import interpolate
 import sys
 sys.path.append('D:/science/python')
-import spectro.colors  as col
-from scipy import interpolate
+import colors as col
+from .sviewer.utils import roman
 
 class rectangle():
     def __init__(self, left, top, width, height):
@@ -221,11 +221,7 @@ class plotline():
                 try:
                     self.el = element(name[:name.find('_')].strip())
                     io = name[(name.find('_')+1):][:name[(name.find('_')+1):].find('_')].strip()
-                    if io == "0":
-                        k = 1
-                    else:
-                        k = roman.fromRoman(io) 
-                    self.ion_state = int(k)
+                    self.ion_state = roman.int(roman.ion(io)[1])
                 except:
                     pass
                 self.name = name.replace('_','').replace('\n', '') 

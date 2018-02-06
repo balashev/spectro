@@ -1568,9 +1568,12 @@ class regionItem(pg.LinearRegionItem):
 
         if ev.button() == Qt.LeftButton:
             if (QApplication.keyboardModifiers() == Qt.ControlModifier):
-                self.parent.vb.removeItem(self)
-                ind = self.parent.regions.index(self)
-                del self.parent.regions[ind]
+                self.remove()
+
+    def remove(self):
+        self.parent.vb.removeItem(self)
+        ind = self.parent.regions.index(self)
+        del self.parent.regions[ind]
 
     def __str__(self):
         return "{0:.1f}..{1:.1f}".format(self.getRegion()[0], self.getRegion()[1])

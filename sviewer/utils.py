@@ -233,3 +233,58 @@ def labelLines(lines,align=True,xvals=None,**kwargs):
 
     for line,x,label in zip(labLines,xvals,labels):
         labelLine(line,x,label,align,**kwargs)
+
+
+class roman():
+    def __init__(self):
+        self.table = [['M', 1000], ['CM', 900], ['D', 500], ['CD', 400], ['C', 100], ['XC', 90], ['L', 50], ['XL', 40],
+                      ['X', 10], ['IX', 9], ['V', 5], ['IV', 4], ['I', 1]]
+
+    def int_to_roman(self, integer):
+        """
+        Convert arabic number to roman number.
+        parameter:
+            - integer         :  a number to convert
+        return: r
+            - r               :  a roman number
+        """
+        parts = []
+        for letter, value in self.table:
+            while value <= integer:
+                integer -= value
+                parts.append(letter)
+        return ''.join(parts)
+
+    def roman_to_int(self, string):
+        """
+        Convert roman number to integer.
+        parameter:
+            - string          :  a roman to convert
+        return: i
+            - i               :  an integer
+        """
+        result = 0
+        for letter, value in self.table:
+            while string.startswith(letter):
+                result += value
+                string = string[len(letter):]
+        return result
+
+    def separate_ion(self, string):
+        ind = np.min([string[1:].index(letter) for letter, value in self.table if letter in string[1:]]) + 1
+        return string[:ind], string[ind:]
+
+    @classmethod
+    def int(cls, string):
+        s = cls()
+        return s.roman_to_int(string)
+
+    @classmethod
+    def roman(cls, integer):
+        s = cls()
+        return s.int_to_roman(integer)
+
+    @classmethod
+    def ion(cls, string):
+        s = cls()
+        return s.separate_ion(string)

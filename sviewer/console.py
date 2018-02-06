@@ -1,5 +1,6 @@
 import sys
 import copy
+from mendeleev import element
 from PyQt5.QtCore import Qt, QRectF
 from PyQt5.QtGui import (QFont, QTextCursor)
 from PyQt5.QtWidgets import (QTextEdit)
@@ -7,7 +8,7 @@ import pyqtgraph as pg
 import numpy as np
 
 from ..a_unc import a
-from .utils import Timer
+from .utils import Timer, roman
 
 
 class Console(QTextEdit):
@@ -277,6 +278,8 @@ class Console(QTextEdit):
 
         elif args[0] in self.parent.atomic.keys():
             s = ''
+            el = element(roman.ion(args[0])[0])
+            s = '{:.3f} eV \n'.format(el.ionenergies[roman.int(roman.ion(args[0])[1])])
             try:
                 f = float(args[1])
             except:
@@ -290,7 +293,6 @@ class Console(QTextEdit):
             for i in np.argsort(lf):
                 s += str(lines[i]) + ',  l={:.5f}, f={:.2e},  g={:.1e} \n'.format(lines[i].l, lines[i].f, lines[i].g)
             return s
-            #return str(self.parent.atomic[args[0]].lines)
 
         elif args[0] == 'fit':
             #self.parent.setFit()
