@@ -79,8 +79,8 @@ class distr1d():
             else:
                 step = (self.x[ind + 1] - self.x[ind - 1]) / 10
                 o = {'xtol': self.xtol, 'epsfcn': step}
-                self.xmin = optimize.root(self.level, self.x[ind-3], args=(level), method='lm', options=o).x
-                self.xmax = optimize.root(self.level, self.x[ind+3], args=(level), method='lm', options=o).x
+                self.xmin = optimize.root(self.level, self.x[ind-3], args=(level), method='lm', disp=self.debug, options=o).x
+                self.xmax = optimize.root(self.level, self.x[ind+3], args=(level), method='lm', disp=self.debug, options=o).x
         elif level > self.ymax:
             self.xmin, self.xmax = self.point, self.point
         elif level < 0:
@@ -97,9 +97,9 @@ class distr1d():
         :return:
             - point estimate?
         """
-        self.point = optimize.fmin(self.minter, self.x[np.argmax(self.y)], xtol=self.xtol)[0]
+        self.point = optimize.fmin(self.minter, self.x[np.argmax(self.y)], xtol=self.xtol, disp=self.debug)[0]
         self.ymax = self.inter(self.point)
-        print('point', self.point, self.x[np.argmax(self.y)])
+        #print('point', self.point, self.x[np.argmax(self.y)])
         return self.point
 
     def interval(self, conf=0.683):
@@ -114,11 +114,9 @@ class distr1d():
         nd = norm()
         self.dopoint(verbose=False)
         n = self.ymax / (nd.pdf(0) / (nd.pdf(nd.interval(conf)[0]) / 2))
-        print(n, self.ymax)
-        res = optimize.fsolve(self.func, n, args=(conf), xtol=self.xtol)
-        print(res[0])
+        res = optimize.fsolve(self.func, n, args=(conf), xtol=self.xtol, full_output=self.debug)
         interval = self.minmax(res[0])
-        print('interval:', interval[0], interval[1])
+        #print('interval:', interval[0], interval[1])
         return interval, res[0]
 
     def pdf(self, x):
@@ -213,8 +211,8 @@ class distr2d():
         return: point, level
             - point         :  point estimate
         """
-        ind = np.argwhere(self.z == np.max(self.z.flatten()))
-        self.point = optimize.fmin(self.minter, [self.x[ind[0][1]], self.y[ind[0][0]]], xtol=self.xtol)
+        ind = np.argwhere(self.z == np.nanmax(self.z.flatten()))
+        self.point = optimize.fmin(self.minter, [self.x[ind[0][1]], self.y[ind[0][0]]], xtol=self.xtol, disp=self.debug)
         self.zmax = self.inter(self.point[0], self.point[1])
         if self.debug or verbose:
             print('point estimate:', self.point[0], self.point[1], self.zmax)
@@ -232,10 +230,11 @@ class distr2d():
         x, y = np.linspace(self.x[0], self.x[-1], 300), np.linspace(self.y[0], self.y[-1], 300)
         z = self.inter(x, y)
         if 1:
-            res = optimize.bisect(self.func, 0, self.zmax, args=(conf, x, y, z), xtol=self.xtol)
+            res = optimize.bisect(self.func, 0, self.zmax, args=(conf, x, y, z), xtol=self.xtol, disp=self.debug)
         else:
-            res = optimize.fsolve(self.func, self.zmax/2, args=(conf, x, y, z), xtol=self.xtol)[0]
-        print('fsolve:', res)
+            res = optimize.fsolve(self.func, self.zmax/2, args=(conf, x, y, z), xtol=self.xtol, disp=self.debug)[0]
+        if self.debug:
+            print('fsolve:', res)
 
         return res
 
@@ -253,7 +252,7 @@ class distr2d():
         self.dopoint()
         n = self.zmax / (nd.pdf(0) / (nd.pdf(nd.interval(conf)[0]) / 2))
         print(n, self.zmax)
-        res = optimize.fsolve(self.func, n, args=(conf), xtol=self.xtol)
+        res = optimize.fsolve(self.func, n, args=(conf), xtol=self.xtol, full_output=self.debug)
         print(res[0])
         interval = self.minmax(res[0])
         print('interval:', interval[0], interval[1])
@@ -339,9 +338,9 @@ class distr2d():
             - distr             :  1d distribution object
         """
         if over == 'y':
-            return distr1d(self.x, integrate.simps(self.z, self.y, axis=0))
+            return distr1d(self.x, integrate.simps(self.z, self.y, axis=0), debug=self.debug)
         else:
-            return distr1d(self.y, integrate.simps(self.z, self.x, axis=1))
+            return distr1d(self.y, integrate.simps(self.z, self.x, axis=1), debug=self.debug)
 
     def pdf(self, x, y):
         """

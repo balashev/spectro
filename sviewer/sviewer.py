@@ -282,7 +282,7 @@ class plotSpectrum(pg.PlotWidget):
                     self.w_region = None
                 else:
                     self.vb.setMouseMode(self.vb.RectMode)
-                    self.w_status = Truef
+                    self.w_status = True
 
             if event.key() == Qt.Key_X:
                 self.vb.setMouseMode(self.vb.RectMode)
@@ -1236,6 +1236,8 @@ class showLinesWidget(QWidget):
                 p.name_pos = [self.name_x_pos, self.name_y_pos]
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 ax = p.plot_line()
+                p.showH2(ax, levels=[0,1,2])
+                self.showH2(ax, levels=[0,1])
                 if self.parent.fit.cf_fit:
                     for i in range(self.parent.fit.cf_num):
                         attr = 'cf' + str(i)
@@ -3255,7 +3257,7 @@ class sviewer(QMainWindow):
                                     w = d[i].split()
                                     self.s[ind].spline.add(float(w[0]), float(w[1]))
                                     print(ind, float(w[0]), float(w[1]))
-                                    self.s[ind].calc_spline()
+                                self.s[ind].calc_spline()
 
                         if 'fitting_points' in d[i]:
                             self.s[ind].mask.set(x=np.zeros_like(self.s[ind].spec.x(), dtype=bool))
@@ -3302,15 +3304,12 @@ class sviewer(QMainWindow):
                 for r in range(ns):
                     i += 1
                     z, l1, l2 = (float(s) for s in d[i].split()[1:])
-                    print(z, l1, l2)
                     self.plot.add_doublet(l1*(1+z), l2*(1+z))
 
             if 'lines' in d[i]:
                 ns = int(d[i].split()[1])
-                print(ns)
                 for r in range(ns):
                     i += 1
-                    print(d[i])
                     self.lines.append(d[i].strip())
 
             if 'fit_model' in d[i]:
@@ -3318,7 +3317,6 @@ class sviewer(QMainWindow):
                 self.fit = fitPars(self)
                 for k in range(int(d[i].split()[1])):
                     i += 1
-                    print(d[i])
                     self.fit.readPars(d[i])
                 self.setz_abs(self.fit.sys[0].z.val)
 
@@ -4462,17 +4460,17 @@ class sviewer(QMainWindow):
             out = np.insert(out, 0, data['meta']['THING_ID'], axis=1)
             np.savetxt('temp/sdss_photo.dat', out, fmt='%9i %.2f %.2f %.2f %.2f %.2f')
 
-    def makeH2Stack(self, beta=-0.9, Nmin=16, Nmax=22, norm=0, load=True, draw=True):
-        return makeH2Stack(self, beta=beta, Nmin=Nmin, Nmax=Nmax, norm=norm, load=load, draw=draw)
+    def makeH2Stack(self, **kwargs): #beta=-0.9, Nmin=16, Nmax=22, norm=0, b=4, load=True, draw=True):
+        return makeH2Stack(self, **kwargs)
 
-    def H2StackFit(self, Nmin=16, Nmax=22, load=True, draw=True, name='.dat'):
-        H2StackFit(self, Nmin=Nmin, Nmax=Nmax, load=load, draw=draw, name=name)
+    def H2StackFit(self, **kwargs):
+        H2StackFit(self, **kwargs)
 
-    def makeHIStack(self, beta=-1.5, N_g=None, Nmin=20.0, Nmax=22.0, load=True, draw=True):
-        return makeHIStack(self, beta=beta, N_g=N_g, Nmin=Nmin, Nmax=Nmax, load=load, draw=draw)
+    def makeHIStack(self, **kwargs):
+        return makeHIStack(self, **kwargs)
 
-    def HIStackFitPower(self, load=True, draw=True):
-        HIStackFitPower(self, load=load, draw=draw)
+    def HIStackFitPower(self, **kwargs):
+        HIStackFitPower(self, **kwargs)
 
     def HIStackFitGamma(self, load=True, draw=True):
         HIStackFitGamma(self, load=load, draw=draw)

@@ -357,6 +357,15 @@ class Console(QTextEdit):
                     self.parent.s[self.parent.s.ind].spec.raw.err[mask] = float(args[2])
                     self.parent.s.redraw()
 
+        elif args[0] == 'divide':
+            if len(args) == 3:
+                i1, i2 = int(args[1]), int(args[2])
+                x = self.parent.s[i1].spec.x()
+                y = self.parent.s[i1].spec.y() / self.parent.s[i2].spec.inter(x)
+                print(x, y)
+                self.parent.importSpectrum('{:}_divided_by_{:}'.format(i1, i2), spec=[x, y], append=True)
+                #self.parent.s[-1].normalize()
+
         elif args[0] == 'lines':
 
             if args[1] == 'save':
@@ -420,5 +429,18 @@ class Console(QTextEdit):
                     s += ' there is no continuum \n'
 
             return s
+
+        elif args[0] == 'ew':
+            s = ''
+            for r in self.parent.plot.regions:
+                s += str(r)
+                xmin, xmax = float(str(r).split('..')[0]), float(str(r).split('..')[1])
+                fit = self.parent.s[self.parent.s.ind].fit
+                if self.parent.normview:
+                    mask = (xmin < fit.x()) * (fit.x() < xmax)
+                    if np.sum(mask) > 0:
+                        s += '  ' + str(np.trapz(1 - fit.y()[mask], x=fit.x()[mask])) + '\n'
+            return s
+
         else:
             return None

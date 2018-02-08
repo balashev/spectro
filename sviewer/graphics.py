@@ -76,6 +76,22 @@ class Speclist(list):
             self[:] = [self[i] for i in inds]
             #print([s.filename for s in self])
 
+    def find(self, name):
+        """
+        Find exposure index by name:
+        parameters:
+            - name            :  exact name of the exposure
+
+        return: ind
+             - ind            :  index of the exposure
+        """
+        try:
+            ind = [s.filename for s in self].index(name)
+            return ind
+        except:
+            NameError('exposure not found')
+
+
     def setSpec(self, ind=0, new=False):
         """
         set Spectrum as active (and disactivate other spectra)
@@ -1181,6 +1197,7 @@ class Spectrum():
             for l in self.fit_lines:
                 delta = min(delta, l.tau.delta())
             num = int((x_max-x_min) / delta)
+            #print(x_max, x_min, delta, num)
             x = np.logspace(np.log10(x_min), np.log10(x_max), num)
 
             mask = np.zeros_like(x, dtype=bool)

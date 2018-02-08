@@ -12,6 +12,7 @@ import sys
 sys.path.append('D:/science/python')
 import colors as col
 from .sviewer.utils import roman
+from .atomic import AtomicList
 
 class rectangle():
     def __init__(self, left, top, width, height):
@@ -588,6 +589,10 @@ class plotline():
                 self.fit.y = self.fit.y / sum_cont
                 for c in self.fit.comp:
                     c = c / sum_cont
+
+    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5]):
+        print(ax.get_xlim())
+        print(AtomicList.Malec(np.max(levels)))
 
     def __str__(self):
         return 'plot line object: ' + str(self.name) + ', ' + str(self.wavelength)

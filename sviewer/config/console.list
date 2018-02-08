@@ -1,21 +1,21 @@
-MgII
-NV
-FeII
-SII
-FeII
-AlIII
-NI
-hide FeII
-show H2 0 1
-show CII*
-CII*
-SiII
-hide H2 0 1
-hide H2
-show H2 0 1 2 3
-hide H2
-FeII
-CIV
+divide 3 4
+divide 1 2
+divide 1 3
+divide 1 4
+divide 1 5
+divide 1 6
+divide 1 7
+divide 1 2
+divide 1 3
+divide 1 4
+divide 1 5
+divide 1 6
+divide 1 2
+divide 1 3
+divide 1 4
+divide 1 5
+divide 1 6
 OIV
 OVI
-	FeII													
+NV
+FeII

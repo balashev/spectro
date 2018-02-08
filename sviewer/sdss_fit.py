@@ -187,7 +187,7 @@ def calc_SDSS_stack_stripes(self):
         data = np.genfromtxt('C:/science/Kaminker/Lyforest/SDSS_Stripes/'+filename+'sig.dat', unpack=True)
         np.savetxt('C:/science/Kaminker/Lyforest/SDSS_Stripes/'+filename+'sig_res.dat', np.c_[data[0], data[1]/sig[1]])
 
-def makeH2Stack(self, beta=-0.9, Nmin=16, Nmax=22, norm=0, load=True, draw=True):
+def makeH2Stack(self, beta=-0.9, Nmin=16, Nmax=22, b=4, norm=0, load=True, draw=True):
     # >>> make/load templates:
 
     if not load:
@@ -195,11 +195,13 @@ def makeH2Stack(self, beta=-0.9, Nmin=16, Nmax=22, norm=0, load=True, draw=True)
         num = 4
         N_0643 = [18.22, 18.25, 16.62, 14.84, 13.94, 13.86]
         N_ref = [19.70, 20.00, 17.96, 17.76, 15.88, 15.17]
-        Ngrid = np.logspace(Nmin, Nmax, 100)
+        Ngrid = np.logspace(Nmin, Nmax, 71)
         H2 = ExcitationTemp('H2')
         #H2.calcTemp(N_ref[:2], plot=1)
         self.atomic.readH2(j=num-1)
         self.console.exec_command('load H2_{:}'.format(num))
+        for s in self.fit.sys[0].sp.values():
+            s.b.val = b
         spec = None
         for Ntot in Ngrid:
             #N = H2.col_dens(num=num, Temp=Temp, Ntot=np.log10(Ntot))
@@ -213,11 +215,13 @@ def makeH2Stack(self, beta=-0.9, Nmin=16, Nmax=22, norm=0, load=True, draw=True)
             if spec == None:
                 spec = np.empty((0, len(y)))
             spec = np.append(spec, [y], axis=0)
-        x = self.s[self.s.ind].spec.norm.x
-        with open('C:/Temp/H2.dat', 'wb') as f:
+            x = self.s[self.s.ind].spec.x()
+            if not draw:
+                self.s.remove()
+        with open('C:/Temp/H2_{:.1f}.dat'.format(b), 'wb') as f:
             pickle.dump((np.log10(Ngrid), x, spec), f)
     else:
-        Ngrid, x, spec = pickle.load(open('C:/Temp/H2.dat', 'rb'))
+        Ngrid, x, spec = pickle.load(open('C:/Temp/H2_{:.1f}.dat'.format(b), 'rb'))
 
     # >>> make stack
     a = interp2d(Ngrid, x, spec.transpose(), fill_value=1)
@@ -225,7 +229,10 @@ def makeH2Stack(self, beta=-0.9, Nmin=16, Nmax=22, norm=0, load=True, draw=True)
     if 1:
         L = a(np.log10(N), x) * N ** (beta)
         spec = np.trapz(L, x=N, axis=1)
-        spec *= (beta + 1) / (10 ** (Nmax * (beta + 1)) - 10 ** (Nmin * (beta + 1)))
+        if beta == -1:
+            spec *= (np.log(10.0 ** Nmax) - np.log(10.0 ** Nmin))
+        else:
+            spec *= (beta + 1) / (10 ** (Nmax * (beta + 1)) - 10 ** (Nmin * (beta + 1)))
         spec = 1 - (1 - spec) * 10 ** norm
         #print(spec.shape, spec)
     else:
@@ -238,43 +245,59 @@ def makeH2Stack(self, beta=-0.9, Nmin=16, Nmax=22, norm=0, load=True, draw=True)
     #spec = convolveflux(x, spec, res=1300, kind='direct')
     if draw:
         print(x, spec)
-        self.importSpectrum('mock_b={:.2f}_min={:}_max={:}'.format(beta, Nmin, Nmax), spec=[x, spec], append=True)
+        self.importSpectrum('mock_b={:.2f}_min={:}_max={:}_b={:}'.format(beta, Nmin, Nmax, b), spec=[x, spec], append=True)
+        if 1:
+            xs = [1018.6, 1030.2, 1044.6, 1057.7, 1071.6, 1086.5, 1102.5, 1126.7]
+            ys = self.s[-1].spec.y()[self.s[-1].spec.index(xs)]
+            print(xs, ys)
+            self.s[-1].spline.add(xs, ys)
+            self.s[-1].calc_spline()
     else:
         return x, spec
 
-def H2StackFit(self, Nmin=16, Nmax=22, load=True, draw=True, name='.dat'):
+def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name='.dat'):
 
-    print(name)
-    #load = False
+    print(name, Nmin, Nmax, b)
+    ind = 0
     if not load:
-        beta = np.linspace(-1.7, -1.1, 100)
-        norm = np.log10(np.logspace(-1.7, -1.3, 100))
+        if 'metal' in name:
+            beta = np.linspace(-1.8, -1.3, ngrid)
+            norm = np.log10(np.logspace(-1.3, -0.8, ngrid))
+        elif 'sstack' in name:
+            beta = np.linspace(-1.4, -0.8, ngrid)
+            norm = np.log10(np.logspace(-0.7, -0.2, ngrid))
+        else:
+            beta = np.linspace(-1.6, -1.0, ngrid)
+            norm = np.log10(np.logspace(-1.6, -1.2, ngrid))
         x, spec = makeH2Stack(self, draw=False)
         Beta, Norm = np.meshgrid(beta, norm)
         z = np.empty_like(Beta)
-        for i, b in enumerate(beta):
+        for i, be in enumerate(beta):
             print(i)
             for k, n in enumerate(norm):
                 #print(k)
-                x, spec = makeH2Stack(self, beta=b, Nmin=Nmin, Nmax=Nmax, norm=n, draw=False)
-                self.s[-1].set_fit(x=x, y=spec)
+                x, spec = makeH2Stack(self, beta=be, Nmin=Nmin, Nmax=Nmax, b=b, norm=n, draw=False)
+                self.s[ind].set_fit(x=x, y=spec)
                 z[k, i] = self.s[-1].chi2()
 
-        with open('C:/Temp/H2stack_'+name.replace('.dat', '')+'_{:.1f}_{:.1f}.dat'.format(Nmin, Nmax), 'wb') as f:
+        with open('C:/Temp/H2stack_'+name.replace('.dat', '')+'_{:.1f}_{:.1f}_{:.1f}.dat'.format(Nmin, Nmax, b), 'wb') as f:
             pickle.dump((beta, norm, z), f)
     else:
-        beta, norm, z = pickle.load(open('C:/Temp/H2stack_'+name.replace('.dat', '')+'_{:.1f}_{:.1f}.dat'.format(Nmin, Nmax), 'rb'))
+        beta, norm, z = pickle.load(open('C:/Temp/H2stack_'+name.replace('.dat', '')+'_{:.1f}_{:.1f}_{:.1f}.dat'.format(Nmin, Nmax, b), 'rb'))
         print(beta, norm, z)
 
     rvs = False
     if draw:
         Beta, Norm = np.meshgrid(beta, norm)
-        rescale = np.sqrt(np.min(z.flatten()) / (np.sum(self.s[-1].fit_mask.x()) - 2))
+        rescale = np.sqrt(np.nanmin(z.flatten()) / (np.sum(self.s[ind].fit_mask.x()) - 2))
+        print(np.nanmin(z.flatten()),  np.sum(self.s[ind].fit_mask.x()))
         print('rescale', rescale)
         z = np.exp(- (z-np.min(z.flatten()))/rescale**2)
-        d = distr2d(beta, norm, z, debug=True)
+        d = distr2d(beta, norm, z, debug=False)
         d.normalize()
         d.dopoint()
+        bf_beta, bf_norm = d.point[0], d.point[1]
+        print(bf_beta, bf_norm)
         if rvs:
             x, y = d.rvs(4000) #, xrange=(-2.5,-0.8), yrange=(-1.8, -1.0))
             print([(xi, yi, d.pdf(xi, yi)[0]) for xi, yi in zip(x,y)])
@@ -282,8 +305,8 @@ def H2StackFit(self, Nmin=16, Nmax=22, load=True, draw=True, name='.dat'):
         beta_min, norm_min = d.point[0], d.point[1]
 
         if 1:
-            ax = d.plot_contour(conf_levels=[0.683, 0.997], xlabel=r'$\beta$', ylabel=r'$\log$(r)', colors='k', cmap=None, alpha=0, colorbar=False, ls=['-', '--'])
-            ax.set_xlim([-2.15, -1.0])
+            ax = d.plot_contour(conf_levels=[0.6827, 0.9973], xlabel=r'$\beta$', ylabel=r'$\log$(r)', colors='k', cmap=None, alpha=0, colorbar=False, ls=['-', '--'])
+            ax.set_xlim([-1.75, -0.75])
             ax.set_ylim([-1.7, -0.0])
             if rvs:
                 if 0:
@@ -291,6 +314,7 @@ def H2StackFit(self, Nmin=16, Nmax=22, load=True, draw=True, name='.dat'):
                     ax.contour(counts, extent=[xbins.min(),xbins.max(),ybins.min(),ybins.max()], linewidths=2)
                 else:
                     ax.scatter(x, y)
+
             # >>> add Noterdaeme2008 data
             if 0 and name=='stack_tot.dat':
                 x = np.linspace(ax.axis()[0], ax.axis()[1], 10)
@@ -302,31 +326,24 @@ def H2StackFit(self, Nmin=16, Nmax=22, load=True, draw=True, name='.dat'):
                     y = np.ones_like(x) * np.log10(0.10)
                     ax.errorbar(x, y, yerr=0.025, uplims=True, color='steelblue', label='Noterdaeme et al. 2008', lw=1)
                 # ax.axhline(np.log10(0.06), color='k', ls='--', lw=1)
+
             # >>> add Balashev2014 data
             if 0 and name=='stack_tot.dat':
                 x = np.linspace(ax.axis()[0], ax.axis()[1], 10)
                 y = np.ones_like(x) * np.log10(0.075)
                 ax.errorbar(x, y, yerr=0.025, uplims=True, color='darkorange', label='Balashev et al. 2014', lw=1)
                 # ax.axhline(np.log10(0.06), color='k', ls='--', lw=1)
+
             # >>> add Jorgenson2014 data
             if 0 and name=='stack_tot.dat':
                 x = np.linspace(ax.axis()[0], ax.axis()[1], 10)
                 y = np.ones_like(x) * np.log10(0.05)
                 ax.errorbar(x, y, yerr=0.025, uplims=True, color='deeppink', label='Jorgenson et al. 2014', lw=1)
                 # ax.axhline(np.log10(0.06), color='k', ls='--', lw=1)
-
-            ax.xaxis.set_minor_locator(AutoMinorLocator(3))
-            ax.xaxis.set_major_locator(MultipleLocator(0.3))
-            ax.yaxis.set_minor_locator(AutoMinorLocator(5))
-            ax.yaxis.set_major_locator(MultipleLocator(0.5))
-            ax.tick_params(which='both', width=1)
-            ax.tick_params(which='major', length=5)
-            ax.tick_params(which='minor', length=3)
-            ax.tick_params(axis='both', which='major', labelsize=16)
-            if 1:
+            if 0:
                 name = 'stack_tot.dat'
                 beta, norm, z = pickle.load(open('C:/Temp/H2stack_' + name.replace('.dat', '') + '_{:.1f}_{:.1f}.dat'.format(Nmin, Nmax), 'rb'))
-                rescale = np.sqrt(np.min(z.flatten()) / (np.sum(self.s[-1].fit_mask.x()) - 2))
+                rescale = np.sqrt(np.min(z.flatten()) / (np.sum(self.s[ind].fit_mask.x()) - 2))
                 z = np.exp( -(z - np.min(z.flatten()))/rescale**2)
                 d = distr2d(beta, norm, z, debug=True)
                 d.normalize()
@@ -336,23 +353,40 @@ def H2StackFit(self, Nmin=16, Nmax=22, load=True, draw=True, name='.dat'):
                 for l in c.collections:
                     l.set_dashes(':')
                 #ax.scatter(d.point[0], d.point[1], s=50, color='#222222', marker='*')
+
+            ax.xaxis.set_minor_locator(AutoMinorLocator(4))
+            ax.xaxis.set_major_locator(MultipleLocator(0.2))
+            ax.yaxis.set_minor_locator(AutoMinorLocator(5))
+            ax.yaxis.set_major_locator(MultipleLocator(0.5))
+            ax.tick_params(which='both', width=1)
+            ax.tick_params(which='major', length=5)
+            ax.tick_params(which='minor', length=3)
+            ax.tick_params(axis='both', which='major', labelsize=16)
             ax.legend(loc='best', fontsize=12, frameon=None, facecolor=None, framealpha=0)
             plt.tight_layout()
-            plt.savefig('C:/science/papers/H2Stack/figures/contour.png')
-            plt.show()
+            plt.savefig('C:/science/papers/H2Stack/figures/contour.pdf')
         if 1:
             print('maginalize:')
             d1 = d.marginalize('y')
             print('marg point:', d1.dopoint())
             for c in [0.683]:
+                print('marg interval:', d1.interval(conf=c)[0])
+                d1.plot(conf=c)
+            d1 = d.marginalize('x')
+            print('marg point:', np.power(10, d1.dopoint()))
+            for c in [0.683]:
                 print('marg interval:', np.power(10, d1.interval(conf=c)[0]))
                 d1.plot(conf=c)
-                plt.show()
-    x, spec = makeH2Stack(self, beta=beta_min, Nmin=18, Nmax=22, norm=norm_min, draw=False)
-    self.fit.setValue('cf0', 1 - 10**norm_min)
-    self.s[-1].spec.norm.err *= rescale
-    self.s[-1].set_fit(x=x, y=spec)
+        plt.show()
+
+    x, spec = makeH2Stack(self, beta=beta_min, Nmin=Nmin, Nmax=Nmax, b=b, norm=norm_min, draw=False)
+    self.fit.setValue('cf_0', 1 - 10**norm_min)
+    self.s[ind].spec.norm.err *= rescale
+    self.s[ind].set_fit(x=x, y=spec)
     self.s.chi2()
+    if 1:
+        self.importSpectrum('best_fit={:.2f}_min={:.1f}_max={:.1f}'.format(bf_beta, Nmin, Nmax), spec=[self.s[ind].fit.x(), self.s[ind].fit.y()], append=True)
+        self.s[-1].spec.norm = self.s[-1].spec.raw
     self.s.redraw()
 
 def makeHIStack(self, beta=-1.5, N_g=None, Nmin=20.0, Nmax=22.0, load=True, draw=True):
@@ -360,7 +394,7 @@ def makeHIStack(self, beta=-1.5, N_g=None, Nmin=20.0, Nmax=22.0, load=True, draw
 
     #load = False
     if not load:
-        Ngrid = np.logspace(Nmin, Nmax, 300)
+        Ngrid = np.logspace(Nmin, Nmax, 201)
         self.console.exec_command('load HIStack')
         spec = None
         for N in Ngrid:
