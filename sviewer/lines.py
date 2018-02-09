@@ -264,7 +264,7 @@ class LineLabel(pg.TextItem):
     def __init__(self, parent, line, graphicType, **kwrds):
         self.parent = parent
         self.saved_color = kwrds['color']
-        pg.TextItem.__init__(self, text=str(line), anchor=(0.5, -1), fill=pg.mkBrush(0, 0, 0, 0), **kwrds)
+        pg.TextItem.__init__(self, text=str(line)+' {:.4f}'.format(line.f), anchor=(0.5, -1), fill=pg.mkBrush(0, 0, 0, 0), **kwrds)
         self.graphicType = graphicType
         if self.graphicType == 'short':
             self.arrow = pg.ArrowItem(angle=90, headWidth=0.5, headLen=0, tailLen=30, brush=pg.mkBrush(255, 0, 0, 255),
@@ -408,7 +408,7 @@ class Doublet():
 
     def read(self):
         self.doublet = {}
-        with open('data/doublet_v2.dat') as f:
+        with open('data/doublet.dat') as f:
             for line in f:
                 self.doublet[line.split()[0]] = [float(d) for d in line.split()[1:]]
         print(self.doublet)
@@ -493,10 +493,9 @@ class Doublet():
                     res.append(1- (diff / (1- d[0]/d[1])))
                     ind.append((k, d[0]))
         self.remove_temp()
-        print(res)
         if len(res) > 0:
             i = np.argmin(np.abs(res))
-            self.name = ind[0][0] #.decode('UTF-8').replace('_', '')
+            self.name = ind[i][0] #.decode('UTF-8').replace('_', '')
             self.z = x1 / ind[i][1] - 1
             self.parent.parent.console.exec_command('show '+self.name)
             self.parent.parent.setz_abs(self.z)

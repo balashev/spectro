@@ -394,7 +394,7 @@ class plotSpectrum(pg.PlotWidget):
                     
     def mousePressEvent(self, event):
         super(plotSpectrum, self).mousePressEvent(event)
-        if any([self.a_status, self.b_status, self.c_status, self.d_status, self.r_status, self.s_status, self.w_status, self.x_status]):
+        if any([getattr(self, s+'_status') for s in 'abcrsuwx']):
             self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
         if self.r_status:
             self.regions.append(regionItem(self))
@@ -500,12 +500,13 @@ class plotSpectrum(pg.PlotWidget):
             self.parent.s.chi2()
 
         if self.u_status:
-            if self.u_status == 1:
-                self.doublets.append(Doublet(self))
-                self.doublets[-1].draw_temp(self.mousePoint.x())
-            if self.u_status == 2:
-                self.doublets[-1].find(self.doublets[-1].line_temp.value(), self.mousePoint.x())
-            self.u_status += 1
+            if self.mousePoint.x() == self.mousePoint_saved.x() and self.mousePoint.y() == self.mousePoint_saved.y():
+                if self.u_status == 1:
+                    self.doublets.append(Doublet(self))
+                    self.doublets[-1].draw_temp(self.mousePoint.x())
+                if self.u_status == 2:
+                    self.doublets[-1].find(self.doublets[-1].line_temp.value(), self.mousePoint.x())
+                self.u_status += 1
 
         if self.w_status:
             s = self.parent.s[self.parent.s.ind]
@@ -4573,7 +4574,7 @@ class sviewer(QMainWindow):
         if len(self.Lyalines) > 0:
             self.Lyalinestable = QSOlistTable(self, 'Lyalines', folder=os.path.dirname(filename))
             mask = np.ones_like(self.Lyalines['t'], dtype=bool)
-            #mask = self.Lyalines['t'] == 'c'
+            #mask = (self.Lyalines['t'] != 'b') * (self.Lyalines['chi'] < 1.3)
             self.Lyalinestable.setdata(self.Lyalines[mask])
             #self.data = add_field(self.Lyalines[mask], [('ind', int)], np.arange(len(self.Lyalines[mask])))
 

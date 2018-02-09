@@ -355,7 +355,8 @@ class plotLyalines(pg.PlotWidget):
                 self.vb.addItem(self.selected_point)
                 N = [float(self.parent.item(i,1).text()) for i in range(self.parent.rowCount())]
                 b = [float(self.parent.item(i,3).text()) for i in range(self.parent.rowCount())]
-                ind = np.where(np.logical_and(b == self.data['b'][self.ind], N == self.data['N'][self.ind]))[0][0]
+                ind = np.argmin((b - self.data['b'][self.ind])**2 + (N - self.data['N'][self.ind])**2)
+                #ind = np.where(np.logical_and(b == self.data['b'][self.ind], N == self.data['N'][self.ind]))[0][0]
                 #ind = np.where(np.logical_and(self.parent.data['b'] == self.data['b'][self.ind], self.parent.data['N'] == self.data['N'][self.ind]))[0][0]
                 self.parent.setCurrentCell(0,0)
                 self.parent.row_clicked(ind)
