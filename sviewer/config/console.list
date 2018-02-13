@@ -1,9 +1,3 @@
-NV
-FeII
-AlIII
-FEII
-FeII
-CII*
 show CII*
 FeII
 SiII
@@ -19,3 +13,9 @@ show FeII
 hide all
 45*55
 show H2 0 1 2 3 4 5
+AlIII
+CIV
+SiIV
+FeII
+SiII
+OVI

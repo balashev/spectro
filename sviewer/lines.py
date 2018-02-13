@@ -438,7 +438,7 @@ class Doublet():
             anchor = (0, 1) if 'DLA' not in self.name else (0, 0)
             self.label.append(doubletLabel(self, self.name, l, angle=90, anchor=anchor))
             self.parent.vb.addItem(self.label[-1])
-        if add and 'DLA' not in self.name:
+        if add and self.name.strip() in ['CIV', 'SiIV', 'AlIII', 'FeII', 'MgII']:
             self.parent.doublets.append(Doublet(self.parent, name='DLA', z=self.z))
 
     def redraw(self):
