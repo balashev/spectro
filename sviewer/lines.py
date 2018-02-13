@@ -216,6 +216,8 @@ class absSystemIndicator():
             lines = self.lines
         if el is not None:
             lines = [l for l in self.lines if str(l.line).startswith(el)]
+        if not isinstance(lines, list):
+            lines = [lines]
         for line in lines:
             for i in reversed(range(len(self.lines))):
                 if line == self.lines[i].line:
@@ -264,13 +266,13 @@ class LineLabel(pg.TextItem):
     def __init__(self, parent, line, graphicType, **kwrds):
         self.parent = parent
         self.saved_color = kwrds['color']
-        pg.TextItem.__init__(self, text=str(line)+' {:.4f}'.format(line.f), anchor=(0.5, -1), fill=pg.mkBrush(0, 0, 0, 0), **kwrds)
+        pg.TextItem.__init__(self, text='', anchor=(0.5, -1), fill=pg.mkBrush(0, 0, 0, 0), **kwrds)
         self.graphicType = graphicType
         if self.graphicType == 'short':
             self.arrow = pg.ArrowItem(angle=90, headWidth=0.5, headLen=0, tailLen=30, brush=pg.mkBrush(255, 0, 0, 255),
                                   pen=pg.mkPen(0, 0, 0, 0), anchor=(0.5, -0.5))
         elif self.graphicType == 'infinite':
-            self.arrow = pg.InfiniteLine(angle=90, pen=pg.mkPen(color=kwrds['color'], style=Qt.DashLine), label='')
+            self.arrow = pg.InfiniteLine(angle=90, pen=pg.mkPen(color=kwrds['color'], width=.5, style=Qt.SolidLine), label='') #style=Qt.DashLine
         self.arrow.setParentItem(self)
         self.setFont(QFont("SansSerif", 10))
         self.line = line
@@ -281,19 +283,24 @@ class LineLabel(pg.TextItem):
             self.active = bool
         else:
             self.active = True if str(self.line) in self.parent.parent.lines else False
+        if self.parent.parent.show_osc:
+            self.setText(str(self.line)+' {:.4f}'.format(self.line.f))
+        else:
+            self.setText(str(self.line))
+
         if self.active:
             self.border = pg.mkPen(40, 10, 0, 255, width=1)
             self.fill = pg.mkBrush(255, 69, 0, 255)
             self.setColor(pg.mkColor(255, 255, 255, 255))
             if self.graphicType == 'infinite':
-                self.arrow.setPen(pg.mkPen(color=self.fill.color(), style=Qt.DashLine))
+                self.arrow.setPen(pg.mkPen(color=self.fill.color(), width=1, style=Qt.SolidLine))
             #self.setColor(pg.mkColor(255, 69, 0, 255))
         else:
             self.border = pg.mkPen(0, 0, 0, 0, width=0)
             self.fill = pg.mkBrush(0, 0, 0, 0)
             self.setColor(self.saved_color)
             if self.graphicType == 'infinite':
-                self.arrow.setPen(pg.mkPen(color=self.saved_color, style=Qt.DashLine))
+                self.arrow.setPen(pg.mkPen(color=self.saved_color, width=.5, style=Qt.SolidLine))
         #self.paint()
 
     def redraw(self, z):
@@ -333,6 +340,9 @@ class LineLabel(pg.TextItem):
             self.parent.parent.line_reper = self.line
             self.parent.parent.plot.updateVelocityAxis()
             ev.accept()
+        if QApplication.keyboardModifiers() == Qt.ControlModifier:
+            self.parent.remove(self.line)
+            del self
         if ev.double():
             self.setActive(not self.active)
             if self.active and str(self.line) not in self.parent.parent.lines:

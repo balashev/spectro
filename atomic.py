@@ -287,7 +287,7 @@ class line():
             return self.name + ' ' + str(self.l)[:str(self.l).find('.')+3]
     
     def __eq__(self, other):
-        if str(self) == str(other) and self.l == other.l and self.z == self.z :
+        if str(self) == str(other) and self.l == other.l and self.z == self.z:
             return True
         else:
             return False

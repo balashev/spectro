@@ -16,11 +16,10 @@ import pyqtgraph.opengl as gl
 from scipy import interpolate, integrate, optimize
 from scipy.stats import rv_continuous, norm, chi2
 import os, sys
-
 sys.path.append('C:/Science/python')
-from .a_unc import a
 from spectro import colors as col
-from .sviewer.utils import printProgressBar, Timer
+from spectro.a_unc import a
+from spectro.sviewer.utils import printProgressBar, Timer
 
 class distr1d():
     def __init__(self, x, y, xtol=1e-5, debug=False):
@@ -300,7 +299,7 @@ class distr2d():
                     w.addItem(line)
         app.instance().exec_()
 
-    def plot_contour(self, conf_levels=None, ax=None, xlabel='', ylabel='', colors='k', cmap='PuRd', alpha=1.0, colorbar=True, ls=None):
+    def plot_contour(self, conf_levels=None, ax=None, xlabel='', ylabel='', color='orangered', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False, ls=None):
         if ax == None:
             fig, ax = plt.subplots()
         self.dopoint()
@@ -318,11 +317,11 @@ class distr2d():
             my_cmap = ListedColormap(my_cmap)
             cs = ax.contourf(self.X, self.Y, self.z / self.zmax, 100, cmap=my_cmap)
 
-        c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=colors, lw=0.5)
+        c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5)
         if ls is not None:
             for c, s in zip(c.collections[:len(ls)], ls[::-1]):
                 c.set_dashes(s)
-        ax.scatter(self.point[0], self.point[1], s=200, color='orangered', edgecolors='k', marker='*', zorder=50)
+        ax.scatter(self.point[0], self.point[1], s=200, color=color_point, edgecolors='k', marker='*', zorder=50)
         if colorbar:
             fig.colorbar(cs, ax=ax) #, shrink=0.9)
         ax.set_xlabel(xlabel)
@@ -420,16 +419,18 @@ class speci:
         self.A = np.zeros([self.num,self.num])
         self.B = np.zeros([self.num,self.num])
         self.n = n
+        self.mask = [n is not None for n in self.n]
+        print(self.mask)
         self.const2 = (ac.h.cgs**2/(2*ac.m_e.cgs*np.pi)**(1.5)/(ac.k_B.cgs)**0.5).value
         
         # >> set population ratios
-        self.y = [None] * (self.num - 1)
-        if n[0].val != 0:
-            for k in range(self.num-1):
-                if n[k+1] is not None:
-                    self.y[k] = n[k+1] / n[0]
+        self.y = [None] * (np.sum(self.mask) - 1)
+        ind = np.where(self.mask)[0]
+        if n[ind[0]].val != 0:
+            for i, k in enumerate(ind[1:]):
+                self.y[i] = (ind[0], k, self.n[k] / self.n[ind[0]])   #formatof y[i]: level_1, level_2, ratio of column densities
         else:
-            self.y = [a()]*(self.num-1)
+            self.y = [(0, 0, a())]*(self.num-1)
 
         # >> calc total column density
         self.n_tot = a(0,0,0)
@@ -802,6 +803,14 @@ class par():
         self.name = name
         self.prior = prior
         self.parent = parent
+
+        # >>> particle number density
+        if name == 'Ntot':
+            self.label = r'$\log\,N_{\rm tot}$'
+            self.init = 2
+            self.range = [1, 25]
+            self.init_range = 0.2
+
         # >>> particle number density
         if name == 'n':
             self.mol_fr = 0 # in log10 s !!!
@@ -884,19 +893,27 @@ class pyratio():
                         automatically number of levels in analysis.
         - parlist     : list of parameters to control population ratios
                         e.g. ['n', 'T', 'f', 'H', 'e', 'H2']
-                        'n' - number density, 
-                        'T' - temperature, 
-                        'f' - molecular fraction, 
-                        'H' - atomic hydrogen density, 
-                        'e' - electron density, 
-                        'H2' - molecular hydrogen density 
+                        'n'    - number density,
+                        'T'    - temperature,
+                        'f'    - molecular fraction,
+                        'H'    - atomic hydrogen density,
+                        'e'    - electron density,
+                        'H2'   - molecular hydrogen density
+                        'Ntot' - total column density of species
+
         - z           : redshift of the medium, need for CMB calculations
         - f_He        : fraction of Helium nuclei, respect to hydrogen nuclei
         - logs        : if logs==1 compare log values of ratios when calculating likelihood.
+        - calctype    : type of calculation to be performed:
+                            allowed:
+                            1. popratios
+                            2. numbdens
+                            3. numbdens_min
+
             
     """
     def __init__(self, z=0, f_He=0.085, conf_levels=[0.68269], calctype='popratios'):
-        self.species = []
+        self.species = collections.OrderedDict()
         self.pars = collections.OrderedDict()
         self.Planck1 = 8*np.pi*ac.h.cgs.value
         self.Planck2 = (ac.h.cgs/ac.k_B.cgs*ac.c.cgs).value
@@ -905,9 +922,12 @@ class pyratio():
         self.f_He = f_He
         self.theta_range = []
         self.calctype = calctype
+        if self.calctype == 'numbdens':
+            self.set_pars(['Ntot'])
         self.conf_levels = conf_levels
         self.folder = os.path.dirname(os.path.realpath(__file__))
-        
+        self.timer = Timer()
+
     def add_spec(self, name, n=None, num=None):
         d = {'OI': 3, 'CI': 3, 'CII': 2, 'SiII': 2, 'HD': 3, 'CO': 15}
         if n is not None:
@@ -916,12 +936,12 @@ class pyratio():
             n = [a()] * d[name]
 
         print('add_spec:', n)
-        self.species.append(speci(self, name, n, num))
+        self.species[name] = speci(self, name, n, num)
 
     def set_pars(self, parlist):
         for p in parlist:
             self.pars[p] = par(p, parent=self)
-        
+
     def set_prior(self, par, prior):
         for p in self.pars:
             if p == par:
@@ -944,16 +964,15 @@ class pyratio():
         return self.vary
 
     def print_species(self):
-        for s in self.species:
+        for s in self.species.values():
             print('species: ', s.name)
             print('number of levels: ', s.num)
             print('column densities: ')
-            for i, n in enumerate(s.n):
-                if n is not None:
-                    print('{0} level: {1}'.format(i, n.log()))
+            for i in np.where(s.mask)[0]:
+                print('{0} level: {1}'.format(i, s.n[i].log()))
             print('level population ratios: ')
-            for i, y in enumerate(s.y):
-                print('{0}/0 level: {1}'.format(i+1, y))
+            for i in s.y:
+                print('{1}/{0} level: {2}'.format(i[0], i[1], i[2]))
             
         # some checking calculations
         if 0==1:
@@ -1002,7 +1021,7 @@ class pyratio():
                               'UV'   -  by uv pumping
 
         """
-        for speci in self.species:
+        for speci in self.species.values():
             if speci.name == name:
                 break
         W = np.zeros([speci.num, speci.num])
@@ -1123,6 +1142,63 @@ class pyratio():
             uv[mask] = 1.287e-9 * l[mask]**4.4172
             return uv
 
+    def lnpops(self):
+        """
+        Calculates the likelihood function for the model using population ratios on the levels
+
+        return: ln
+            - ln        : a value of log likelihood
+        """
+        ln = 0
+        for sp in self.species.values():
+            f = self.balance(sp.name)
+            for y in sp.y:
+                z = f[y[1]] / f[y[0]]
+                if self.logs:
+                    y[2].log()
+                    z = np.log10(z)
+                if y[2].type == 'm':
+                    ln += y[2].lnL(z, ind=2)
+                elif y[2].type == 'u':
+                    delta = 0.2
+                    ln += -0.5*((1 - smooth_step(y[2].val - z + delta, delta))*2)**2
+                elif y.type == 'l':
+                    delta = 0.2
+                    ln += -0.5*(smooth_step(y[2].val - z + delta, delta)*2)**2
+        return ln
+
+
+    def lndens(self):
+        """
+        Calculates the likelihood function for the model using total volume (number) density as nuisance parameter
+
+        return: ln
+            - ln        : a value of log likelihood
+        """
+        ln = 0
+        for sp in self.species.values():
+            self.timer.time('balance in')
+            f = self.balance(sp.name)
+            self.timer.time('balance out')
+            f /= np.sum(f[sp.mask])
+            if self.logs:
+                y = np.log10(f[sp.mask]) + self.pars['Ntot'].value
+            else:
+                y = f[sp.mask] * 10 ** self.pars['Ntot'].value
+            for y, n in zip(y, np.asarray(sp.n)[sp.mask]):
+                if self.logs:
+                    n.log()
+                if n.type == 'm':
+                    ln += n.lnL(y, ind=2)
+                elif n.type == 'u':
+                    delta = 0.2
+                    ln += -0.5*((1 - smooth_step(n.val - y + delta, delta))*2)**2
+                elif n.type == 'l':
+                    delta = 0.2
+                    ln += -0.5*(smooth_step(n.val - y + delta, delta)*2)**2
+
+        return ln
+
     def lndensmin(self, x, f, n):
         ln = 0
         for fi, ni in zip(f, n):
@@ -1140,53 +1216,62 @@ class pyratio():
                     ln += -0.5 * (smooth_step(10**ni.val - f[i] * 10**x + delta, delta) * 2) ** 2
         return -ln
 
-    def lndens(self):
+    def lndens_min(self):
         ln = 0
-        for sp in self.species:
+        for sp in self.species.values():
             f = self.balance(sp.name)
             res = optimize.minimize(self.lndensmin, sp.n_tot.val, args=(f, sp.n), method='Nelder-Mead', tol=1e-3)
             ln += -self.lndensmin(res.x, f, sp.n)
         return ln
 
-    def lnpops(self):
-        ln = 0
-        for sp in self.species:
-            f = self.balance(sp.name)[1:]
-            for i, y in enumerate(sp.y):
-                if y is not None:
-                    if self.logs:
-                        y.log()
-                        f[i] = np.log10(f[i])
-                    if y.type == 'm':
-                        ln += y.lnL(f[i], ind=2)
-                    elif y.type == 'u':
-                        delta = 0.2
-                        ln += -0.5*((1 - smooth_step(y.val-f[i]+delta, delta))*2)**2
-                    elif y.type == 'l':
-                        delta = 0.2
-                        ln += -0.5*(smooth_step(y.val-f[i]+delta, delta)*2)**2
-        return ln
-
     def lnlike(self):
+        """
+        Calculates the likelihood function for the model.
+        It supposts two types of calculation:
+                1. using population ratios on the levels.
+                2. using measurements of number density of each level (i.e. column density in one zone approximation),
+                   minimizing over total number density at each step.
+                3. The same as 2, but suggesting that total number density is a nuisance parameter.
+
+        return: ln
+            - ln        : a value of log likelihood
+        """
         if self.calctype == 'popratios':
+
             return self.lnpops()
+
         elif self.calctype == 'numbdens':
+
             return self.lndens()
+
+        elif self.calctype == 'numbdens_min':
+
+            return self.lndens_min()
+
 
     # for MCMC calculation
     def lnprobMCMC(self, values):
+        """
+        Calculates likelihood for MCMC runs.
+        """
         for p, v in zip(self.vary, values):
             self.pars[p].value = v
 
         return self.lnprob()
 
     def lnprob(self):
+        """
+        Calculates likelihood with priors.
+        """
         lp = self.lnprior()
         if not np.isfinite(lp):
             return -np.inf
         return lp + self.lnlike()
     
     def lnprior(self):
+        """
+        Adding prior on the parameters to the likelihood
+        """
         pri = 0
         for p in self.pars.values():
             if p.value < p.range[0] or p.value > p.range[1]:
@@ -1198,19 +1283,24 @@ class pyratio():
                     pri += (-0.5 * (x / p.prior.plus)**2 if x > 0 else -0.5 * (x / p.prior.minus)**2)
         return pri
     
-    def predict(self, level=0, logN=None):
+    def predict(self, name=None, level=0, logN=None):
         """
         predict column densities on levels
         parameters:
             - level      : level with known column density
             - logN       : column density as <a> object
         """
-        x = self.balance(self.species[0].name)
+        if name is None:
+            name = self.species.keys()[0]
+
+        x = self.balance(self.species[name].name)
 
         if logN is None:
             logN = 0.0
+
         if isinstance(logN, float):
             return [np.log10(10**logN * x[i]/x[level]) for i in range(self.species[0].num)]
+
         if isinstance(logN, a):
             return [logN * x[i]/x[level] for i in range(self.species[0].num)]
         
@@ -1368,7 +1458,7 @@ class pyratio():
             for c in self.conf_levels:
                 interval = d.interval(c)
                 print(c, interval)
-                ax.axhline(d.inter(interval[0]))
+                #ax.axhline(d.inter(interval[0]))
 
             if title != '':
                 if 0:
@@ -1426,12 +1516,15 @@ class pyratio():
             self.pars[vary[0]].value = X1[i]
             for k in range(len(X2)):
                 self.pars[vary[1]].value = X2[k]
+                self.timer.time('in')
                 Z[k, i] = self.lnprob()
+                self.timer.time('out')
             printProgressBar(i + 1, grid_num, prefix='Progress:')
 
         if verbose == 1:
             print(max(Z.flatten()))
 
+        print(X1, X2, np.exp(Z))
         d = distr2d(X1, X2, np.exp(Z))
         point = d.dopoint()
 
@@ -1443,7 +1536,7 @@ class pyratio():
         if plot > 0:
             print('plot regions...')
 
-            if self.species[0].y[0].type in ['u', 'l']:
+            if 0: #self.species[self.species.keys()[0]].y[0][2].type in ['u', 'l']:
                 typ = 'i'
             else:
                 typ = 'l'
@@ -1457,19 +1550,21 @@ class pyratio():
                 cs = ax.contour(d.X, d.Y, chi-m, levels=[1], lw=1, ls='--', origin='lower', zorder=zorder)
 
             if typ == 'l':
-                conf_levels = np.asarray([d.level(c) for c in self.conf_levels])
-                print(conf_levels, self.conf_levels)
-                conf_levels = np.sort(conf_levels)
-                levels = np.linspace(np.min(d.z.flatten()), np.max(d.z.flatten()), 100)
-                col = '#%02x%02x%02x' % tuple(int(c*255) for c in color)
-                if plot == 1:
-                    ax.contourf(d.X, d.Y, d.z, levels=levels, cmap=theCM, alpha=alpha, zorder=zorder)
-                elif plot == 2:
-                    csf = ax.contourf(d.X, d.Y, d.z, levels=[conf_levels[0], d.zmax[0]], colors=col, alpha=alpha, zorder=zorder)
-                cs = ax.contour(d.X, d.Y, d.z, levels=conf_levels, linewidths=1, ls='--', colors=col, origin='lower', zorder=zorder)
 
-                d.plot(conf_levels=conf_levels)
-
+                if 1:
+                    #d.plot(conf_levels=conf_levels)
+                    d.plot_contour(conf_levels=self.conf_levels, ax=ax)
+                else:
+                    conf_levels = np.asarray([d.level(c) for c in self.conf_levels])
+                    print(conf_levels, self.conf_levels)
+                    conf_levels = np.sort(conf_levels)
+                    levels = np.linspace(np.min(d.z.flatten()), np.max(d.z.flatten()), 100)
+                    col = '#%02x%02x%02x' % tuple(int(c*255) for c in color)
+                    if plot == 1:
+                        ax.contourf(d.X, d.Y, d.z, levels=levels, cmap=theCM, alpha=alpha, zorder=zorder)
+                    elif plot == 2:
+                        csf = ax.contourf(d.X, d.Y, d.z, levels=[conf_levels[0], d.zmax[0]], colors=col, alpha=alpha, zorder=zorder)
+                    cs = ax.contour(d.X, d.Y, d.z, levels=conf_levels, linewidths=1, ls='--', colors=col, origin='lower', zorder=zorder)
 
             if typ == 'i':
                 print('interpolate region...')
@@ -1493,9 +1588,7 @@ class pyratio():
                     uplims, lolims = True, False
                 else:
                     uplims, lolims = False, True
-                ax.errorbar(x[::3], y[::3], yerr=0.1, ls='none',
-                            uplims=uplims, lolims=lolims,
-                            color=color, zorder=zorder)
+                ax.errorbar(x[::3], y[::3], yerr=0.1, ls='none', uplims=uplims, lolims=lolims, color=color, zorder=zorder)
             if title !='':
                 if 0:
                     ax.set_title(title)
@@ -1520,7 +1613,7 @@ class pyratio():
 
         return out
     
-    def calc_MCMC(self, nwalkers=500, nsteps=2000, plot='chainconsumer', verbose=0, diagnostic=True):
+    def calc_MCMC(self, nwalkers=100, nsteps=200, plot='chainconsumer', verbose=0, diagnostic=True):
         """
         calculate regions using MCMC method by emcee package
         """
@@ -1745,7 +1838,7 @@ if __name__ == '__main__':
     
     print('executing main program code')
     
-    if 1:
+    if 0:
         pr = pyratio()
         n_Si = [a(14.92, 0.14, 0.12), a(11.32, 0.14, 0.21)]
         n_CI = [a(13.16, 0.11, 0.09), a(13.25, 0.13, 0.09), a(13.01, 0.12, 0.11)]
@@ -1913,6 +2006,32 @@ if __name__ == '__main__':
         plt.savefig('pyratio.png', bbox_inches='tight', transparent=True)
         plt.show()
 
+    # check calculation with Ntot
+    if 1:
+        pr = pyratio(z=2.525, calctype='numbdens')
+        pr.set_pars(['T', 'n', 'f'])
+        pr.set_prior('f', a(0, 0, 0))
+        pr.set_prior('T', a(1.7, 0, 0))
+        pr.pars['n'].value = 2
+        pr.pars['n'].range = [1, 6]
+
+        pr.add_spec('CO', [a(14.43, 0.12), a(14.52, 0.08), a(14.33, 0.06), a(13.73, 0.05), a(13.14, 0.13)])
+        if 1:
+            pr.pars['Ntot'].value = pr.species['CO'].n_tot.val
+            pr.pars['Ntot'].init = pr.species['CO'].n_tot.val
+            pr.pars['Ntot'].range = [pr.species['CO'].n_tot.val - pr.species['CO'].n_tot.minus * 5, pr.species['CO'].n_tot.val + pr.species['CO'].n_tot.plus * 5]
+            pr.pars['Ntot'].init_range = np.max([pr.species['CO'].n_tot.minus, pr.species['CO'].n_tot.plus])
+            print(pr.pars['Ntot'])
+        #pr.add_spec('CO', [a(14.43, 0.12), a(14.52, 0.08), a(14.33, 0.06), a(13.73, 0.05), a(13.14, 0.13)])
+        fig, ax = plt.subplots()
+        if 0:
+            pr.calc_MCMC()
+        else:
+            pr.calc_grid(grid_num=30, ax=ax)
+
+        plt.savefig('C:/Users/Serj/Desktop/W_CO.pdf')
+        plt.show()
+
     # check CO data
     if 0:
         pr = pyratio(z=2.525)
@@ -1923,11 +2042,11 @@ if __name__ == '__main__':
         pr.pars['n'].range = [1, 6]
 
         pr.add_spec('CO', [a(14.43, 0.12), a(14.52, 0.08), a(14.33, 0.06), a(13.73, 0.05), a(13.14, 0.13)])
-        #pr.add_spec('CO', [a(14.43, 0.12), a(14.52, 0.08), a(14.33, 0.06), a(13.73, 0.05), a(13.14, 0.13)])
+        # pr.add_spec('CO', [a(14.43, 0.12), a(14.52, 0.08), a(14.33, 0.06), a(13.73, 0.05), a(13.14, 0.13)])
         fig, ax = plt.subplots()
-        #pr.species[0].plot_allCollCrossSect()
-        #pr.critical_density(depend='T', ax=ax)
-        #pr.calc_dep('n', ax=ax, stats=1, Texc=0)
+        # pr.species[0].plot_allCollCrossSect()
+        # pr.critical_density(depend='T', ax=ax)
+        # pr.calc_dep('n', ax=ax, stats=1, Texc=0)
         pr.calc_emission_CO('n')
         if 0:
             print(pr.species[0].coll['H'].rate(1, 0, 2), pr.species[0].coll['H'].rate(0, 1, 2))

@@ -703,95 +703,23 @@ class preferencesWidget(QWidget):
         self.parent = parent
         self.move(200,100)
         self.setWindowTitle('Preferences')
-
-        self.initGUI()
-        self.setFixedSize(600, 1000)
         self.setStyleSheet(open('config/styles.ini').read())
 
+        self.initGUI()
+        self.setGeometry(300, 200, 100, 100)
+        self.show()
+
     def initGUI(self):
-        validator = QDoubleValidator()
-        locale = QLocale('C')
-        validator.setLocale(locale)
-
         layout = QVBoxLayout()
-        self.grid = QGridLayout()
-        layout.addLayout(self.grid)
 
-        self.grid.addWidget(QLabel('Appearance settings:'), 0, 0)
-        self.grid.addWidget(QLabel('Spectrum view:'), 1, 0)
-        self.specview = QComboBox()
-        self.viewdict = OrderedDict([('step', 'step'), ('steperr', 'step + err'), ('line', 'lines'),
-                                     ('lineerr', 'lines + err'), ('point', 'points'), ('pointerr', 'points + err')])
-        self.specview.addItems(list(self.viewdict.values()))
-        self.specview.setCurrentText(self.viewdict[self.parent.specview])
-        self.specview.currentIndexChanged.connect(self.setSpecview)
-        self.specview.setFixedSize(120, 30)
-        self.grid.addWidget(self.specview, 1, 1)
+        self.tab = QTabWidget()
+        self.tab.setGeometry(0, 0, 1050, 900)
+        #self.tab.setMinimumSize(1050, 300)
+        
+        for t in ['Appearance', 'Fit', 'Colors']:
+            self.tab.addTab(self.initTabGUI(t), t)
 
-        self.grid.addWidget(QLabel('Fitting points view:'), 2, 0)
-        self.selectview = QComboBox()
-        self.selectview.addItems(['point', 'color', 'region'])
-        self.selectview.setCurrentText(self.parent.selectview)
-        self.selectview.currentIndexChanged.connect(self.setSelect)
-        self.selectview.setFixedSize(120, 30)
-        self.grid.addWidget(self.selectview, 2, 1)
-
-        self.grid.addWidget(QLabel('Line labels view:'), 3, 0)
-        self.selectlines = QComboBox()
-        self.selectlines.addItems(['short', 'infinite'])
-        self.selectlines.setCurrentText(self.parent.linelabels)
-        self.selectlines.currentIndexChanged.connect(self.setLabels)
-        self.selectlines.setFixedSize(120, 30)
-        self.grid.addWidget(self.selectlines, 3, 1)
-
-        self.showinactive = QCheckBox('show inactive exps')
-        self.showinactive.setChecked(self.parent.showinactive)
-        self.showinactive.stateChanged.connect(partial(self.setChecked, 'showinactive'))
-        self.grid.addWidget(self.showinactive, 4, 0)
-
-        self.grid.addWidget(QLabel('Fit settings:'), 5, 0)
-        self.fitGroup = QButtonGroup(self)
-        self.fittype = ['regular', 'fft', 'fast']
-        for i, f in enumerate(self.fittype):
-            s = ':' if f == 'fast' else ''
-            setattr(self, f, QRadioButton(f+s))
-            getattr(self, f).toggled.connect(self.setFitType)
-            self.fitGroup.addButton(getattr(self, f))
-            self.grid.addWidget(getattr(self, f), 6, i)
-        getattr(self, self.parent.fitType).toggle()
-
-        self.num_between = QLineEdit(str(self.parent.num_between))
-        self.num_between.setValidator(validator)
-        self.num_between.textChanged[str].connect(self.setNumBetween)
-        self.grid.addWidget(self.num_between, 6, 3)
-
-        self.grid.addWidget(QLabel('Tau limit:'), 7, 0)
-
-        self.tau_limit = QLineEdit(str(self.parent.tau_limit))
-        self.tau_limit.setValidator(validator)
-        self.tau_limit.textChanged[str].connect(self.setTauLimit)
-        self.grid.addWidget(self.tau_limit, 7, 1)
-
-        self.grid.addWidget(QLabel('fit components:'), 8, 0)
-        self.compGroup = QButtonGroup(self)
-        self.compview = ['all', 'one', 'none']
-        for i, f in enumerate(self.compview):
-            setattr(self, f, QRadioButton(f))
-            getattr(self, f).toggled.connect(self.setCompView)
-            self.compGroup.addButton(getattr(self, f))
-            self.grid.addWidget(getattr(self, f), 9, i)
-        getattr(self, self.parent.comp_view).toggle()
-
-        self.fitPoints = QCheckBox('show fit points')
-        self.fitPoints.setChecked(self.parent.fitPoints)
-        self.fitPoints.stateChanged.connect(partial(self.setChecked, 'fitPoints'))
-        self.grid.addWidget(self.fitPoints, 10, 0)
-
-        self.animateFit = QCheckBox('animate fit')
-        self.animateFit.setChecked(self.parent.animateFit)
-        self.animateFit.stateChanged.connect(partial(self.setChecked, 'animateFit'))
-        self.grid.addWidget(self.animateFit, 11, 0)
-
+        layout.addWidget(self.tab)
         h = QHBoxLayout()
         h.addStretch(1)
         ok = QPushButton("Ok")
@@ -801,6 +729,113 @@ class preferencesWidget(QWidget):
         layout.addStretch(1)
         layout.addLayout(h)
         self.setLayout(layout)
+
+
+    def initTabGUI(self, window=None):
+
+        frame = QFrame()
+        validator = QDoubleValidator()
+        locale = QLocale('C')
+        validator.setLocale(locale)
+
+        layout = QHBoxLayout()
+        self.grid = QGridLayout()
+
+        if window == 'Fit':
+
+            ind = 0
+            self.fitGroup = QButtonGroup(self)
+            self.fittype = ['regular', 'fft', 'fast']
+            for i, f in enumerate(self.fittype):
+                s = ':' if f == 'fast' else ''
+                setattr(self, f, QRadioButton(f + s))
+                getattr(self, f).toggled.connect(self.setFitType)
+                self.fitGroup.addButton(getattr(self, f))
+                self.grid.addWidget(getattr(self, f), ind, i)
+            getattr(self, self.parent.fitType).toggle()
+
+            self.num_between = QLineEdit(str(self.parent.num_between))
+            self.num_between.setValidator(validator)
+            self.num_between.textChanged[str].connect(self.setNumBetween)
+            self.grid.addWidget(self.num_between, ind, 3)
+
+            ind += 1
+            self.grid.addWidget(QLabel('Tau limit:'), ind, 0)
+
+            self.tau_limit = QLineEdit(str(self.parent.tau_limit))
+            self.tau_limit.setValidator(validator)
+            self.tau_limit.textChanged[str].connect(self.setTauLimit)
+            self.grid.addWidget(self.tau_limit, ind, 1)
+
+            ind += 1
+            self.grid.addWidget(QLabel('fit components:'), ind, 0)
+            self.compGroup = QButtonGroup(self)
+            self.compview = ['all', 'one', 'none']
+            for i, f in enumerate(self.compview):
+                setattr(self, f, QRadioButton(f))
+                getattr(self, f).toggled.connect(self.setCompView)
+                self.compGroup.addButton(getattr(self, f))
+                self.grid.addWidget(getattr(self, f), ind, i+1)
+            getattr(self, self.parent.comp_view).toggle()
+
+            ind += 1
+            self.fitPoints = QCheckBox('show fit points')
+            self.fitPoints.setChecked(self.parent.fitPoints)
+            self.fitPoints.stateChanged.connect(partial(self.setChecked, 'fitPoints'))
+            self.grid.addWidget(self.fitPoints, ind, 0)
+
+            ind +=1
+            self.animateFit = QCheckBox('animate fit')
+            self.animateFit.setChecked(self.parent.animateFit)
+            self.animateFit.stateChanged.connect(partial(self.setChecked, 'animateFit'))
+            self.grid.addWidget(self.animateFit, ind, 0)
+
+        if window == 'Appearance':
+            ind = 0
+            self.grid.addWidget(QLabel('Spectrum view:'), ind, 0)
+            self.specview = QComboBox()
+            self.viewdict = OrderedDict([('step', 'step'), ('steperr', 'step + err'), ('line', 'lines'),
+                                         ('lineerr', 'lines + err'), ('point', 'points'), ('pointerr', 'points + err')])
+            self.specview.addItems(list(self.viewdict.values()))
+            self.specview.setCurrentText(self.viewdict[self.parent.specview])
+            self.specview.currentIndexChanged.connect(self.setSpecview)
+            self.specview.setFixedSize(120, 30)
+            self.grid.addWidget(self.specview, ind, 1)
+
+            ind += 1
+            self.grid.addWidget(QLabel('Fitting points view:'), ind, 0)
+            self.selectview = QComboBox()
+            self.selectview.addItems(['point', 'color', 'region'])
+            self.selectview.setCurrentText(self.parent.selectview)
+            self.selectview.currentIndexChanged.connect(self.setSelect)
+            self.selectview.setFixedSize(120, 30)
+            self.grid.addWidget(self.selectview, ind, 1)
+
+            ind += 1
+            self.grid.addWidget(QLabel('Line labels view:'), ind, 0)
+            self.selectlines = QComboBox()
+            self.selectlines.addItems(['short', 'infinite'])
+            self.selectlines.setCurrentText(self.parent.linelabels)
+            self.selectlines.currentIndexChanged.connect(self.setLabels)
+            self.selectlines.setFixedSize(120, 30)
+            self.grid.addWidget(self.selectlines, ind, 1)
+
+            ind += 1
+            self.showinactive = QCheckBox('show inactive exps')
+            self.showinactive.setChecked(self.parent.showinactive)
+            self.showinactive.stateChanged.connect(partial(self.setChecked, 'showinactive'))
+            self.grid.addWidget(self.showinactive, ind, 0)
+
+            ind += 1
+            self.show_osc = QCheckBox('f in line labels')
+            self.show_osc.setChecked(self.parent.show_osc)
+            self.show_osc.stateChanged.connect(partial(self.setChecked, 'show_osc'))
+            self.grid.addWidget(self.show_osc, ind, 0)
+
+        layout.addLayout(self.grid)
+        layout.addStretch()
+        frame.setLayout(layout)
+        return frame
 
     def setSpecview(self):
         self.parent.specview = list(self.viewdict.keys())[list(self.viewdict.values()).index(self.specview.currentText())]
@@ -839,6 +874,8 @@ class preferencesWidget(QWidget):
 
     def setChecked(self, attr):
         self.parent.options(attr, getattr(self, attr).isChecked())
+        if attr == 'show_osc':
+            self.parent.abs.redraw()
         self.parent.s.redraw()
 
     def setNumBetween(self):
@@ -2448,10 +2485,12 @@ class buttonpanel(QFrame):
         self.normalize.move(150, 20)
         self.normalize.resize(110, 30)
 
-        self.fit = QPushButton('Fit', self)
-        self.fit.clicked.connect(self.parent.fitLM)
-        self.fit.move(270, 20)
-        self.fit.resize(70, 30)
+        self.fitbutton = QPushButton('Fit', self)
+        self.fitbutton.setCheckable(True)
+        self.fitbutton.clicked.connect(self.parent.fitLM)
+        self.fitbutton.setStyleSheet('QPushButton::checked { background-color: rgb(168,66,195);}')
+        self.fitbutton.move(270, 20)
+        self.fitbutton.resize(70, 30)
 
         self.SAS = QPushButton('SAS', self)
         self.SAS.clicked.connect(partial(self.openURL, 'SAS'))
@@ -2552,13 +2591,8 @@ class sviewer(QMainWindow):
         
         dbg = pg.dbg()
         # self.specview sets the type of plot representation
-        self.specview = self.options('specview')
-        self.selectview = self.options('selectview')
-        self.linelabels = self.options('linelabels')
-        self.showinactive = self.options('showinactive')
-        self.fitType = self.options('fitType')
-        self.fitComp = self.options('fitComp')
-        self.fitPoints = self.options('fitPoints')
+        for l in ['specview', 'selectview', 'linelabels', 'showinactive', 'show_osc', 'fitType', 'fitComp', 'fitPoints']:
+            setattr(self, l , self.options(l))
         # >>> create panel for plotting spectra
         self.plot = plotSpectrum(self)
         self.vb = self.plot.getPlotItem().getViewBox()
@@ -3695,7 +3729,6 @@ class sviewer(QMainWindow):
     def showPreferences(self):
         if self.preferences is None:
             self.preferences = preferencesWidget(self)
-            self.preferences.show()
         else:
             self.preferences.close()
 
@@ -3823,6 +3856,7 @@ class sviewer(QMainWindow):
 
     def fitLM(self, comp=-1):
         QApplication.setOverrideCursor(Qt.WaitCursor)
+        self.panel.fitbutton.setChecked(True)
         if self.animateFit:
             if 1:
                 self.thread = threading.Thread(target=self.LM, args=(), kwargs={'comp': comp}, daemon=True)
@@ -3833,6 +3867,7 @@ class sviewer(QMainWindow):
                 self.fitprocess.start()
         else:
             self.LM(comp=comp)
+        self.panel.fitbutton.setChecked(False)
         QApplication.restoreOverrideCursor()
 
     def LM(self, comp=-1, timer=True, redraw=True):

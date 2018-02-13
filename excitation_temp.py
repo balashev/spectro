@@ -56,12 +56,6 @@ class ExcitationTemp():
         self.plot = plot
         self.verbose = verbose
         
-        if self.verbose: 
-            print('Excitation temperature estimate from column densitites')
-            print('species:', self.species)
-            print('number of levels:', self.num)
-            print('N, cm^-2:', self.n)
-        
         if self.plot:
             if 1:
                 fig = plt.figure(figsize=(14,7))
@@ -74,14 +68,16 @@ class ExcitationTemp():
                 self.regionplot = fig.add_subplot(111)
 
         self.set_data()
+        if self.verbose:
+            print('Excitation temperature estimate from column densitites')
+            print('species:', self.species)
+            print('number of levels:', self.num)
+            print('excitation energies:', self.E)
+            print('N, cm^-2:', self.n)
+
         self.set_ratio()
-        self.calc_two_levels()
         self.plot_data()
-        if self.num == 2:
-            self.calc_two_levels_err()
-        elif self.num > 2:
-            self.calc()
-            self.plot_region()
+        self.calc()
 
         if calc == 'boot':
             self.boot()
@@ -190,6 +186,9 @@ class ExcitationTemp():
     def linear(self, slope=None, zero=None):
         """
         return likelihood function for linear approximation
+        parameters:
+            - slope       :
+            - zero        :
         """
         Ln = 0
         for i in range(len(self.n)):
@@ -204,9 +203,9 @@ class ExcitationTemp():
         return Ln
     
     def linear_fit(self, x, slope, zero):
-        
-        return slope*x + zero
-        
+
+        return slope * x + zero
+
     def calc_two_levels(self, y=None, E=None):    
         
         if y is None:
@@ -214,7 +213,7 @@ class ExcitationTemp():
             self.zero = self.y[0].val
             
             if len(self.n)>2:
-                res = minimize(self.linear, [self.slope, self.zero], method='Nelder-Mead')
+                res = minimize(self.linear_fit, [self.slope, self.zero], method='Nelder-Mead')
                 self.slope, self.zero = res.x
             
             self.slope_to_temp()
@@ -230,7 +229,7 @@ class ExcitationTemp():
 
             
                 if len(y)>2:
-                    res = minimize(self.linear, [slope, zero], method='Nelder-Mead')
+                    res = minimize(self.linear_fit, a[slope, zero], method='Nelder-Mead')
                     slope, zero = res.x
 
             elif isinstance(y[0], float):
@@ -309,20 +308,25 @@ class ExcitationTemp():
     
         #self.temp = a(T_0, T_p, T_m, 'd')
             
-    def calc(self):    
-                
-        if self.num > 2:    
-        
-            popt, pcov = opt.curve_fit(self.linear_fit, self.E, column(self.y, 'val'), 
+    def calc(self):
+
+        if self.num == 2:
+            self.calc_two_levels_err()
+
+        elif self.num > 2:
+            self.slope = (self.y[-1].val - self.y[0].val) / self.E[-1]
+            self.zero = self.y[0].val
+            popt, pcov = opt.curve_fit(self.linear_fit, self.E, column(self.y, 'val'),
                                        p0=[self.slope, self.zero], sigma=column(self.y, 'plus'))
             #self.dataplot.plot(self.E, popt[0]*self.E+popt[1], '--b', lw=2)
-            slope = a(popt[0], np.sqrt(2.30)*np.sqrt(pcov[0,0]), np.sqrt(2.30)*np.sqrt(pcov[0,0]), 'd')
-            print(popt, pcov)
-            
-            print(slope)
-            T_0 = -np.log10(np.exp(1))/slope
+            self.slope = a(popt[0], np.sqrt(pcov[0,0]), np.sqrt(pcov[0,0]), 'd')
+            self.zero = a(popt[1], np.sqrt(pcov[1,1]), np.sqrt(pcov[1,1]), 'd')
+            print(self.slope, self.zero)
+            T_0 = -np.log10(np.exp(1))/self.slope
             print(T_0.dec())
             print(T_0.latex())
+
+            self.plot_region()
 
     def boot(self, iter=1000):
 
@@ -350,7 +354,7 @@ class ExcitationTemp():
     def plot_data(self):
         self.dataplot.errorbar(self.E, column(self.n,'val'), yerr=[column(self.n,'plus'), column(self.n,'minus')], 
                                fmt='o', color='r' , ecolor='k', linewidth=0.5, markersize=8) 
-        self.plot_temp()
+        #self.plot_temp()
         self.dataplot.set_xlim(self.E[0]-10, self.E[-1]+20)
     
     def plot_temp(self, temp=None, Ntot=None, color='r'):
@@ -361,6 +365,7 @@ class ExcitationTemp():
             self.dataplot.plot(self.E, slope * self.E + zero, '--', color=color, lw=2) 
     
     def plot_region(self):
+        self.slope_to_temp()
         x = np.linspace(self.temp.val - self.temp.minus*2, self.temp.val + self.temp.plus*2, 100)
         y = np.linspace(self.Ntot.val - self.Ntot.minus*2, self.Ntot.val + self.Ntot.plus*2, 100)
         X, Y = np.meshgrid(x,y)        

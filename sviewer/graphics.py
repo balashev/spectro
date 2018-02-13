@@ -577,10 +577,10 @@ class Spectrum():
 
     def init_pen(self):
         self.err_pen = pg.mkPen(70, 130, 180)
-        self.cont_pen = pg.mkPen(159, 77, 193, width=2)
-        self.fit_pen = pg.mkPen(255, 69, 0, width=3)
+        self.cont_pen = pg.mkPen(168, 66, 195, width=3)
+        self.fit_pen = pg.mkPen(255, 69, 0, width=4)
         self.fit_comp_pen = pg.mkPen(255, 215, 63, width=1.0)
-        self.spline_brush = pg.mkBrush(0, 191, 255, 255)
+        self.spline_brush = pg.mkBrush(0, 191, 255, 255) # pg.mkBrush(117, 218, 50, 255)
 
     def active(self):
         return self == self.parent.s[self.parent.s.ind]
@@ -673,7 +673,7 @@ class Spectrum():
             if len(self.parent.s) == 0 or self.active():
                 self.g_cont = pg.PlotCurveItem(x=self.cont.x, y=self.cont.y, pen=self.cont_pen)
                 self.parent.vb.addItem(self.g_cont)
-                self.g_spline = pg.ScatterPlotItem(x=self.spline.x, y=self.spline.y, size=15, symbol='s',
+                self.g_spline = pg.ScatterPlotItem(x=self.spline.x, y=self.spline.y, size=12, symbol='s',
                                                    pen=pg.mkPen(0, 0, 0, 255), brush=self.spline_brush)
                 self.parent.vb.addItem(self.g_spline)
 
