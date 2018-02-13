@@ -426,12 +426,10 @@ class Doublet():
         with open('data/doublet.dat') as f:
             for line in f:
                 self.doublet[line.split()[0]] = [float(d) for d in line.split()[1:]]
-        print(self.doublet)
 
     def draw(self, add=True):
         self.l = self.doublet[self.name]
         self.line, self.label = [], []
-        print(self.name, self.doublet[self.name])
         for l in self.l:
             self.line.append(pg.InfiniteLine(l * (1 + self.z), angle=90, pen=self.pen))
             self.parent.vb.addItem(self.line[-1])

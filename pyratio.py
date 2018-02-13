@@ -452,9 +452,12 @@ class speci:
             self.read_popratio()
 
         self.fullnum = self.E.shape[0] # full number of levels
+        print(self.num, self.fullnum)
+
+        self.setEij()
         self.setBij()
-        print(self.fullnum)
-        
+        self.setAij()
+
         #print(self.stats, self.energy, self.descr, self.Aij)
         #print(self.coll[2].rate)
     
@@ -667,6 +670,14 @@ class speci:
                 if not line:
                     break
 
+    def setEij(self):
+        """
+        set energy difference matrix for calaulations
+        """
+        a = np.lib.stride_tricks.as_strided(self.E[:self.num], (self.E[:self.num].size, self.E[:self.num].size),
+                                            (0, self.E[:self.num].itemsize))
+        self.Eij = np.abs(a - a.transpose())
+
     def setBij(self):
         """
         set Einstein B_ij and B_ji coefficients from A_ij
@@ -677,6 +688,11 @@ class speci:
                 if self.A[i,j] != 0:
                     self.B[i,j] = self.A[i,j]*(self.E[i]-self.E[j])**(-3)/8/np.pi/ac.h.cgs.value
                     self.B[j,i] = self.B[i,j]*self.g[i]/self.g[j]
+
+        self.Bij = self.B[:self.num, :self.num]
+
+    def setAij(self):
+        self.Aij = self.A[:self.num, :self.num]
 
     def plot_allCollCrossSect(self, ax=None):
         """
@@ -711,7 +727,8 @@ class coll_list(list):
     def rate(self, i, j, T):
         s, l =  self.find(i, j)
         if l != 0:
-            return s.rate(T, sign=l)
+            r = s.rate(T, sign=l)
+            return r
         else:
             return 0
 
@@ -997,16 +1014,18 @@ class pyratio():
         """
         calculate CMB flux density at given wavelenght array frequencies
         parameters:
-            - nu      : array of frequencies where u_CMB is calculated
+            - nu      : array of energies [in cm^-1] where u_CMB is calculated
         """
         if 'CMB' in self.pars.keys():
             temp = self.pars['CMB'].value
         else:
             temp = 2.72548 * (1 + self.z)
-        if nu != 0:
-            return self.Planck1 * nu**3 / (np.exp(self.Planck2 / temp * nu)-1)
 
-        return 0
+        R = np.zeros_like(nu)
+        ind = np.where(nu != 0)
+        R[ind] = self.Planck1 * nu[ind]**3 / (np.exp(self.Planck2 / temp * nu[ind])-1)
+
+        return R
     
     def balance(self, name, debug=None):
         """
@@ -1025,29 +1044,54 @@ class pyratio():
             if speci.name == name:
                 break
         W = np.zeros([speci.num, speci.num])
-        for u in range(speci.num):
-            for l in range(speci.num):
-                #print(i,j, speci.A[i,j])
-                #print(i, j, u_CMB(abs(speci.E[j]-speci.E[i]))*speci.B[i,j], speci.A[i,j])
-                if debug in [None, 'A']:
-                    W[u, l] += speci.A[u, l]
-                if debug in [None, 'CMB']:
-                    W[u, l] += self.u_CMB(abs(speci.E[u] - speci.E[l])) * speci.B[u, l]
-                if debug in [None, 'C']:
+        #self.timer.time('rates in')
+
+        if 0:
+            for u in range(speci.num):
+                for l in range(speci.num):
+                    #print(i,j, speci.A[i,j])
+                    #print(i, j, u_CMB(abs(speci.E[j]-speci.E[i]))*speci.B[i,j], speci.A[i,j])
+                    if debug in [None, 'A']:
+                        W[u, l] += speci.A[u, l]
+                    if debug in [None, 'CMB']:
+                        W[u, l] += self.u_CMB(abs(speci.E[u] - speci.E[l])) * speci.B[u, l]
+                    if debug in [None, 'C']:
+                        if any(x in self.pars.keys() for x in ['n', 'e', 'H2', 'H']):
+                            W[u, l] += self.collision_rate(speci, u, l)
+                        #print('coll:', u, l, self.collision_rate(speci, u, l, verbose=0))
+                    if debug in [None, 'UV']:
+                        if 'UV' in self.pars:
+                            W[u, l] += self.pumping_rate(speci, u, l)
+                            #sprint('radp:', u, l, self.pumping_rate(speci, u, l))
+
+        #self.timer.time('A')
+        if debug in [None, 'A']:
+            W += speci.Aij
+
+        #self.timer.time('CMB')
+        if debug in [None, 'CMB']:
+            W += self.u_CMB(speci.Eij) * speci.Bij
+
+        #self.timer.time('Coll')
+        if debug in [None, 'C']:
+            for u in range(speci.num):
+                for l in range(speci.num):
                     if any(x in self.pars.keys() for x in ['n', 'e', 'H2', 'H']):
                         W[u, l] += self.collision_rate(speci, u, l)
-                    #print('coll:', u, l, self.collision_rate(speci, u, l, verbose=0))
-                if debug in [None, 'UV']:
+
+        if debug in [None, 'UV']:
+            for u in range(speci.num):
+                for l in range(speci.num):
                     if 'UV' in self.pars:
                         W[u, l] += self.pumping_rate(speci, u, l)
                         #sprint('radp:', u, l, self.pumping_rate(speci, u, l))
 
+        #self.timer.time('solve')
         if debug is None:
             K = -np.transpose(W)
             for i in range(speci.num):
                 for k in range(speci.num):
                     if k != i: K[i, i] += W[i, k]
-
             return np.insert(np.linalg.solve(K[1:,1:],-K[1:,0]), 0, 1)
 
         elif debug in ['A', 'CMB', 'C', 'UV']:
@@ -1177,9 +1221,7 @@ class pyratio():
         """
         ln = 0
         for sp in self.species.values():
-            self.timer.time('balance in')
             f = self.balance(sp.name)
-            self.timer.time('balance out')
             f /= np.sum(f[sp.mask])
             if self.logs:
                 y = np.log10(f[sp.mask]) + self.pars['Ntot'].value
@@ -1516,9 +1558,7 @@ class pyratio():
             self.pars[vary[0]].value = X1[i]
             for k in range(len(X2)):
                 self.pars[vary[1]].value = X2[k]
-                self.timer.time('in')
                 Z[k, i] = self.lnprob()
-                self.timer.time('out')
             printProgressBar(i + 1, grid_num, prefix='Progress:')
 
         if verbose == 1:
@@ -1613,7 +1653,7 @@ class pyratio():
 
         return out
     
-    def calc_MCMC(self, nwalkers=100, nsteps=200, plot='chainconsumer', verbose=0, diagnostic=True):
+    def calc_MCMC(self, nwalkers=10, nsteps=100, plot='chainconsumer', verbose=0, diagnostic=True):
         """
         calculate regions using MCMC method by emcee package
         """
@@ -1651,9 +1691,8 @@ class pyratio():
                         sigmas=[0, 1, 2],
                         cloud=True
                         )
-            fig = c.plotter.plot(figsize=(12, 12), display=True)
-            fig.savefig("triangle.png")
-                
+            fig = c.plotter.plot(figsize=(12, 12), display=True, filename='mcmc.png')
+
     def critical_density(self, species=None, depend=None, verbose=1, ax=None):
         """
         function to calculate the critical density
@@ -2024,7 +2063,7 @@ if __name__ == '__main__':
             print(pr.pars['Ntot'])
         #pr.add_spec('CO', [a(14.43, 0.12), a(14.52, 0.08), a(14.33, 0.06), a(13.73, 0.05), a(13.14, 0.13)])
         fig, ax = plt.subplots()
-        if 0:
+        if 1:
             pr.calc_MCMC()
         else:
             pr.calc_grid(grid_num=30, ax=ax)
