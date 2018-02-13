@@ -3250,7 +3250,17 @@ class sviewer(QMainWindow):
             self.showFit()
 
 
-    def openFile(self, filename, zoom=True, skip_header=0):
+    def openFile(self, filename, zoom=True, skip_header=0, remove_regions=False, remove_doublets=False):
+
+        if remove_regions:
+            for r in reversed(self.plot.regions[:]):
+                self.vb.removeItem(r)
+            self.plot.regions = []
+
+        if remove_doublets:
+            for d in reversed(self.plot.doublets[:]):
+                d.remove()
+            self.plot.doublets = []
 
         folder = os.path.dirname(filename)
         print(folder)
@@ -3338,8 +3348,7 @@ class sviewer(QMainWindow):
                 ns = int(d[i].split()[1])
                 for r in range(ns):
                     i += 1
-                    z, l1, l2 = (float(s) for s in d[i].split()[1:])
-                    self.plot.add_doublet(l1*(1+z), l2*(1+z))
+                    self.plot.doublets.append(Doublet(self.plot, name=d[i].split()[0], z=float(d[i].split()[1])))
 
             if 'lines' in d[i]:
                 ns = int(d[i].split()[1])
@@ -3431,7 +3440,7 @@ class sviewer(QMainWindow):
                 if len(self.plot.doublets) > 0:
                     f.write('doublets:   ' + str(len(self.plot.doublets)) + '\n')
                     for d in self.plot.doublets:
-                        f.write('{0:5s} {1:8.6f} {2:6.1f} {3:6.1f}\n'.format(d.name, d.z, d.l1, d.l2))
+                        f.write('{0:5s} {1:9.7f} \n'.format(d.name, d.z))
 
                 if len(self.lines) > 0:
                     f.write('lines:   ' + str(len(self.lines)) + '\n')

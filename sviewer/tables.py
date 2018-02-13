@@ -220,6 +220,7 @@ class QSOlistTable(pg.TableWidget):
         if 'Lyalines' == self.cat:
             self.contextMenu.addSeparator()
             self.contextMenu.addAction('Plot data').triggered.connect(self.plotLines)
+            self.contextMenu.addAction('Save doublets').triggered.connect(self.saveDoublets)
             self.cellChanged.connect(self.saveLines)
 
     def setdata(self, data):
@@ -301,7 +302,7 @@ class QSOlistTable(pg.TableWidget):
 
     def saveCont(self):
         if self.cell_value('name').strip() in self.parent.s[-1].filename:
-            filename = self.folder+'/cont/'+self.cell_value('name').strip()+'.cont'
+            filename = self.folder+'/cont/'+self.cell_value('name').strip()
             self.parent.save_opt = ['cont', 'others']
             self.parent.saveFile(filename, save_name=False)
 
@@ -336,6 +337,12 @@ class QSOlistTable(pg.TableWidget):
         self.lyalines = plotLyalines(self)
         self.lyalines.set_data(slice_fields(self.data, ['N', 'b', 'Nerr', 'berr', 'comment']))
         self.lyalines.show()
+
+    def saveDoublets(self):
+        if self.cell_value('name').strip() in self.parent.s[-1].filename:
+            filename = self.folder+'/cont/'+self.cell_value('name').strip().replace('.dat', '')
+            self.parent.save_opt = ['cont', 'others']
+            self.parent.saveFile(filename, save_name=False)
 
     def saveLines(self, row, col):
         if row == self.edit_item[0] and col == self.edit_item[1]:
@@ -504,12 +511,9 @@ class QSOlistTable(pg.TableWidget):
                 self.parent.s[-1].resolution = float(self.cell_value('resolution'))
                 self.parent.s.redraw()
                 try:
-                    for r in self.parent.plot.regions:
-                        self.parent.vb.removeItem(r)
-                    self.parent.plot.regions = []
-                    with open(self.folder + '/cont/' + filename + '.cont') as f:
+                    with open(self.folder + '/cont/' + filename + '.spv') as f:
                         skip_header = 1 if '%' in f.readline() else 0
-                    self.parent.openFile(self.folder + '/cont/' + filename + '.cont', skip_header=skip_header)
+                    self.parent.openFile(self.folder + '/cont/' + filename + '.spv', skip_header=skip_header, remove_regions=True, remove_doublets=True)
                 except:
                     pass
                 self.parent.plot.vb.setYRange(-0.1, 1.2)
@@ -519,9 +523,6 @@ class QSOlistTable(pg.TableWidget):
                 filename = self.cell_value('name').strip()
                 if self.filename_saved != filename:
                     self.parent.normview = False
-                    for r in reversed(self.parent.plot.regions[:]):
-                        r.remove()
-                    self.parent.regions = []
                     if 0:
                         self.parent.importSpectrum(self.folder + '/norm/' + filename)
                         self.parent.s[-1].spec.raw.clean(min=-1, max=2)
@@ -531,9 +532,9 @@ class QSOlistTable(pg.TableWidget):
                         self.parent.importSpectrum(self.folder + '/spectra/' + filename)
                         self.parent.s[-1].spec.raw.clean(min=-1, max=2)
                         self.parent.s[-1].set_data()
-                        with open(self.folder + '/cont/' + filename.replace('.dat', '.cont')) as f:
+                        with open(self.folder + '/cont/' + filename.replace('.dat', '.spv')) as f:
                             skip_header = 1 if '%' in f.readline() else 0
-                        self.parent.openFile(self.folder + '/cont/' + filename.replace('.dat', '.cont'), skip_header=skip_header)
+                        self.parent.openFile(self.folder + '/cont/' + filename.replace('.dat', '.spv'), skip_header=skip_header, remove_regions=True, remove_doublets=True)
                     self.parent.normalize()
                     self.parent.s[-1].resolution = 48000 #float(self.cell_value('resolution'))
                     self.filename_saved = filename

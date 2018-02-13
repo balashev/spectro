@@ -411,10 +411,15 @@ class choiceLinesWidget(QWidget):
         # self.close()
 
 class Doublet():
-    def __init__(self, parent, color=pg.mkColor(45, 217, 207)):
+    def __init__(self, parent, name=None, z=None, color=pg.mkColor(45, 217, 207)):
         self.parent = parent
-        self.color = color
         self.read()
+        self.active = False
+        self.pen = pg.mkPen(color=color, width=0.5, style=Qt.SolidLine)
+        self.name = name
+        self.z = z
+        if self.name is not None and self.z is not None:
+            self.draw(add=False)
 
     def read(self):
         self.doublet = {}
@@ -423,32 +428,28 @@ class Doublet():
                 self.doublet[line.split()[0]] = [float(d) for d in line.split()[1:]]
         print(self.doublet)
 
-    def draw(self, name=None, style=None):
-        #self.determineY()
-        if name is None:
-            print(self.name)
-            self.l, self.line, self.label = [], [], []
-            self.draw(self.name, style=Qt.SolidLine)
-            for l in [['CIV', 'SiIV'], ['MgII', 'FeII']]:
-                if self.name in l:
-                    l.remove(self.name)
-                    for name in l:
-                        self.draw(name, style=Qt.DashLine)
-
-        else:
-            self.l = self.l + self.doublet[name]
-            print(name, self.doublet[name])
-            for l in self.doublet[name]:
-                self.line.append(pg.InfiniteLine(l * (1 + self.z), angle=90,
-                                                 pen=pg.mkPen(color=self.color, width=0.5, style=style)))
-                self.parent.vb.addItem(self.line[-1])
-                self.label.append(doubletLabel(self, name, l, angle=90, anchor=(0, 1), color=self.color))
-                self.parent.vb.addItem(self.label[-1])
+    def draw(self, add=True):
+        self.l = self.doublet[self.name]
+        self.line, self.label = [], []
+        print(self.name, self.doublet[self.name])
+        for l in self.l:
+            self.line.append(pg.InfiniteLine(l * (1 + self.z), angle=90, pen=self.pen))
+            self.parent.vb.addItem(self.line[-1])
+            anchor = (0, 1) if 'DLA' not in self.name else (0, 0)
+            self.label.append(doubletLabel(self, self.name, l, angle=90, anchor=anchor))
+            self.parent.vb.addItem(self.label[-1])
+        if add and 'DLA' not in self.name:
+            self.parent.doublets.append(Doublet(self.parent, name='DLA', z=self.z))
 
     def redraw(self):
         #self.determineY()
+        if self.active:
+            self.pen = pg.mkPen(225, 215, 0, width=2)
+        else:
+            self.pen = pg.mkPen(45, 217, 207, width=0.5)
         for l, line, label in zip(self.l, self.line, self.label):
             line.setPos(l * (1 + self.z))
+            line.setPen(self.pen)
             label.redraw()
 
     def remove(self):
@@ -483,6 +484,13 @@ class Doublet():
         imin, imax = max(0, int(imin - (imax-imin)/2)), min(int(imax + (imax-imin)/2), s.spec.n())
         self.y = np.median(s.spec.y()[imin:imax])*1.5
 
+    def set_active(self, active=True):
+        if active:
+            for d in self.parent.doublets:
+                d.set_active(False)
+        self.active = active
+        self.parent.parent.setz_abs(self.z)
+        self.redraw()
 
     def find(self, x1, x2, toll=9e-2):
         """
@@ -536,6 +544,7 @@ class doubletLabel(pg.TextItem):
     def redraw(self):
         self.determineY()
         self.setText(self.name + ' ' + str(self.line)[:str(self.line).index('.')] + '   z=' + str(self.parent.z)[:6])
+        self.setColor(self.parent.pen.color())
         self.setPos(self.line * (1 + self.parent.z), self.y)
 
     def mouseDragEvent(self, ev):
@@ -560,6 +569,10 @@ class doubletLabel(pg.TextItem):
         if QApplication.keyboardModifiers() == Qt.ControlModifier:
             self.parent.remove()
             ev.accept()
+
+        if ev.double():
+            self.parent.set_active(not self.parent.active)
+
 
     def clicked(self, pts):
         print("clicked: %s" % pts)

@@ -39,10 +39,32 @@ Absorption line analysis:
 -----------------------------
 Optional:
 
-2' (not worked). Working with regions:
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+Working with Doublets:
+To add Doublet use <u> key and left mouse click: 
+    1. Press <u> key and hold it during the following actions.
+    2. Set the position of the first line in doublet by <Left mouse Click>. It will be shown by green vertical line.
+    3. The possible positions of the second lines in doublet will be highlighted by red lines.
+    4. Select second line in doublet <Left mouse Click>. 
+    5. If the second and first clicked satisfy some tollerance ratio, than double will be formed.
+
+To shift doublet position: Hold <Shift> and drag doublet by its label.
+To delete doublet: Hold <Ctrl> and click on the doublet label.
+To set redshift value for other indicators: <Double Left Mouse Click> on the doublet label.  
+
+
+
+
+
+
+
+
+2' (not worked yet). Working with regions:
 - Region is the wavelenght range that can be collapsed to reduced unused wavelenght range
 - To construct region press <r> Key and select region by left mouse button
 - Region can be adjusted by moving its boundaries, or gragged by mouse when SHIFT is pressed
 - To collapse/expand region use left mouse button double click.
 - To remove region click on it when pressing CTRL. 
+
+
 
