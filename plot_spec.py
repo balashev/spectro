@@ -590,9 +590,25 @@ class plotline():
                 for c in self.fit.comp:
                     c = c / sum_cont
 
-    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5]):
-        print(ax.get_xlim())
-        print(AtomicList.Malec(np.max(levels)))
+    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5], pos=0.86, dpos=0.03, color='royalblue'):
+        if 1:
+            ymin, ymax = ax.get_ylim()
+            pos, dpos = ymin + pos * (ymax - ymin), dpos * (ymax - ymin)
+            print(pos, dpos)
+        lines = AtomicList.Malec(levels)
+        lines = [l for l in lines if l.l*(1+self.parent.z_ref) > ax.get_xlim()[0] and l.l*(1+self.parent.z_ref) < ax.get_xlim()[1]]
+        s = [str(line).split()[1][:2] for line in lines]
+        for band in s:
+            b_lines = [line for line in lines if band in str(line)]
+            l = [line.l for line in b_lines]
+            if 1:
+                for line in b_lines:
+                    if line.j_l in levels:
+                        ax.plot([line.l * (1 + self.parent.z_ref), line.l * (1 + self.parent.z_ref)], [pos, pos + dpos], lw=0.75, color=color, ls='-')
+                ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)], [pos + dpos, pos + dpos], lw=0.75, color=color, ls='-')
+            ax.text(np.min(l) * (1 + self.parent.z_ref), pos + dpos, band + '-0', ha='left', va='bottom', fontsize=self.parent.font-4, color=color)
+
+
 
     def __str__(self):
         return 'plot line object: ' + str(self.name) + ', ' + str(self.wavelength)

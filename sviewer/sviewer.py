@@ -9,16 +9,16 @@ from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, 
 from multiprocessing import Process
 import pickle
 import platform
-from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget,
-                             QDesktopWidget, QAction, qApp, QFileDialog, QTextEdit,
-                             QVBoxLayout, QSplitter, QFrame, QLineEdit, QLabel,
-                             QPushButton, QCheckBox, QGridLayout, QTabWidget,
-                             QFormLayout, QHBoxLayout, QRadioButton, QTreeWidget,
-                             QComboBox, QTreeWidgetItem, QAbstractItemView,
+from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget, QDesktopWidget,
+                             QAction, QActionGroup, qApp, QFileDialog, QTextEdit, QVBoxLayout,
+                             QSplitter, QFrame, QLineEdit, QLabel, QPushButton, QCheckBox,
+                             QGridLayout, QTabWidget, QFormLayout, QHBoxLayout, QRadioButton,
+                             QTreeWidget, QComboBox, QTreeWidgetItem, QAbstractItemView,
                              QStatusBar, QMenu, QButtonGroup, QMessageBox)
 from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl
 from PyQt5.QtGui import QDesktopServices
 from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
+from pyqtgraph.GraphicsScene import exportDialog
 from scipy.integrate import quad
 import sys
 sys.path.append('C:/science/python')
@@ -65,6 +65,8 @@ class plotSpectrum(pg.PlotWidget):
         self.parent = parent
         self.initstatus()
         self.vb = self.getViewBox()
+        self.customMenu = False
+        self.vb.setMenuEnabled(not self.customMenu)
         self.vb.disableAutoRange()
         self.regions = []
         self.r_ind = -1
@@ -73,7 +75,9 @@ class plotSpectrum(pg.PlotWidget):
         self.specname = pg.TextItem(anchor=(1, 1))
         self.vb.addItem(self.specname, ignoreBounds=True)
         self.w_region = None
-        
+        self.menu = None  # Override pyqtgraph ViewBoxMenu
+        self.menu = self.getMenu()  # Create the menu
+
         self.v_axis = pg.ViewBox(enableMenu=False)
         self.v_axis.setYLink(self)  #this will synchronize zooming along the y axis
         self.showAxis('top')
@@ -123,6 +127,36 @@ class plotSpectrum(pg.PlotWidget):
         AuxPlotXMin = (MainPlotXMin/(self.parent.z_abs + 1)/self.parent.line_reper.l - 1)*ac.c.to('km/s').value
         AuxPlotXMax = (MainPlotXMax/(self.parent.z_abs + 1)/self.parent.line_reper.l - 1)*ac.c.to('km/s').value
         self.v_axis.setXRange(AuxPlotXMin, AuxPlotXMax, padding=0)
+
+    def raiseContextMenu(self, ev):
+        """
+        Raise the context menu
+        """
+        menu = self.getMenu()
+        menu.popup(ev.screenPos().toPoint())
+
+    def getMenu(self):
+        """
+        Create the menu
+        """
+        if self.menu is None:
+            self.menu = QMenu()
+            self.menu.setStyleSheet(open('config/styles.ini').read())
+            self.viewAll = QAction("View all", self.menu)
+            self.viewAll.triggered.connect(self.autoRange)
+            self.menu.addAction(self.viewAll)
+            self.export = QAction("Export...", self.menu)
+            self.export.triggered.connect(self.showExportDialog)
+            self.exportDialog = None
+            self.menu.addSeparator()
+            self.menu.addAction(self.export)
+
+        return self.menu
+
+    def showExportDialog(self):
+        if self.exportDialog is None:
+            self.exportDialog = exportDialog.ExportDialog(self)
+        self.exportDialog.show() #self.contextMenuItem)
 
     def keyPressEvent(self, event):
         super(plotSpectrum, self).keyPressEvent(event)
@@ -391,10 +425,16 @@ class plotSpectrum(pg.PlotWidget):
             if event.key() in [Qt.Key_A, Qt.Key_B, Qt.Key_C, Qt.Key_D, Qt.Key_R, Qt.Key_S, Qt.Key_X, Qt.Key_Z]:
                 self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
-                    
+
+    def mouseClickEvent(self, ev):
+        print('click', ev.button())
+        if ev.button() == Qt.RightButton and self.menuEnabled():
+            ev.accept()
+            self.raiseContextMenu(ev)
+
     def mousePressEvent(self, event):
         super(plotSpectrum, self).mousePressEvent(event)
-        if any([getattr(self, s+'_status') for s in 'abcrsuwx']):
+        if any([getattr(self, s+'_status') for s in 'abcdrsuwx']):
             self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
         if self.r_status:
             self.regions.append(regionItem(self))
@@ -403,9 +443,11 @@ class plotSpectrum(pg.PlotWidget):
 
     def mouseReleaseEvent(self, event):
         #mousePoint = self.vb.mapSceneToView(event.pos())
+        if event.button() == Qt.RightButton and self.menuEnabled() and self.customMenu:
+            event.accept()
+            self.raiseContextMenu(event)
 
-        if any([self.a_status, self.b_status, self.c_status, self.d_status, self.r_status, self.s_status, self.w_status,
-                self.x_status]):
+        if any([getattr(self, s+'_status') for s in 'abcdrsuwx']):
             self.vb.setMouseMode(self.vb.PanMode)
             self.vb.rbScaleBox.hide()
 
@@ -1242,6 +1284,7 @@ class showLinesWidget(QWidget):
                 ps.set_ticklabels(xlabel=self.xlabel)
             else:
                 ps.set_ticklabels(xlabel=None)
+            ps.z_ref = self.parent.z_abs
             ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
             ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
@@ -1251,6 +1294,7 @@ class showLinesWidget(QWidget):
                 print(p.xlabel, p.ylabel)
                 p.name = '' if len(st) == 1 else st[1]
                 p.x_min, p.x_max = (float(st) for st in st[0].split('..'))
+                p.y_formater = '%.2f'
                 if len(st) > 2:
                     ind = int(st[2])
                 else:
@@ -1274,14 +1318,13 @@ class showLinesWidget(QWidget):
                 p.name_pos = [self.name_x_pos, self.name_y_pos]
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 ax = p.plot_line()
-                p.showH2(ax, levels=[0,1,2])
-                self.showH2(ax, levels=[0,1])
+                p.showH2(ax, levels=[0,1,2,3])
                 if self.parent.fit.cf_fit:
                     for i in range(self.parent.fit.cf_num):
-                        attr = 'cf' + str(i)
+                        attr = 'cf_' + str(i)
                         if hasattr(self.parent.fit, attr):
                             p = getattr(self.parent.fit, attr)
-                            ax.plot([p.min, p.max], [p.val, p.val], '--r')
+                            ax.plot([p.min, p.max], [p.val, p.val], '--', color='orangered')
 
         print('plot', plot)
         if plot:
@@ -2550,7 +2593,6 @@ class sviewer(QMainWindow):
         self.abs_DLAmajor_status = 0
         self.abs_Molec_status = 0
         self.normview = False
-        self.savefile = None
         if platform.system() == 'Windows':
             self.config = 'config/options.ini'
         elif platform.system() == 'Linux':
@@ -3373,9 +3415,9 @@ class sviewer(QMainWindow):
             except:
                 pass
 
-        self.savefile = filename
         self.work_folder = os.path.dirname(filename)
         self.options('work_folder', self.work_folder)
+        self.options('filename_saved', filename)
         self.s.redraw(self.s.ind)
 
     def saveFile(self, filename, save_name=True):
@@ -3454,14 +3496,13 @@ class sviewer(QMainWindow):
                 for p in pars:
                     f.write(p.str() + '\n')
 
-        self.savefile = filename
         self.statusBar.setText('Data is saved to ' + filename)
 
     def saveFilePressed(self):
-        if self.savefile is None:
+        if self.options('filename_saved') is None:
             self.showSaveDialog()
         else:
-            self.saveFile(self.savefile)
+            self.saveFile(self.options('filename_saved'))
 
     def showSaveDialog(self):
         self.exportData = ExportDataWidget(self, 'save')

@@ -305,7 +305,7 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
         beta_min, norm_min = d.point[0], d.point[1]
 
         if 1:
-            ax = d.plot_contour(conf_levels=[0.6827, 0.9973], xlabel=r'$\beta$', ylabel=r'$\log$(r)', colors='k', cmap=None, alpha=0, colorbar=False, ls=['-', '--'])
+            ax = d.plot_contour(conf_levels=[0.6827, 0.9973], xlabel=r'$\beta$', ylabel=r'$\log$(r)', color='k', cmap=None, alpha=0, colorbar=False, ls=['-', '--'])
             ax.set_xlim([-1.75, -0.75])
             ax.set_ylim([-1.7, -0.0])
             if rvs:
@@ -365,7 +365,7 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
             ax.legend(loc='best', fontsize=12, frameon=None, facecolor=None, framealpha=0)
             plt.tight_layout()
             plt.savefig('C:/science/papers/H2Stack/figures/contour.pdf')
-        if 1:
+        if 0:
             print('maginalize:')
             d1 = d.marginalize('y')
             print('marg point:', d1.dopoint())
@@ -384,7 +384,7 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
     self.s[ind].spec.norm.err *= rescale
     self.s[ind].set_fit(x=x, y=spec)
     self.s.chi2()
-    if 1:
+    if 0:
         self.importSpectrum('best_fit={:.2f}_min={:.1f}_max={:.1f}'.format(bf_beta, Nmin, Nmax), spec=[self.s[ind].fit.x(), self.s[ind].fit.y()], append=True)
         self.s[-1].spec.norm = self.s[-1].spec.raw
     self.s.redraw()

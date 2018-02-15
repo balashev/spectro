@@ -1568,8 +1568,17 @@ class pyratio():
         d = distr2d(X1, X2, np.exp(Z))
         point = d.dopoint()
 
-        d1 = d.marginalize('x')
-        print('marg point:', d1.dopoint())
+        if plot:
+            d1 = d.marginalize('x')
+            print('marg point:', d1.dopoint())
+            d1.plot()
+            d2 = d.marginalize('x')
+            print('marg point:', d2.dopoint())
+            ax1 = d2.plot()
+            mcmc = np.genfromtxt('C:/Users/Serj/Desktop/kde.dat', unpack=True)
+            ax1.plot(mcmc[0], mcmc[1]*0.93)
+
+
         for c in self.conf_levels:
             print('marg interval:', d1.interval(conf=c))
 
@@ -2052,7 +2061,7 @@ if __name__ == '__main__':
         pr.set_prior('f', a(0, 0, 0))
         pr.set_prior('T', a(1.7, 0, 0))
         pr.pars['n'].value = 2
-        pr.pars['n'].range = [1, 6]
+        pr.pars['n'].range = [1, 3]
 
         pr.add_spec('CO', [a(14.43, 0.12), a(14.52, 0.08), a(14.33, 0.06), a(13.73, 0.05), a(13.14, 0.13)])
         if 1:
@@ -2063,10 +2072,10 @@ if __name__ == '__main__':
             print(pr.pars['Ntot'])
         #pr.add_spec('CO', [a(14.43, 0.12), a(14.52, 0.08), a(14.33, 0.06), a(13.73, 0.05), a(13.14, 0.13)])
         fig, ax = plt.subplots()
-        if 1:
+        if 0:
             pr.calc_MCMC()
         else:
-            pr.calc_grid(grid_num=30, ax=ax)
+            pr.calc_grid(grid_num=50, ax=ax)
 
         plt.savefig('C:/Users/Serj/Desktop/W_CO.pdf')
         plt.show()
