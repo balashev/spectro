@@ -330,7 +330,7 @@ class QSOlistTable(pg.TableWidget):
                 data = np.c_[x[mask], y[mask], self.parent.s[-1].spec.norm.err[mask]]
                 print(data)
                 np.savetxt(self.folder+'/norm/'+self.cell_value('name')+'.dat', data, fmt='%10.4f %12.4f %12.4f')
-                return datau
+                return data
             else:
                 print('norm not saved for: '+ self.cell_value('name'))
 
