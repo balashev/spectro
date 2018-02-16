@@ -270,22 +270,23 @@ class plotSpectrum(pg.PlotWidget):
 
             if event.key() == Qt.Key_P:
                 self.p_status = True
-                self.parent.statusBar.setText('Add partial coverage region' )
+                self.parent.statusBar.setText('Add partial coverage region')
 
             if event.key() == Qt.Key_R:
                 if (QApplication.keyboardModifiers() == Qt.ControlModifier):
-                    self.parent.showResiduals.toggle()
-                    self.parent.showResidualsPanel()
+                    pass
+                    #self.parent.showResiduals.toggle()
+                    #self.parent.showResidualsPanel()
                 else:
                     self.vb.setMouseMode(self.vb.RectMode)
                     self.r_status = True
-                    self.parent.statusBar.setText('Set region mode' )
+                    self.parent.statusBar.setText('Set region mode')
                     #self.vb.removeItem(self.w_label)
                
             if event.key() == Qt.Key_S:
                 self.vb.setMouseMode(self.vb.RectMode)
                 self.s_status = True
-                self.parent.statusBar.setText('Points selection mode' )
+                self.parent.statusBar.setText('Points selection mode')
 
             if event.key() == Qt.Key_T:
                 if (QApplication.keyboardModifiers() == Qt.ControlModifier):
@@ -299,8 +300,8 @@ class plotSpectrum(pg.PlotWidget):
                 #self.parent.importSpectrum(r'D:\science\spectra_program\synthetic\synthetic\temp\fit.dat', append=True)
 
             if event.key() == Qt.Key_U:
-                self.u_status = True
-                self.parent.statusBar.setText('Find doublet mode' )
+                self.u_status += 1
+                self.parent.statusBar.setText('Find doublet mode')
 
             if event.key() == Qt.Key_V:
                 self.parent.s[self.parent.s.ind].remove()
@@ -327,7 +328,7 @@ class plotSpectrum(pg.PlotWidget):
                 if (QApplication.keyboardModifiers() != Qt.ControlModifier):
                     self.vb.setMouseMode(self.vb.RectMode)
                     self.z_status = True
-                    self.parent.statusBar.setText('Zooming mode' )
+                    self.parent.statusBar.setText('Zooming mode')
                     if not event.isAutoRepeat():
                         self.saveState = self.vb.getState()
                 else:
@@ -348,7 +349,7 @@ class plotSpectrum(pg.PlotWidget):
     def keyReleaseEvent(self, event):
         super(plotSpectrum, self).keyReleaseEvent(event)
         key = event.key()
-        
+
         if not event.isAutoRepeat():
 
             if event.key() == Qt.Key_A:
@@ -409,8 +410,12 @@ class plotSpectrum(pg.PlotWidget):
                 self.p_status = False
 
             if event.key() == Qt.Key_U:
-                if self.u_status == 2:
-                    self.doublets[-1].remove_temp()
+                if self.u_status:
+                    if len(self.doublets) == 0 or self.doublets[-1].temp is None:
+                        self.doublets.append(Doublet(self))
+                        self.doublets[-1].draw_temp(self.mousePoint.x())
+                    else:
+                        self.doublets[-1].find(self.doublets[-1].line_temp.value(), self.mousePoint.x())
                 self.u_status = False
 
             if event.key() == Qt.Key_W:
@@ -542,13 +547,14 @@ class plotSpectrum(pg.PlotWidget):
             self.parent.s.chi2()
 
         if self.u_status:
-            if self.mousePoint.x() == self.mousePoint_saved.x() and self.mousePoint.y() == self.mousePoint_saved.y():
-                if self.u_status == 1:
+            if self.u_status == 1 and self.mousePoint.x() == self.mousePoint_saved.x() and self.mousePoint.y() == self.mousePoint_saved.y():
+                if len(self.doublets) == 0 or self.doublets[-1].temp is None:
                     self.doublets.append(Doublet(self))
                     self.doublets[-1].draw_temp(self.mousePoint.x())
-                if self.u_status == 2:
+                else:
                     self.doublets[-1].find(self.doublets[-1].line_temp.value(), self.mousePoint.x())
-                self.u_status += 1
+                    self.u_status = False
+                #self.u_status += 1
 
         if self.w_status:
             s = self.parent.s[self.parent.s.ind]
@@ -2621,6 +2627,7 @@ class sviewer(QMainWindow):
         self.comp = 0
         self.fitprocess = None
         self.fitModel = None
+        self.chooseFit = None
         self.preferences = None
         self.exp = None
         self.fitResults = None
@@ -2763,11 +2770,12 @@ class sviewer(QMainWindow):
         # >>> create View Menu items
 
         exp = QAction('&Exposures', self)
-        exp.setShortcut('F3')
+        exp.setShortcut('F2')
         exp.setStatusTip('Show list of exposures')
         exp.triggered.connect(self.showExpList)
 
         self.showResiduals = QAction('&Residuals', self, checkable=True)
+        self.showResiduals.setShortcut('F4')
         self.showResiduals.setStatusTip('Show/Hide Residuals panel')
         self.showResiduals.triggered.connect(self.showResidualsPanel)
         self.showResiduals.setChecked(self.show_residuals)
@@ -2841,7 +2849,18 @@ class sviewer(QMainWindow):
 
         chooseFitPars = QAction('&Fit parameters', self)
         chooseFitPars.setStatusTip('Choose particular fit parameters')
+        chooseFitPars.setShortcut('F3')
         chooseFitPars.triggered.connect(self.chooseFitPars)
+
+        showFit = QAction('&Show fit', self)
+        showFit.setStatusTip('Show fit only near fitted points')
+        showFit.setShortcut('F')
+        showFit.triggered.connect(partial(self.showFit, -1, False))
+
+        showFullFit = QAction('&Show full fit', self)
+        showFullFit.setStatusTip('Show fit in all avaliable lines')
+        showFullFit.setShortcut('Shift+F')
+        showFullFit.triggered.connect(partial(self.showFit, -1, True))
 
         fitLM = QAction('&Fit LM', self)        
         fitLM.setStatusTip('Fit by Levenberg-Marquadt method')
@@ -2893,6 +2912,8 @@ class sviewer(QMainWindow):
 
         fitMenu.addAction(setFit)
         fitMenu.addAction(chooseFitPars)
+        fitMenu.addAction(showFit)
+        fitMenu.addAction(showFullFit)
         fitMenu.addSeparator()
         fitMenu.addAction(fitLM)
         fitMenu.addMenu(MCMCMenu)
@@ -3106,7 +3127,8 @@ class sviewer(QMainWindow):
         generateMenu.addAction(colorColorPlot)
 
         # >>> create Generate Menu items
-        howto = QAction('&How to ...', self)        
+        howto = QAction('&How to ...', self)
+        howto.setShortcut('F1')
         howto.setStatusTip('How to do')
         howto.triggered.connect(self.info_howto)
         
@@ -3873,9 +3895,15 @@ class sviewer(QMainWindow):
             self.fitModel.close()
 
     def chooseFitPars(self):
-        self.chooseFit = chooseFitParsWidget(self)
-        self.splitter_fit.insertWidget(1, self.chooseFit)
-        self.splitter_fit.setSizes([2500, 170])
+
+        if self.chooseFit is None:
+            self.chooseFit = chooseFitParsWidget(self)
+            self.splitter_fit.insertWidget(1, self.chooseFit)
+            self.splitter_fit.setSizes([2500, 170])
+            self.chooseFit.show()
+        else:
+            self.chooseFit.close()
+            self.chooseFit = None
 
     def showFit(self, ind=-1, all=True):
         if 1:

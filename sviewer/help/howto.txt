@@ -28,12 +28,12 @@ e: select exposure:
    e                              :  select next exposure
    e + <key_Up> / <key_Down>      :  select next/previous exposure
    e + click on exposure          :  choose exposure which is clicked
-   e + Ctrl                       :  remove exposure 
+   e + CTRL                       :  remove exposure 
 
 f: construct fit
-   f                              :  construct fit (only lines nearby fitting points)
-   f + SHIFT                      :  show full fit (all lines in the full wavelenght range)
-   f + CTRL                       :  show fit options
+   f                              :  show fit (only lines nearby fitting points)
+   f + SHIFT                      :  show full fit (all avaliable lines in the full wavelenght range of exposures)
+   f + CTRL                       :  show panel to construct fit model
    
 h: choose lya
    h + <mouse left click>         :  set redshift for lya line to be at the position of mouse
@@ -44,16 +44,18 @@ m: rebin spectrum
 
 n: normalize/unnormalize the spectrum
 
-o: change UVES setup
-    
+o: open / change UVES setup
+   o                              : change UVES setup 
+   o + CRTL                       :  open file
+     
 r: select region:
    r + <select by mouse>          :  add region (how to work with regions see Tutorial)
-   r + CTRL                       :  show/hide Residuals Panel
-
+   
 s: select data points:
    s + <select by mouse>          :  select data points
    s + SHIFT + <select by mouse>  :  select data points for all exposures
-
+   s + CTRL                       :  save to recent file
+   
 t: show fit results:
    t + CTRL                       :  show/hide fit result window
    
@@ -78,9 +80,13 @@ z: zoom mode:
 shift: 
   1. when shift is pressed you can shift absortion pointers using mouse
  
+ 
 Hotkeys:
-CTRL + s                          :  save to recent file
-CTRL + o                          :  open file
+F1                                :  help.Howto
+F2                                :  show/hide list of exposures panel
+F3                                :  show/hide choose fitted parameters panel
+F4                                :  show/hide residuals panel
+
 
 -------------------------------------------------------------------------------- 
 Menu:

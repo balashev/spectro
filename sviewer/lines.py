@@ -418,6 +418,7 @@ class Doublet():
         self.pen = pg.mkPen(color=color, width=0.5, style=Qt.SolidLine)
         self.name = name
         self.z = z
+        self.temp = None
         if self.name is not None and self.z is not None:
             self.draw(add=False)
 
@@ -475,6 +476,7 @@ class Doublet():
                 self.parent.vb.removeItem(t)
         except:
             pass
+        self.temp = None
 
     def determineY(self):
         s = self.parent.parent.s[self.parent.parent.s.ind]
@@ -552,13 +554,10 @@ class doubletLabel(pg.TextItem):
                 ev.ignore()
                 return
 
-            pos = self.parent.parent.parent.vb.mapSceneToView(ev.pos())
-            if ev.isStart():
-                # We are already one step into the drag.
-                # Find the point(s) at the mouse cursor when the button was first
-                # pressed:
-                self.st_pos = pos.y()
-            self.parent.z -= (pos.y() - self.st_pos) / self.line
+            pos = self.getViewBox().mapSceneToView(ev.scenePos())
+            if not ev.isStart():
+                self.parent.z += (pos.x() - self.st_pos) / self.line
+            self.st_pos = pos.x()
             self.parent.redraw()
             ev.accept()
 

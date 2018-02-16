@@ -776,8 +776,7 @@ class chooseFitParsWidget(QWidget):
         layout.addLayout(hbox)
 
         self.setLayout(layout)
-        self.show()
-
+        
     def update(self):
         for s in self.saved:
             try:
