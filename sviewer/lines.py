@@ -452,10 +452,14 @@ class Doublet():
             label.redraw()
 
     def remove(self):
-        for line, label in zip(self.line, self.label):
-            self.parent.vb.removeItem(line)
-            self.parent.vb.removeItem(label)
-        self.parent.doublets.remove(self)
+        if self.temp is not None:
+            self.remove_temp()
+        else:
+            for line, label in zip(self.line, self.label):
+                self.parent.vb.removeItem(line)
+                self.parent.vb.removeItem(label)
+            self.parent.doublets.remove(self)
+
         del self
 
     def draw_temp(self, x):
@@ -470,12 +474,10 @@ class Doublet():
                     self.parent.vb.addItem(self.temp[-1])
 
     def remove_temp(self):
-        try:
+        if self.temp is not None:
             self.parent.vb.removeItem(self.line_temp)
             for t in self.temp:
                 self.parent.vb.removeItem(t)
-        except:
-            pass
         self.temp = None
 
     def determineY(self):

@@ -727,7 +727,7 @@ class fitModelSysWidget(QFrame):
 
                     except:
                         pass
-            if hasattr(self.parent.parent, 'chooseFit'):
+            if self.parent.parent.chooseFit is not None:
                 self.parent.parent.chooseFit.update()
 
 class chooseFitParsWidget(QWidget):
@@ -776,7 +776,7 @@ class chooseFitParsWidget(QWidget):
         layout.addLayout(hbox)
 
         self.setLayout(layout)
-        
+
     def update(self):
         for s in self.saved:
             try:

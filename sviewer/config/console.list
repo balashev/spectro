@@ -1,5 +1,3 @@
-FeII
-AlI
 AlII
 SiII
 AlIII
@@ -18,4 +16,6 @@ show H2 0 1
 shod HD
 show HD
 show H2 2 3 4 5
+SiII
+MgI
 SiII

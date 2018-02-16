@@ -161,6 +161,11 @@ class expTableWidget(TableWidget):
         inds = [names.index(self.item(row, 0).text().strip()) for row in range(self.rowCount())]
         self.parent.s.rearrange(inds)
 
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_F2:
+            self.close()
+        super(expTableWidget, self).keyPressEvent(event)
+
     def closeEvent(self, event):
         self.parent.exp = None
         event.accept()
@@ -325,7 +330,7 @@ class QSOlistTable(pg.TableWidget):
                 data = np.c_[x[mask], y[mask], self.parent.s[-1].spec.norm.err[mask]]
                 print(data)
                 np.savetxt(self.folder+'/norm/'+self.cell_value('name')+'.dat', data, fmt='%10.4f %12.4f %12.4f')
-                return data
+                return datau
             else:
                 print('norm not saved for: '+ self.cell_value('name'))
 

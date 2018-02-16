@@ -988,7 +988,6 @@ class Spectrum():
             pass
 
     def set_fit_mask(self):
-        print(len(self.mask.x()), len(self.bad_mask.x()))
         self.fit_mask.set(x=np.logical_and(self.mask.x(), np.logical_not(self.bad_mask.x())))
 
     def normalize(self):
