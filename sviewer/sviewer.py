@@ -683,8 +683,7 @@ class plotSpectrum(pg.PlotWidget):
 
 class residualsWidget(pg.PlotWidget):
     """
-    class for plotting main spectrum widget
-    based on pg.PlotWidget
+    class for plotting residual panel tighte with 1d spectrum panel
     """
     def __init__(self, parent):
         bottomaxis = pg.AxisItem(orientation='bottom')
@@ -695,12 +694,9 @@ class residualsWidget(pg.PlotWidget):
         pg.PlotWidget.__init__(self, axisItems={'bottom': bottomaxis, 'top': topaxis}, background=(29,29,29))
 
         self.scene().removeItem(bottomaxis)
-        #self.vb = pg.PlotWidget.getPlotItem(self).getViewBox()
         self.parent = parent
         self.vb = self.getViewBox()
-        #self.vb.disableAutoRange()
         self.vb.enableAutoRange(y=self.vb.YAxis)
-        #self.vb.setYRange(-3.5, 3.5)
         self.setXLink(self.parent.plot)
         self.addLines()
 
@@ -744,6 +740,47 @@ class residualsWidget(pg.PlotWidget):
                 kde = gaussian_kde(y)
                 kde_x = np.linspace(np.min(y) - 1, np.max(y) + 1, int((np.max(y) - np.min(y))/0.1))
                 self.parent.s[self.parent.s.ind].kde_local.setData(x=-kde_x, y=kde.evaluate(kde_x))
+
+
+class twodWidget(pg.PlotWidget):
+    """
+    class for plotting 2d spectrum panel tight with 1d spectrum panel
+    """
+    def __init__(self, parent):
+        bottomaxis = pg.AxisItem(orientation='bottom')
+        #stringaxis.setTickSpacing(minor=[(10, 0)])
+        bottomaxis.setStyle(tickLength=-15, tickTextOffset=2)
+        topaxis = pg.AxisItem(orientation='top')
+        #topaxis.setStyle(tickLength=-15, tickTextOffset=2, stopAxisAtTick=(True, True))
+        pg.PlotWidget.__init__(self, axisItems={'bottom': bottomaxis, 'top': topaxis}, background=(29,29,29))
+
+        self.scene().removeItem(bottomaxis)
+        self.parent = parent
+        self.vb = self.getViewBox()
+        self.vb.enableAutoRange(y=self.vb.YAxis)
+        self.setXLink(self.parent.plot)
+        #self.addLines()
+
+        #self.getAxis('right').setLabel('axis2', color='#0000ff')
+
+    def addLines(self):
+        # self.addItem(pg.InfiniteLine(0.0, 0, pen=pg.mkPen(color=(100, 100, 100), width=1, style=Qt.DashLine)))
+        self.region = pg.LinearRegionItem([-1, 1], orientation=pg.LinearRegionItem.Horizontal,
+                                          brush=pg.mkBrush(182, 232, 182, 20))
+        self.region.setMovable(False)
+        for l in self.region.lines:
+            l.setPen(pg.mkPen(None))
+            l.setHoverPen(pg.mkPen(None))
+        self.addItem(self.region)
+        levels = [1, 2, 3]
+        colors = [(100, 100, 100), (100, 100, 100), (100, 100, 100)]
+        widths = [1.5, 1.0, 0.5]
+        for l, color, width in zip(levels, colors, widths):
+            self.addItem(pg.InfiniteLine(l, 0, pen=pg.mkPen(color=color, width=width, style=Qt.DashLine)))
+            self.addItem(pg.InfiniteLine(-l, 0, pen=pg.mkPen(color=color, width=width, style=Qt.DashLine)))
+
+    def viewRangeChanged(self, view, range):
+        self.sigRangeChanged.emit(self, range)
 
 class preferencesWidget(QWidget):
     def __init__(self, parent):
@@ -2618,6 +2655,7 @@ class sviewer(QMainWindow):
         self.line_reper = line('HI', 1215.6701, 0.4164, 6.265e8, ref='???')
         self.regions = []
         self.show_residuals = self.options('show_residuals')
+        self.show_2d = self.options('show_2d')
         self.save_opt = ['cont', 'points', 'fit', 'others']
         self.export_opt = ['cont', 'fit']
         self.num_between = int(self.options('num_between'))
@@ -2726,7 +2764,11 @@ class sviewer(QMainWindow):
         importAction.setShortcut('Ctrl+I')
         importAction.setStatusTip('Import spectrum')
         importAction.triggered.connect(self.showImportDialog)
-        
+
+        import2dAction = QAction('&Import 2d spectrum...', self)
+        import2dAction.setStatusTip('Import 2d spectrum')
+        import2dAction.triggered.connect(self.show2dImportDialog)
+
         exportAction = QAction('&Export spectrum...', self)
         exportAction.setStatusTip('Export spectrum')
         exportAction.triggered.connect(self.showExportDialog)
@@ -2757,6 +2799,7 @@ class sviewer(QMainWindow):
         fileMenu.addAction(saveAsAction)
         fileMenu.addSeparator()
         fileMenu.addAction(importAction)
+        fileMenu.addAction(import2dAction)
         fileMenu.addAction(exportAction)
         fileMenu.addSeparator()
         fileMenu.addAction(exportDataAction)
@@ -2774,12 +2817,17 @@ class sviewer(QMainWindow):
         exp.setStatusTip('Show list of exposures')
         exp.triggered.connect(self.showExpList)
 
-        self.showResiduals = QAction('&Residuals', self, checkable=True)
+        self.showResiduals = QAction('&Residuals', self)
         self.showResiduals.setShortcut('F4')
         self.showResiduals.setStatusTip('Show/Hide Residuals panel')
         self.showResiduals.triggered.connect(self.showResidualsPanel)
-        self.showResiduals.setChecked(self.show_residuals)
         self.showResidualsPanel()
+
+        self.show2d = QAction('&2d spectrum', self)
+        self.show2d.setShortcut('F9')
+        self.show2d.setStatusTip('Show/Hide 2d spectrum panel')
+        self.show2d.triggered.connect(self.show2dPanel)
+        self.show2dPanel()
 
         showLines = QAction('&Plot lines', self)
         showLines.setShortcut('Ctrl+L')
@@ -2797,6 +2845,7 @@ class sviewer(QMainWindow):
 
         viewMenu.addAction(exp)
         viewMenu.addAction(self.showResiduals)
+        viewMenu.addAction(self.show2d)
         viewMenu.addSeparator()
         viewMenu.addAction(showLines)
         viewMenu.addAction(snapShot)
@@ -3538,7 +3587,16 @@ class sviewer(QMainWindow):
             self.importSpectrum(fname[0])
             self.abs.redraw()
             self.statusBar.setText('Spectrum is imported from ' + fname[0])
-    
+
+    def show2dImportDialog(self):
+
+        fname = QFileDialog.getOpenFileName(self, 'Import 2d spectrum', self.work_folder)
+
+        if fname[0]:
+            self.import2dSpectrum(fname[0])
+            self.statusBar.setText('2d spectrum is imported from ' + fname[0])
+
+
     def importSpectrum(self, filelist, spec=None, header=0, dir_path='', scale_factor=1, append=False, corr=True):
 
         if not append:
@@ -3684,6 +3742,35 @@ class sviewer(QMainWindow):
             for f in self.sdss_filters:
                 f.update(m)
 
+    def import2dSpectrum(self, filelist, spec=None, header=0, dir_path='', scale_factor=1, append=False, corr=True):
+
+        if isinstance(filelist, str):
+            filelist = [filelist]
+
+        for line in filelist:
+            filename = line.split()[0]
+            print(filename)
+            s = self.s[self.s.ind]
+
+            if spec is None:
+                if ':' not in filename:
+                    filename = dir_path + filename
+
+                if filename.endswith('.fits'):
+                    hdulist = fits.open(filename)
+                    if 'INSTRUME' in hdulist[0].header:
+                        try:
+                            if 'XSHOOTER' in hdulist[0].header['INSTRUME']:
+                                prihdr = hdulist[1].data
+                                s.twod = prihdr
+                        except:
+                            pass
+
+                elif filename.endswith('.dat'):
+                    s.twod = 'twod'
+
+        self.s.draw()
+
     def showExportDialog(self):
 
         fname = QFileDialog.getSaveFileName(self, 'Export spectrum', self.work_folder)
@@ -3784,12 +3871,15 @@ class sviewer(QMainWindow):
             self.exp.close()
 
     def showResidualsPanel(self):
-        self.show_residuals = self.showResiduals.isChecked()
+        self.show_residuals = not self.show_residuals
         self.options('show_residuals', bool(self.show_residuals))
         if self.show_residuals:
             self.residualsPanel = residualsWidget(self)
             self.splitter_plot.insertWidget(0, self.residualsPanel)
-            self.splitter_plot.setSizes([450, 1900])
+            if self.show_2d:
+                self.splitter_plot.setSizes([450, 1000, 1000])
+            else:
+                self.splitter_plot.setSizes([450, 1900])
             if len(self.s) > 0:
                 self.s.redraw()
         else:
@@ -3797,6 +3887,25 @@ class sviewer(QMainWindow):
                 self.residualsPanel.hide()
                 self.residualsPanel.deleteLater()
                 del self.residualsPanel
+
+    def show2dPanel(self):
+        self.show_2d = not self.show_2d
+        self.options('show_2d', bool(self.show_2d))
+        if self.show_2d:
+            self.twodPanel = twodWidget(self)
+            if self.show_residuals:
+                self.splitter_plot.insertWidget(1, self.twodPanel)
+                self.splitter_plot.setSizes([450, 1000, 1000])
+            else:
+                self.splitter_plot.insertWidget(0, self.twodPanel)
+                self.splitter_plot.setSizes([1000, 1000])
+            if len(self.s) > 0:
+                self.s.redraw()
+        else:
+            if hasattr(self, 'twodPanel'):
+                self.twodPanel.hide()
+                self.twodPanel.deleteLater()
+                del self.twodPanel
 
     def showPreferences(self):
         if self.preferences is None:

@@ -574,6 +574,7 @@ class Spectrum():
             self.set_data(data)
             self.parent.s.ind = len(self.parent.s)-1
             self.init_GU()
+        self.twod = None
 
     def init_pen(self):
         self.err_pen = pg.mkPen(70, 130, 180)
@@ -705,6 +706,11 @@ class Spectrum():
             self.kde_gauss = pg.PlotCurveItem(x=x, y=y, pen=pg.mkPen(252, 52, 19, 255))
             self.kde_gauss.rotate(270)
             self.parent.residualsPanel.kde.addItem(self.kde_gauss)
+
+        # >>> plot 2d spectrum:
+        if self.parent.show_2d and (len(self.parent.s) == 0 or self.active()):
+            if self.twod is not None:
+                print('twod')
 
     def remove(self):
         try:
