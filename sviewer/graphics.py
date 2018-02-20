@@ -9,6 +9,7 @@ from astropy.convolution import convolve, Gaussian1DKernel
 from bisect import bisect_left
 from copy import deepcopy
 from itertools import groupby, count
+from matplotlib.cm import get_cmap
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
 import os
@@ -459,7 +460,6 @@ class fitLineProfile(pg.PlotCurveItem):
             pos = self.parent.parent.vb.mapSceneToView(ev.pos())
             ev.accept()
 
-
 class specline():
     def __init__(self, parent):
         self.parent = parent
@@ -540,6 +540,49 @@ class specline():
     def inter(self, x):
         return self.current().inter(x)
 
+class image():
+    """
+    class for working with images (2d spectra) inside Spectrum plotting
+    """
+    def __init__(self, x = [], y = [], z=[], err = []):
+        self.x = np.asarray(x)
+        self.y = np.asarray(y)
+        self.z = np.asarray(z)
+        self.err = np.asarray(err)
+
+    def set_data(self, x=None, y=None, z=None, err=None):
+        self.z = z
+        if x is not None:
+            self.x = x
+        else:
+            self.x = np.arange(z.shape[0])
+        if y is not None:
+            self.y = y
+        else:
+            self.y = np.arange(z.shape[1])
+        if err is not None:
+            self.err = err
+        self.pos = [self.x[0], self.y[0]]
+        self.scale = [(self.x[-1] - self.x[0]) / self.z.shape[1], (self.y[-1] - self.y[0]) / self.z.shape[0]]
+        self.getQuantile()
+
+    def getQuantile(self, quantile=0.997):
+        x = np.sort(self.z.flatten())
+        self.quantile = [x[int(len(x)*(1-quantile)/2)], x[int(len(x)*(1+quantile)/2)]]
+
+    def find_nearest(self, x, y):
+        return self.z[np.searchsorted(self.y, y), np.searchsorted(self.x, x)]
+
+class spec2d():
+    def __init__(self, parent):
+        self.parent = parent
+        self.raw = image()
+
+    def set(self, x=None, y=None, z=None, err=None):
+        if z is not None:
+            self.raw.set_data(x=x, y=y, z=z, err=err)
+
+
 class Spectrum():
     """
     class for plotting Spectrum with interactive functions
@@ -574,7 +617,7 @@ class Spectrum():
             self.set_data(data)
             self.parent.s.ind = len(self.parent.s)-1
             self.init_GU()
-        self.twod = None
+        self.spec2d = spec2d(self)
 
     def init_pen(self):
         self.err_pen = pg.mkPen(70, 130, 180)
@@ -596,6 +639,12 @@ class Spectrum():
             self.sm_pen = pg.mkPen(245, 0, 80)
             self.bad_brush = pg.mkBrush(252, 58, 38)
             self.region_brush = pg.mkBrush(147, 185, 69, 60)
+            cdict = get_cmap('viridis')
+            cmap = np.array(cdict.colors)
+            #cmap[0] = [1,1,1]
+            cmap[-1] = [1,0.4,0]
+            map = pg.ColorMap(np.linspace(0,1,cdict.N), cmap, mode='rgb')
+            self.colormap = map.getLookupTable(0.0, 1.0, 256, alpha=False)
         else:
             if self.parent.showinactive:
                 self.view = self.parent.specview.replace('err', '')
@@ -709,8 +758,21 @@ class Spectrum():
 
         # >>> plot 2d spectrum:
         if self.parent.show_2d and (len(self.parent.s) == 0 or self.active()):
-            if self.twod is not None:
-                print('twod')
+            if self.spec2d.raw.z.shape[0] > 0 and self.spec2d.raw.z.shape[1] > 0:
+                pass
+                self.image2d = pg.ImageItem()
+                self.image2d.setImage(self.spec2d.raw.z.T)
+                print(self.spec2d.raw.scale, self.spec2d.raw.pos)
+                self.image2d.translate(self.spec2d.raw.pos[0], self.spec2d.raw.pos[1])
+                self.image2d.scale(self.spec2d.raw.scale[0], self.spec2d.raw.scale[1])
+                self.image2d.setLookupTable(self.colormap)
+                #self.image2d.setLevels([np.min(self.spec2d.raw.z), np.max(self.spec2d.raw.z)])
+                self.image2d.setLevels(self.spec2d.raw.quantile)
+                self.parent.spec2dPanel.vb.addItem(self.image2d)
+                self.parent.spec2dPanel.vb.removeItem(self.parent.spec2dPanel.cursorpos)
+                self.parent.spec2dPanel.vb.addItem(self.parent.spec2dPanel.cursorpos, ignoreBounds=True)
+                #self.parent.spec2dPanel.vb.setAspectLocked(False)
+                #self.parent.spec2dPanel.vb.invertY(False)
 
     def remove(self):
         try:
@@ -764,6 +826,11 @@ class Spectrum():
             self.parent.residualsPanel.kde.removeItem(self.kde_line)
             self.parent.residualsPanel.kde.removeItem(self.kde_gauss)
             self.parent.residualsPanel.kde.removeItem(self.kde_local)
+        except:
+            pass
+
+        try:
+            self.parent.spec2dPanel.vb.removeItem(self.image2d)
         except:
             pass
 

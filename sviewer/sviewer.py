@@ -348,7 +348,6 @@ class plotSpectrum(pg.PlotWidget):
 
     def keyReleaseEvent(self, event):
         super(plotSpectrum, self).keyReleaseEvent(event)
-        key = event.key()
 
         if not event.isAutoRepeat():
 
@@ -427,7 +426,7 @@ class plotSpectrum(pg.PlotWidget):
             if event.key() == Qt.Key_Z:
                 self.z_status = False
         
-            if event.key() in [Qt.Key_A, Qt.Key_B, Qt.Key_C, Qt.Key_D, Qt.Key_R, Qt.Key_S, Qt.Key_X, Qt.Key_Z]:
+            if any([event.key() == getattr(Qt, 'Key_'+s) for s in 'ABCDRSXZ']):
                 self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
 
@@ -742,7 +741,7 @@ class residualsWidget(pg.PlotWidget):
                 self.parent.s[self.parent.s.ind].kde_local.setData(x=-kde_x, y=kde.evaluate(kde_x))
 
 
-class twodWidget(pg.PlotWidget):
+class spec2dWidget(pg.PlotWidget):
     """
     class for plotting 2d spectrum panel tight with 1d spectrum panel
     """
@@ -754,6 +753,8 @@ class twodWidget(pg.PlotWidget):
         #topaxis.setStyle(tickLength=-15, tickTextOffset=2, stopAxisAtTick=(True, True))
         pg.PlotWidget.__init__(self, axisItems={'bottom': bottomaxis, 'top': topaxis}, background=(29,29,29))
 
+        self.initstatus()
+
         self.scene().removeItem(bottomaxis)
         self.parent = parent
         self.vb = self.getViewBox()
@@ -761,7 +762,13 @@ class twodWidget(pg.PlotWidget):
         self.setXLink(self.parent.plot)
         #self.addLines()
 
+        self.cursorpos = pg.TextItem(anchor=(0, 1), fill=pg.mkBrush(0, 0, 0, 0.5))
+        self.vb.addItem(self.cursorpos, ignoreBounds=True)
+
         #self.getAxis('right').setLabel('axis2', color='#0000ff')
+
+    def initstatus(self):
+        self.s_status = False
 
     def addLines(self):
         # self.addItem(pg.InfiniteLine(0.0, 0, pen=pg.mkPen(color=(100, 100, 100), width=1, style=Qt.DashLine)))
@@ -781,6 +788,96 @@ class twodWidget(pg.PlotWidget):
 
     def viewRangeChanged(self, view, range):
         self.sigRangeChanged.emit(self, range)
+
+    def keyPressEvent(self, event):
+        super(spec2dWidget, self).keyPressEvent(event)
+        key = event.key()
+
+        if not event.isAutoRepeat():
+            if event.key() == Qt.Key_S:
+                self.s_status = True
+                self.vb.setMouseEnabled(x=False, y=False)
+                #self.vb.setMouseMode(self.vb.RectMode)
+                #print(self.vb.state['mouseMode'])
+
+    def keyReleaseEvent(self, event):
+        super(spec2dWidget, self).keyReleaseEvent(event)
+        key = event.key()
+
+        if not event.isAutoRepeat():
+
+            if event.key() == Qt.Key_S:
+                self.s_status = False
+                #self.vb.setMouseMode(self.vb.PanMode)
+                #self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
+
+            if any([event.key() == getattr(Qt, 'Key_'+s) for s in ['S']]):
+                self.vb.setMouseEnabled(x=True, y=True)
+                #self.vb.setMouseMode(self.vb.PanMode)
+                self.parent.statusBar.setText('')
+
+    def mousePressEvent(self, event):
+        super(spec2dWidget, self).mousePressEvent(event)
+        if any([getattr(self, s + '_status') for s in 's']):
+            self.s_status = 2
+            self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
+
+    def mouseReleaseEvent(self, event):
+        super(spec2dWidget, self).mouseReleaseEvent(event)
+        #super(spec2dWidget, self).mouseReleaseEvent(event)
+        if any([getattr(self, s + '_status') for s in 's']):
+            self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
+
+        #if event.isAccepted():
+        #    super(spec2dWidget, self).mouseReleaseEvent(event)
+
+    def mouseMoveEvent(self, event):
+        super(spec2dWidget, self).mouseMoveEvent(event)
+        self.mousePoint = self.vb.mapSceneToView(event.pos())
+        self.mouse_moved = True
+        self.cursorpos.setText('x={0:.3f}, y={1:.2f}, rest={2:.3f}'.format(self.mousePoint.x(), self.mousePoint.y(),
+                                                                           self.parent.s[self.parent.s.ind].spec2d.raw.find_nearest(self.mousePoint.x(), self.mousePoint.y())))
+        #print(self.vb.state['mouseMode'])
+        pos = self.vb.sceneBoundingRect()
+        self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(pos.left() + 10, pos.bottom() - 10)))
+        if self.s_status == 2 and event.type() == QEvent.MouseMove:
+            range = self.vb.getState()['viewRange']
+            delta = ((self.mousePoint.x() - self.mousePoint_saved.x()) / (range[0][1] - range[0][0]),
+                     (self.mousePoint.y() - self.mousePoint_saved.y()) / (range[1][1] - range[1][0]))
+            self.mousePoint_saved = self.mousePoint
+            im = self.parent.s[self.parent.s.ind].image2d
+            levels = im.getLevels()
+            im.setLevels([levels[0]*(1-delta[0]*10), levels[0] + (levels[1]-levels[0])*(1-delta[1]*10)])
+
+        if self.s_status and event.type() == QEvent.MouseMove:
+            self.vb.rbScaleBox.hide()
+
+    def wheelEvent(self, event):
+        super(spec2dWidget, self).wheelEvent(event)
+        pos = self.vb.sceneBoundingRect()
+        self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(pos.left() + 10, pos.bottom() - 10)))
+
+    def mouseDragEvent(self, ev):
+
+        if ev.button() == Qt.RightButton:
+            ev.ignore()
+        else:
+            pg.ViewBox.mouseDragEvent(self, ev)
+
+        ev.accept()
+        pos = ev.pos()
+
+        if ev.button() == Qt.RightButton:
+            self.updateScaleBox(ev.buttonDownPos(), ev.pos())
+
+            if ev.isFinish():
+                self.rbScaleBox.hide()
+                ax = QtCore.QRectF(Point(ev.buttonDownPos(ev.button())), Point(pos))
+                ax = self.childGroup.mapRectFromParent(ax)
+                MouseRectCoords = ax.getCoords()
+                self.dataSelection(MouseRectCoords)
+            else:
+                self.updateScaleBox(ev.buttonDownPos(), ev.pos())
 
 class preferencesWidget(QWidget):
     def __init__(self, parent):
@@ -2820,14 +2917,14 @@ class sviewer(QMainWindow):
         self.showResiduals = QAction('&Residuals', self)
         self.showResiduals.setShortcut('F4')
         self.showResiduals.setStatusTip('Show/Hide Residuals panel')
-        self.showResiduals.triggered.connect(self.showResidualsPanel)
-        self.showResidualsPanel()
+        self.showResiduals.triggered.connect(partial(self.showResidualsPanel, show=None))
+        self.showResidualsPanel(self.show_residuals)
 
         self.show2d = QAction('&2d spectrum', self)
         self.show2d.setShortcut('F9')
         self.show2d.setStatusTip('Show/Hide 2d spectrum panel')
-        self.show2d.triggered.connect(self.show2dPanel)
-        self.show2dPanel()
+        self.show2d.triggered.connect(partial(self.show2dPanel, show=None))
+        self.show2dPanel(self.show_2d)
 
         showLines = QAction('&Plot lines', self)
         showLines.setShortcut('Ctrl+L')
@@ -3202,7 +3299,7 @@ class sviewer(QMainWindow):
         for s in ['H2', 'DLAmajor', 'DLA', 'Molec']:
             self.absLines('abs_'+s+'_status', value=getattr(self, 'abs_'+s+'_status'))
 
-        filename = self.options('loadfile')
+        filename = self.options('loadfile', config=self.config)
         if os.path.exists(filename):
             import importlib.util
             spec = importlib.util.spec_from_file_location("load", filename)
@@ -3759,15 +3856,17 @@ class sviewer(QMainWindow):
                 if filename.endswith('.fits'):
                     hdulist = fits.open(filename)
                     if 'INSTRUME' in hdulist[0].header:
-                        try:
-                            if 'XSHOOTER' in hdulist[0].header['INSTRUME']:
-                                prihdr = hdulist[1].data
-                                s.twod = prihdr
-                        except:
-                            pass
-
+                        if 'XSHOOTER' in hdulist[0].header['INSTRUME']:
+                            zero = hdulist[0].header['CRVAL1'] * 10
+                            x = np.linspace(hdulist[0].header['CRVAL1'] * 10,
+                                            hdulist[0].header['CRVAL1'] * 10 + hdulist[0].header['CDELT1'] * 10 * hdulist[0].data.shape[1],
+                                            hdulist[0].data.shape[1])
+                            y = np.linspace(hdulist[0].header['CRVAL2'],
+                                            hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] * hdulist[0].data.shape[0],
+                                            hdulist[0].data.shape[0])
+                            s.spec2d.set(x=x, y=y, z=hdulist[0].data)
                 elif filename.endswith('.dat'):
-                    s.twod = 'twod'
+                    s.spec2d = None
 
         self.s.draw()
 
@@ -3870,8 +3969,11 @@ class sviewer(QMainWindow):
         else:
             self.exp.close()
 
-    def showResidualsPanel(self):
-        self.show_residuals = not self.show_residuals
+    def showResidualsPanel(self, show=None):
+        if show is None:
+            self.show_residuals = not self.show_residuals
+        else:
+            self.show_residuals = show
         self.options('show_residuals', bool(self.show_residuals))
         if self.show_residuals:
             self.residualsPanel = residualsWidget(self)
@@ -3888,24 +3990,28 @@ class sviewer(QMainWindow):
                 self.residualsPanel.deleteLater()
                 del self.residualsPanel
 
-    def show2dPanel(self):
-        self.show_2d = not self.show_2d
+    def show2dPanel(self, show=None):
+        print(show)
+        if show is None:
+            self.show_2d = not self.show_2d
+        else:
+            self.show_2d = show
         self.options('show_2d', bool(self.show_2d))
         if self.show_2d:
-            self.twodPanel = twodWidget(self)
+            self.spec2dPanel = spec2dWidget(self)
             if self.show_residuals:
-                self.splitter_plot.insertWidget(1, self.twodPanel)
+                self.splitter_plot.insertWidget(1, self.spec2dPanel)
                 self.splitter_plot.setSizes([450, 1000, 1000])
             else:
-                self.splitter_plot.insertWidget(0, self.twodPanel)
+                self.splitter_plot.insertWidget(0, self.spec2dPanel)
                 self.splitter_plot.setSizes([1000, 1000])
             if len(self.s) > 0:
                 self.s.redraw()
         else:
-            if hasattr(self, 'twodPanel'):
-                self.twodPanel.hide()
-                self.twodPanel.deleteLater()
-                del self.twodPanel
+            if hasattr(self, 'spec2dPanel'):
+                self.spec2dPanel.hide()
+                self.spec2dPanel.deleteLater()
+                del self.spec2dPanel
 
     def showPreferences(self):
         if self.preferences is None:
