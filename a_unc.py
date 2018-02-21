@@ -277,8 +277,7 @@ class a:
         self.dec()
         #res = A_unc(0,0,0,typ='d')
         res = copy.copy(self)
-        print('sub:', res.default_format)
-        
+
         if isinstance(other, a):
             other.dec()
             res.val = self.val - other.val
@@ -288,7 +287,7 @@ class a:
             res.val = self.val - other
             res.plus = self.plus
             res.minus = self.minus
-        return res.default()
+        return res.dec()
         
     def __truediv__(self, other):
         

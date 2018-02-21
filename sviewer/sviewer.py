@@ -835,8 +835,9 @@ class spec2dWidget(pg.PlotWidget):
         super(spec2dWidget, self).mouseMoveEvent(event)
         self.mousePoint = self.vb.mapSceneToView(event.pos())
         self.mouse_moved = True
-        self.cursorpos.setText('x={0:.3f}, y={1:.2f}, rest={2:.3f}'.format(self.mousePoint.x(), self.mousePoint.y(),
-                                                                           self.parent.s[self.parent.s.ind].spec2d.raw.find_nearest(self.mousePoint.x(), self.mousePoint.y())))
+        self.cursorpos.setText('x={0:.3f}, y={1:.2f}'.format(self.mousePoint.x(), self.mousePoint.y()))
+        if len(self.parent.s[self.parent.s.ind].spec2d.raw.z.shape) == 2:
+            self.cursorpos.setText(self.cursorpos.textItem.toPlainText() + ', z={:.2e}'.format(self.parent.s[self.parent.s.ind].spec2d.raw.find_nearest(self.mousePoint.x(), self.mousePoint.y())))
         #print(self.vb.state['mouseMode'])
         pos = self.vb.sceneBoundingRect()
         self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(pos.left() + 10, pos.bottom() - 10)))

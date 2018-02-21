@@ -571,7 +571,10 @@ class image():
         self.quantile = [x[int(len(x)*(1-quantile)/2)], x[int(len(x)*(1+quantile)/2)]]
 
     def find_nearest(self, x, y):
-        return self.z[np.searchsorted(self.y, y), np.searchsorted(self.x, x)]
+        if len(self.z.shape) == 2:
+            return self.z[np.searchsorted(self.y, y), np.searchsorted(self.x, x)]
+        else:
+            return None
 
 class spec2d():
     def __init__(self, parent):
