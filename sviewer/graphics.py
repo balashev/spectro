@@ -731,9 +731,10 @@ class Spectrum():
                 self.parent.vb.addItem(self.g_spline)
 
         # >>> plot chebyshev continuum:
+        self.g_cheb = pg.PlotCurveItem(x=[], y=[], pen=pg.mkPen(color=self.cont_pen.color(), style=Qt.DashLine, width=3))
+        self.parent.vb.addItem(self.g_cheb)
+
         if self.parent.fit.cont_fit:
-            self.g_cheb = pg.PlotCurveItem(x=[], y=[], pen=pg.mkPen(color=self.cont_pen.color(), style=Qt.DashLine))
-            self.parent.vb.addItem(self.g_cheb)
             self.set_cheb()
 
         # >>> plot smooth of spectrum:
@@ -930,11 +931,13 @@ class Spectrum():
             self.remove_g_fit_comps()
             self.construct_g_fit_comps()
 
-    def set_cheb(self):
+    def set_cheb(self, x=None, y=None):
         if self.active():
-            self.cheb.norm.set_data(x=self.spec.norm.x, y=self.correctContinuum(self.spec.norm.x))
-            self.cheb.normalize(norm=False, cont_mask=False)
-            print('set_cheb:', self.cheb.y())
+            if x is None and y is None:
+                self.cheb.norm.set_data(x=self.spec.norm.x, y=self.correctContinuum(self.spec.norm.x))
+                self.cheb.normalize(norm=False, cont_mask=False)
+            else:
+                self.cheb.set(x=x, y=y)
             self.g_cheb.setData(x=self.cheb.x(), y=self.cheb.y())
 
     def set_res(self):

@@ -362,9 +362,20 @@ class Console(QTextEdit):
                 i1, i2 = int(args[1]), int(args[2])
                 x = self.parent.s[i1].spec.x()
                 y = self.parent.s[i1].spec.y() / self.parent.s[i2].spec.inter(x)
-                print(x, y)
                 self.parent.importSpectrum('{:}_divided_by_{:}'.format(i1, i2), spec=[x, y], append=True)
                 #self.parent.s[-1].normalize()
+
+        elif args[0] == 'subtract':
+            if len(args) == 3:
+                i1, i2 = int(args[1]), int(args[2])
+                x = self.parent.s[i1].spec.x()
+                y = self.parent.s[i1].spec.y() - self.parent.s[i2].spec.inter(x)
+                self.parent.importSpectrum('{:}_subtracted_from_{:}'.format(i2, i1), spec=[x, y], append=True)
+                #self.parent.s[-1].normalize()
+
+        elif args[0] == 'crosscorr':
+            if len(args) == 3:
+                self.parent.crosscorrExposures(int(args[1]), int(args[2]))
 
         elif args[0] == 'lines':
 

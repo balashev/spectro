@@ -168,9 +168,15 @@ class plotSpectrum(pg.PlotWidget):
                 if self.e_status:
                     self.parent.s.setSpec(self.parent.s.ind + 1)
 
+                if self.p_status:
+                    self.parent.fitPoly(np.max([0, self.parent.polyDeg-1]))
+
             if event.key() == Qt.Key_Up or event.key() == Qt.Key_Left:
                 if self.e_status:
                     self.parent.s.setSpec(self.parent.s.ind - 1)
+
+                if self.p_status:
+                    self.parent.fitPoly(self.parent.polyDeg + 1)
 
             if event.key() == Qt.Key_A:
                 if (QApplication.keyboardModifiers() == Qt.ControlModifier):
@@ -569,10 +575,13 @@ class plotSpectrum(pg.PlotWidget):
                     s.cont.interpolate()
                     cont = s.cont.inter
                 curve2 = pg.PlotCurveItem(x=x, y=cont(x), pen=pg.mkPen())
+
                 w = np.trapz(1.0 - y / cont(x), x=x)
+                err_w =  np.sqrt(np.sum((s.spec.err()[mask] / cont(x)[:-1:2]  * np.diff(x)[::2])**2))
+                print(w, err_w)
                 self.w_region = pg.FillBetweenItem(curve1, curve2, brush=pg.mkBrush(44, 160, 44, 150))
                 self.vb.addItem(self.w_region)
-                self.w_label = pg.TextItem('w = {:0.4f}, log(w/l)={:0.2f}'.format(w, np.log10(2 * w / (x[0]+x[-1]))),  anchor=(0,1), color=(44, 160, 44))
+                self.w_label = pg.TextItem('w = {:0.5f}+/-{:0.5f}, log(w/l)={:0.2f}'.format(w, err_w, np.log10(2 * w / (x[0]+x[-1]))),  anchor=(0,1), color=(44, 160, 44))
                 self.w_label.setFont(QFont("SansSerif", 14))
                 #print('{:0.2f}'.format(w), (x[0]+x[-1])/2, s.cont.inter((x[0]+x[-1])/2))
                 self.w_label.setPos((x[0]+x[-1])/2, cont((x[0]+x[-1])/2))
@@ -1459,13 +1468,16 @@ class showLinesWidget(QWidget):
                 p.name_pos = [self.name_x_pos, self.name_y_pos]
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 ax = p.plot_line()
-                p.showH2(ax, levels=[0,1,2,3])
                 if self.parent.fit.cf_fit:
                     for i in range(self.parent.fit.cf_num):
                         attr = 'cf_' + str(i)
                         if hasattr(self.parent.fit, attr):
                             p = getattr(self.parent.fit, attr)
                             ax.plot([p.min, p.max], [p.val, p.val], '--', color='orangered')
+
+                #p.showH2(ax, levels=[0, 1, 2, 3])
+
+                self.showContCorr(ax=ax)
 
         print('plot', plot)
         if plot:
@@ -1492,6 +1504,12 @@ class showLinesWidget(QWidget):
             pickle.dump(self.parent.lines, f)
             pickle.dump(self.regions, f)
             f.close()
+
+    def showContCorr(self, ax):
+        for i in range(5,15):
+            print(i)
+            self.parent.fitPoly(i)
+            ax.plot(self.parent.s[self.parent.s.ind].cheb.x(), self.parent.s[self.parent.s.ind].cheb.y(), '-', lw=0.5, color='mediumseagreen')
 
     def loadSettings(self, fname=None):
         print(fname)
@@ -2760,6 +2778,7 @@ class sviewer(QMainWindow):
         self.tau_limit = float(self.options('tau_limit'))
         self.comp_view = self.options('comp_view')
         self.animateFit = self.options('animateFit')
+        self.polyDeg = int(self.options('polyDeg'))
         self.comp = 0
         self.fitprocess = None
         self.fitModel = None
@@ -3046,8 +3065,12 @@ class sviewer(QMainWindow):
         fitGauss.triggered.connect(self.fitGauss)
 
         fitPower = QAction('&Power law fit', self)
-        fitPower.setStatusTip('Fit power law')
+        fitPower.setStatusTip('Fit by power law function')
         fitPower.triggered.connect(self.fitPowerLaw)
+
+        fitPoly = QAction('&Polynomial fit', self)
+        fitPoly.setStatusTip('Fit by polynomial function')
+        fitPoly.triggered.connect(partial(self.fitPoly, None))
 
         H2Menu = QMenu('&H2', self)
         H2Menu.setStatusTip('Some additional H2 methods')
@@ -3073,6 +3096,7 @@ class sviewer(QMainWindow):
         fitMenu.addAction(fitExt)
         fitMenu.addAction(fitGauss)
         fitMenu.addAction(fitPower)
+        fitMenu.addAction(fitPoly)
         fitMenu.addSeparator()
         fitMenu.addMenu(H2Menu)
         H2Menu.addAction(H2Exc)
@@ -3502,8 +3526,11 @@ class sviewer(QMainWindow):
                 else:
                     ind = 0
 
+                if i > len(d) - 1:
+                    break
+
                 if ind > -1:
-                    while all([x not in d[i] for x in ['----', 'doublet', 'region', 'fit_model']]):
+                    while all([x not in d[i] for x in ['%', '----', 'doublet', 'region', 'fit_model']]):
                         if 'Bcont' in d[i]:
                             self.s[ind].spline = gline()
                             n = int(d[i].split()[1])
@@ -3539,12 +3566,14 @@ class sviewer(QMainWindow):
 
                         if 'resolution' in d[i]:
                             self.s[ind].resolution = int(float(d[i].split()[1]))
+
                         i += 1
+
                         if i > len(d) - 1:
                             break
 
-            if i > len(d) - 1:
-                break
+            if '%' in d[i]:
+                i -= 1
 
             if 'regions' in d[i]:
                 ns = int(d[i].split()[1])
@@ -3943,7 +3972,6 @@ class sviewer(QMainWindow):
                         if s.filename == fl.split()[0]:
                             s.spec.raw.err *= float(fl.split()[2])
 
-
         self.plot.vb.enableAutoRange()
         
     def showExportListDialog(self):
@@ -4332,7 +4360,7 @@ class sviewer(QMainWindow):
         ax.errorbar(x, y, yerr=w, fmt='o')
 
         if typ == 'cheb':
-            cheb = np.polynomial.chebyshev.Chebyshev.fit(x, y, self.fit.cont_num - 1, w=w)
+            cheb = np.polynomial.chebyshev.Chebyshev.fit(x, y, self.fit.cont_num - 1, w=1.0/w)
             poly = np.polynomial.chebyshev.cheb2poly([c for c in cheb])
             for i, c in enumerate(cheb):
                 self.fit.setValue('cont' + str(i), c)
@@ -4390,6 +4418,47 @@ class sviewer(QMainWindow):
             y = np.power(10, p[1] + np.log10(x)*p[0])
             s.cont.set_data(x=x, y=y)
             s.redraw()
+
+    def fitPoly(self, deg=None, typ='cheb'):
+        """
+        Fitting the selected points region with Polynomial function
+        :param deg:  degree of polynmial function
+        :param typ:  type of polynomial function, can be 'cheb' for Chebyshev, 'x' for simple polynomial
+        :return: None
+        """
+
+        s = self.s[self.s.ind]
+        x = s.spec.x()[s.fit_mask.x()]
+        y = s.spec.y()[s.fit_mask.x()]
+        w = s.spec.err()[s.fit_mask.x()]
+
+        #self.fit.cont_fit = True
+        #s.redraw()
+
+        if deg is not None:
+            self.options('polyDeg', deg)
+
+        if typ == 'x':
+            p = np.polyfit(x, y, self.polyDeg, w=1.0/w)
+        elif typ == 'cheb':
+            cheb = np.polynomial.chebyshev.Chebyshev.fit(x, y, self.polyDeg, w=1.0/w)
+
+        x = np.linspace(x[0], x[-1], 100)
+
+        if typ == 'x':
+            y = np.polyval(p, x)
+        elif typ == 'cheb':
+            base = (x - x[0]) * 2 / (x[-1] - x[0]) - 1
+            y = np.polynomial.chebyshev.chebval(base, [c for c in cheb])
+
+        if self.normview:
+            s.set_cheb(x=x, y=y)
+        else:
+            s.cont_mask = (s.spec.raw.x > x[0]) & (s.spec.raw.x < x[-1])
+            s.cont.set_data(x=x, y=y)
+            s.cont.interpolate()
+            s.cont.set_data(x=s.spec.raw.x[s.cont_mask], y=s.cont.inter(s.spec.raw.x[s.cont_mask]))
+            s.g_cont.setData(x=s.cont.x, y=s.cont.y)
 
     def H2ExcDiag(self):
         """
@@ -4469,6 +4538,9 @@ class sviewer(QMainWindow):
         pass
 
     def rescaleExposure(self):
+        pass
+
+    def crosscorrExporsures(self, i1, i2):
         pass
 
     def combine(self, typ='mean'):
