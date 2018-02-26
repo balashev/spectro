@@ -25,7 +25,7 @@ class FLineEdit(QLineEdit):
             if self.name[:1] == 'z':
                 validator.setDecimals(8)
             if self.name[:1] in ['b', 'N', 'd', 'm', 'c', 'r']:
-                validator.setDecimals(4)
+                validator.setDecimals(5)
             self.setValidator(validator)
 
     def setLength(self, l=None):
@@ -33,7 +33,7 @@ class FLineEdit(QLineEdit):
             if self.name[:1] == 'z':
                 self.setMaxLength(10)
             if self.name[:1] in ['b', 'N', 'd', 'm', 'c', 'r']:
-                self.setMaxLength(8)
+                self.setMaxLength(9)
         else:
             self.setMaxLength(l)
 
@@ -206,6 +206,12 @@ class fitModelWidget(QWidget):
                 combo.setFixedSize(70, 30)
                 # print('create combo:', species)
                 combo.activated.connect(partial(self.setApplied, name=name))
+                self.treeWidget.setItemWidget(getattr(self, name), 10, combo)
+                setattr(self, name + '_applied_exp', QComboBox(self))
+                combo = getattr(self, name + '_applied_exp')
+                combo.setFixedSize(70, 30)
+                # print('create combo:', species)
+                combo.activated.connect(partial(self.setApplied, name=name))
                 self.treeWidget.setItemWidget(getattr(self, name), 11, combo)
 
         setattr(self, name + '_vary', QCheckBox(self))
@@ -220,7 +226,12 @@ class fitModelWidget(QWidget):
         sp = combo.currentText()
         if 'applied' in sp:
             sp = ''
-        setattr(getattr(self.parent.fit, name), 'addinfo', sp)
+        combo = getattr(self, name + '_applied_exp')
+        sp1 = combo.currentText()
+        if 'applied' in sp1:
+            sp1 = ''
+        setattr(getattr(self.parent.fit, name), 'addinfo', sp+'_'+sp1)
+        print(sp+'_'+sp1)
         self.refresh()
 
     def updateCF(self, excl=''):
@@ -242,7 +253,16 @@ class fitModelWidget(QWidget):
                         combo.clear()
                         sp = list(['sys'+ str(i) for i in range(len(self.parent.fit.sys))])
                         combo.addItems(['all']+sp)
-                        s = getattr(cf, 'addinfo').strip()
+                        s = getattr(cf, 'addinfo').split('_')[0]
+                        if s != '' and s in sp:
+                            combo.setCurrentText(s)
+                        else:
+                            combo.setCurrentIndex(0)
+                        combo = getattr(self, cf.name + '_applied_exp')
+                        combo.clear()
+                        sp = list(['exp' + str(i) for i in range(len(self.parent.s))])
+                        combo.addItems(['all'] + sp)
+                        s = getattr(cf, 'addinfo').split('_')[1]
                         if s != '' and s in sp:
                             combo.setCurrentText(s)
                         else:

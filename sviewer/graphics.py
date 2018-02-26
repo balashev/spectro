@@ -629,6 +629,9 @@ class Spectrum():
         self.fit_comp_pen = pg.mkPen(255, 215, 63, width=1.0)
         self.spline_brush = pg.mkBrush(0, 191, 255, 255) # pg.mkBrush(117, 218, 50, 255)
 
+    def ind(self):
+        return self.parent.s.index(self)
+
     def active(self):
         return self == self.parent.s[self.parent.s.ind]
 
@@ -1121,7 +1124,9 @@ class Spectrum():
                             if self.parent.fit.cf_fit:
                                 for i in range(self.parent.fit.cf_num):
                                     cf = getattr(self.parent.fit, 'cf_'+str(i))
-                                    if (cf.addinfo == 'all' or sys.ind == int(cf.addinfo[3:])) and l.l*(1+l.z) > cf.min and l.l*(1+l.z) < cf.max:
+                                    cf_sys = cf.addinfo.split('_')[0]
+                                    cf_exp = cf.addinfo.split('_')[1] if len(cf.addinfo.split('_')) > 1 else 'all'
+                                    if (cf_sys == 'all' or sys.ind == int(cf_sys[3:])) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l*(1+l.z) > cf.min and l.l*(1+l.z) < cf.max:
                                         l.cf = i
                             if all:
                                 if any([x[0] < p < x[-1] for p in l.range]):

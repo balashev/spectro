@@ -12,7 +12,7 @@ class par:
         elif 'cf' in self.name:
             self.dec = 3
         else:
-            d = {'z': 8, 'b': 2, 'N': 3, 'turb': 2, 'kin': 2, 'mu': 8, 'dtoh': 3, 'me': 3, 'res': 0}
+            d = {'z': 8, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3, 'me': 3, 'res': 0}
             self.dec = d[self.name]
 
         if self.name in ['b', 'N']:

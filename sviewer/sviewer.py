@@ -65,7 +65,7 @@ class plotSpectrum(pg.PlotWidget):
         self.parent = parent
         self.initstatus()
         self.vb = self.getViewBox()
-        self.customMenu = False
+        self.customMenu = True
         self.vb.setMenuEnabled(not self.customMenu)
         self.vb.disableAutoRange()
         self.regions = []
@@ -353,7 +353,6 @@ class plotSpectrum(pg.PlotWidget):
                     self.vb.rbScaleBox.hide()
 
     def keyReleaseEvent(self, event):
-        super(plotSpectrum, self).keyReleaseEvent(event)
 
         if not event.isAutoRepeat():
 
@@ -364,6 +363,7 @@ class plotSpectrum(pg.PlotWidget):
                 self.b_status = False
                 if not self.mouse_moved:
                     self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y())
+                print('keyRelease', self.b_status)
 
             if event.key() == Qt.Key_C:
                 if (QApplication.keyboardModifiers() != Qt.ControlModifier):
@@ -436,33 +436,36 @@ class plotSpectrum(pg.PlotWidget):
                 self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
 
+        if event.isAccepted():
+            super(plotSpectrum, self).keyReleaseEvent(event)
+
+
     def mouseClickEvent(self, ev):
-        print('click', ev.button())
         if ev.button() == Qt.RightButton and self.menuEnabled():
             ev.accept()
             self.raiseContextMenu(ev)
 
     def mousePressEvent(self, event):
         super(plotSpectrum, self).mousePressEvent(event)
-        if any([getattr(self, s+'_status') for s in 'abcdrsuwx']):
-            self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
+
+        self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
         if self.r_status:
             self.regions.append(regionItem(self))
             self.r_ind == len(self.regions)
             self.vb.addItem(self.regions[-1])
 
     def mouseReleaseEvent(self, event):
-        #mousePoint = self.vb.mapSceneToView(event.pos())
-        if event.button() == Qt.RightButton and self.menuEnabled() and self.customMenu:
-            event.accept()
-            self.raiseContextMenu(event)
-
         if any([getattr(self, s+'_status') for s in 'abcdrsuwx']):
             self.vb.setMouseMode(self.vb.PanMode)
             self.vb.rbScaleBox.hide()
+        else:
+            if event.button() == Qt.RightButton and self.menuEnabled() and self.customMenu:
+                if self.mousePoint == self.mousePoint_saved:
+                    self.raiseContextMenu(event)
+                    event.accept()
 
         if self.a_status:
-            if self.mousePoint.x() == self.mousePoint_saved.x() and self.mousePoint.y() == self.mousePoint_saved.y():
+            if self.mousePoint == self.mousePoint_saved:
                 if self.parent.line_reper.name in self.parent.fit.sys[-1].sp:
                     self.parent.fit.addSys(self.parent.comp)
                     self.parent.fit.sys[-1].z.val = self.mousePoint.x() / self.parent.line_reper.l - 1
@@ -479,7 +482,7 @@ class plotSpectrum(pg.PlotWidget):
 
         if self.b_status:
             if event.button() == Qt.LeftButton:
-                if self.mousePoint.x() == self.mousePoint_saved.x() and self.mousePoint.y() == self.mousePoint_saved.y():
+                if self.mousePoint == self.mousePoint_saved:
                     self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y())
                 else:
                     self.parent.s[self.parent.s.ind].del_spline(self.mousePoint_saved.x(), self.mousePoint_saved.y(), self.mousePoint.x(), self.mousePoint.y())
@@ -487,7 +490,7 @@ class plotSpectrum(pg.PlotWidget):
             if event.button() == Qt.RightButton:
                 ind = self.parent.s[self.parent.s.ind].spline.find_nearest(self.mousePoint.x(), self.mousePoint.y())
                 self.parent.s[self.parent.s.ind].del_spline(arg=ind)
-                event.ignore()
+                event.accept()
 
         if self.c_status:
             try:

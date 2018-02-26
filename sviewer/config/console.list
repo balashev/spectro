@@ -1,8 +1,3 @@
-AlIII
-CIV
-SiIV
-FeII
-SiII
 OVI
 show H2 0 1
 shod HD
@@ -19,3 +14,8 @@ divide 0 1
 divide 0 1
 divide 0 2
 subtract 0 1
+y 0 1
+SiII
+2**-0.7
+2**0.7
+log(2**0.7)
