@@ -1444,15 +1444,19 @@ class showLinesWidget(QWidget):
             ps.specify_styles()
             for i, p in enumerate(ps):
                 st = self.parent.regions[i].split()
-                print(p.xlabel, p.ylabel)
-                p.name = '' if len(st) == 1 else st[1]
                 p.x_min, p.x_max = (float(st) for st in st[0].split('..'))
                 p.y_formater = '%.2f'
-                if len(st) > 2:
-                    ind = int(st[2])
-                else:
+                for s in st[1:]:
+                    if 'name' in s:
+                        p.name = s[4:]
+                    if 'exp' in s:
+                        ind = int(s[4:])
+                if not any(['name' in s for s in st]):
+                    p.name == ''
+                if not any(['exp' in s for s in st]):
                     ind = self.parent.s.ind
-                s = self.parent.s[self.parent.s.ind]
+                print(ind)
+                s = self.parent.s[ind]
                 if s.fit.n() > 0:
                     fit = np.array([s.fit.x(), s.fit.y()])
                     if self.show_comps:
@@ -1476,11 +1480,13 @@ class showLinesWidget(QWidget):
                         attr = 'cf_' + str(i)
                         if hasattr(self.parent.fit, attr):
                             p = getattr(self.parent.fit, attr)
-                            ax.plot([p.min, p.max], [p.val, p.val], '--', color='orangered')
+                            if p.addinfo.find('exp') > -1 and int(p.addinfo[p.addinfo.find('exp')+3:]) == self.parent.s.ind:
+                                ax.plot([p.min, p.max], [p.val, p.val], '--', color='orangered')
 
-                #p.showH2(ax, levels=[0, 1, 2, 3])
-
-                self.showContCorr(ax=ax)
+                if 0:
+                    p.showH2(ax, levels=[0, 1, 2, 3])
+                if 0:
+                    self.showContCorr(ax=ax)
 
         print('plot', plot)
         if plot:
