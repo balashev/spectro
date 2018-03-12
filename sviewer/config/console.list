@@ -1,21 +1,21 @@
-SiII
-MgI
-SiII
-x 3000 5000
-show H2 5
-SiII
-divide 0 1
-divide 0 1
-divide 0 1
-divide 0 2
-subtract 0 1
-y 0 1
-SiII
-2**-0.7
-2**0.7
-log(2**0.7)
-HD
-HDj0
-HDj1
-H2j0
-H2j1
+show HD 0 1 2
+hide HD
+show HD 0 1 2
+hide HD 1
+show CO
+show CO 0 1 2 3 4 5 6
+show CO
+hide CO 1
+hide CO 2 3
+hide CO 2
+hide CO
+show CI
+show CO
+show H2 0 1
+show HD
+hide CO
+hide HD
+show HD 0
+show SiII
+show CO
+show CO 0 1 2

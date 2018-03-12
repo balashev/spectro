@@ -1,7 +1,10 @@
+from collections import OrderedDict
+from functools import wraps
+import h5py
 import numpy as np
 import re
 import os
-from .a_unc import a
+from a_unc import a
 from mendeleev import element
 
 class e():
@@ -247,16 +250,16 @@ class e():
         self.get_ioniz()
         self.col = a(float(words[i]), float(words[i+1]), float(words[i+2]))
         
-        
+
 class line():
     """
     General class for working with absorption lines
     """
-    def __init__(self, name, l, f, g, logN=None, b=None, z=0, nu_u=None, j_u=None, nu_l=None, j_l=None, descr=None, ref=''):
+    def __init__(self, name, l, f, g, logN=None, b=None, z=0, nu_u=None, j_u=None, nu_l=None, j_l=None, descr='', ref=''):
         self.name = name
-        self.l = float(l)
-        self.f = float(f)
-        self.g = float(g)
+        self.wavelength = [float(l)]
+        self.oscillator = [float(f)]
+        self.gamma = [float(g)]
         self.logN = logN
         self.b = b
         self.z = z
@@ -265,8 +268,46 @@ class line():
         self.nu_l = nu_l
         self.j_l = j_l
         self.descr = descr
-        self.ref = ref
+        self.ref = [ref]
         self.band = ''
+
+    def add(self, l, f, g, ref=''):
+        self.wavelength.append(l)
+        self.oscillator.append(f)
+        self.gamma.append(g)
+        self.ref.append(ref)
+
+    def _with_ref(func):
+        @wraps(func)
+        def wrapped(inst, *args, **kwargs):
+            ind = inst.ind(*args, **kwargs)
+            if ind is not None:
+                return func(inst)[inst.ind(*args, **kwargs)]
+            else:
+                return func(inst)[0]
+
+        return wrapped
+
+    def ind(self, ref=None):
+        if ref is None:
+            return 0
+        else:
+            if ref in self.ref:
+                return self.ref.index(ref)
+            else:
+                return None
+
+    @_with_ref
+    def l(self, ref=None):
+        return self.wavelength
+
+    @_with_ref
+    def f(self, ref=None):
+        return self.oscillator
+
+    @_with_ref
+    def g(self, ref=None):
+        return self.gamma
 
     def set_Ju(self):
         d = {'O': -2, 'P': -1, 'Q': 0, 'R': 1, 'S': 2}
@@ -277,17 +318,17 @@ class line():
             d = {-2: 'O', -1: 'P', 0: 'Q', 1: 'R', 2: 'S'}
             return '{0} {1}{2}-{3}{4}{5}'.format(self.name, self.band, self.nu_u, self.nu_l, d[self.j_u - self.j_l], self.j_l)
         else:
-            return self.name + ' ' + str(self.l)[:str(self.l).find('.')]
+            return self.name + ' ' + str(self.l())[:str(self.l()).find('.')]
     
     def __str__(self):
-        if any([ind in self.name for ind in ['H2', 'HD', 'CO']]):
+        if any([ind in self.name for ind in ['H2', 'HD', 'CO']]) and self.j_l is not None:
             d = {-2: 'O', -1: 'P', 0: 'Q', 1: 'R', 2: 'S'}
-            return '{0} {1}{2}-{3}{4}{5}'.format(self.name, self.band, self.nu_u, self.nu_l, d[self.j_u-self.j_l], self.j_l)
+            return '{0} {1} {2}-{3}{4}{5}'.format(self.name, self.band, self.nu_u, self.nu_l, d[self.j_u-self.j_l], self.j_l)
         else:
-            return self.name + ' ' + str(self.l)[:str(self.l).find('.')+3]
+            return self.name + ' ' + str(self.l())[:str(self.l()).find('.')+3]
     
     def __eq__(self, other):
-        if str(self) == str(other) and self.l == other.l and self.z == self.z:
+        if str(self) == str(other) and self.z == self.z: # and self.l() == other.l():
             return True
         else:
             return False
@@ -322,12 +363,53 @@ class HIlist(list):
         return sample[:n]
         
          
-class AtomicList(list):
+class atomicData(OrderedDict):
     """
     Class read and specify the sets of various atomic lines
     """
     def __init__(self):
-        pass
+        super().__init__()
+        #self.readdatabase()
+
+    def list(self, els=None, linelist=None):
+        lines = []
+        if els is not None and isinstance(els, str):
+            els = [els]
+        if self.data is None:
+            if els is not None:
+                for e in els:
+                    if e in self.keys():
+                        for l in self[e].lines:
+                            lines.append(l)
+                    else:
+                        print(e, 'is not found in atomic data')
+            else:
+                for e in self.values():
+                    for l in e.lines:
+                        if linelist is None or str(l) in linelist:
+                            lines.append(l)
+        else:
+            if els is not None:
+                for e in els:
+                    if e in self.data.keys():
+                        for i, ref in enumerate(self.data[e]['ref']):
+                            l = self.data[e]['lines'][str(i)][0]
+                            l = line(e, l[0], l[1], l[2], ref=l[3])
+                            for attr in ['j_l', 'nu_l', 'j_u', 'nu_u']:
+                                if 'None' not in ref[attr]:
+                                    setattr(l, attr, int(ref[attr]))
+                            lines.append(l)
+            else:
+                for e in self.data.keys():
+                    for i, ref in enumerate(self.data[e]['ref']):
+                        l = self.data[e]['lines'][str(i)][0]
+                        l = line(e, l[0], l[1], l[2], ref=l[3])
+                        for attr in ['j_l', 'nu_l', 'j_u', 'nu_u']:
+                            if 'None' not in ref[attr]:
+                                setattr(l, attr, int(ref[attr]))
+                        if linelist is None or str(l) in linelist:
+                            lines.append(l)
+        return lines
 
     def set_specific(self, linelist):
         s = []
@@ -372,6 +454,9 @@ class AtomicList(list):
                     for i, lev in enumerate(levels):
                         if i>0:
                             name = name+'*'
+                        if name not in self.keys():
+                            self[name] = e(name)
+                            self[name].lines = []
                         for l in block:
                             add = 0
                             if l[23:24] == '.':
@@ -382,11 +467,206 @@ class AtomicList(list):
                                 elif 'MltMean' not in l:
                                     add = 1
                                 if add == 1 and l[79:88].strip() != '' and l[59:68].strip() != '' and float(l[31:38]) == lev:
-                                    self.append(line(name, float(l[19:29]), float(l[79:88]), float(l[59:68]), ref='Morton2003'))
+                                    lin = line(name, float(l[19:29]), float(l[79:88]), float(l[59:68]), ref='Morton2003')
+                                    if lin not in self[name].lines:
+                                        self[name].lines.append(lin)
+                                    else:
+                                        self[name].lines[self[name].lines.index(lin)].add(float(l[19:29]), float(l[79:88]), float(l[59:68]), ref='Morton2003')
                     ind = 0
 
                 if l[:3] == '***':
                     ind = 1
+
+    def readCashman(self):
+        with open('data/Cashman2017.dat', 'r') as f:
+            for l in f:
+                name = ''.join(l[3:10].split())
+                if name not in self.keys():
+                    self[name] = e(name)
+                    self[name].lines = []
+                lam = float(l[90:99]) if l[78:89] else float(l[78:89])
+                lin = line(name, lam, float(l[105:113]), 1e+8, ref='Cashman2017')
+                if lin not in self[name].lines:
+                    self[name].lines.append(lin)
+                else:
+                    self[name].lines[self[name].lines.index(lin)].add(lam, float(l[105:113]), 1e+8, ref='Cashman2017')
+
+    def readH2(self, nu=0, j=[0,1], energy=None):
+        if 0:
+            self.readH2Abgrall(nu=nu, j=j, energy=energy)
+        else:
+            if nu == 0:
+                self.readH2Malec(j=j)
+
+    def readH2Malec(self, j=[0,1]):
+        """
+        read Malec calalogue 2010 data for H2
+
+        parameters:
+            - n    : if list - specify rotational levels to read
+                     if int - read J_l<=n
+        """
+        x = np.genfromtxt(r'data/H2/energy_X.dat', comments='#', unpack=True)
+
+        if isinstance(j, int) or isinstance(j, float):
+            j = [j]
+        mask = np.zeros_like(x[1], dtype=bool)
+        for j in j:
+            mask = np.logical_or(mask, x[1]==j)
+        mask = np.logical_and(mask, x[0] <= 0)
+
+        with open(os.path.dirname(os.path.realpath(__file__)) + r'/data/H2/H2MalecCat.dat', newline='') as f:
+            f.readline()
+            data = f.readlines()
+
+        x = x[:, mask]
+        x = np.transpose(x)
+        for xi in x:
+            nu_l, j_l = int(xi[0]), int(xi[1])
+            name = 'H2' + 'j' +  str(j_l)
+            if xi[0] > 0:
+                name += 'n' + str(nu_l)
+            print(name)
+            self[name] = e(name)
+            self[name].energy = float(xi[2])
+            self[name].stats = (2 * (j_l % 2) + 1) * (2 * j_l + 1)
+            self.read_maleccat(n=[j_l])
+
+    def readH2Abgrall(self, nu=0, j=[0,1], energy=None):
+        """
+        read data of H2 transitions from file.
+        parameters:
+            - nu       :   threshold of vibrational level
+            - j        :   threshold of rotational level
+            - energy   :   threshold of energy
+
+            any H2 level specified as
+            H2_j_nu, e.g. H2_3_1
+            if nu is not given then nu=0
+        """
+        x = np.genfromtxt(r'data/H2/energy_X.dat', comments='#', unpack=True)
+        B = np.genfromtxt(r'data/H2/energy_B.dat', comments='#', unpack=True)
+        Cp = np.genfromtxt(r'data/H2/energy_C_plus.dat', comments='#', unpack=True)
+        Cm = np.genfromtxt(r'data/H2/energy_C_minus.dat', comments='#', unpack=True)
+        B_t = np.genfromtxt(r'data/H2/transprob_B.dat', comments='#', unpack=True)
+        Cp_t = np.genfromtxt(r'data/H2/transprob_C_plus.dat', comments='#', unpack=True)
+        Cm_t = np.genfromtxt(r'data/H2/transprob_C_minus.dat', comments='#', unpack=True)
+        e2_me_c = const.e.gauss.value ** 2 / const.m_e.cgs.value / const.c.cgs.value
+        if energy is None:
+            if isinstance(j, int) or isinstance(j, float):
+                mask = np.logical_and(x[0] <= nu, x[1] == j)
+            if isinstance(j, list):
+                mask = np.logical_and(x[0] <= nu, np.logical_and(x[1] >= j[0], x[1] <= j[1]))
+        else:
+            mask = x[2] < energy
+        x = x[:,mask]
+        x = np.transpose(x)
+        fout = open(r'data/H2/lines.dat', 'w')
+        for xi in x:
+            nu_l, j_l = int(xi[0]), int(xi[1])
+            name = 'H2' + 'j' +  str(j_l)
+            if xi[0] > 0:
+                name += 'n' + str(nu_l)
+            self[name] = e(name)
+            self[name].energy = float(xi[2])
+            self[name].stats = (2 * (j_l % 2) + 1) * (2 * j_l + 1)
+            print(name, self[name].energy, self[name].stats)
+            for t, en, note in zip([B_t, Cm_t, Cp_t], [B, Cm, Cp], ['L', 'W', 'W']):
+                m = np.logical_and(t[4] == nu_l, t[5] == j_l)
+                for ti in t[:,m].transpose():
+                    nu_u, j_u = int(ti[1]), int(ti[2])
+                    m1 = np.logical_and(en[0] == nu_u, en[1] == j_u)
+                    l = 1e8 / (en[2, m1][0] - self[name].energy)
+                    g_u = (2 * (j_l % 2) + 1) * (2 * j_u + 1)
+                    f = (l * 1e-8) ** 2 / 8 / np.pi ** 2 / e2_me_c * ti[6] * g_u / self[name].stats
+                    m = np.logical_and(t[1] == nu_u, t[2] == j_u)
+                    g = np.sum(t[6, m])
+                    self[name].lines.append(line(name, l, f, g, ref='Abgrall', j_l=j_l, nu_l=nu_l, j_u=j_u, nu_u=nu_u))
+                    self[name].lines[-1].band = note
+                    if j_l >= 0:
+                        fout.write("{:8s} {:2d} {:2d} {:2d} {:2d} {:10.5f} {:.2e} {:.2e} \n".format(str(self[name].lines[-1]).split()[1], nu_l, j_l, nu_u, j_u, l, f, g))
+                        #print(str(self[name].lines[-1]), nu_l, j_l, nu_u, j_u, l, f, g)
+
+        fout.close()
+
+    def compareH2(self):
+        if 0:
+            mal = Atomiclist.Malec()
+            for line in mal:
+                for l1 in self['H2j'+str(line)[-1]].lines:
+                    #print(line)
+                    #print(l1)
+                    if str(line) == str(l1): #and np.abs(l1.f/line.f-1) > 0.2:
+                        print(line, l1.f()/line.f(), line.f(), l1.f())
+            input()
+        else:
+            out = open(r'C:/Users/Serj/Desktop/H2MalecCat_comparison.dat', 'w')
+            with open(r'C:/science/python/spectro/data/H2MalecCat.dat', 'r') as f:
+                for line in f.readlines()[1:]:
+                    m = line.split()
+                    for l1 in self['H2j' + m[4]].lines:
+                        if l1.nu_u == int(m[2]) and m[3] in str(l1) and m[1] in str(l1):
+                            #out.write(line[:54] + '{0:12.10f}   {1:6.1e} '.format(l1.f, l1.g) + line[77:])
+                            out.write(line[:-1] + '{0:12.10f}   {1:6.1e}\n'.format(l1.f, l1.g))
+            out.close()
+
+    def readHD(self):
+        HD = np.genfromtxt(r'data/molec/HD.dat', skip_header=1, usecols=[0,1,2,3,4,5,6], unpack=True, names=True, dtype=None)
+        j_u = {'R': 1, 'Q': 0, 'P': -1}
+        for j in range(3):
+            name = 'HDj'+str(j)
+            self[name] = e(name)
+            self[name].lines = []
+            mask = HD['level'] == j
+            for l in HD[mask]:
+                #name = 'HD ' + l[1].decode('UTF-8') + str(l[2]) + '-0' + l[3].decode('UTF-8') + '(' + str(int(l[0])) + ')'
+                self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=l['level'], nu_l=0, j_u=l['level'] + j_u[l['PorR'].decode('UTF-8')], nu_u=l['band']))
+                self[name].lines[-1].band = l['LW'].decode('UTF-8')
+
+    def readCO(self):
+        CO = np.genfromtxt(r'data/CO_data_Dapra.dat', skip_header=1, unpack=True, names=True, dtype=None)
+        for i in np.unique(CO['level']):
+            name = 'COj'+str(i)
+            self[name] = e(name)
+            self[name].lines = []
+            mask = CO['level'] == i
+            for l in CO[mask]:
+                self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'], nu_u=l['band']))
+                self[name].lines[-1].band = l['name'].decode()
+
+    def readHF(self):
+        HF = np.genfromtxt(r'data/molec/HF.dat', skip_header=1, unpack=True, dtype=None)
+        self['HF'] = e('HF')
+        for l in HF:
+            self['HF'].lines.append(line(l[4].decode('UTF-8'), l[6], l[7], l[8], ref='', j_l=l[0], nu_l=l[1], j_u=l[2], nu_u=l[3]))
+
+    def makedatabase(self):
+        f = h5py.File('data/atomic.hdf5', 'w')
+        self.readMorton()
+        self.readCashman()
+        self.readH2(j=[0,1,2,3,4,5,6])
+        self.readHD()
+        self.readCO()
+        self.readHF()
+        for el in self.keys():
+            grp = f.create_group(el)
+            dt = h5py.special_dtype(vlen=str)
+            ds = grp.create_dataset('ref', shape=(len(self[el].lines),),
+                                    dtype=np.dtype([('l', float), ('ind', int), ('descr', dt), ('j_l', dt),
+                                                       ('nu_l', dt), ('j_u', dt), ('nu_u', dt)]))
+            lines = grp.create_group('lines')
+            #ref = np.empty(len(self[el].lines), dtype=[('l', float), ('ind', int), ('descr', 'S')])
+            for i, l in enumerate(self[el].lines):
+                    ds[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u))
+                    lin = lines.create_dataset(str(i), shape=(len(l.ref),), dtype = np.dtype([('l', float), ('f', float), ('g', float), ('ref', dt)]))
+                    for k in range(len(l.ref)):
+                        lin[k] = (l.wavelength[k], l.oscillator[k], l.gamma[k], l.ref[k])
+                    #ref[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u)) #.encode("ascii", "ignore"))
+
+    def readdatabase(self):
+        self.data = h5py.File(os.path.dirname(os.path.realpath(__file__)) + r'/data/atomic.hdf5', 'r')
+        for el in self.data.keys():
+            self[el] = e(el)
 
     def read_maleccat(self, n=-1):
         """
@@ -396,7 +676,7 @@ class AtomicList(list):
             - n    : if list - specify rotational levels to read
                      if int - read J_l<=n
         """
-        with open(os.path.dirname(os.path.realpath(__file__)) + r'/data/H2MalecCat.dat', newline='') as f:
+        with open(os.path.dirname(os.path.realpath(__file__)) + r'/data/H2/H2MalecCat.dat', newline='') as f:
             f.readline()
             data = f.readlines()
         for d in data:
@@ -411,7 +691,7 @@ class AtomicList(list):
                     l.rot = words[3]
                     l.j_l = int(words[4])
                     l.set_Ju()
-                    self.append(l)
+                    self['H2j'+words[4]].lines.append(l)
 
     def read_Molecular(self):
         with open(os.path.dirname(os.path.realpath(__file__))+r'/data/Molecular_data.dat', newline='') as f:
@@ -426,7 +706,7 @@ class AtomicList(list):
     def DLA(cls, lines=True):
         print('DLA')
         s = cls()
-        s.readMorton()
+        s.readdatabase()
         linelist = ['HI 1215',
                     'HI 1025',
                     'HI 972',
@@ -533,10 +813,9 @@ class AtomicList(list):
                     'ZnII 2026.13',
                     'ZnII 2062.66',
                     'CII 1036',
-
                     ]
         if lines:
-            return s.set_specific(linelist)
+            return s.list(linelist=linelist)
         else:
             return linelist
 
@@ -544,7 +823,7 @@ class AtomicList(list):
     def DLA_major(cls, lines=True):
         print('DLA major')
         s = cls()
-        s.readMorton()
+        s.readdatabase()
         linelist = ['HI 1215',
                     'HI 1025',
                     'HI 972',
@@ -605,14 +884,14 @@ class AtomicList(list):
                     'MgI 2852',
                     ]
         if lines:
-            return s.set_specific(linelist)
+            return s.list(linelist=linelist)
         else:
             return linelist
 
     @classmethod
     def DLA_SDSS_H2(cls, lines=True):
         s = cls()
-        s.readMorton()
+        s.readdatabase()
         linelist = ['SiII 1260',
                     'OI 1302',
                     'SiII 1304',
@@ -623,7 +902,7 @@ class AtomicList(list):
                     'CIV 1548',
                    ]
         if lines:
-            return s.set_specific(linelist)
+            return s.list(linelist=linelist)
         else:
             return linelist
 
@@ -634,7 +913,7 @@ class AtomicList(list):
         return s
 
     @classmethod
-    def Malec(cls, n=7):
+    def H2(cls, n=7):
         """
         create instance of H2list from Malec calalogue 2010
 
@@ -643,8 +922,11 @@ class AtomicList(list):
                      if int - read J_l<=n
         """
         s = cls()
-        s.read_maleccat(n)
-        return s
+        s.readdatabase()
+        if isinstance(n, int):
+            return s.list(['H2j'+str(i) for i in range(n)])
+        else:
+            return s.list(['H2j' + str(i) for i in n])
 
     
 
@@ -882,7 +1164,7 @@ if __name__ == '__main__':
         H2 = H2list.Malec(1)  
         for line in H2:
             print(line)
-    if 1:
+    if 0:
         HI = HIlist.HIset()
         for line in HI:
             print(line, line.l, line.f, line.g)
@@ -892,7 +1174,14 @@ if __name__ == '__main__':
         HI = a('19.88^{+0.01}_{-0.01}', 'l')
         print(metallicity('O_I', N, HI))
 
-    if 1:
+    if 0:
         HI = a('19.88^{+0.01}_{-0.01}', 'l')
         me = a('-1.2^{+0.1}_{-0.1}', 'l')
         print(abundance('OI', HI, me))
+
+    if 1:
+        A = atomicData()
+        #A.readCO()
+        #print(A.list('SiII'))
+        A.makedatabase()
+        #A.makedatabase()

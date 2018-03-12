@@ -1,5 +1,5 @@
 from .absorption_systems import DLA
-from .atomic import AtomicList
+from .atomic import atomicData
 
 import astropy.constants as const
 import matplotlib.pyplot as plt
@@ -105,7 +105,7 @@ class SDSS():
                         color='k', ecolor='0.3', capsize=3)
             
             # >>> plot H2 candidate profile
-            H2 = AtomicList.Malec(1)
+            H2 = atomicData.Malec(1)
             
             N = self.H2_cand.H2.col.val
             t = 50
@@ -127,7 +127,7 @@ class SDSS():
         ax.set_ylabel('Normalized flux', fontsize=font)
         
         # >>> plot metal lines panels
-        lines = AtomicList.DLA_SDSS_H2()
+        lines = atomicData.DLA_SDSS_H2()
         num = len(lines)
         
         left = 0.07

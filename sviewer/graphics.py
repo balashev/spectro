@@ -22,7 +22,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import gaussian_kde
 
 from ..profiles import tau, convolveflux, makegrid
-from .external.spectres import spectres
+#from .external import regularsmooth as ds
 from .utils import Timer, debug, MaskableList
 
 class Speclist(list):
@@ -238,16 +238,16 @@ class Speclist(list):
                     if k != i:
                         c = np.ones_like(sk.spec.y(), dtype=float)
                         mk = np.logical_and(sk.spec.y() != 0, sk.spec.err() != 0)
-                        #intersection
+                        # >>> intersection
                         mask = np.logical_and(mk, np.logical_and(sk.spec.x() > xmin, sk.spec.x() < xmax))
                         if np.sum(mask) > 0:
                             c[mask] = si.sm.inter(sk.spec.x()[mask]) / sk.sm.inter(sk.spec.x()[mask])
                         if full:
-                            # left
+                            # >>> left
                             mask = np.logical_and(mk, sk.spec.x() < xmin)
                             if np.sum(mask) > 0:
                                 c[mask] = si.sm.inter(xmin) / sk.sm.inter(xmin)
-                            # right
+                            # >>> right
                             mask = np.logical_and(mk, sk.spec.x() > xmax)
                             if np.sum(mask) > 0:
                                 c[mask] = si.sm.inter(xmax) / sk.sm.inter(xmax)
@@ -1029,7 +1029,8 @@ class Spectrum():
 
             self.regions = []
             for i, k in enumerate(range(0, len(ind), 2)):
-                self.regions.append(VerticalRegionItem([self.spec.x()[ind[k]], self.spec.x()[ind[k + 1]]],
+                x_r = self.spec.x()[-1] if ind[k+1] > len(self.spec.x())-2 else (self.spec.x()[ind[k+1]+1] + self.spec.x()[ind[k+1]]) / 2
+                self.regions.append(VerticalRegionItem([(self.spec.x()[max(0, ind[k]-1)] + self.spec.x()[ind[k]]) / 2, x_r],
                                                        brush=self.region_brush))
                 # self.regions.append(pg.LinearRegionItem([self.spec.x()[ind[k]], self.spec.x()[ind[k+1]]], movable=False, brush=pg.mkBrush(100, 100, 100, 30)))
                 self.parent.vb.addItem(self.regions[-1])
@@ -1112,7 +1113,7 @@ class Spectrum():
             for sys in self.parent.fit.sys:
                 if ind == -1 or sys.ind == ind:
                     for sp in sys.sp.keys():
-                        lin = deepcopy(self.parent.atomic[sp].lines)
+                        lin = self.parent.atomic.list(sp)
                         for l in lin:
                             l.b = sys.sp[sp].b.val
                             l.logN = sys.sp[sp].N.val
@@ -1126,7 +1127,7 @@ class Spectrum():
                                     cf = getattr(self.parent.fit, 'cf_'+str(i))
                                     cf_sys = cf.addinfo.split('_')[0]
                                     cf_exp = cf.addinfo.split('_')[1] if len(cf.addinfo.split('_')) > 1 else 'all'
-                                    if (cf_sys == 'all' or sys.ind == int(cf_sys[3:])) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l*(1+l.z) > cf.min and l.l*(1+l.z) < cf.max:
+                                    if (cf_sys == 'all' or sys.ind == int(cf_sys[3:])) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l()*(1+l.z) > cf.min and l.l()*(1+l.z) < cf.max:
                                         l.cf = i
                             if all:
                                 if any([x[0] < p < x[-1] for p in l.range]):
@@ -1486,14 +1487,23 @@ class Spectrum():
         self.remove()
         self.init_GU()
 
-    def smooth(self):
+    def smooth(self, kind='astropy'):
         print('smoothing: ', self.filename)
         mask = np.logical_and(self.spec.y() != 0, self.spec.err() != 0)
         m = np.logical_and(np.logical_not(self.bad_mask.x()), mask)
-        if 1:
-            y = convolve(self.spec.y()[m], Gaussian1DKernel(stddev=200), boundary='extend')
-        else:
+
+        if kind == 'astropy':
+            stddev = 1000.0 / 299794.25 * np.median(self.spec.x()) / np.median(np.diff(self.spec.x()))
+            print(stddev)
+            y = convolve(self.spec.y()[m], Gaussian1DKernel(stddev=stddev), boundary='extend')
+
+        elif kind == 'convolveflux':
             y = convolveflux(self.spec.x()[m], self.spec.y()[m], 200.0, kind='gauss')
+
+        elif kind == 'regular':
+            d = 5
+            y, lmbd = ds.smooth_data(self.spec.x()[m], self.spec.y()[m], d, xhat=np.linspace(self.spec.x()[m][0], self.spec.x()[m][-1], 1000))
+
         inter = interp1d(self.spec.x()[m], y, bounds_error=False,
                          fill_value=(y[0], y[-1]), assume_sorted=True)
         self.sm.set(x=self.spec.x()[mask], y=inter(self.spec.x()[mask]))
@@ -1591,7 +1601,7 @@ class Spectrum():
                 self.st_pos = pos.x()
             
             pos = self.parent.parent.vb.mapSceneToView(ev.pos())
-            self.parent.parent.delta += (pos.x() - self.st_pos)/self.line.l
+            self.parent.parent.delta += (pos.x() - self.st_pos)/self.line.l()
             self.parent.s[self.parent.s.s_ind].spec_x -= self.st_pos - pos.x()
             self.st_pos = pos.x()
             self.parent.s[self.parent.s.s_ind].redraw()

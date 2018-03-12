@@ -43,7 +43,7 @@ class state():
         return self.levels[J, nu]
 
     def readCloudy(self):
-        file = 'data/H2/Cloudy/energy_'+self.name+'.dat'
+        file = 'data/H2/energy_'+self.name+'.dat'
         with open(file) as f:
             ref = f.readline().replace('#', '').strip()
         data = np.genfromtxt(file, comments='#')

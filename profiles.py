@@ -91,7 +91,10 @@ class tau:
                 setattr(self, k, d[k])
         else:
             for k in items:
-                setattr(self, k, getattr(line, k))
+                if k in ['l', 'f', 'g']:
+                    setattr(self, k, getattr(line, k)())
+                else:
+                    setattr(self, k, getattr(line, k))
 
         self.a = self.g / 4 / np.pi / self.b / 1e5 * self.l * 1e-8  # dimensionless
         self.resolution = resolution
@@ -435,6 +438,8 @@ def convolve_res2(l, f, R):
     n = len(l)
     fc = np.zeros_like(f)
 
+    f = 1 - f
+
     il = 0
     for i, x in enumerate(l):
         sig = x / R / 2.355
@@ -453,7 +458,7 @@ def convolve_res2(l, f, R):
         s += f[k] * (1 - errf_v2(np.abs(l[k] - x) / np.sqrt(2) / sig)) / 2
         fc[i] = s
 
-    return fc
+    return 1 - fc
 
 #@jit
 def makegrid(x, n):

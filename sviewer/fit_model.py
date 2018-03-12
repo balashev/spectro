@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (QWidget, QTreeWidget, QTabWidget, QHBoxLayout,
                              QScrollArea, QApplication, QTextEdit)
 
 from .utils import Timer
+from ..pyratio import pyratio
 
 class FLineEdit(QLineEdit):
     def __init__(self, parent, text='', var=None, name=''):
@@ -24,7 +25,7 @@ class FLineEdit(QLineEdit):
             validator.ScientificNotation
             if self.name[:1] == 'z':
                 validator.setDecimals(8)
-            if self.name[:1] in ['b', 'N', 'd', 'm', 'c', 'r']:
+            if self.name[:1] in ['b', 'N', 'd', 'm', 'c', 'r', 'l']:
                 validator.setDecimals(5)
             self.setValidator(validator)
 
@@ -32,13 +33,13 @@ class FLineEdit(QLineEdit):
         if l is None:
             if self.name[:1] == 'z':
                 self.setMaxLength(10)
-            if self.name[:1] in ['b', 'N', 'd', 'm', 'c', 'r']:
+            if self.name[:1] in ['b', 'N', 'd', 'm', 'c', 'r', 'l']:
                 self.setMaxLength(9)
         else:
             self.setMaxLength(l)
 
     def calcFit(self):
-        if self.var in ['N', 'b', 'z', 'kin', 'turb', 'v', 'c']:
+        if self.var in ['N', 'b', 'z', 'kin', 'turb', 'v', 'c', 'Ntot', 'logn', 'logT']:
             self.parent.parent.s.reCalcFit(self.parent.tab.currentIndex())
         elif self.var in ['mu', 'me', 'dtoh', 'res']:
             self.parent.parent.s.prepareFit()
@@ -156,6 +157,7 @@ class fitModelWidget(QWidget):
         self.cont.setExpanded(self.parent.fit.cont_fit)
 
         for s, name in zip(['mu', 'me', 'dtoh', 'res'], ['mp/me', 'metallicity', 'D/H', 'resolution']):
+            print(s+'_p')
             setattr(self, s + '_p', self.addParent(self.treeWidget, name, expanded=hasattr(self.parent.fit, s)))
             getattr(self, s + '_p').name = s
             self.addChild(s + '_p', s)
@@ -521,16 +523,21 @@ class fitModelSysWidget(QFrame):
         attr = ['val', 'min', 'max', 'step']
         sign = ['val: ', 'range: ', '....', 'step: ']
         self.z =  self.addParent(self.treeWidget, 'redshift', checkable=True, expanded=True)
-        cons_vary = hasattr(self.fit.sys[self.ind], 'turb') and hasattr(self.fit.sys[self.ind], 'kin')
-        self.cons = self.addParent(self.treeWidget, 'consistent', checkable=True, expanded=cons_vary)
-        for s, name in zip(['z', 'turb', 'kin'], ['z','b_turb', 'Tkin, K']):
+        cons_vary = all([hasattr(self.fit.sys[self.ind], attr) for attr in ['turb', 'kin']])
+        Ncons_vary = all([hasattr(self.fit.sys[self.ind], attr) for attr in ['Ntot', 'logT', 'logn']])
+        self.cons = self.addParent(self.treeWidget, 'b tied', checkable=True, expanded=cons_vary)
+        self.Ncons = self.addParent(self.treeWidget, 'N tied', checkable=True, expanded=Ncons_vary)
+        for s, name in zip(['z', 'turb', 'kin', 'Ntot', 'logn', 'logT'], ['z','b_turb', 'Tkin, K', 'N_tot', 'logn', 'logT']):
             if s == 'z':
                 item = QTreeWidgetItem(self.z)
-            else:
+            elif s in ['turb', 'kin']:
                 item = QTreeWidgetItem(self.cons)
                 if not cons_vary:
-                    self.fit.sys[self.ind].add('turb')
-                    self.fit.sys[self.ind].add('kin')
+                    self.fit.sys[self.ind].add(s)
+            else:
+                item = QTreeWidgetItem(self.Ncons)
+                if not Ncons_vary:
+                    self.fit.sys[self.ind].add(s)
             for i in [1, 3, 5, 7, 9]:
                 item.setTextAlignment(i, Qt.AlignRight)
             for k in range(4):
@@ -542,9 +549,9 @@ class fitModelSysWidget(QFrame):
             setattr(self, s + '_vary', QCheckBox())
             getattr(self, s + '_vary').setChecked(getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
             getattr(self, s + '_vary').stateChanged.connect(self.varyChanged)
-            if s in ['turb', 'kin'] and not cons_vary:
-                self.fit.sys[self.ind].remove('turb')
-                self.fit.sys[self.ind].remove('kin')
+            if (s in ['turb', 'kin'] and not cons_vary) or (s in ['Ntot', 'logn', 'logT'] and not Ncons_vary):
+                self.fit.sys[self.ind].remove(s)
+
             self.treeWidget.setItemWidget(item, 2, getattr(self, s + '_vary'))
 
             if s == 'z':
@@ -609,21 +616,26 @@ class fitModelSysWidget(QFrame):
                     getattr(self, sp).textEdited[str].connect(partial(self.onChanged, s, attr[k], species=species))
                     self.treeWidget.setItemWidget(item, 2 * k + 4, getattr(self, sp))
                 if s == 'b':
-                    setattr(self, species + '_tied', QComboBox(self))
-                    combo = getattr(self, species + '_tied')
+                    setattr(self, species + '_btied', QComboBox(self))
+                    combo = getattr(self, species + '_btied')
                     combo.setFixedSize(70, 30)
-                    combo.activated.connect(partial(self.setTied, species=species))
+                    combo.activated.connect(partial(self.setbTied, species=species))
                     self.treeWidget.setItemWidget(item, 12, combo)
                 if s == 'N':
-                    setattr(self, species + '_me', QCheckBox('me'))
-                    getattr(self, species + '_me').setFixedSize(70, 30)
-                    getattr(self, species + '_me').clicked.connect(partial(self.setMe, species=species))
-                    self.treeWidget.setItemWidget(item, 12, getattr(self, species + '_me'))
-            self.updateBTieds()
+                    setattr(self, species + '_Ntied', QComboBox(self))
+                    combo = getattr(self, species + '_Ntied')
+                    combo.setFixedSize(70, 30)
+                    combo.activated.connect(partial(self.setNTied, species=species))
+                    self.treeWidget.setItemWidget(item, 12, combo)
+                    #setattr(self, species + '_me', QCheckBox('me'))
+                    #getattr(self, species + '_me').setFixedSize(70, 30)
+                    #getattr(self, species + '_me').clicked.connect(partial(self.setMe, species=species))
+                    #self.treeWidget.setItemWidget(item, 12, getattr(self, species + '_me'))
+            self.updateTieds()
 
-    def updateBTieds(self):
+    def updateTieds(self):
         for species in self.species.keys():
-            combo = getattr(self, species + '_tied')
+            combo = getattr(self, species + '_btied')
             combo.clear()
             combo.addItems(['tie to'])
             if self.cons.isExpanded():
@@ -633,8 +645,23 @@ class fitModelSysWidget(QFrame):
             combo.removeItem([combo.itemText(i) for i in range(combo.count())].index(species))
             try:
                 s = getattr(getattr(self.fit.sys[self.ind].sp[species], 'b'), 'addinfo').strip()
-                #print('update: ', s)
-                if s != '' and s in sp:
+                if s != '' and (s in sp or s == 'consist'):
+                    combo.setCurrentText(s)
+                else:
+                    combo.setCurrentIndex(0)
+            except:
+                pass
+
+            combo = getattr(self, species + '_Ntied')
+            combo.clear()
+            combo.addItems(['tie to'])
+            if hasattr(self.parent.parent.fit, 'me'):
+                combo.addItems(['me'])
+            if self.Ncons.isExpanded():
+                combo.addItems(['Ntot'])
+            try:
+                s = getattr(getattr(self.fit.sys[self.ind].sp[species], 'N'), 'addinfo').strip()
+                if s in ['Ntot', 'me']:
                     combo.setCurrentText(s)
                 else:
                     combo.setCurrentIndex(0)
@@ -647,7 +674,7 @@ class fitModelSysWidget(QFrame):
         del self.species[species]
         del self.fit.sys[self.ind].sp[species]
         self.parent.parent.chooseFit.update()
-        self.updateBTieds()
+        self.updateTieds()
         #del self.species[species]
 
     def zshift(self):
@@ -660,7 +687,7 @@ class fitModelSysWidget(QFrame):
         self.refresh()
 
     def varyChanged(self):
-        for s in ['z', 'turb', 'kin']:
+        for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT']:
             if hasattr(self.fit.sys[self.ind], s):
                 setattr(getattr(self.fit.sys[self.ind], s), 'vary', getattr(self, s + '_vary').isChecked())
             #print('state:', getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
@@ -678,28 +705,46 @@ class fitModelSysWidget(QFrame):
                 self.fit.sys[self.ind].add(s)
             else:
                 self.fit.sys[self.ind].remove(s)
+        for s in ['Ntot', 'logn', 'logT']:
+            if self.Ncons.isExpanded():
+                self.fit.sys[self.ind].add(s)
+            else:
+                self.fit.sys[self.ind].remove(s)
+        if self.Ncons.isExpanded():
+            self.fit.sys[self.ind].pyratio(init=True)
+        else:
+            self.fit.sys[self.ind].pr = None
         if not self.z.isExpanded():
             self.z.setExpanded(True)
-        self.updateBTieds()
+        self.updateTieds()
         self.refresh()
 
     def onChanged(self, s, attr, species=None):
-        if s in ['z', 'turb', 'kin']:
+        if s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT']:
             setattr(getattr(self.fit.sys[self.ind], s), attr, float(getattr(self, s + '_' + attr).text()))
         if s in ['b', 'N']:
             setattr(getattr(self.fit.sys[self.ind].sp[species], s), attr, float(getattr(self, species + '_' + s + '_' + attr).text()))
         excl = species + '_' + s + '_' + attr if species is not None else s + '_' + attr
         self.refresh(excl)
 
-    def setTied(self, species):
-        combo = getattr(self, species + '_tied')
+    def setbTied(self, species):
+        combo = getattr(self, species + '_btied')
         sp = combo.currentText()
         if 'tie' in sp:
             sp = ''
 
-        print(sp)
         setattr(getattr(self.fit.sys[self.ind].sp[species], 'b'), 'addinfo', sp)
         getattr(self.fit.sys[self.ind].sp[species], 'b').check()
+        self.refresh()
+
+    def setNTied(self, species):
+        combo = getattr(self, species + '_Ntied')
+        sp = combo.currentText()
+        if 'tie' in sp:
+            sp = ''
+
+        setattr(getattr(self.fit.sys[self.ind].sp[species], 'N'), 'addinfo', sp)
+        getattr(self.fit.sys[self.ind].sp[species], 'N').check()
         self.refresh()
 
     def setMe(self, species):
@@ -713,7 +758,7 @@ class fitModelSysWidget(QFrame):
             self.fit.update()
 
             names = ['val', 'max', 'min', 'step']
-            for s in ['z', 'turb', 'kin']:
+            for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT']:
                 if hasattr(self.fit.sys[self.ind], s):
                     getattr(self, s+'_vary').setChecked(getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
                     for attr in names:
@@ -732,13 +777,15 @@ class fitModelSysWidget(QFrame):
                             if s == 'b':
                                 tied = (p.addinfo != '')
                                 getattr(self, k + '_' + s + '_vary').setEnabled(not tied)
-                                ind = getattr(self, k + '_tied').findText(p.addinfo) if tied else 0
-                                getattr(self, k + '_tied').setCurrentIndex(ind)
+                                ind = getattr(self, k + '_btied').findText(p.addinfo) if tied else 0
+                                getattr(self, k + '_btied').setCurrentIndex(ind)
                             if s == 'N':
                                 tied = (p.addinfo != '')
-                                if 'HI' not in k:
-                                    getattr(self, k + '_me').setChecked(tied)
+                                #if 'HI' not in k:
+                                #    getattr(self, k + '_me').setChecked(tied)
                                 getattr(self, k + '_' + s + '_vary').setEnabled(not tied)
+                                ind = getattr(self, k + '_btied').findText(p.addinfo) if tied else 0
+                                getattr(self, k + '_btied').setCurrentIndex(ind)
                             getattr(self, k + '_' + s + '_vary').setChecked(vary and not tied)
                             for attr in names:
                                 if k + '_' + s + '_' + attr != excl:
@@ -747,6 +794,9 @@ class fitModelSysWidget(QFrame):
 
                     except:
                         pass
+
+            self.updateTieds()
+
             if self.parent.parent.chooseFit is not None:
                 self.parent.parent.chooseFit.update()
 

@@ -66,8 +66,11 @@ v: change view of spectra
 
 w: width of region:
    w + <select by mouse>          :  select area to calculate equivalent width of absorption line.
-                                     Continuum should be set for width calculation! 
+                                     Continuum should be set for width calculation!
+   w + <shift> +<select by mouse> :  select area to calculate equivalent width of absorption line,
+                                     substracting fit model. (i.e. respective fit model, but no to continuum) 
    w                              :  hide w-region
+   
 
 x: select bad pixels:
    s + <select by mouse>          :  select bad pixels

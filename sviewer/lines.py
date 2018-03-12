@@ -16,8 +16,13 @@ from .utils import Timer
 class atomic_data(OrderedDict):
     def __init__(self):
         super().__init__()
-        self.readMorton()
-        self.readH2(j=[0,1,2,3,4,5,6])
+        t = Timer()
+        #self.readMorton()
+        t.time('Morton')
+        #self.readCashman()
+        t.time('Cashman')
+        #self.readH2(j=[0,1,2,3,4,5,6])
+        t.time('H2')
         #self.readHD()
         #.compareH2()
 
@@ -59,6 +64,15 @@ class atomic_data(OrderedDict):
 
                 if l[:3] == '***':
                     ind = 1
+
+    def readCashman(self):
+        with open('data/Cashman2017.dat', 'r') as f:
+            for l in f:
+                name = ''.join(l[3:10].split())
+                if name not in self.keys():
+                    self[name] = e(name)
+                lam = float(l[90:99]) if l[78:89] else float(l[78:89])
+                self[name].lines.append(line(name, lam, float(l[105:113]), 1e+8, ref='Cashman2017'))
 
     def readH2(self, nu=0, j=[0,1], energy=None):
         if 0:
@@ -166,7 +180,7 @@ class atomic_data(OrderedDict):
                     #print(line)
                     #print(l1)
                     if str(line) == str(l1): #and np.abs(l1.f/line.f-1) > 0.2:
-                        print(line, l1.f/line.f, line.f, l1.f)
+                        print(line, l1.f()/line.f(), line.f(), l1.f())
             input()
         else:
             out = open(r'C:/Users/Serj/Desktop/H2MalecCat_comparison.dat', 'w')
@@ -284,7 +298,7 @@ class LineLabel(pg.TextItem):
         else:
             self.active = True if str(self.line) in self.parent.parent.lines else False
         if self.parent.parent.show_osc:
-            self.setText(str(self.line)+' {:.4f}'.format(self.line.f))
+            self.setText(str(self.line)+' {:.4f}'.format(self.line.f()))
         else:
             self.setText(str(self.line))
 
@@ -304,13 +318,13 @@ class LineLabel(pg.TextItem):
         #self.paint()
 
     def redraw(self, z):
-        ypos = self.parent.parent.s[self.parent.parent.s.ind].spec.inter(self.line.l * (1 + z))
+        ypos = self.parent.parent.s[self.parent.parent.s.ind].spec.inter(self.line.l() * (1 + z))
         if ypos == 0:
             for s in self.parent.parent.s:
-                ypos = s.spec.inter(self.line.l * (1 + z))
+                ypos = s.spec.inter(self.line.l() * (1 + z))
                 if ypos != 0:
                     break
-        self.setPos(self.line.l * (1 + z), ypos)
+        self.setPos(self.line.l() * (1 + z), ypos)
 
     def mouseDragEvent(self, ev):
 
@@ -327,7 +341,7 @@ class LineLabel(pg.TextItem):
                 self.st_pos = pos.x()
 
             pos = self.parent.parent.vb.mapSceneToView(ev.pos())
-            self.parent.parent.z_abs += (pos.x() - self.st_pos) / self.line.l
+            self.parent.parent.z_abs += (pos.x() - self.st_pos) / self.line.l()
             self.parent.parent.panel.refresh()
             self.parent.parent.line_reper = self.line
             self.parent.parent.plot.updateVelocityAxis()
@@ -355,7 +369,7 @@ class LineLabel(pg.TextItem):
         print("clicked: %s" % pts)
 
     def __hash__(self):
-        return hash(str(self.line.l) + str(self.line.f))
+        return hash(str(self.line.l()) + str(self.line.f()))
 
     def __eq__(self, other):
         if self.line == other:

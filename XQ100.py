@@ -7,7 +7,7 @@ from matplotlib.ticker import AutoMinorLocator, MultipleLocator, MaxNLocator
 from lxml import etree
 from scipy.interpolate import splev, splrep
 from .profiles import convolveflux
-from .atomic import AtomicList
+from .atomic import atomicData
 from .absorption_systems import HI
 
 folder = r'D:/science/qso/XQ100/official/'
@@ -125,7 +125,7 @@ class QSO():
         height = 20
         v_size = height * n_rows + 1
         
-        lines = AtomicList.DLA_minor()
+        lines = atomicData.DLA_minor()
         num = len(lines)
         
         if n_cols > 1 and n_rows > 1:

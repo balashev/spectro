@@ -2,7 +2,7 @@ from copy import copy
 import gc
 from collections import OrderedDict
 from ..atomic import abundance, doppler
-
+from ..pyratio import pyratio
 class par:
     def __init__(self, parent, name, val, min, max, step, addinfo='', vary=True, fit=True):
         self.parent = parent
@@ -12,12 +12,13 @@ class par:
         elif 'cf' in self.name:
             self.dec = 3
         else:
-            d = {'z': 8, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3, 'me': 3, 'res': 0}
+            d = {'z': 8, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3, 'me': 3,
+                 'res': 0, 'Ntot': 3, 'logn': 3, 'logT': 3}
             self.dec = d[self.name]
 
         if self.name in ['b', 'N']:
             self.sys = self.parent.parent
-        elif self.name in ['z', 'turb', 'kin']:
+        elif self.name in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT']:
             self.sys = self.parent
         else:
             self.sys = None
@@ -83,7 +84,7 @@ class par:
 
     def __repr__(self):
         s = self.name
-        if self.name in ['z', 'b', 'N', 'turb', 'kin']:
+        if self.name in ['z', 'b', 'N', 'turb', 'kin', 'Ntot', 'logn', 'logT']:
             s += '_' + str(self.sys.ind)
         if self.name in ['b', 'N']:
             s += '_' + self.parent.name
@@ -91,7 +92,7 @@ class par:
 
     def __str__(self):
         s = self.name
-        if self.name in ['z', 'b', 'N', 'turb', 'kin']:
+        if self.name in ['z', 'b', 'N', 'turb', 'kin', 'Ntot', 'logn', 'logT']:
             s += '_' + str(self.sys.ind)
         if self.name in ['b', 'N']:
             s += '_' + self.parent.name
@@ -131,15 +132,22 @@ class fitSystem:
         #self.turb = par(self, 'turb', 5, 0.5, 20, 0.05, vary=self.cons_vary, fit=self.cons_vary)
         #self.kin = par(self, 'kin', 5e4, 1e4, 1e5, 1e3, vary=self.cons_vary, fit=self.cons_vary)
         self.sp = OrderedDict()
+        self.pr = None
 
     def add(self, name):
         if name in 'turb':
             self.turb = par(self, 'turb', 5, 0.5, 20, 0.05)
         if name in 'kin':
             self.kin = par(self, 'kin', 5e3, 1e3, 3e4, 1e3)
+        if name in 'Ntot':
+            self.Ntot = par(self, 'Ntot', 14, 12, 22, 0.05)
+        if name in 'logn':
+            self.logn = par(self, 'logn', 2, -2, 5, 0.05)
+        if name in 'logT':
+            self.logT = par(self, 'logT', 2, 0.5, 5, 0.05)
 
     def remove(self, name):
-        if name in ['turb', 'kin']:
+        if name in ['turb', 'kin', 'Ntot', 'logn', 'logT']:
             if hasattr(self, name):
                 delattr(self, name)
 
@@ -153,7 +161,7 @@ class fitSystem:
 
     def duplicate(self, other):
         self.z.duplicate(other.z)
-        attrs = ['turb', 'kin']
+        attrs = ['turb', 'kin', 'Ntot', 'logn', 'logT']
         for attr in attrs:
             if hasattr(other, attr):
                 self.add(attr)
@@ -176,6 +184,31 @@ class fitSystem:
                 return abundance(sp, self.sp['HI'].N.val, self.parent.me.val)
             else:
                 return self.sp[sp].N.val
+
+    def pyratio(self, init=False):
+        if init and self.pr is None:
+            self.pr = pyratio(z=self.z.val)
+            d = {'CO': -1, 'CI': -1}
+            for s in self.sp.keys():
+                if 'CO' in s:
+                    d['CO'] = max(d['CO'], int(s[3:4]))
+                if 'CI' in s:
+                    d['CI'] = max(d['CI'], d2[s[2:].strip()])
+            for k, v in d.items():
+                if v > -1:
+                    self.pr.add_spec(k, num=10)
+            self.pr.set_pars(['T', 'n', 'f'])
+            self.pr.set_prior('f', 0)
+
+        if self.pr is not None:
+            self.pr.pars['T'].value = self.logT.val
+            self.pr.pars['n'].value = self.logn.val
+            for k in self.pr.species.keys():
+                col = self.pr.predict(name=k, level=-1, logN=self.Ntot.val)
+                for s in self.sp.keys():
+                    if k in s:
+                        self.sp[s].N.val = col[int(s[3:4])]
+
 
     def __str__(self):
         return '{:.6f} '.format(self.z.val) + str(self.sp)
@@ -254,15 +287,13 @@ class fitPars:
                 self.add(name)
             res = getattr(self, name).set(val, attr)
 
-        if s[0] in ['z', 'turb', 'kin']:
+        if s[0] in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT']:
             while len(self.sys) <= int(s[1]):
                 self.addSys()
-            if s[0] in ['turb', 'kin']:
-                if not hasattr(self, s[0]):
+            if s[0] in ['turb', 'kin', 'Ntot', 'logn', 'logT']:
+                if not hasattr(self.sys[int(s[1])], s[0]):
                     self.sys[int(s[1])].add(s[0])
-                #self.sys[int(s[1])].cons_vary = True
             res = getattr(self.sys[int(s[1])], s[0]).set(val, attr)
-            p = getattr(self.sys[int(s[1])], s[0])
 
         if s[0] in ['b', 'N']:
             while len(self.sys) <= int(s[1]):
@@ -285,6 +316,9 @@ class fitPars:
                     elif 'DI' in k and hasattr(self, 'dtoh'):
                         s.N.val = sys.sp['HI'].N.val + self.dtoh.val
 
+            if hasattr(sys, 'Ntot'):
+                sys.pyratio()
+
         if redraw and self.cf_fit:
             for i in range(self.cf_num):
                 try:
@@ -304,7 +338,7 @@ class fitPars:
             if hasattr(self, name):
                 par = getattr(self, name)
 
-        if s[0] in ['z', 'turb', 'kin']:
+        if s[0] in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT']:
             if len(self.sys) > int(s[1]) and hasattr(self.sys[int(s[1])], s[0]):
                 par = getattr(self.sys[int(s[1])], s[0])
 
@@ -350,7 +384,7 @@ class fitPars:
                     pars[str(p)] = p
         if len(self.sys) > 0:
             for sys in self.sys:
-                for attr in ['z', 'turb', 'kin']:
+                for attr in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT']:
                     if hasattr(sys, attr):
                         p = getattr(sys, attr)
                         pars[str(p)] = p

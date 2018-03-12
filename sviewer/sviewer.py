@@ -124,8 +124,8 @@ class plotSpectrum(pg.PlotWidget):
         self.v_axis.setGeometry(self.getPlotItem().sceneBoundingRect())
         self.v_axis.linkedViewChanged(self.getViewBox(), self.v_axis.YAxis)
         MainPlotXMin, MainPlotXMax = self.viewRange()[0]
-        AuxPlotXMin = (MainPlotXMin/(self.parent.z_abs + 1)/self.parent.line_reper.l - 1)*ac.c.to('km/s').value
-        AuxPlotXMax = (MainPlotXMax/(self.parent.z_abs + 1)/self.parent.line_reper.l - 1)*ac.c.to('km/s').value
+        AuxPlotXMin = (MainPlotXMin/(self.parent.z_abs + 1)/self.parent.line_reper.l() - 1)*ac.c.to('km/s').value
+        AuxPlotXMax = (MainPlotXMax/(self.parent.z_abs + 1)/self.parent.line_reper.l() - 1)*ac.c.to('km/s').value
         self.v_axis.setXRange(AuxPlotXMin, AuxPlotXMax, padding=0)
 
     def raiseContextMenu(self, ev):
@@ -572,11 +572,15 @@ class plotSpectrum(pg.PlotWidget):
                 x, y = s.spec.x()[mask], s.spec.y()[mask]
                 curve1 = plotStepSpectrum(x=x, y=y, pen=pg.mkPen())
                 x, y = curve1.returnPathData()
-                if self.parent.normview:
-                    cont = interp1d(x, np.ones_like(x), fill_value=1)
+                if QApplication.keyboardModifiers() != Qt.ShiftModifier:
+                    if self.parent.normview:
+                        cont = interp1d(x, np.ones_like(x), fill_value=1)
+                    else:
+                        s.cont.interpolate()
+                        cont = s.cont.inter
                 else:
-                    s.cont.interpolate()
-                    cont = s.cont.inter
+                    s.fit.interpolate()
+                    cont = s.fit.inter
                 curve2 = pg.PlotCurveItem(x=x, y=cont(x), pen=pg.mkPen())
 
                 w = np.trapz(1.0 - y / cont(x), x=x)
@@ -1417,7 +1421,7 @@ class showLinesWidget(QWidget):
                     p.y_min, p.y_max = (float(l) for l in self.parent.lines[ps.index(p)].split()[2:])
                 for l in self.parent.abs.lines:
                     if p.name == str(l.line):
-                        p.wavelength = l.line.l
+                        p.wavelength = l.line.l()
                 p.show_comps = self.show_comps
                 p.name_pos = [self.name_x_pos, self.name_y_pos]
                 p.add_residual, p.sig = self.residuals, self.res_sigma
@@ -1480,7 +1484,7 @@ class showLinesWidget(QWidget):
                         attr = 'cf_' + str(i)
                         if hasattr(self.parent.fit, attr):
                             p = getattr(self.parent.fit, attr)
-                            if p.addinfo.find('exp') > -1 and int(p.addinfo[p.addinfo.find('exp')+3:]) == self.parent.s.ind:
+                            if p.addinfo.find('exp') > -1 and int(p.addinfo[p.addinfo.find('exp')+3:]) == ind:
                                 ax.plot([p.min, p.max], [p.val, p.val], '--', color='orangered')
 
                 if 0:
@@ -2292,7 +2296,7 @@ class combineWidget(QWidget):
                 #print(spectres.spectres(s.spec.x(), s.spec.y(), x, spec_errs=s.spec.err()))
                 mask = np.logical_and(x > s.spec.x()[2], x < s.spec.x()[-3])
                 print(s.spec.x(), x[mask])
-                comb[i][mask], e_comb[i][mask] = spectres(s.spec.x(), s.spec.y(), x[mask], spec_errs=s.spec.err())
+                comb[i][mask], e_comb[i][mask] = spectres.spectres(s.spec.x(), s.spec.y(), x[mask], spec_errs=s.spec.err())
 
         print(comb, e_comb)
 
@@ -3327,7 +3331,10 @@ class sviewer(QMainWindow):
 
     def initData(self):
         self.fit = fitPars(self)
-        self.atomic = atomic_data()
+        #self.atomic = atomic_data()
+        self.atomic = atomicData()
+        self.atomic.readdatabase()
+        print(self.atomic.data['DI/ref'])
 
         self.abs = absSystemIndicator(self)
         for s in ['H2', 'DLAmajor', 'DLA', 'Molec']:
@@ -3440,13 +3447,13 @@ class sviewer(QMainWindow):
 
         if value is not 0:
             if status == 'abs_H2_status' and value is not 0:
-                lst, color = AtomicList.Malec(3), (255, 95, 32)
+                lst, color = atomicData.H2(3), (255, 95, 32)
             if status == 'abs_DLA_status' and value is not 0:
-                lst, color = AtomicList().DLA(), (105, 213, 105)
+                lst, color = atomicData.DLA(), (105, 213, 105)
             if status == 'abs_DLAmajor_status' and value is not 0:
-                lst, color = AtomicList.DLA_major(), (105, 213, 105)
+                lst, color = atomicData.DLA_major(), (105, 213, 105)
             if status == 'abs_Molec_status' and value is not 0:
-                lst, color = AtomicList.MinorMolecular(), (255, 111, 63)
+                lst, color = atomicData.MinorMolecular(), (255, 111, 63)
 
             if verbose:
                 print('linelist:', lst)
@@ -3507,7 +3514,6 @@ class sviewer(QMainWindow):
             self.plot.doublets = []
 
         folder = os.path.dirname(filename)
-        print(folder)
 
         with open(filename) as f:
             d = f.readlines()
@@ -3523,10 +3529,8 @@ class sviewer(QMainWindow):
                     except:
                         ind = -1
                         try:
-                            print(specname)
                             if all([slash not in specname for slash in ['/', '\\']]):
                                 specname = folder + '/' + specname
-                            print(specname)
                             self.importSpectrum(specname, append=True)
                             ind = len(self.s) - 1
                         except:
@@ -3548,7 +3552,6 @@ class sviewer(QMainWindow):
                                     i += 1
                                     w = d[i].split()
                                     self.s[ind].spline.add(float(w[0]), float(w[1]))
-                                    print(ind, float(w[0]), float(w[1]))
                                 self.s[ind].calc_spline()
 
                         if 'fitting_points' in d[i]:
@@ -3557,8 +3560,6 @@ class sviewer(QMainWindow):
                             if n > 0:
                                 i += 1
                                 w = [float(line.split()[0]) for line in d[i:i+n]]
-                                print(w)
-                                print(len(self.s[ind].mask.x()), len(self.s[ind].bad_mask.x()))
                                 self.s[ind].add_exact_points(w, redraw=False)
                                 i += n-1
                                 self.s[ind].mask.normalize()
@@ -4550,7 +4551,7 @@ class sviewer(QMainWindow):
         pass
 
     def crosscorrExporsures(self, i1, i2):
-        pass
+        self.s.coscaleExposures()
 
     def combine(self, typ='mean'):
         """

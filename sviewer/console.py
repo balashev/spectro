@@ -195,10 +195,11 @@ class Console(QTextEdit):
             if args[1] == 'all':
                 for s in self.parent.atomic.keys():
                     if '*' not in s:
-                        lines += self.parent.atomic[s].lines
+                        lines += self.parent.atomic.list(s)
             elif args[1] == 'full':
-                for s in self.parent.atomic.keys():
-                    lines += self.parent.atomic[s].lines
+                lines = self.parent.atomic.list(s)
+                #for s in self.parent.atomic.keys():
+                #    lines += self.parent.atomic[s].lines
 
             elif args[1] == 'H2' or 'H2j' in args[1]:
                 #for k in reversed(list(self.parent.atomic.keys())):
@@ -217,10 +218,10 @@ class Console(QTextEdit):
                         print(args[2:])
                         j = [int(j) for j in args[2:]]
                 print(j)
-                self.parent.atomic.readH2(j=j, energy=energy)
+                #self.parent.atomic.readH2(j=j, energy=energy)
                 #for k in self.parent.atomic.keys():
                 for j in j:
-                    lines += self.parent.atomic['H2j{:d}'.format(j)].lines
+                    lines += self.parent.atomic.list('H2j{:d}'.format(j))
 
             elif args[1] == 'HD' or 'HDj' in args[1]:
                 if 'HDj' in args[1]:
@@ -231,18 +232,31 @@ class Console(QTextEdit):
                     elif len(args) > 2:
                         j = [int(j) for j in args[2:]]
 
-                self.parent.atomic.readHD()
+                #self.parent.atomic.readHD()
                 for j in j:
-                    lines += self.parent.atomic['HDj{:d}'.format(j)].lines
+                    lines += self.parent.atomic.list('HDj{:d}'.format(j))
+
+            elif args[1] == 'CO' or 'COj' in args[1]:
+                if 'COj' in args[1]:
+                    j = [int(args[1][3:])]
+                else:
+                    if len(args) == 2:
+                        j = [0,1,2,3]
+                    elif len(args) > 2:
+                        j = [int(j) for j in args[2:]]
+
+                #self.parent.atomic.readHD()
+                for j in j:
+                    lines += self.parent.atomic.list('COj{:d}'.format(j))
 
             elif args[1] == 'HF':
-                self.parent.atomic.readHF()
                 for k in self.parent.atomic.keys():
                     if 'HF' in k:
-                        lines += self.parent.atomic[k].lines
+                        lines += self.parent.atomic.list('HF')
+
             else:
                 if args[1] in self.parent.atomic.keys():
-                    lines += self.parent.atomic[args[1]].lines
+                    lines += self.parent.atomic.list(args[1])
 
             if args[1] != 'H2':
                 try:
@@ -250,7 +264,7 @@ class Console(QTextEdit):
                 except:
                     f = 0
                 for l in reversed(lines):
-                    if l.f > f:
+                    if l.f() > f:
                         del l
             self.parent.abs.add(lines, color=(23, 190, 207))
 
@@ -268,7 +282,7 @@ class Console(QTextEdit):
             if args[1] in self.parent.atomic.keys():
                 self.parent.abs.remove(el=args[1])
 
-            if args[1] in ['H2', 'HD']:
+            if args[1] in ['H2', 'HD', 'CO']:
                 if len(args) == 2:
                     self.parent.abs.remove(el=args[1])
                 elif len(args) == 3:
@@ -277,22 +291,29 @@ class Console(QTextEdit):
             return ''
 
         elif args[0] in self.parent.atomic.keys():
-            s = ''
-            el = element(roman.ion(args[0])[0])
-            s = '{:.3f} eV \n'.format(el.ionenergies[roman.int(roman.ion(args[0])[1])])
+
+            print(args[0])
+            try:
+                el = element(roman.ion(args[0])[0])
+                s = '{:.3f} eV \n'.format(el.ionenergies[roman.int(roman.ion(args[0])[1])])
+            except:
+                s = ''
             try:
                 f = float(args[1])
             except:
                 f = 0
             lines, lf = [], []
 
-            for l in self.parent.atomic[args[0]].lines:
-                if l.f > f:
+            for l in self.parent.atomic.list(args[0]):
+                if l.f() > f:
                     lines.append(l)
-                    lf.append(l.f)
+                    lf.append(l.f())
             for i in np.argsort(lf):
-                s += str(lines[i]) + ',  l={:.5f}, f={:.2e},  g={:.1e} \n'.format(lines[i].l, lines[i].f, lines[i].g)
+                s += str(lines[i]) + ',  l={:.5f}, f={:.2e},  g={:.1e} \n'.format(lines[i].l(), lines[i].f(), lines[i].g())
             return s
+
+        elif any(s in args[0] for s in ['HD', 'H2']):
+            self.exec_command('show '+ args[0])
 
         elif args[0] == 'fit':
             #self.parent.setFit()

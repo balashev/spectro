@@ -962,9 +962,12 @@ class pyratio():
     def set_prior(self, par, prior):
         for p in self.pars:
             if p == par:
-                print(p, prior)
-                self.pars[p].prior = prior
-                self.pars[p].value = prior.val
+                if isinstance(prior, (int, float)):
+                    self.pars[p].prior = a(prior, 0, 0)
+                    self.pars[p].value = prior
+                elif isinstance(prior, a):
+                    self.pars[p].prior = prior
+                    self.pars[p].value = prior.val
     
     def set_fixed(self, par, value):
         self.pars[par].prior = a(value, 0, 0)
@@ -1329,7 +1332,9 @@ class pyratio():
         """
         predict column densities on levels
         parameters:
+            - name       : name of the species
             - level      : level with known column density
+                            if level == -1, use total column density
             - logN       : column density as <a> object
         """
         if name is None:
@@ -1340,11 +1345,16 @@ class pyratio():
         if logN is None:
             logN = 0.0
 
-        if isinstance(logN, float):
-            return [np.log10(10**logN * x[i]/x[level]) for i in range(self.species[0].num)]
+        if level == -1:
+            ref = np.sum(x)
+        else:
+            ref = x[level]
+
+        if isinstance(logN, (int, float)):
+            return [np.log10(10**logN * x[i]/ref) for i in range(self.species[name].num)]
 
         if isinstance(logN, a):
-            return [logN * x[i]/x[level] for i in range(self.species[0].num)]
+            return [logN * x[i]/ref for i in range(self.species[name].num)]
         
     def calc_dep(self, par, grid_num=50, plot=1, verbose=1, title='', ax=None, alpha=1, stats=False, Texc=False):
         """

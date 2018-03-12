@@ -12,7 +12,7 @@ import sys
 sys.path.append('D:/science/python')
 import colors as col
 from .sviewer.utils import roman
-from .atomic import AtomicList
+from .atomic import atomicData
 
 class rectangle():
     def __init__(self, left, top, width, height):
@@ -595,7 +595,7 @@ class plotline():
             ymin, ymax = ax.get_ylim()
             pos, dpos = ymin + pos * (ymax - ymin), dpos * (ymax - ymin)
             print(pos, dpos)
-        lines = AtomicList.Malec(levels)
+        lines = atomicData.Malec(levels)
         lines = [l for l in lines if l.l*(1+self.parent.z_ref) > ax.get_xlim()[0] and l.l*(1+self.parent.z_ref) < ax.get_xlim()[1]]
         s = [str(line).split()[1][:2] for line in lines]
         for band in s:
