@@ -39,7 +39,7 @@ from .sdss_fit import *
 from .tables import *
 from .obs_tool import *
 from .colorcolor import *
-from .utils import debug, Timer, hms_to_deg, dms_to_deg, labelLine, include, roman
+from .utils import *
 class syn_abs():
     def __init__(self, z):
         self.z = z
@@ -496,7 +496,7 @@ class plotSpectrum(pg.PlotWidget):
             try:
                 print('c_status:', self.parent.line_reper.name, self.parent.fit.sys[self.parent.comp].sp.keys())
                 if self.parent.line_reper.name in self.parent.fit.sys[self.parent.comp].sp:
-                    self.parent.fit.sys[self.parent.comp].z.set(self.mousePoint.x() / self.parent.line_reper.l - 1)
+                    self.parent.fit.sys[self.parent.comp].z.set(self.mousePoint.x() / self.parent.line_reper.l() - 1)
                     if self.mousePoint.y() != self.mousePoint_saved.y():
                         sp = self.parent.fit.sys[self.parent.comp].sp[self.parent.line_reper.name]
                         # sp.b.set(sp.b.val + (self.mousePoint_saved.x() / self.mousePoint.x() - 1) * 299794.26)
@@ -1696,6 +1696,356 @@ class snapShotWidget(QWidget):
             self.parent.options(opt, func(getattr(self, opt)))
         ev.accept()
 
+class fitMCMCWidget(QWidget):
+    def __init__(self, parent):
+        super(fitMCMCWidget, self).__init__()
+        self.parent = parent
+
+        self.initData()
+        self.initGUI()
+        self.setWindowTitle('Fit with MCMC')
+        self.setStyleSheet(open('config/styles.ini').read())
+
+    def initData(self):
+        self.savedText = ''
+        self.opts = OrderedDict([
+            ('MCMC_walkers', int), ('MCMC_iters', int), ('MCMC_threads', int),
+            ('MCMC_burnin', int), ('MCMC_smooth', bool), ('MCMC_truth', bool),
+        ])
+        for opt, func in self.opts.items():
+            setattr(self, opt, func(self.parent.options(opt)))
+        self.thread = None
+
+    def initGUI(self):
+        layout = QHBoxLayout()
+        splitter = QSplitter(Qt.Horizontal)
+
+        h = QHBoxLayout()
+        grid = QGridLayout()
+        validator = QDoubleValidator()
+        locale = QLocale('C')
+        validator.setLocale(locale)
+        # validator.ScientificNotation
+        names = ['Walkers:     ', '',
+                 'Iterations:   ', '',
+                 'Threads:', '',
+                 'Priors:    ', '',
+                 ]
+        positions = [(i, j) for i in range(15) for j in range(2)]
+
+        for position, name in zip(positions, names):
+            if name == '':
+                continue
+            grid.addWidget(QLabel(name), *position)
+
+        self.opt_but = OrderedDict([('MCMC_walkers', [0, 1]),
+                                    ('MCMC_iters', [1, 1]),
+                                    ('MCMC_threads', [2, 1]),
+                                    ])
+        for opt, v in self.opt_but.items():
+            b = QLineEdit(str(getattr(self, opt)))
+            b.setFixedSize(80, 30)
+            b.setValidator(validator)
+            b.textChanged[str].connect(partial(self.onChanged, attr=opt))
+            grid.addWidget(b, v[0], v[1])
+        self.priors = QTextEdit('')
+        self.priors.setFixedSize(300, 400)
+        self.priors.textChanged.connect(self.priorsChanged)
+        self.priors.setText('# you can specify prior here \n# N_0_HI 19 0.2 0.3 \n# for comment use #')
+        grid.addWidget(self.priors, 3, 1)
+
+        self.chooseFit = chooseFitParsWidget(self.parent, closebutton=False)
+        self.chooseFit.setFixedSize(200, 800)
+        v = QVBoxLayout()
+        v.addLayout(grid)
+        v.addStretch(1)
+        h.addLayout(v)
+        h.addStretch(1)
+        h.addWidget(self.chooseFit)
+
+        self.start_button = QPushButton("Start")
+        self.start_button.setCheckable(True)
+        self.start_button.setFixedSize(120, 30)
+        self.start_button.clicked[bool].connect(partial(self.start, True))
+        self.continue_button = QPushButton("Continue")
+        self.continue_button.setFixedSize(120, 30)
+        self.continue_button.clicked[bool].connect(self.continueMC)
+        self.stop_button = QPushButton("Stop")
+        self.stop_button.setFixedSize(70, 30)
+        self.stop_button.clicked[bool].connect(self.stop)
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.start_button)
+        hbox.addWidget(self.continue_button)
+        hbox.addWidget(self.stop_button)
+        hbox.addStretch(1)
+
+        fitlayout = QVBoxLayout()
+        #fitlayout.addWidget(QLabel('Fit MCMC:'))
+        fitlayout.addLayout(h)
+        fitlayout.addStretch(1)
+        fitlayout.addLayout(hbox)
+        widget = QWidget()
+        widget.setLayout(fitlayout)
+        splitter.addWidget(widget)
+
+        h = QHBoxLayout()
+        grid = QGridLayout()
+        names = ['Burn-in:     ', '',
+                 ]
+        positions = [(i, j) for i in range(15) for j in range(2)]
+
+        for position, name in zip(positions, names):
+            if name == '':
+                continue
+            grid.addWidget(QLabel(name), *position)
+
+        self.opt_but = OrderedDict([('MCMC_burnin', [0, 1]),
+                                    ])
+        for opt, v in self.opt_but.items():
+            b = QLineEdit(str(getattr(self, opt)))
+            b.setFixedSize(80, 30)
+            b.setValidator(validator)
+            b.textChanged[str].connect(partial(self.onChanged, attr=opt))
+            grid.addWidget(b, v[0], v[1])
+
+        self.smooth = QCheckBox('smooth')
+        self.smooth.setChecked(bool(self.parent.options('MCMC_smooth')))
+        self.smooth.clicked[bool].connect(partial(self.setOpts, 'smooth'))
+        grid.addWidget(self.smooth, 1, 0)
+        self.bestfit = QCheckBox('bestfit')
+        self.bestfit.setChecked(bool(self.parent.options('MCMC_bestfit')))
+        self.bestfit.clicked[bool].connect(partial(self.setOpts, 'bestfit'))
+        grid.addWidget(self.bestfit, 2, 0)
+        self.chooseShow = chooseShowParsWidget(self)
+        self.chooseShow.setFixedSize(200, 800)
+        v = QVBoxLayout()
+        v.addLayout(grid)
+        v.addStretch(1)
+        h.addLayout(v)
+        h.addStretch(1)
+        h.addWidget(self.chooseShow)
+
+        self.show_button = QPushButton("Show")
+        self.show_button.setFixedSize(120, 30)
+        self.show_button.clicked[bool].connect(self.showMC)
+        self.stats_button = QPushButton("Stats")
+        self.stats_button.setFixedSize(120, 30)
+        self.stats_button.clicked[bool].connect(self.stats)
+        self.check_button = QPushButton("Check")
+        self.check_button.setFixedSize(120, 30)
+        self.check_button.clicked[bool].connect(self.check)
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.show_button)
+        hbox.addWidget(self.stats_button)
+        hbox.addWidget(self.check_button)
+        hbox.addStretch(1)
+
+        showlayout = QVBoxLayout()
+        showlayout.addLayout(h)
+        showlayout.addStretch(1)
+        showlayout.addLayout(hbox)
+        widget = QWidget()
+        widget.setLayout(showlayout)
+        splitter.addWidget(widget)
+        splitter.setSizes([1000, 1000])
+        layout.addWidget(splitter)
+
+        self.setLayout(layout)
+
+        self.setGeometry(200, 200, 1250, 900)
+        self.setWindowTitle('Fit model')
+        self.show()
+
+    def onChanged(self, text, attr=None):
+        if attr is not None:
+            setattr(self, attr, self.opts[attr](text))
+            self.parent.options(attr, self.opts[attr](text))
+
+    def priorsChanged(self):
+        for line in self.priors.toPlainText().splitlines():
+            if not line.startswith('#'):
+                words = line.split()
+                if words[0] in self.parent.fit.pars():
+                    if len(words) == 3:
+                        print(words + [words[2]])
+                    elif len(words) == 4:
+                        print(words)
+
+    def setOpts(self, arg=None):
+        setattr(self, 'MCMC_'+arg, getattr(self, arg).isChecked())
+        print(arg, getattr(self, arg).isChecked(), getattr(self, 'MCMC_'+arg))
+        self.parent.options('MCMC_'+arg, getattr(self, 'MCMC_'+arg))
+
+    def start(self, init=True):
+        if self.thread is None:
+            self.start_button.setChecked(True)
+            self.thread = StoppableThread(target=self.MCMC, args=(), kwargs={'init': init}, daemon=True)
+            #self.thread = threading.Thread(target=self.MCMC, args=(), kwargs={'init': init}, daemon=True)
+            self.thread.start()
+
+    def MCMC(self, init=True):
+        self.parent.setFit(comp=-1)
+
+        def lnprob(x, pars):
+            res = True
+            for xi, p in zip(x, pars):
+                res *= self.parent.fit.setValue(p, xi)
+            #print(x)
+            self.parent.s.calcFit(recalc=True, redraw=False, timer=False)
+            #print(self.parent.s.chi2())
+            chi = self.parent.s.chi2()
+            if res and not np.isnan(chi):
+                return -chi
+            else:
+                return -np.inf
+
+        nwalkers = int(self.parent.options('MCMC_walkers'))
+        nsteps = int(self.parent.options('MCMC_iters'))
+
+        if init:
+            pars, pos = [], []
+            for par in self.parent.fit.list_fit():
+                pars.append(str(par))
+                pos.append(par.val * np.ones(nwalkers) + np.random.randn(nwalkers) * par.step)
+            pos = np.array(pos).transpose()
+        else:
+            with open("output/current.pkl", "rb") as f:
+                pars = pickle.load(f)
+                pos = pickle.load(f)
+
+        if pars == [str(p) for p in self.parent.fit.list_fit()]:
+            ndim = len(pars)
+
+            sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[pars])
+
+            samples = np.array([[self.parent.fit.getValue(p) for p in pars]])
+            lnprobs = np.array([lnprob(samples[0], pars)])
+
+            for i, result in enumerate(sampler.sample(pos, iterations=nsteps, storechain=False)):
+                print(i)
+                self.parent.MCMCprogress.setText('     MCMC is running: {0:d} / {1:d}'.format(i, nsteps))
+                samples = np.concatenate([samples, result[0]], axis=0)
+                lnprobs = np.concatenate([lnprobs, result[1]])
+                with open("output/chain.pkl", "wb") as f:
+                    pickle.dump(pars, f)
+                    pickle.dump(nwalkers, f)
+                    pickle.dump(samples, f)
+                    pickle.dump(lnprobs, f)
+                with open("output/current.pkl", "wb") as f:
+                    pickle.dump(pars, f)
+                    pickle.dump(result[0], f)
+            self.showMC()
+
+            self.thread = None
+            self.start_button.setChecked(False)
+
+    def stop(self):
+        self.start_button.setChecked(False)
+        self.thread.stop()
+        self.thread = None
+
+    def continueMC(self):
+        self.start(init=False)
+
+    def showMC(self):
+        with open("output/chain.pkl", "rb") as f:
+            pars = pickle.load(f)
+            nwalkers = pickle.load(f)
+            samples = pickle.load(f)
+            lnprobs = pickle.load(f)
+            mask = np.array([p.show for p in self.parent.fit.list_fit()])
+
+            imax = np.argmax(lnprobs)
+            truth = samples[imax][np.where(mask)[0]] if self.parent.options('MCMC_bestfit') else None
+
+            print('best fit:', truth)
+            burnin = int(self.parent.options('MCMC_burnin'))
+            if nwalkers * burnin < samples.shape[0]:
+                c = ChainConsumer()
+                c.add_chain(samples[nwalkers * burnin + 1:, np.where(mask)[0]], walkers=nwalkers,
+                            parameters=[p.replace('_', ' ') for i, p in enumerate(pars) if mask[i]])
+                print(self.parent.options('MCMC_smooth'))
+                c.configure(smooth=self.parent.options('MCMC_smooth'),
+                            cloud=True,
+                            sigmas=[0, 1, 2, 3],
+                            )
+                c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
+
+                fig = c.plotter.plot(figsize=(30, 30),
+                                        filename="fit.png",
+                                        display=True,
+                                        truth=truth
+                                        )
+                fig.savefig("output/triangle.png")
+
+    def stats(self):
+        pass
+
+    def check(self):
+        self.MCMCstats()
+
+    def MCMCstats(self, qc='all'):
+        with open("output/chain.pkl", "rb") as f:
+            pars = pickle.load(f)
+            nwalkers = pickle.load(f)
+            samples = pickle.load(f)
+            lnprobs = pickle.load(f)
+
+        if any([s in qc for s in ['current', 'moments', 'all']]):
+            k = samples.shape[1]
+            n_hor = int(k ** 0.5)
+            if n_hor <= 1:
+                n_hor = 2
+            n_vert = int(k / n_hor + 1)
+
+        if any([s in qc for s in ['current', 'all']]):
+            for i, p in enumerate(pars):
+                if p.startswith('z'):
+                    samples[:, i] = samples[:, i] * 1000
+            fig, ax0 = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
+            ax0[0, 0].hist(-lnprobs[-nwalkers:], 20, normed=1, histtype='bar', color='crimson', label='$\chi^2$')
+            ax0[0, 0].legend()
+            ax0[0, 0].set_title('$\chi^2$ distribution')
+            for i in range(k):
+                vert, hor = int((i + 1) / n_hor), i + 1 - n_hor * int((i + 1) / n_hor)
+                ax0[vert, hor].scatter(samples[-nwalkers:, i], -lnprobs[-nwalkers:], c='r')
+                ax0[vert, hor].set_title(pars[i])
+
+        if any([s in qc for s in ['moments', 'all']]):
+            ind = np.random.randint(0,nwalkers)
+            SomeChain = samples[1 + ind::nwalkers,:]
+            niters = int((samples.shape[0]-1)/nwalkers)
+            mean, std, chimin = np.empty([len(pars), niters]), np.empty([len(pars), niters]), np.empty([3, niters])
+            for i in range(niters):
+                mean[:, i] = np.mean(samples[i*nwalkers+1:(i+1)*nwalkers+1, :], axis=0)
+                std[:, i] = np.std(samples[i*nwalkers+1:(i+1)*nwalkers+1, :], axis=0)
+                chimin[0, i] = np.min(-lnprobs[i*nwalkers+1:(i+1)*nwalkers+1])
+                chimin[1, i] = np.mean(-lnprobs[i * nwalkers + 1:(i + 1) * nwalkers + 1])
+                chimin[2, i] = np.std(-lnprobs[i * nwalkers + 1:(i + 1) * nwalkers + 1])
+            fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
+            ax[0, 0].plot(np.arange(niters), np.log10(chimin[0]), label='$\chi^2_{min}$')
+            ax[0, 0].plot(np.arange(niters), np.log10(-lnprobs[1 + ind::nwalkers]), label='$\chi^2$ at chain')
+            ax[0, 0].plot(np.arange(niters), np.log10(chimin[1]), label='$\chi^2$ mean')
+            ax[0, 0].plot(np.arange(niters), np.log10(chimin[2]), label='$\chi^2$ disp')
+            ax[0, 0].legend(loc=1)
+            for i in range(k):
+                vert, hor = int((i + 1) / n_hor), i + 1 - n_hor * int((i + 1) / n_hor)
+                # print(vert, hor)
+                ax[vert, hor].plot(np.arange(niters), mean[i], color='r')
+                ax[vert, hor].fill_between(np.arange(niters), mean[i]-std[i], mean[i]+std[i],
+                                           facecolor='green', interpolate=True, alpha=0.5)
+                ax[vert, hor].plot(np.arange(niters), SomeChain[:, i], color='b')
+                ax[vert, hor].set_title(pars[i])
+
+
+
+        plt.show()
+
+    def closeEvent(self, event):
+        #for opt, func in self.opts.items():
+        #    print(opt, func(getattr(self, opt)))
+        #    self.parent.options(opt, func(getattr(self, opt)))
+        self.parent.MCMC = None
 
 class fitExtWidget(QWidget):
     def __init__(self, parent):
@@ -2800,6 +3150,7 @@ class sviewer(QMainWindow):
         self.exp = None
         self.fitResults = None
         self.fitres = None
+        self.MCMC = None
 
     def initUI(self):
         
@@ -3045,16 +3396,10 @@ class sviewer(QMainWindow):
         fitLM.setStatusTip('Fit by Levenberg-Marquadt method')
         fitLM.triggered.connect(self.fitLM)
 
-        MCMCMenu = QMenu('&Fit MCMC', self)
-        MCMCMenu.setStatusTip('Fit by MCMC method')
-
-        fitMCMC = QAction('&Fit MCMC', self)
+        fitMCMC = QAction('&Fit MCMC...', self)
         fitMCMC.setStatusTip('Fit by MCMC method')
+        fitMCMC.setShortcut('Ctrl+M')
         fitMCMC.triggered.connect(self.fitMCMC)
-
-        showMCMC = QAction('&Show MCMC', self)
-        showMCMC.setStatusTip('Show MCMC posterior triangle')
-        showMCMC.triggered.connect(self.showMCMC)
 
         stopFit = QAction('&Stop Fit', self)
         stopFit.setStatusTip('Stop fitting process')
@@ -3062,7 +3407,7 @@ class sviewer(QMainWindow):
 
         fitResults = QAction('&Fit results', self)
         fitResults.setStatusTip('Show fit results')
-        fitResults.setShortcut('Ctrl+T')
+        fitResults.setShortcut('F8')
         fitResults.triggered.connect(self.showFitResults)
 
         fitCont = QAction('&Fit Cont', self)
@@ -3099,9 +3444,7 @@ class sviewer(QMainWindow):
         fitMenu.addAction(showFullFit)
         fitMenu.addSeparator()
         fitMenu.addAction(fitLM)
-        fitMenu.addMenu(MCMCMenu)
-        MCMCMenu.addAction(fitMCMC)
-        MCMCMenu.addAction(showMCMC)
+        fitMenu.addAction(fitMCMC)
         fitMenu.addAction(stopFit)
         fitMenu.addAction(fitResults)
         fitMenu.addSeparator()
@@ -4264,9 +4607,11 @@ class sviewer(QMainWindow):
         return fit_report(result)
 
     def fitMCMC(self):
-        self.thread = threading.Thread(target=self.MCMC, args=(), daemon=True)
-        #thread.daemon = True
-        self.thread.start()
+        if self.MCMC is None:
+            self.MCMC = fitMCMCWidget(self)
+            self.MCMC.show()
+        else:
+            self.MCMC.raise_()
 
     def MCMC(self, comp=-1):
         self.setFit(comp=comp)
@@ -4319,21 +4664,6 @@ class sviewer(QMainWindow):
 
         self.showMCMC()
 
-    def showMCMC(self):
-        f = open("temp/chain.pkl", "rb")
-        pars = pickle.load(f)
-        samples = pickle.load(f)
-        f.close()
-
-        c = ChainConsumer()
-        c.add_chain(samples, parameters=[p.replace('_', ' ') for p in pars])
-        c.configure(smooth=0,
-                    cloud=True
-                    #sigmas=np.linspace(0, 2, 10)
-                    )
-        fig = c.plot(figsize=(12, 12), display=True)
-
-        fig.savefig("triangle.png")
 
     def stopFit(self):
         """

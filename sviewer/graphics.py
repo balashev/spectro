@@ -129,8 +129,9 @@ class Speclist(list):
         for s in self:
             s.findFitLines(ind, all=all, debug=False)
 
-    def calcFit(self, ind=-1, recalc=False, redraw=True):
-        t = Timer()
+    def calcFit(self, ind=-1, recalc=False, redraw=True, timer=True):
+        if timer:
+            t = Timer()
         for s in self:
             if hasattr(s, 'fit_lines') and len(s.fit_lines) > 0:
                 if self.parent.fitType == 'regular':
@@ -140,13 +141,14 @@ class Speclist(list):
                     s.calcFit_fft(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit)
 
                 elif self.parent.fitType == 'fast':
-                    s.calcFit_fast(ind=ind, recalc=recalc, redraw=redraw, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit)
+                    s.calcFit_fast(ind=ind, recalc=recalc, redraw=redraw, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit, timer=timer)
 
             else:
                 s.set_fit(x=self[self.ind].spec.raw.x[self[self.ind].cont_mask],
                                        y=np.ones_like(self[self.ind].spec.raw.x[self[self.ind].cont_mask]))
                 s.set_gfit()
-        t.time('fit ' + self.parent.fitType)
+        if timer:
+            t.time('fit ' + self.parent.fitType)
 
     def calcFitComps(self, recalc=False):
         self.refreshFitComps()

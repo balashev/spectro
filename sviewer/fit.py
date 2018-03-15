@@ -4,7 +4,7 @@ from collections import OrderedDict
 from ..atomic import abundance, doppler
 from ..pyratio import pyratio
 class par:
-    def __init__(self, parent, name, val, min, max, step, addinfo='', vary=True, fit=True):
+    def __init__(self, parent, name, val, min, max, step, addinfo='', vary=True, fit=True, show=True):
         self.parent = parent
         self.name = name
         if 'cont' in self.name:
@@ -30,6 +30,7 @@ class par:
         self.addinfo = addinfo
         self.fit = fit
         self.fit_w = self.fit
+        self.show = show
         self.unc = None
 
     def set(self, val, attr='val'):

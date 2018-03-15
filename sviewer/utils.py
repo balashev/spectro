@@ -6,11 +6,12 @@ Created on Fri Dec 23 11:25:04 2016
 """
 
 import inspect
+from itertools import compress
 from math import atan2,degrees
 import numpy as np
 import os
+import threading
 import time
-from itertools import compress
 
 def include(filename):
     if os.path.exists(filename):
@@ -288,3 +289,17 @@ class roman():
     def ion(cls, string):
         s = cls()
         return s.separate_ion(string)
+
+class StoppableThread(threading.Thread):
+    """Thread class with a stop() method. The thread itself has to check
+    regularly for the stopped() condition."""
+
+    def __init__(self, *args, **kwargs):
+        super(StoppableThread, self).__init__(*args, **kwargs)
+        self._stop_event = threading.Event()
+
+    def stop(self):
+        self._stop_event.set()
+
+    def stopped(self):
+        return self._stop_event.is_set()

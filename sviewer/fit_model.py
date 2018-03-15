@@ -567,6 +567,11 @@ class fitModelSysWidget(QFrame):
                 self.vrange.returnPressed.connect(self.zrange)
                 self.treeWidget.setItemWidget(item, 6, self.vrange)
 
+                item.setText(9, 'v step: ')
+                item.setTextAlignment(9, Qt.AlignRight)
+                self.vstep = FLineEdit(self.parent)
+                self.vstep.returnPressed.connect(self.zstep)
+                self.treeWidget.setItemWidget(item, 10, self.vstep)
 
         for k in self.fit.sys[self.ind].sp.keys():
             self.addSpecies(k)
@@ -684,6 +689,13 @@ class fitModelSysWidget(QFrame):
 
     def zrange(self):
         self.fit.sys[self.ind].zrange(abs(float(self.vrange.text())))
+        self.refresh()
+
+    def zstep(self):
+        try:
+            self.fit.sys[self.ind].z.step = (abs(float(self.vstep.text()))) / 299792.458
+        except:
+            pass
         self.refresh()
 
     def varyChanged(self):
@@ -804,7 +816,7 @@ class chooseFitParsWidget(QWidget):
     """
     Widget for choose fitting parameters during the fit.
     """
-    def __init__(self, parent):
+    def __init__(self, parent, closebutton=True):
         super().__init__()
         self.parent = parent
         #self.resize(700, 900)
@@ -826,24 +838,21 @@ class chooseFitParsWidget(QWidget):
         self.deselectAll.clicked[bool].connect(partial(self.select, False))
         layout.addWidget(self.selectAll)
         layout.addWidget(self.deselectAll)
+        self.scroll = None
 
         self.layout = QVBoxLayout()
         self.update()
         layout.addLayout(self.layout)
 
-        self.okButton = QPushButton("Close")
-        self.okButton.setFixedSize(110, 30)
-        self.okButton.clicked[bool].connect(self.ok)
-        #self.cancelButton = QPushButton("Cancel")
-        #self.cancelButton.setFixedSize(100, 30)
-        #self.cancelButton.clicked[bool].connect(self.cancel)
-        hbox = QHBoxLayout()
-        hbox.addWidget(self.okButton)
-        hbox.addStretch()
-        #hbox.addWidget(self.cancelButton)
 
-        #layout.addStretch(0)
-        layout.addLayout(hbox)
+        if closebutton:
+            self.okButton = QPushButton("Close")
+            self.okButton.setFixedSize(110, 30)
+            self.okButton.clicked[bool].connect(self.ok)
+            hbox = QHBoxLayout()
+            hbox.addWidget(self.okButton)
+            hbox.addStretch()
+            layout.addLayout(hbox)
 
         self.setLayout(layout)
 
@@ -854,6 +863,7 @@ class chooseFitParsWidget(QWidget):
                 getattr(self, s).deleteLater()
             except:
                 pass
+        if self.scroll is not None:
             self.layout.removeWidget(self.scroll)
             self.scroll.deleteLater()
 
@@ -873,7 +883,7 @@ class chooseFitParsWidget(QWidget):
                 getattr(self, str(par)).setEnabled(par.vary)
                 getattr(self, str(par)).clicked[bool].connect(partial(self.click, str(par)))
                 l.addWidget(getattr(self, str(par)))
-            l.addStretch(1)
+            l.addStretch()
             self.scrollContent.setLayout(l)
             self.scroll.setWidget(self.scrollContent)
         self.layout.addWidget(self.scroll)
@@ -883,11 +893,17 @@ class chooseFitParsWidget(QWidget):
             for par in self.parent.fit.list():
                 par.fit = par.vary & s
                 getattr(self, str(par)).setChecked(par.fit)
+        self.updateShow()
 
     def click(self, s):
-        print(self.parent.fit.list())
         self.parent.fit.setValue(s, getattr(self, s).isChecked(), attr='fit')
-        print(s, getattr(self, s).isChecked(), self.parent.fit.getValue(s, attr='fit'))
+        self.updateShow()
+
+    def updateShow(self):
+        try:
+            self.parent.MCMC.chooseShow.update()
+        except:
+            pass
 
     def ok(self):
         self.hide()
@@ -900,3 +916,72 @@ class chooseFitParsWidget(QWidget):
             par.fit = self.saved[str(par)]
         self.close()
 
+class chooseShowParsWidget(QWidget):
+    """
+    Widget for choose fitting parameters during the fit.
+    """
+    def __init__(self, parent):
+        super().__init__()
+        self.parent = parent
+        self.setStyleSheet(open('config/styles.ini').read())
+
+        self.saved = []
+
+        layout = QVBoxLayout()
+
+        self.selectAll = QPushButton("Select all")
+        self.selectAll.setFixedSize(110, 30)
+        self.selectAll.clicked[bool].connect(partial(self.select, True))
+        self.deselectAll = QPushButton("Deselect all")
+        self.deselectAll.setFixedSize(110, 30)
+        self.deselectAll.clicked[bool].connect(partial(self.select, False))
+        layout.addWidget(self.selectAll)
+        layout.addWidget(self.deselectAll)
+        self.scroll = None
+        self.layout = QVBoxLayout()
+        self.update(init=True)
+        layout.addLayout(self.layout)
+
+        self.setLayout(layout)
+
+    def update(self, init=False):
+        for s in self.saved:
+            try:
+                self.layout.removeWidget(getattr(self, s))
+                getattr(self, s).deleteLater()
+            except:
+                pass
+        if self.scroll is not None:
+            self.layout.removeWidget(self.scroll)
+            self.scroll.deleteLater()
+
+        self.scroll = QScrollArea()
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setWidgetResizable(True)
+        #self.scroll.setMaximumHeight(self.height()-150)
+        self.scrollContent = QWidget(self.scroll)
+        if hasattr(self.parent.parent, 'fit'):
+            l = QVBoxLayout()
+            self.saved = []
+            for par in self.parent.parent.fit.list():
+                par.show = (par.show | init) & par.fit & par.vary
+                if par.fit & par.vary:
+                    self.saved.append(str(par))
+                    setattr(self, str(par), QCheckBox(str(par)))
+                    getattr(self, str(par)).setChecked(par.show)
+                    getattr(self, str(par)).clicked[bool].connect(partial(self.click, str(par)))
+                    l.addWidget(getattr(self, str(par)))
+            l.addStretch(0)
+            self.scrollContent.setLayout(l)
+            self.scroll.setWidget(self.scrollContent)
+        self.layout.addWidget(self.scroll)
+
+    def select(self, s):
+        if hasattr(self.parent.parent, 'fit'):
+            for par in self.parent.parent.fit.list_fit():
+                par.show = s
+                getattr(self, str(par)).setChecked(par.show)
+
+    def click(self, s):
+        self.parent.parent.fit.setValue(s, getattr(self, s).isChecked(), attr='show')
