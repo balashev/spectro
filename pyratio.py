@@ -50,7 +50,7 @@ class distr1d():
             fig, ax = plt.subplots()
         ax.plot(self.x, self.y, '-', color=color, lw=1.5)
         if conf is not None:
-            x, level = self.interval(conf=conf)
+            x, level = self.dointerval(conf=conf)
             mask = np.logical_and(self.x > x[0], self.x < x[1])
             ax.fill_between(self.x[mask], self.y[mask], facecolor=color, alpha=0.3, interpolate=True)
 
@@ -101,7 +101,7 @@ class distr1d():
         #print('point', self.point, self.x[np.argmax(self.y)])
         return self.point
 
-    def interval(self, conf=0.683):
+    def dointerval(self, conf=0.683):
         """
         Interval estimate for given confidence level
         parameters:
@@ -114,9 +114,9 @@ class distr1d():
         self.dopoint(verbose=False)
         n = self.ymax / (nd.pdf(0) / (nd.pdf(nd.interval(conf)[0]) / 2))
         res = optimize.fsolve(self.func, n, args=(conf), xtol=self.xtol, full_output=self.debug)
-        interval = self.minmax(res[0])
+        self.interval = self.minmax(res[0])
         #print('interval:', interval[0], interval[1])
-        return interval, res[0]
+        return self.interval, res[0]
 
     def pdf(self, x):
         return self.inter(x)
@@ -237,7 +237,7 @@ class distr2d():
 
         return res
 
-    def interval(self, conf=0.683):
+    def dointerval(self, conf=0.683):
         """
         Estimate the interval for the both parameters.
         parameters:
@@ -253,14 +253,14 @@ class distr2d():
         print(n, self.zmax)
         res = optimize.fsolve(self.func, n, args=(conf), xtol=self.xtol, full_output=self.debug)
         print(res[0])
-        interval = self.minmax(res[0])
+        self.interval = self.minmax(res[0])
         print('interval:', interval[0], interval[1])
 
         level = self.level(conf=conf)
         print(level)
-        interval = self.minmax(level)
-        print('interval:', interval[0], interval[1])
-        return interval[0], interval[1], res[0]
+        self.interval = self.minmax(level)
+        print('interval:', self.interval[0], self.interval[1])
+        return self.interval[0], self.interval[1], res[0]
 
     def plot(self, conf_levels=None):
         app = QtGui.QApplication([])
@@ -1506,10 +1506,10 @@ class pyratio():
         if plot > 0:
             print('plot pdf...')
             ax.plot(d.x, d.y, c=color, alpha=alpha, zorder=zorder)
-            point = d.dopoint()
+            d.dopoint()
             for c in self.conf_levels:
-                interval = d.interval(c)
-                print(c, interval)
+                d.dointerval(c)
+                print(c, d.interval)
                 #ax.axhline(d.inter(interval[0]))
 
             if title != '':
@@ -1522,7 +1522,7 @@ class pyratio():
 
         if 1:
             lmax = max(L.flatten())
-            out.append([vary[0], a(point, interval[1] - point, point - interval[0], 'd')])
+            out.append([vary[0], a(d.point, d.interval[1] - d.point, d.point - d.interval[0], 'd')])
 
         return out
 
@@ -1665,10 +1665,10 @@ class pyratio():
 
             if 1:
                 print(vary)
-                interval = d.interval(0.6827)
+                d.dointerval(0.6827)
                 print(interval)
-                out.append([vary[0], a(point[0], interval[0][1] - point[0], point[0] - interval[0][0])])
-                out.append([vary[1], a(point[1], interval[1][1] - point[1], point[1] - interval[1][0])])
+                out.append([vary[0], a(d.point[0], d.interval[0][1] - d.point[0], d.point[0] - d.interval[0][0])])
+                out.append([vary[1], a(d.point[1], d.interval[1][1] - d.point[1], d.point[1] - d.interval[1][0])])
 
         return out
     

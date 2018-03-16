@@ -373,8 +373,14 @@ class atomicData(OrderedDict):
 
     def list(self, els=None, linelist=None):
         lines = []
+
         if els is not None and isinstance(els, str):
             els = [els]
+        if els is None and linelist is None:
+            els = self.data.keys()
+        if els is None and linelist is not None:
+            els = np.unique([l.split()[0] for l in linelist])
+
         if self.data is None:
             if els is not None:
                 for e in els:
@@ -388,27 +394,19 @@ class atomicData(OrderedDict):
                     for l in e.lines:
                         if linelist is None or str(l) in linelist:
                             lines.append(l)
+
         else:
-            if els is not None:
-                for e in els:
-                    if e in self.data.keys():
-                        for i, ref in enumerate(self.data[e]['ref']):
-                            l = self.data[e]['lines'][str(i)][0]
-                            l = line(e, l[0], l[1], l[2], ref=l[3])
-                            for attr in ['j_l', 'nu_l', 'j_u', 'nu_u']:
-                                if 'None' not in ref[attr]:
-                                    setattr(l, attr, int(ref[attr]))
-                            lines.append(l)
-            else:
-                for e in self.data.keys():
+            for e in els:
+                if e in self.data.keys():
                     for i, ref in enumerate(self.data[e]['ref']):
                         l = self.data[e]['lines'][str(i)][0]
                         l = line(e, l[0], l[1], l[2], ref=l[3])
                         for attr in ['j_l', 'nu_l', 'j_u', 'nu_u']:
                             if 'None' not in ref[attr]:
                                 setattr(l, attr, int(ref[attr]))
-                        if linelist is None or str(l) in linelist:
+                        if linelist is None or any([str(l) in lin or lin in str(l) for lin in linelist]):
                             lines.append(l)
+
         return lines
 
     def set_specific(self, linelist):
@@ -648,6 +646,7 @@ class atomicData(OrderedDict):
         self.readHD()
         self.readCO()
         self.readHF()
+        self.read_Molecular()
         for el in self.keys():
             grp = f.create_group(el)
             dt = h5py.special_dtype(vlen=str)
@@ -700,13 +699,15 @@ class atomicData(OrderedDict):
             data = f.readlines()
         for d in data:
             words = d.split()
-            self.append(line(words[0], words[1], words[2], words[3], descr=' '.join(words[4:])))
+            if words[0] not in self:
+                self[words[0]] = e(words[0])
+            self[words[0]].lines.append(line(words[0], words[1], words[2], words[3], descr=' '.join(words[4:])))
 
-    @classmethod
-    def DLA(cls, lines=True):
-        print('DLA')
-        s = cls()
-        s.readdatabase()
+    def Molecular_list(self):
+        data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r'/data/Molecular_data.dat', skip_header=3, usecols=(0), dtype=(str))
+        return self.list(np.unique(data))
+
+    def DLA_list(self, lines=True):
         linelist = ['HI 1215',
                     'HI 1025',
                     'HI 972',
@@ -814,16 +815,13 @@ class atomicData(OrderedDict):
                     'ZnII 2062.66',
                     'CII 1036',
                     ]
+
         if lines:
-            return s.list(linelist=linelist)
+            return self.list(linelist=linelist)
         else:
             return linelist
 
-    @classmethod
-    def DLA_major(cls, lines=True):
-        print('DLA major')
-        s = cls()
-        s.readdatabase()
+    def DLA_major_list(self, lines=True):
         linelist = ['HI 1215',
                     'HI 1025',
                     'HI 972',
@@ -884,14 +882,11 @@ class atomicData(OrderedDict):
                     'MgI 2852',
                     ]
         if lines:
-            return s.list(linelist=linelist)
+            return self.list(linelist=linelist)
         else:
             return linelist
 
-    @classmethod
-    def DLA_SDSS_H2(cls, lines=True):
-        s = cls()
-        s.readdatabase()
+    def DLA_SDSS_H2_list(self, lines=True):
         linelist = ['SiII 1260',
                     'OI 1302',
                     'SiII 1304',
@@ -900,11 +895,32 @@ class atomicData(OrderedDict):
                     'FeII 2344',
                     'ZnII 2026',
                     'CIV 1548',
-                   ]
+                    ]
         if lines:
-            return s.list(linelist=linelist)
+            return self.list(linelist=linelist)
         else:
             return linelist
+
+    @classmethod
+    def DLA(cls, lines=True):
+        print('DLA')
+        s = cls()
+        s.readdatabase()
+        return s.DLA_list(lines=lines)
+
+    @classmethod
+    def DLA_major(cls, lines=True):
+        print('DLA major')
+        s = cls()
+        s.readdatabase()
+        return s.DLA_major_list(lines)
+
+
+    @classmethod
+    def DLA_SDSS_H2(cls, lines=True):
+        s = cls()
+        s.readdatabase()
+        return s.DLA_SDSS_H2_list(lines=lines)
 
     @classmethod
     def MinorMolecular(cls):

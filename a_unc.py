@@ -170,6 +170,7 @@ class a:
                 base     : base for dec values                
         """
         if self.repr == 'log':
+            print(self.val, self.plus, self.minus, f)
             s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.val, self.plus, self.minus, n=f)
         if self.repr == 'dec':
             if base == None:

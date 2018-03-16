@@ -20,6 +20,8 @@ from PyQt5.QtGui import QDesktopServices
 from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
 from pyqtgraph.GraphicsScene import exportDialog
 from scipy.integrate import quad
+from scipy.stats import gaussian_kde
+from sklearn.neighbors import KernelDensity
 import sys
 sys.path.append('C:/science/python')
 import threading
@@ -29,6 +31,8 @@ import threading
 from ..XQ100 import load_QSO
 from ..plot_spec import *
 from ..profiles import add_LyaForest, add_ext, add_ext_bump, add_LyaCutoff, convolveflux
+from ..a_unc import a
+from ..pyratio import distr1d
 from .console import *
 from .external import spectres
 from .fit_model import *
@@ -1731,7 +1735,7 @@ class fitMCMCWidget(QWidget):
                  'Threads:', '',
                  'Priors:    ', '',
                  ]
-        positions = [(i, j) for i in range(15) for j in range(2)]
+        positions = [(i, j) for i in range(4) for j in range(2)]
 
         for position, name in zip(positions, names):
             if name == '':
@@ -1791,8 +1795,10 @@ class fitMCMCWidget(QWidget):
         h = QHBoxLayout()
         grid = QGridLayout()
         names = ['Burn-in:     ', '',
+                 '', '',
+                 'Results:', '',
                  ]
-        positions = [(i, j) for i in range(15) for j in range(2)]
+        positions = [(i, j) for i in range(3) for j in range(2)]
 
         for position, name in zip(positions, names):
             if name == '':
@@ -1816,6 +1822,10 @@ class fitMCMCWidget(QWidget):
         self.bestfit.setChecked(bool(self.parent.options('MCMC_bestfit')))
         self.bestfit.clicked[bool].connect(partial(self.setOpts, 'bestfit'))
         grid.addWidget(self.bestfit, 2, 0)
+        self.results = QTextEdit('')
+        self.results.setFixedSize(500, 400)
+        self.results.setText('# fit results here')
+        grid.addWidget(self.results, 3, 1)
         self.chooseShow = chooseShowParsWidget(self)
         self.chooseShow.setFixedSize(200, 800)
         v = QVBoxLayout()
@@ -1847,12 +1857,12 @@ class fitMCMCWidget(QWidget):
         widget = QWidget()
         widget.setLayout(showlayout)
         splitter.addWidget(widget)
-        splitter.setSizes([1000, 1000])
+        splitter.setSizes([1000, 1200])
         layout.addWidget(splitter)
 
         self.setLayout(layout)
 
-        self.setGeometry(200, 200, 1250, 900)
+        self.setGeometry(200, 200, 1450, 900)
         self.setWindowTitle('Fit model')
         self.show()
 
@@ -1947,6 +1957,10 @@ class fitMCMCWidget(QWidget):
     def continueMC(self):
         self.start(init=False)
 
+    def readChain(self):
+        with open("output/chain.pkl", "rb") as f:
+            return pickle.load(f), pickle.load(f), pickle.load(f), pickle.load(f)
+
     def showMC(self):
         with open("output/chain.pkl", "rb") as f:
             pars = pickle.load(f)
@@ -1979,12 +1993,38 @@ class fitMCMCWidget(QWidget):
                 fig.savefig("output/triangle.png")
 
     def stats(self):
-        pass
+        pars, nwalkers, samples, lnprobs = self.readChain()
+
+        mask = np.array([p.show for p in self.parent.fit.list_fit()])
+        burnin = int(self.parent.options('MCMC_burnin'))
+        k = samples.shape[1]
+        n_hor = int(k ** 0.5)
+        if n_hor <= 1:
+            n_hor = 2
+        n_vert = int(k / n_hor + 1)
+        self.results.setText('')
+
+        fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
+        for i, p in enumerate(pars):
+            if mask[i]:
+                x = np.linspace(np.min(samples[nwalkers * burnin + 1:, i]), np.max(samples[nwalkers * burnin + 1:, i]), 50)
+                kde = gaussian_kde(samples[nwalkers * burnin + 1:, i])
+                d = distr1d(x, kde(x))
+                d.dopoint()
+                d.dointerval()
+                res = a(d.point, d.point - d.interval[0], d.interval[1] - d.point)
+                f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
+                print(p, res.latex(f=f))
+                self.results.setText(self.results.toPlainText() + p + ': ' + res.latex(f=f) + '\n')
+                vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
+                d.plot(conf=0.683, ax=ax[vert, hor])
+        plt.show()
+
 
     def check(self):
-        self.MCMCstats()
+        self.MCMCqc()
 
-    def MCMCstats(self, qc='all'):
+    def MCMCqc(self, qc='all'):
         with open("output/chain.pkl", "rb") as f:
             pars = pickle.load(f)
             nwalkers = pickle.load(f)
@@ -3109,6 +3149,7 @@ class sviewer(QMainWindow):
         self.setStyleSheet(open('config/styles.ini').read())
 
     def initStatus(self):
+        self.t = Timer()
         self.setAcceptDrops(True)
         self.abs_H2_status = 0
         self.abs_DLA_status = 1
@@ -3677,8 +3718,6 @@ class sviewer(QMainWindow):
         #self.atomic = atomic_data()
         self.atomic = atomicData()
         self.atomic.readdatabase()
-        print(self.atomic.data['DI/ref'])
-
         self.abs = absSystemIndicator(self)
         for s in ['H2', 'DLAmajor', 'DLA', 'Molec']:
             self.absLines('abs_'+s+'_status', value=getattr(self, 'abs_'+s+'_status'))
@@ -3778,7 +3817,7 @@ class sviewer(QMainWindow):
             self.zeroline.setHoverPen(color=(214, 39, 40), width=3)
         self.vb.addItem(self.zeroline)
 
-    def absLines(self, status='', sig=True, value=None, verbose=1):
+    def absLines(self, status='', sig=True, value=None, verbose=False):
 
         if verbose:
             print(status, value)
@@ -3787,25 +3826,23 @@ class sviewer(QMainWindow):
             setattr(self, status, value)
         else:
             setattr(self, status, 1 - getattr(self, status))
-
         if value is not 0:
             if status == 'abs_H2_status' and value is not 0:
-                lst, color = atomicData.H2(3), (255, 95, 32)
+                lines, color = self.atomic.list(['H2j'+str(i) for i in range(3)]), (255, 95, 32)
             if status == 'abs_DLA_status' and value is not 0:
-                lst, color = atomicData.DLA(), (105, 213, 105)
+                lines, color = self.atomic.DLA_list(), (105, 213, 105)
             if status == 'abs_DLAmajor_status' and value is not 0:
-                lst, color = atomicData.DLA_major(), (105, 213, 105)
+                lines, color = self.atomic.DLA_major_list(), (105, 213, 105)
             if status == 'abs_Molec_status' and value is not 0:
-                lst, color = atomicData.MinorMolecular(), (255, 111, 63)
+                lines, color = self.atomic.Molecular_list(), (255, 111, 63)
 
             if verbose:
-                print('linelist:', lst)
+                print('linelist:', lines)
 
             if getattr(self, status):
-                self.abs.add(lst, color=color)
+                self.abs.add(lines, color=color)
             else:
-                self.abs.remove(lst)
-
+                self.abs.remove(lines)
 
     def absChoicelines(self):
         d = {'H2': ['J='+str(i) for i in range(10)]}
