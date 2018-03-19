@@ -1872,14 +1872,15 @@ class fitMCMCWidget(QWidget):
             self.parent.options(attr, self.opts[attr](text))
 
     def priorsChanged(self):
+        self.prior = {}
         for line in self.priors.toPlainText().splitlines():
             if not line.startswith('#'):
                 words = line.split()
                 if words[0] in self.parent.fit.pars():
                     if len(words) == 3:
-                        print(words + [words[2]])
+                        self.prior[words[0]] = a(float(words[1]), float(words[2]), 'd')
                     elif len(words) == 4:
-                        print(words)
+                        self.prior[words[0]] = a(float(words[1]), float(words[2]), float(words[3]), 'd')
 
     def setOpts(self, arg=None):
         setattr(self, 'MCMC_'+arg, getattr(self, arg).isChecked())
@@ -1896,18 +1897,28 @@ class fitMCMCWidget(QWidget):
     def MCMC(self, init=True):
         self.parent.setFit(comp=-1)
 
-        def lnprob(x, pars):
+        def lnprior(x, pars, prior):
+            lp = 0
+            for k, v in prior.items():
+                if k in pars:
+                    lp += v.lnL(x[pars.index(k)])
+            return lp
+
+        def lnlike(x, pars):
             res = True
             for xi, p in zip(x, pars):
                 res *= self.parent.fit.setValue(p, xi)
-            #print(x)
+            # print(x)
             self.parent.s.calcFit(recalc=True, redraw=False, timer=False)
-            #print(self.parent.s.chi2())
+            # print(self.parent.s.chi2())
             chi = self.parent.s.chi2()
             if res and not np.isnan(chi):
                 return -chi
             else:
                 return -np.inf
+
+        def lnprob(x, pars, prior):
+            return lnprior(x, pars, prior) + lnlike(x, pars)
 
         nwalkers = int(self.parent.options('MCMC_walkers'))
         nsteps = int(self.parent.options('MCMC_iters'))
@@ -1926,10 +1937,10 @@ class fitMCMCWidget(QWidget):
         if pars == [str(p) for p in self.parent.fit.list_fit()]:
             ndim = len(pars)
 
-            sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[pars])
+            sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[pars, self.prior])
 
             samples = np.array([[self.parent.fit.getValue(p) for p in pars]])
-            lnprobs = np.array([lnprob(samples[0], pars)])
+            lnprobs = np.array([lnprob(samples[0], pars, self.prior)])
 
             for i, result in enumerate(sampler.sample(pos, iterations=nsteps, storechain=False)):
                 print(i)
@@ -4124,6 +4135,9 @@ class sviewer(QMainWindow):
         if isinstance(filelist, str):
             filelist = [filelist]
 
+        if self.normview:
+            self.normalize()
+
         for line in filelist:
             filename = line.split()[0]
             print(filename)
@@ -4505,20 +4519,21 @@ class sviewer(QMainWindow):
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     def normalize(self, state=None):
-        if state == None:
-            self.normview = not self.normview
-        else:
-            self.normview = state
-        self.panel.normalize.setChecked(self.normview)
-        self.s.normalize()
-        # self.parent.abs.redraw()
-        x = self.plot.vb.getState()['viewRange'][0]
-        self.plot.vb.enableAutoRange()
-        try:
-            self.plot.set_range(x[0], x[-1])
-            self.abs.redraw()
-        except:
-            pass
+        if self.normview != state:
+            if state == None:
+                self.normview = not self.normview
+            else:
+                self.normview = state
+            self.panel.normalize.setChecked(self.normview)
+            self.s.normalize()
+            # self.parent.abs.redraw()
+            x = self.plot.vb.getState()['viewRange'][0]
+            self.plot.vb.enableAutoRange()
+            try:
+                self.plot.set_range(x[0], x[-1])
+                self.abs.redraw()
+            except:
+                pass
 
 
     def setFitModel(self):
