@@ -40,4 +40,5 @@ Thumbs.db
 *.pyc
 **/__pychache__
 /sviewer/output/*
+/sviewer/temp/*
 .idea/
