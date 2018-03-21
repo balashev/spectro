@@ -574,7 +574,7 @@ class image():
 
     def find_nearest(self, x, y):
         if len(self.z.shape) == 2:
-            return self.z[np.searchsorted(self.y, y), np.searchsorted(self.x, x)]
+            return self.z[np.min([self.z.shape[0]-1, np.searchsorted(self.y, y)]), np.min([self.z.shape[1]-1,np.searchsorted(self.x, x)])]
         else:
             return None
 

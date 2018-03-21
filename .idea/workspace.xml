@@ -2,11 +2,11 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="5132e6e0-0142-4809-b82f-5065376acb25" name="Default" comment="">
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sviewer/config/options.ini" afterPath="$PROJECT_DIR$/sviewer/config/options.ini" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sviewer/fit.png" afterPath="$PROJECT_DIR$/sviewer/fit.png" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sviewer/output/chain.pkl" afterPath="$PROJECT_DIR$/sviewer/output/chain.pkl" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sviewer/output/current.pkl" afterPath="$PROJECT_DIR$/sviewer/output/current.pkl" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/misc.xml" afterPath="$PROJECT_DIR$/.idea/misc.xml" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/spectro.iml" afterPath="$PROJECT_DIR$/.idea/spectro.iml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sviewer/config/options.ini" afterPath="$PROJECT_DIR$/sviewer/config/options.ini" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sviewer/graphics.py" afterPath="$PROJECT_DIR$/sviewer/graphics.py" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/sviewer/sviewer.py" afterPath="$PROJECT_DIR$/sviewer/sviewer.py" />
     </list>
     <ignored path="spectro.iws" />
@@ -29,15 +29,21 @@
       <file leaf-file-name="sviewer.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/sviewer/sviewer.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="213">
-              <caret line="4138" column="16" lean-forward="true" selection-start-line="4138" selection-start-column="16" selection-end-line="4138" selection-end-column="16" />
+            <state relative-caret-position="581">
+              <caret line="3810" column="21" lean-forward="true" selection-start-line="3810" selection-start-column="21" selection-end-line="3810" selection-end-column="21" />
               <folding>
                 <element signature="e#0#27#0" expanded="true" />
-                <element signature="e#34209#40268#0" expanded="false" />
-                <element signature="e#40308#48233#0" expanded="false" />
-                <element signature="e#67687#73238#0" expanded="false" />
-                <element signature="e#89799#93026#0" expanded="false" />
               </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="sload.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/../python/sload.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="176">
+              <caret line="8" column="0" lean-forward="false" selection-start-line="8" selection-start-column="0" selection-end-line="8" selection-end-column="0" />
+              <folding />
             </state>
           </provider>
         </entry>
@@ -45,7 +51,7 @@
       <file leaf-file-name="tables.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/sviewer/tables.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="329">
+            <state relative-caret-position="0">
               <caret line="512" column="42" lean-forward="false" selection-start-line="512" selection-start-column="28" selection-end-line="512" selection-end-column="42" />
               <folding>
                 <element signature="e#1053#1931#0" expanded="false" />
@@ -72,8 +78,8 @@
       <file leaf-file-name="a_unc.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/a_unc.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="2839">
-              <caret line="173" column="50" lean-forward="false" selection-start-line="173" selection-start-column="50" selection-end-line="173" selection-end-column="50" />
+            <state relative-caret-position="0">
+              <caret line="174" column="30" lean-forward="false" selection-start-line="174" selection-start-column="30" selection-end-line="174" selection-end-column="30" />
               <folding />
             </state>
           </provider>
@@ -82,7 +88,7 @@
       <file leaf-file-name="pyratio.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pyratio.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1292">
+            <state relative-caret-position="0">
               <caret line="90" column="0" lean-forward="false" selection-start-line="90" selection-start-column="0" selection-end-line="90" selection-end-column="0" />
               <folding />
             </state>
@@ -92,9 +98,11 @@
       <file leaf-file-name="graphics.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/sviewer/graphics.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="193">
-              <caret line="121" column="22" lean-forward="false" selection-start-line="121" selection-start-column="22" selection-end-line="121" selection-end-column="22" />
-              <folding />
+            <state relative-caret-position="770">
+              <caret line="54" column="36" lean-forward="false" selection-start-line="54" selection-start-column="36" selection-end-line="54" selection-end-column="36" />
+              <folding>
+                <marker date="1521557727075" expanded="true" signature="64957:65150" ph="..." />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -102,8 +110,8 @@
       <file leaf-file-name="fit_model.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/sviewer/fit_model.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="11577">
-              <caret line="690" column="37" lean-forward="false" selection-start-line="690" selection-start-column="31" selection-end-line="690" selection-end-column="37" />
+            <state relative-caret-position="0">
+              <caret line="767" column="31" lean-forward="false" selection-start-line="767" selection-start-column="31" selection-end-line="767" selection-end-column="31" />
               <folding>
                 <element signature="e#0#29#0" expanded="true" />
               </folding>
@@ -111,23 +119,14 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="sload.py" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/../sload.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="204">
-              <caret line="12" column="14" lean-forward="false" selection-start-line="12" selection-start-column="14" selection-end-line="12" selection-end-column="14" />
-              <folding />
-            </state>
-          </provider>
-        </entry>
-      </file>
       <file leaf-file-name="fit.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/sviewer/fit.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="4913">
-              <caret line="293" column="63" lean-forward="false" selection-start-line="293" selection-start-column="63" selection-end-line="293" selection-end-column="63" />
+            <state relative-caret-position="0">
+              <caret line="328" column="0" lean-forward="false" selection-start-line="328" selection-start-column="0" selection-end-line="328" selection-end-column="0" />
               <folding>
                 <element signature="e#0#21#0" expanded="true" />
+                <marker date="1521483426923" expanded="true" signature="13537:13899" ph="..." />
               </folding>
             </state>
           </provider>
@@ -144,9 +143,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>0643</find>
-      <find>mv</find>
-      <find>q.mv</find>
       <find>0347</find>
       <find>update</find>
       <find>MCMCwid</find>
@@ -174,6 +170,9 @@
       <find>interval</find>
       <find>MCMC</find>
       <find>Lya sam</find>
+      <find>remove</find>
+      <find>g_line</find>
+      <find>drop</find>
     </findStrings>
     <replaceStrings>
       <replace>statusBar.setText</replace>
@@ -217,14 +216,14 @@
         <option value="$PROJECT_DIR$/sviewer/sdss_fit.py" />
         <option value="$USER_HOME$/papers/H2Stack/work/plot_distr.py" />
         <option value="$PROJECT_DIR$/sviewer/tables.py" />
-        <option value="$PROJECT_DIR$/../../Telikova/scripts/Relationships.py" />
+        <option value="$USER_HOME$/Telikova/scripts/Relationships.py" />
         <option value="$PROJECT_DIR$/../temp/untitled0.py" />
         <option value="$PROJECT_DIR$/XQ100.py" />
         <option value="$PROJECT_DIR$/plot_spec.py" />
         <option value="$PROJECT_DIR$/sdss.py" />
         <option value="$PROJECT_DIR$/sviewer/lines.py" />
         <option value="$PROJECT_DIR$/H2.py" />
-        <option value="$PROJECT_DIR$/../../boisse/HE0001-2340/results/compare.py" />
+        <option value="$USER_HOME$/boisse/HE0001-2340/results/compare.py" />
         <option value="$PROJECT_DIR$/sviewer/console.py" />
         <option value="$PROJECT_DIR$/profiles.py" />
         <option value="$PROJECT_DIR$/sviewer/fit.py" />
@@ -247,9 +246,10 @@
     <detection-done>true</detection-done>
   </component>
   <component name="ProjectFrameBounds" extendedState="6">
-    <option name="x" value="-20" />
-    <option name="width" value="2578" />
-    <option name="height" value="1408" />
+    <option name="x" value="2004" />
+    <option name="y" value="473" />
+    <option name="width" value="1920" />
+    <option name="height" value="1023" />
   </component>
   <component name="ProjectInspectionProfilesVisibleTreeState">
     <entry key="Project Default">
@@ -286,8 +286,6 @@
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
-      <pane id="Scope" />
-      <pane id="Scratches" />
       <pane id="ProjectPane">
         <subPane>
           <expand>
@@ -304,12 +302,14 @@
           <select />
         </subPane>
       </pane>
+      <pane id="Scratches" />
+      <pane id="Scope" />
     </panes>
   </component>
   <component name="PropertiesComponent">
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="last_opened_file_path" value="C:/Anaconda3/python.exe" />
-    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
+    <property name="settings.editor.selected.configurable" value="editor.preferences.fonts.default" />
     <property name="SearchEverywhereHistoryKey" value="&#9;FILE&#9;file://D:/science/python/spectro/sviewer/graphics.py" />
   </component>
   <component name="PyConsoleOptionsProvider">
@@ -518,12 +518,12 @@
         <env name="PYTHONUNBUFFERED" value="1" />
       </envs>
       <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/../../boisse/HE0001-2340/results" />
+      <option name="WORKING_DIRECTORY" value="$USER_HOME$/boisse/HE0001-2340/results" />
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <module name="spectro" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/../../boisse/HE0001-2340/results/compare.py" />
+      <option name="SCRIPT_NAME" value="$USER_HOME$/boisse/HE0001-2340/results/compare.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -591,18 +591,18 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="-7" y="-7" width="2063" height="1255" extended-state="6" />
+    <frame x="1920" y="-6" width="2560" height="1535" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.19337016" sideWeight="0.4952153" order="2" side_tool="false" content_ui="combo" />
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.1078125" sideWeight="0.4952153" order="2" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32986626" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.19121684" sideWeight="0.42390758" order="5" side_tool="true" content_ui="tabs" />
-      <window_info id="Run" active="true" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.33751884" sideWeight="0.23205742" order="6" side_tool="false" content_ui="tabs" />
+      <window_info id="Run" active="true" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.22148438" sideWeight="0.22984244" order="6" side_tool="false" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
-      <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.32387924" sideWeight="0.5760924" order="8" side_tool="false" content_ui="tabs" />
+      <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.2083639" sideWeight="0.5760924" order="8" side_tool="false" content_ui="tabs" />
       <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.0647482" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
       <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.3263889" sideWeight="0.49840128" order="7" side_tool="false" content_ui="tabs" />
-      <window_info id="Debug" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33765182" sideWeight="0.7679426" order="4" side_tool="true" content_ui="tabs" x="0" y="0" width="2560" height="1390" />
+      <window_info id="Debug" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.30859375" sideWeight="0.7701576" order="4" side_tool="true" content_ui="tabs" x="0" y="0" width="2560" height="1390" />
       <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.1285786" sideWeight="0.5047847" order="0" side_tool="true" content_ui="tabs" />
       <window_info id="Data View" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32876712" sideWeight="0.49024707" order="5" side_tool="false" content_ui="tabs" />
       <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
@@ -686,7 +686,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/sviewer/fit_model.py</url>
-          <line>383</line>
+          <line>405</line>
           <option name="timeStamp" value="136" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
@@ -711,22 +711,28 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/sviewer/sviewer.py</url>
-          <line>506</line>
+          <line>519</line>
           <option name="timeStamp" value="194" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/atomic.py</url>
-          <line>383</line>
+          <line>466</line>
           <option name="timeStamp" value="198" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/atomic.py</url>
-          <line>384</line>
+          <line>467</line>
           <option name="timeStamp" value="201" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/sviewer/sviewer.py</url>
-          <option name="timeStamp" value="206" />
+          <url>file://$PROJECT_DIR$/sviewer/graphics.py</url>
+          <line>686</line>
+          <option name="timeStamp" value="209" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/sviewer/graphics.py</url>
+          <line>797</line>
+          <option name="timeStamp" value="212" />
         </line-breakpoint>
       </breakpoints>
       <breakpoints-dialog>
@@ -739,7 +745,7 @@
           </properties>
         </breakpoint>
       </default-breakpoints>
-      <option name="time" value="207" />
+      <option name="time" value="213" />
     </breakpoint-manager>
     <watches-manager>
       <configuration name="PythonConfigurationType">
@@ -748,73 +754,18 @@
     </watches-manager>
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$USER_HOME$/anaconda3/lib/python3.6/site-packages/pyqtgraph/widgets/GraphicsView.py" />
     <entry file="file://$USER_HOME$/anaconda3/lib/python3.6/site-packages/pyqtgraph/widgets/PlotWidget.py" />
     <entry file="file://$USER_HOME$/anaconda3/lib/python3.6/site-packages/astropy/io/fits/util.py" />
-    <entry file="file://C:/Anaconda3/Lib/site-packages/numpy/lib/polynomial.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="371">
-          <caret line="549" column="0" lean-forward="false" selection-start-line="549" selection-start-column="0" selection-end-line="549" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/sympy/polys/polyerrors.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="305">
-          <caret line="71" column="30" lean-forward="false" selection-start-line="71" selection-start-column="27" selection-end-line="71" selection-end-column="30" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/pyqtgraph/graphicsItems/PlotCurveItem.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1074">
-          <caret line="130" column="0" lean-forward="false" selection-start-line="130" selection-start-column="0" selection-end-line="130" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/numpy/polynomial/chebyshev.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="306">
-          <caret line="1168" column="17" lean-forward="true" selection-start-line="1168" selection-start-column="17" selection-end-line="1168" selection-end-column="17" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/scikits/datasmooth/__init__.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="34">
-          <caret line="2" column="0" lean-forward="true" selection-start-line="2" selection-start-column="0" selection-end-line="2" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://C:/Anaconda3/Lib/site-packages/numpy/lib/polynomial.py" />
+    <entry file="file://C:/Anaconda3/Lib/site-packages/sympy/polys/polyerrors.py" />
+    <entry file="file://C:/Anaconda3/Lib/site-packages/pyqtgraph/graphicsItems/PlotCurveItem.py" />
+    <entry file="file://C:/Anaconda3/Lib/site-packages/numpy/polynomial/chebyshev.py" />
+    <entry file="file://C:/Anaconda3/Lib/site-packages/scikits/datasmooth/__init__.py" />
     <entry file="file://$PROJECT_DIR$/sviewer/external/regularsmooth.py" />
-    <entry file="file://C:/Anaconda3/Lib/site-packages/scikits/datasmooth/regularsmooth.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-1377">
-          <caret line="33" column="8" lean-forward="false" selection-start-line="33" selection-start-column="8" selection-end-line="33" selection-end-column="8" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/../temp/untitled0.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="374">
-          <caret line="22" column="0" lean-forward="false" selection-start-line="22" selection-start-column="0" selection-end-line="28" selection-end-column="40" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/../../Telikova/scripts/Relationships.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="255">
-          <caret line="15" column="10" lean-forward="false" selection-start-line="15" selection-start-column="10" selection-end-line="15" selection-end-column="10" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$USER_HOME$/.PyCharmCE2017.2/system/python_stubs/1013586911/builtins.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="386">
-          <caret line="475" column="4" lean-forward="false" selection-start-line="475" selection-start-column="4" selection-end-line="475" selection-end-column="4" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://C:/Anaconda3/Lib/site-packages/scikits/datasmooth/regularsmooth.py" />
+    <entry file="file://$PROJECT_DIR$/../temp/untitled0.py" />
+    <entry file="file://$USER_HOME$/Telikova/scripts/Relationships.py" />
+    <entry file="file://$USER_HOME$/.PyCharmCE2017.2/system/python_stubs/1013586911/builtins.py" />
     <entry file="file://$PROJECT_DIR$/XQ100.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="556">
@@ -829,27 +780,9 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$USER_HOME$/.PyCharmCE2017.2/system/python_stubs/1013586911/h5py/h5t.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-12903">
-          <caret line="100" column="4" lean-forward="false" selection-start-line="100" selection-start-column="4" selection-end-line="100" selection-end-column="4" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/h5py/_hl/group.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="947">
-          <caret line="107" column="0" lean-forward="false" selection-start-line="107" selection-start-column="0" selection-end-line="107" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/h5py/_hl/dataset.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="947">
-          <caret line="96" column="0" lean-forward="false" selection-start-line="96" selection-start-column="0" selection-end-line="96" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://$USER_HOME$/.PyCharmCE2017.2/system/python_stubs/1013586911/h5py/h5t.py" />
+    <entry file="file://C:/Anaconda3/Lib/site-packages/h5py/_hl/group.py" />
+    <entry file="file://C:/Anaconda3/Lib/site-packages/h5py/_hl/dataset.py" />
     <entry file="file://$PROJECT_DIR$/sviewer/__main__.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="175">
@@ -864,13 +797,7 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/h5py/_hl/files.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="284">
-          <caret line="100" column="0" lean-forward="false" selection-start-line="100" selection-start-column="0" selection-end-line="100" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://C:/Anaconda3/Lib/site-packages/h5py/_hl/files.py" />
     <entry file="file://$PROJECT_DIR$/H2.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="570">
@@ -878,20 +805,8 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/numpy/lib/_datasource.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="97">
-          <caret line="489" column="57" lean-forward="false" selection-start-line="489" selection-start-column="57" selection-end-line="489" selection-end-column="57" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/../../boisse/HE0001-2340/results/compare.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="675">
-          <caret line="30" column="47" lean-forward="false" selection-start-line="30" selection-start-column="47" selection-end-line="30" selection-end-column="47" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://C:/Anaconda3/Lib/site-packages/numpy/lib/_datasource.py" />
+    <entry file="file://$USER_HOME$/boisse/HE0001-2340/results/compare.py" />
     <entry file="file://$APPLICATION_HOME_DIR$/helpers/pydev/pydevd.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="299">
@@ -906,13 +821,7 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/pyqtgraph/exceptionHandling.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="279">
-          <caret line="70" column="0" lean-forward="false" selection-start-line="70" selection-start-column="0" selection-end-line="70" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://C:/Anaconda3/Lib/site-packages/pyqtgraph/exceptionHandling.py" />
     <entry file="file://$PROJECT_DIR$/profiles.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="9618">
@@ -920,33 +829,13 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/PyQt5/QtWidgets.pyi">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="475">
-          <caret line="7226" column="8" lean-forward="false" selection-start-line="7226" selection-start-column="8" selection-end-line="7226" selection-end-column="8" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/../H2_summary.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="21">
-          <caret line="470" column="80" lean-forward="false" selection-start-line="470" selection-start-column="80" selection-end-line="470" selection-end-column="80" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://C:/Anaconda3/Lib/collections/__init__.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4746">
-          <caret line="227" column="8" lean-forward="false" selection-start-line="227" selection-start-column="8" selection-end-line="227" selection-end-column="8" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://C:/Anaconda3/Lib/site-packages/PyQt5/QtWidgets.pyi" />
+    <entry file="file://$PROJECT_DIR$/../H2_summary.py" />
+    <entry file="file://C:/Anaconda3/Lib/collections/__init__.py" />
     <entry file="file://$PROJECT_DIR$/sviewer/fit_model.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="11577">
-          <caret line="690" column="37" lean-forward="false" selection-start-line="690" selection-start-column="31" selection-end-line="690" selection-end-column="37" />
+        <state relative-caret-position="0">
+          <caret line="767" column="31" lean-forward="false" selection-start-line="767" selection-start-column="31" selection-end-line="767" selection-end-column="31" />
           <folding>
             <element signature="e#0#29#0" expanded="true" />
           </folding>
@@ -955,48 +844,24 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/sviewer/fit.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4913">
-          <caret line="293" column="63" lean-forward="false" selection-start-line="293" selection-start-column="63" selection-end-line="293" selection-end-column="63" />
+        <state relative-caret-position="0">
+          <caret line="328" column="0" lean-forward="false" selection-start-line="328" selection-start-column="0" selection-end-line="328" selection-end-column="0" />
           <folding>
             <element signature="e#0#21#0" expanded="true" />
+            <marker date="1521483426923" expanded="true" signature="13537:13899" ph="..." />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://C:/Anaconda3/Lib/threading.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="19089">
-          <caret line="915" column="0" lean-forward="false" selection-start-line="915" selection-start-column="0" selection-end-line="915" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/emcee/ensemble.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2758">
-          <caret line="197" column="0" lean-forward="false" selection-start-line="197" selection-start-column="0" selection-end-line="197" selection-end-column="0" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/pyqtgraph/numpy_fix.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="252">
-          <caret line="12" column="0" lean-forward="false" selection-start-line="12" selection-start-column="0" selection-end-line="12" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://C:/Anaconda3/Lib/threading.py" />
+    <entry file="file://C:/Anaconda3/Lib/site-packages/emcee/ensemble.py" />
+    <entry file="file://C:/Anaconda3/Lib/site-packages/pyqtgraph/numpy_fix.py" />
     <entry file="file://$PROJECT_DIR$/sviewer/fit.png">
       <provider selected="true" editor-type-id="images">
         <state />
       </provider>
     </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/matplotlib/axes/_base.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="326">
-          <caret line="243" column="0" lean-forward="false" selection-start-line="243" selection-start-column="0" selection-end-line="243" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://C:/Anaconda3/Lib/site-packages/matplotlib/axes/_base.py" />
     <entry file="file://$PROJECT_DIR$/sviewer/utils.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="6111">
@@ -1005,14 +870,7 @@
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/sviewer/MCMC.py" />
-    <entry file="file://$PROJECT_DIR$/../sload.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="204">
-          <caret line="12" column="14" lean-forward="false" selection-start-line="12" selection-start-column="14" selection-end-line="12" selection-end-column="14" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://$PROJECT_DIR$/../sload.py" />
     <entry file="file://$PROJECT_DIR$/atomic.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="315">
@@ -1028,23 +886,11 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/sklearn/utils/validation.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="326">
-          <caret line="409" column="0" lean-forward="false" selection-start-line="409" selection-start-column="0" selection-end-line="409" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://C:/Anaconda3/Lib/site-packages/sklearn/neighbors/kde.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="326">
-          <caret line="124" column="0" lean-forward="false" selection-start-line="124" selection-start-column="0" selection-end-line="124" selection-end-column="0" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://C:/Anaconda3/Lib/site-packages/sklearn/utils/validation.py" />
+    <entry file="file://C:/Anaconda3/Lib/site-packages/sklearn/neighbors/kde.py" />
     <entry file="file://$PROJECT_DIR$/pyratio.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1292">
+        <state relative-caret-position="0">
           <caret line="90" column="0" lean-forward="false" selection-start-line="90" selection-start-column="0" selection-end-line="90" selection-end-column="0" />
           <folding />
         </state>
@@ -1052,8 +898,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/a_unc.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2839">
-          <caret line="173" column="50" lean-forward="false" selection-start-line="173" selection-start-column="50" selection-end-line="173" selection-end-column="50" />
+        <state relative-caret-position="0">
+          <caret line="174" column="30" lean-forward="false" selection-start-line="174" selection-start-column="30" selection-end-line="174" selection-end-column="30" />
           <folding />
         </state>
       </provider>
@@ -1070,7 +916,7 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/sviewer/tables.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="329">
+        <state relative-caret-position="0">
           <caret line="512" column="42" lean-forward="false" selection-start-line="512" selection-start-column="28" selection-end-line="512" selection-end-column="42" />
           <folding>
             <element signature="e#1053#1931#0" expanded="false" />
@@ -1081,24 +927,30 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/../python/sload.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="176">
+          <caret line="8" column="0" lean-forward="false" selection-start-line="8" selection-start-column="0" selection-end-line="8" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/sviewer/graphics.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="193">
-          <caret line="121" column="22" lean-forward="false" selection-start-line="121" selection-start-column="22" selection-end-line="121" selection-end-column="22" />
-          <folding />
+        <state relative-caret-position="770">
+          <caret line="54" column="36" lean-forward="false" selection-start-line="54" selection-start-column="36" selection-end-line="54" selection-end-column="36" />
+          <folding>
+            <marker date="1521557727075" expanded="true" signature="64957:65150" ph="..." />
+          </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/sviewer/sviewer.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="213">
-          <caret line="4138" column="16" lean-forward="true" selection-start-line="4138" selection-start-column="16" selection-end-line="4138" selection-end-column="16" />
+        <state relative-caret-position="581">
+          <caret line="3810" column="21" lean-forward="true" selection-start-line="3810" selection-start-column="21" selection-end-line="3810" selection-end-column="21" />
           <folding>
             <element signature="e#0#27#0" expanded="true" />
-            <element signature="e#34209#40268#0" expanded="false" />
-            <element signature="e#40308#48233#0" expanded="false" />
-            <element signature="e#67687#73238#0" expanded="false" />
-            <element signature="e#89799#93026#0" expanded="false" />
           </folding>
         </state>
       </provider>

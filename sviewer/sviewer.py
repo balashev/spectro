@@ -4302,7 +4302,7 @@ class sviewer(QMainWindow):
                 elif filename.endswith('.dat'):
                     s.spec2d = None
 
-        self.s.draw()
+        self.s.redraw()
 
     def showExportDialog(self):
 
