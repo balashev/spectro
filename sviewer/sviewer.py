@@ -4046,7 +4046,7 @@ class sviewer(QMainWindow):
                         f.write('Bcont:  {}\n'.format(s.spline.n))
                         if s.spline.n > 0:
                             for x, y in zip(s.spline.x, s.spline.y):
-                                f.write('{0:10.4f}  {1:10.4f} \n'.format(x, y))
+                                f.write('{0:10.4f}  {1:10.4e} \n'.format(x, y))
 
                     # >>> save fitting points:
                     if 'points' in self.save_opt:
