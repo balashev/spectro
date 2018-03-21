@@ -39,6 +39,4 @@ Thumbs.db
 # Python cached
 *.pyc
 **/__pychache__
-/sviewer/output/*
-/sviewer/temp/*
 .idea/
