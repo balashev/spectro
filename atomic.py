@@ -323,7 +323,7 @@ class line():
     def __str__(self):
         if any([ind in self.name for ind in ['H2', 'HD', 'CO']]) and self.j_l is not None:
             d = {-2: 'O', -1: 'P', 0: 'Q', 1: 'R', 2: 'S'}
-            return '{0} {1} {2}-{3}{4}{5}'.format(self.name, self.band, self.nu_u, self.nu_l, d[self.j_u-self.j_l], self.j_l)
+            return '{0} {1}{2}-{3}{4}{5}'.format(self.name, self.band, self.nu_u, self.nu_l, d[self.j_u-self.j_l], self.j_l)
         else:
             return self.name + ' ' + str(self.l())[:str(self.l()).find('.')+3]
     
@@ -404,6 +404,8 @@ class atomicData(OrderedDict):
                         for attr in ['j_l', 'nu_l', 'j_u', 'nu_u']:
                             if 'None' not in ref[attr]:
                                 setattr(l, attr, int(ref[attr]))
+                        if 'None' not in ref['band']:
+                            setattr(l, 'band', ref['band'])
                         if linelist is None or any([str(l) in lin or lin in str(l) for lin in linelist]):
                             lines.append(l)
 
@@ -652,15 +654,16 @@ class atomicData(OrderedDict):
             dt = h5py.special_dtype(vlen=str)
             ds = grp.create_dataset('ref', shape=(len(self[el].lines),),
                                     dtype=np.dtype([('l', float), ('ind', int), ('descr', dt), ('j_l', dt),
-                                                       ('nu_l', dt), ('j_u', dt), ('nu_u', dt)]))
+                                                       ('nu_l', dt), ('j_u', dt), ('nu_u', dt), ('band', dt)]))
             lines = grp.create_group('lines')
             #ref = np.empty(len(self[el].lines), dtype=[('l', float), ('ind', int), ('descr', 'S')])
             for i, l in enumerate(self[el].lines):
-                    ds[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u))
-                    lin = lines.create_dataset(str(i), shape=(len(l.ref),), dtype = np.dtype([('l', float), ('f', float), ('g', float), ('ref', dt)]))
-                    for k in range(len(l.ref)):
-                        lin[k] = (l.wavelength[k], l.oscillator[k], l.gamma[k], l.ref[k])
-                    #ref[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u)) #.encode("ascii", "ignore"))
+                print(str(l), l.band)
+                ds[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u), str(l.band))
+                lin = lines.create_dataset(str(i), shape=(len(l.ref),), dtype = np.dtype([('l', float), ('f', float), ('g', float), ('ref', dt)]))
+                for k in range(len(l.ref)):
+                    lin[k] = (l.wavelength[k], l.oscillator[k], l.gamma[k], l.ref[k])
+                #ref[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u)) #.encode("ascii", "ignore"))
 
     def readdatabase(self):
         self.data = h5py.File(os.path.dirname(os.path.realpath(__file__)) + r'/data/atomic.hdf5', 'r')

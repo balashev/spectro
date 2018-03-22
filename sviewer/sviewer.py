@@ -1824,7 +1824,7 @@ class fitMCMCWidget(QWidget):
         grid.addWidget(self.bestfit, 2, 0)
         self.results = QTextEdit('')
         self.results.setFixedSize(500, 400)
-        self.results.setText('# fit results here')
+        self.results.setText('# fit results are here')
         grid.addWidget(self.results, 3, 1)
         self.chooseShow = chooseShowParsWidget(self)
         self.chooseShow.setFixedSize(200, 800)
@@ -2029,6 +2029,7 @@ class fitMCMCWidget(QWidget):
                 self.results.setText(self.results.toPlainText() + p + ': ' + res.latex(f=f) + '\n')
                 vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
                 d.plot(conf=0.683, ax=ax[vert, hor])
+                ax[vert, hor].set_title(pars[i])
         plt.show()
 
 

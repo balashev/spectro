@@ -1,21 +1,21 @@
-show CO
+ston
+ston
+ston
+ston
+ston
+ston
+ston
 show H2 0 1
-show HD
-hide CO
-hide HD
-show HD 0
-show SiII
-show CO
-show CO 0 1 2
-hide all
-show CI
-show HI
-y 0 4
-cton
-ston
-ston
-ston
-ston
-ston
-ston
+CI*
+show CI*
+show CI**
+HD
+HD 1
+H2
+HDj0
+show H2 1
+show CI*
+show CI**
+hide CI**
+hide CI*
 ston
