@@ -944,7 +944,7 @@ class atomicData(OrderedDict):
         s.readdatabase()
         if isinstance(n, int):
             return s.list(['H2j'+str(i) for i in range(n)])
-        else:
+        elif isinstance(n, (list, tuple)):
             return s.list(['H2j' + str(i) for i in n])
 
     

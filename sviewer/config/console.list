@@ -1,21 +1,21 @@
-ston
-ston
-ston
-ston
+show H2 0 1
+show H2 0 1
 ston
 ston
 ston
 show H2 0 1
-CI*
-show CI*
-show CI**
-HD
-HD 1
-H2
-HDj0
+show H2 0
 show H2 1
-show CI*
-show CI**
-hide CI**
-hide CI*
-ston
+show H2 0 1
+show H2 0 1
+save stack
+load stack
+load stack
+load stack
+rescale err 0.3
+show CII*
+H2j0
+FeII
+load stack
+rescale err 0.3
+rescale err 1.2

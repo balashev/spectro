@@ -63,7 +63,7 @@ class plot_spec(list):
         - readlist    :  read the path to lines from the file with the list
         -
     """
-    def __init__(self, arg, vel_scale=False, font=14, font_labels=16, fit=True, figure=None, gray_out=False):
+    def __init__(self, arg, vel_scale=False, font=14, font_labels=16, fit=True, figure=None, gray_out=False, show_comps=True):
         self.vel_scale = vel_scale
         self.name_pos = [0.02, 0.19]
         self.add_ioniz = False
@@ -71,7 +71,7 @@ class plot_spec(list):
         self.font_labels = font_labels
         self.fit = fit
         self.figure = figure
-        self.show_comps = True
+        self.show_comps = show_comps
         self.gray_out = gray_out
 
         if isinstance(arg, int):
@@ -491,7 +491,7 @@ class plotline():
         # >>> correct continuum
         try:
             if self.add_cont:
-                cont = np.genfromtxt('_cont.'.join(f.rsplit('.', 1)), unpack=True)
+                cont = np.genfromtxt('_cont.'.join(self.filename[0].rsplit('.', 1)), unpack=True)
                 ax.plot(cont[0], cont[1], '-', color=col.tableau10[0])
         except:
             pass
@@ -500,9 +500,11 @@ class plotline():
         if self.show_fit:
 
             # >>> plot fit components
+            # >>> plot fit components
             if self.show_comps:
-                for k in range(len(self.fit.comp)):
-                    ax.plot(self.fit.x, self.fit.comp[k], color=self.parent.color[k], ls=self.parent.ls[k],
+                for k in range(self.num_comp):
+                    self.fit_comp[k].mask(self.x_min, self.x_max)
+                    ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k],
                             lw=self.parent.lw[k])
 
             # >>> plot joint fit
@@ -520,7 +522,7 @@ class plotline():
                 ax.text(0.98*self.x_max, null_res+delt_res*3, r'+3$\sigma$', fontsize=self.font-4, color=col.tableau20[10], ha='right', va='center')
                 ax.axhline(null_res-delt_res*3, color=col.tableau20[11], ls='--')
                 ax.text(0.98*self.x_max, null_res-delt_res*3, r'-3$\sigma$', fontsize=self.font-4, color=col.tableau20[10], ha='right', va='center')
-                fit = interpolate.interp1d(data_fit[0], data_fit[1], bounds_error=False)
+                fit = interpolate.interp1d(self.fit.x, self.fit.y, bounds_error=False)
                 try:
                     if sum(data[3]) > 0:
                         k = (data[3] == 1)
@@ -590,22 +592,23 @@ class plotline():
                 for c in self.fit.comp:
                     c = c / sum_cont
 
-    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5], pos=0.86, dpos=0.03, color='royalblue'):
+    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5], pos=0.86, dpos=0.03, color='royalblue', show_ticks=True):
         if 1:
             ymin, ymax = ax.get_ylim()
             pos, dpos = ymin + pos * (ymax - ymin), dpos * (ymax - ymin)
             print(pos, dpos)
-        lines = atomicData.Malec(levels)
-        lines = [l for l in lines if l.l*(1+self.parent.z_ref) > ax.get_xlim()[0] and l.l*(1+self.parent.z_ref) < ax.get_xlim()[1]]
+        lines = atomicData.H2(levels)
+        lines = [l for l in lines if l.l()*(1+self.parent.z_ref) > ax.get_xlim()[0] and l.l()*(1+self.parent.z_ref) < ax.get_xlim()[1]]
         s = [str(line).split()[1][:2] for line in lines]
         for band in s:
             b_lines = [line for line in lines if band in str(line)]
-            l = [line.l for line in b_lines]
+            l = [line.l() for line in b_lines]
             if 1:
-                for line in b_lines:
-                    if line.j_l in levels:
-                        ax.plot([line.l * (1 + self.parent.z_ref), line.l * (1 + self.parent.z_ref)], [pos, pos + dpos], lw=0.75, color=color, ls='-')
-                ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)], [pos + dpos, pos + dpos], lw=0.75, color=color, ls='-')
+                if show_ticks:
+                    for line in b_lines:
+                        if line.j_l in levels:
+                            ax.plot([line.l() * (1 + self.parent.z_ref), line.l() * (1 + self.parent.z_ref)], [pos, pos + dpos], lw=0.75, color=color, ls='-')
+                    ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)], [pos + dpos, pos + dpos], lw=0.75, color=color, ls='-')
             ax.text(np.min(l) * (1 + self.parent.z_ref), pos + dpos, band + '-0', ha='left', va='bottom', fontsize=self.parent.font-4, color=color)
 
 

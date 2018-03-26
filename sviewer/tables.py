@@ -4,6 +4,7 @@ Created on Thu Dec 22 11:45:49 2016
 
 @author: Serj
 """
+from astropy.io import fits
 import fileinput
 import numpy as np
 import os
@@ -14,9 +15,10 @@ from PyQt5.QtWidgets import (QApplication, )
 from scipy.interpolate import interp1d
 
 from spectro.sdss import SDSS
+from .external import spectres
 from .fit import fitPars
-from .utils import add_field, slice_fields
 from .lyaforest import Lyaforest_scan, plotLyalines
+from .utils import add_field, slice_fields
 
 def _defersort(fn):
     def defersort(self, *args, **kwds):
@@ -207,6 +209,8 @@ class QSOlistTable(pg.TableWidget):
             self.parent.fit.setValue('z_0', 9, 'max')
             self.parent.fit.setValue('b_0_HI', 200, 'max')
             self.filename_saved = ''
+        if self.cat == 'Vandels':
+            self.setWindowTitle('Vandels catalog')
         if self.cat is None:
             self.setWindowTitle('QSO list of files')
         self.cellDoubleClicked.connect(self.row_clicked)
@@ -216,20 +220,24 @@ class QSOlistTable(pg.TableWidget):
 
         if 'SDSS' in self.cat:
             self.contextMenu.addAction('Save spectra').triggered.connect(self.saveSpectra)
-        if 'Lya' == self.cat:
+        if self.cat == 'Lya':
             self.contextMenu.addSeparator()
             self.contextMenu.addAction('Save data').triggered.connect(self.saveData)
             self.contextMenu.addAction('Save continuum').triggered.connect(self.saveCont)
             self.contextMenu.addAction('Save norm').triggered.connect(self.saveNorm)
             self.contextMenu.addAction('Lya scan').triggered.connect(self.scan)
-        if 'Lyalines' == self.cat:
+        if self.cat == 'Lyalines':
             self.contextMenu.addSeparator()
             self.contextMenu.addAction('Plot data').triggered.connect(self.plotLines)
             self.contextMenu.addAction('Save doublets').triggered.connect(self.saveDoublets)
             self.cellChanged.connect(self.saveLines)
+        if self.cat == 'Vandels':
+            self.contextMenu.addSeparator()
+            self.contextMenu.addAction('Stack').triggered.connect(self.makeStack)
 
     def setdata(self, data):
         self.data = data
+        #print(self.data.dtype)
         self.setData(data)
         if self.format is not None:
             for k, v in self.format.items():
@@ -367,6 +375,33 @@ class QSOlistTable(pg.TableWidget):
                     self.lyalines.set_data(slice_fields(self.data, ['N', 'b', 'Nerr', 'berr', 'comment']))
             except:
                 pass
+
+    def makeStack(self):
+        z_low, z_up = 4, 10
+        l = np.linspace(900, 2000, 2500)
+        s, serr, sw = np.zeros_like(l), np.zeros_like(l), np.zeros_like(l)
+        for d in self.data:
+            if d['zspec'] > z_low and d['zspec'] < z_up and d['zflg'] in [2, 3, 4, 14]:
+                print(d['zspec'])
+                hdulist = fits.open(self.folder + '/' + d['FILENAME'])
+                prihdr = hdulist[1].data
+                x, f, err = prihdr[0][0] / (1+float(d['zspec'])), prihdr[0][1]*1e17, prihdr[0][2]*1e17
+                mask = (x > 1410) * (x < 1510)
+                n = np.mean(f[mask])
+                ston = n / np.sqrt(np.mean(err[mask]**2))
+                w = 1 / (ston**(-2) + 0.1**2)
+                print(n, ston, w)
+                #print(x, f, err)
+                mask = (l > x[2]) * (l < x[-3])
+                f, err = spectres.spectres(x, f, l[mask], spec_errs=err)
+                m = np.logical_not(err == 0)
+                s[mask] += m * (f / n) * w
+                err = (err / n)**(-2)
+                err[np.isinf(err)] = 0
+                serr[mask] += err * w
+                sw[mask] += m * w
+        print(l, s, serr)
+        self.parent.importSpectrum('stack', spec=[l, s / sw, (serr / sw)**(-.5)])
 
     def row_clicked(self, row=None):
 
@@ -554,6 +589,13 @@ class QSOlistTable(pg.TableWidget):
                 if 'me' in self.cell_value('comment'):
                     self.parent.setz_abs(self.cell_value('comment').split('_')[2])
 
+        if self.cat == 'Vandels':
+            if colInd in [0]:
+                filename = self.folder + '/' + self.cell_value('FILENAME')
+                self.parent.importSpectrum(filename)
+                self.parent.vb.enableAutoRange()
+                self.parent.import2dSpectrum(filename.replace('.fits', '_2D.fits'))
+                self.parent.setz_abs(self.cell_value('zspec'))
         if load_spectrum:
 
             self.parent.importSpectrum(filename)

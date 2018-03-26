@@ -789,6 +789,7 @@ class spec2dWidget(pg.PlotWidget):
 
     def initstatus(self):
         self.s_status = False
+        self.r_status = False
 
     def addLines(self):
         # self.addItem(pg.InfiniteLine(0.0, 0, pen=pg.mkPen(color=(100, 100, 100), width=1, style=Qt.DashLine)))
@@ -814,27 +815,35 @@ class spec2dWidget(pg.PlotWidget):
         key = event.key()
 
         if not event.isAutoRepeat():
+            if event.key() == Qt.Key_R:
+                self.r_status = True
+                self.vb.setMouseMode(self.vb.RectMode)
+
             if event.key() == Qt.Key_S:
                 self.s_status = True
                 self.vb.setMouseEnabled(x=False, y=False)
-                #self.vb.setMouseMode(self.vb.RectMode)
-                #print(self.vb.state['mouseMode'])
 
     def keyReleaseEvent(self, event):
-        super(spec2dWidget, self).keyReleaseEvent(event)
-        key = event.key()
+        #super(spec2dWidget, self).keyReleaseEvent(event)
 
         if not event.isAutoRepeat():
 
+            if event.key() == Qt.Key_R:
+                self.r_status = False
+
             if event.key() == Qt.Key_S:
                 self.s_status = False
-                #self.vb.setMouseMode(self.vb.PanMode)
-                #self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
 
             if any([event.key() == getattr(Qt, 'Key_'+s) for s in ['S']]):
                 self.vb.setMouseEnabled(x=True, y=True)
-                #self.vb.setMouseMode(self.vb.PanMode)
+
+            if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'SR']):
+                self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
+
+        if event.isAccepted():
+            super(spec2dWidget, self).keyReleaseEvent(event)
+
 
     def mousePressEvent(self, event):
         super(spec2dWidget, self).mousePressEvent(event)
@@ -842,14 +851,34 @@ class spec2dWidget(pg.PlotWidget):
             self.s_status = 2
             self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
 
+        if any([getattr(self, s + '_status') for s in 'r']):
+            self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
+
     def mouseReleaseEvent(self, event):
-        super(spec2dWidget, self).mouseReleaseEvent(event)
-        #super(spec2dWidget, self).mouseReleaseEvent(event)
+        if any([getattr(self, s+'_status') for s in 'r']):
+            self.vb.setMouseMode(self.vb.PanMode)
+            self.vb.rbScaleBox.hide()
+
         if any([getattr(self, s + '_status') for s in 's']):
             self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
 
-        #if event.isAccepted():
-        #    super(spec2dWidget, self).mouseReleaseEvent(event)
+        if self.r_status:
+            print(self.mousePoint_saved, self.mousePoint)
+
+            x, y = self.parent.s[self.parent.s.ind].spec2d.raw.collapse(rect=[[np.min([self.mousePoint_saved.x(), self.mousePoint.x()]),
+                                                                               np.max([self.mousePoint_saved.x(), self.mousePoint.x()])],
+                                                                              [np.min([self.mousePoint_saved.y(), self.mousePoint.y()]),
+                                                                               np.max([self.mousePoint_saved.y(), self.mousePoint.y()])]
+                                                                             ])
+            d = distr1d(x, y)
+            d.dopoint()
+            d.dointerval()
+            print(d.point, d.interval)
+            d.plot(conf=0.683)
+            plt.show()
+
+        if event.isAccepted():
+            super(spec2dWidget, self).mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event):
         super(spec2dWidget, self).mouseMoveEvent(event)
@@ -899,6 +928,7 @@ class spec2dWidget(pg.PlotWidget):
                 self.dataSelection(MouseRectCoords)
             else:
                 self.updateScaleBox(ev.buttonDownPos(), ev.pos())
+
 
 class preferencesWidget(QWidget):
     def __init__(self, parent):
@@ -3181,6 +3211,7 @@ class sviewer(QMainWindow):
         self.XQ100folder = self.options('XQ100folder', config=self.config)
         self.P94folder = self.options('P94folder', config=self.config)
         self.work_folder = self.options('work_folder', config=self.config)
+        self.VandelsFile = self.options('VandelsFile', config=self.config)
         self.IGMspecfile = self.options('IGMspecfile', config=self.config)
         self.z_abs = 0
         self.lines = []
@@ -3656,6 +3687,13 @@ class sviewer(QMainWindow):
         Lyalines.triggered.connect(self.showLyalines)
         LyaforestMenu.addAction(Lyalines)
 
+        Vandels = None
+
+        if self.VandelsFile is not None and os.path.isfile(self.VandelsFile):
+            Vandels = QAction('&Vandels', self)
+            Vandels.setStatusTip('load Vandels catalog')
+            Vandels.triggered.connect(self.showVandels)
+
         IGMspecMenu = None
         if self.IGMspecfile is not None and os.path.isfile(self.IGMspecfile):
             IGMspecMenu = QMenu('&IGMspec', self)
@@ -3673,6 +3711,8 @@ class sviewer(QMainWindow):
         samplesMenu.addAction(P94list)
         samplesMenu.addAction(DLAlist)
         samplesMenu.addMenu(LyaforestMenu)
+        if Vandels is not None:
+            samplesMenu.addAction(Vandels)
         samplesMenu.addSeparator()
         if IGMspecMenu is not None:
             samplesMenu.addMenu(IGMspecMenu)
@@ -3923,7 +3963,10 @@ class sviewer(QMainWindow):
                         try:
                             if all([slash not in specname for slash in ['/', '\\']]):
                                 specname = folder + '/' + specname
-                            self.importSpectrum(specname, append=True)
+                            if not self.importSpectrum(specname, append=True):
+                                st = re.findall(r'spec-\d{4}-\d{5}-\d+', specname)
+                                if len(st) > 0:
+                                    self.loadSDSS(plate=st[0].split('-')[1], fiber=st[0].split('-')[3])
                             ind = len(self.s) - 1
                         except:
                             pass
@@ -4168,15 +4211,18 @@ class sviewer(QMainWindow):
                                 prihdr = hdulist[1].data
                                 s.set_data([prihdr[0][0][:]*10, prihdr[0][1][:]*1e17, prihdr[0][2][:]*1e17])
 
-                            if 'UVES' in hdulist[0].header['INSTRUME']:
+                            if any([instr in hdulist[0].header['INSTRUME'] for instr in ['UVES', 'VIMOS']]):
                                 prihdr = hdulist[1].data
                                 l = prihdr[0][0][:]
-                                s.set_data([l, prihdr[0][1][:], prihdr[0][2][:]])
+                                coef = 1e17 if 'VIMOS' in hdulist[0].header['INSTRUME'] else 1
+                                s.set_data([l, prihdr[0][1][:]*coef, prihdr[0][2][:]*coef])
                                 if 'SPEC_RES' in hdulist[0].header:
                                     s.resolution = hdulist[0].header['SPEC_RES']
                                 if 'DATE-OBS' in hdulist[0].header:
                                     s.date = hdulist[0].header['DATE-OBS']
                                 print(s.resolution, s.date)
+
+
                             try:
                                 if corr:
                                     s.helio_vel = hdulist[0].header['HIERARCH ESO QC VRAD HELICOR']
@@ -4187,6 +4233,8 @@ class sviewer(QMainWindow):
                                 pass
                         except:
                             print('fits file was not loaded')
+                            return False
+
                     elif 'TELESCOP' in hdulist[0].header:
                         try:
                             if 'SDSS' in hdulist[0].header['TELESCOP']:
@@ -4210,7 +4258,8 @@ class sviewer(QMainWindow):
                                 s.cont.set_data(l, cont)
                                 s.resolution = 2000
                         except:
-                            pass
+                            return False
+
                     elif 'ORIGIN' in hdulist[0].header:
                         if hdulist[0].header['ORIGIN'] == 'ESO-MIDAS':
                             prihdr = hdulist[1].data
@@ -4234,6 +4283,7 @@ class sviewer(QMainWindow):
                                 s.set_data([prihdr[0][0][:], prihdr[0][1][:], prihdr[0][2][:]])
                         except:
                             print('aborted Hadi fits')
+                            return False
                 else:
                     try:
                         args = line.split()
@@ -4252,11 +4302,13 @@ class sviewer(QMainWindow):
                             print('resolution: ', args[1])
 
                     except Exception as inst:
-                        print(type(inst))    # the exception instance
-                        print(inst.args)     # arguments stored in .args
-                        print(inst)
-                        print('aborted dat')
-                        raise Exception
+                        #print(type(inst))    # the exception instance
+                        #print(inst.args)     # arguments stored in .args
+                        #print(inst)
+                        #print('aborted dat')
+                        #raise Exception
+                        return False
+
             else:
                 s.set_data(spec)
 
@@ -4290,16 +4342,27 @@ class sviewer(QMainWindow):
 
                 if filename.endswith('.fits'):
                     hdulist = fits.open(filename)
-                    if 'INSTRUME' in hdulist[0].header:
-                        if 'XSHOOTER' in hdulist[0].header['INSTRUME']:
-                            zero = hdulist[0].header['CRVAL1'] * 10
-                            x = np.linspace(hdulist[0].header['CRVAL1'] * 10,
-                                            hdulist[0].header['CRVAL1'] * 10 + hdulist[0].header['CDELT1'] * 10 * hdulist[0].data.shape[1],
-                                            hdulist[0].data.shape[1])
-                            y = np.linspace(hdulist[0].header['CRVAL2'],
-                                            hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] * hdulist[0].data.shape[0],
-                                            hdulist[0].data.shape[0])
-                            s.spec2d.set(x=x, y=y, z=hdulist[0].data)
+                    if 'INSTRUME' in hdulist[0].header and 'XSHOOTER' in hdulist[0].header['INSTRUME']:
+                        x = np.linspace(hdulist[0].header['CRVAL1'] * 10,
+                                        hdulist[0].header['CRVAL1'] * 10 + hdulist[0].header['CDELT1'] * 10 *
+                                        hdulist[0].data.shape[1],
+                                        hdulist[0].data.shape[1])
+                        y = np.linspace(hdulist[0].header['CRVAL2'],
+                                        hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] *
+                                        hdulist[0].data.shape[0],
+                                        hdulist[0].data.shape[0])
+                        s.spec2d.set(x=x, y=y, z=hdulist[0].data)
+                    if 'ORIGFILE' in hdulist[0].header and 'VANDELS' in hdulist[0].header['ORIGFILE']:
+                        x = np.linspace(hdulist[0].header['CRVAL1'],
+                                        hdulist[0].header['CRVAL1'] + hdulist[0].header['CDELT1'] * hdulist[0].data.shape[1],
+                                        hdulist[0].data.shape[1])
+                        y = np.linspace(hdulist[0].header['CRVAL2'],
+                                        hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] *
+                                        hdulist[0].data.shape[0],
+                                        hdulist[0].data.shape[0])
+                        s.spec2d.set(x=x, y=y, z=hdulist[0].data)
+
+
                 elif filename.endswith('.dat'):
                     s.spec2d = None
 
@@ -5371,6 +5434,12 @@ class sviewer(QMainWindow):
             #mask = (self.Lyalines['t'] != 'b') * (self.Lyalines['chi'] < 1.3)
             self.Lyalinestable.setdata(self.Lyalines[mask])
             #self.data = add_field(self.Lyalines[mask], [('ind', int)], np.arange(len(self.Lyalines[mask])))
+
+    def showVandels(self):
+        data = np.genfromtxt(self.VandelsFile, delimiter=',', names=True,
+                             dtype=('U19', '<f8', '<f8', '<f8', 'U12', '<f8', 'U10', '<f8', 'U9', '<i4', '<f8', '<f8', '<f8', '<f8', 'U24'))
+        self.Vandelstable = QSOlistTable(self, 'Vandels', folder=os.path.dirname(self.VandelsFile))
+        self.Vandelstable.setdata(data)
 
     def showIGMspec(self, cat, data=None):
         self.IGMspecTable = IGMspecTable(self, cat)

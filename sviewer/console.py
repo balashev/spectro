@@ -181,13 +181,13 @@ class Console(QTextEdit):
 
         elif args[0] == 'load':
             if len(args) == 2:
-                self.parent.openFile('data/templates/'+args[1]+'.sss')
+                self.parent.openFile('data/templates/'+args[1]+'.spv')
                 self.parent.fit.sys[0].z.val = self.parent.z_abs
                 self.parent.fit.sys[0].zrange(1000.0)
 
         elif args[0] == 'save':
             if len(args) == 2:
-                self.parent.saveFile('data/templates/'+args[1]+'.sss')
+                self.parent.saveFile('data/templates/'+args[1])
 
         elif args[0] == 'show':
 
