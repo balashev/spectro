@@ -164,7 +164,6 @@ class plotSpectrum(pg.PlotWidget):
 
     def keyPressEvent(self, event):
         super(plotSpectrum, self).keyPressEvent(event)
-        key = event.key()
 
         if not event.isAutoRepeat():
 
@@ -789,6 +788,7 @@ class spec2dWidget(pg.PlotWidget):
 
     def initstatus(self):
         self.s_status = False
+        self.r_status = False
 
     def addLines(self):
         # self.addItem(pg.InfiniteLine(0.0, 0, pen=pg.mkPen(color=(100, 100, 100), width=1, style=Qt.DashLine)))
@@ -814,27 +814,35 @@ class spec2dWidget(pg.PlotWidget):
         key = event.key()
 
         if not event.isAutoRepeat():
+            if event.key() == Qt.Key_R:
+                self.r_status = True
+                self.vb.setMouseMode(self.vb.RectMode)
+
             if event.key() == Qt.Key_S:
                 self.s_status = True
                 self.vb.setMouseEnabled(x=False, y=False)
-                #self.vb.setMouseMode(self.vb.RectMode)
-                #print(self.vb.state['mouseMode'])
 
     def keyReleaseEvent(self, event):
-        super(spec2dWidget, self).keyReleaseEvent(event)
-        key = event.key()
+        #super(spec2dWidget, self).keyReleaseEvent(event)
 
         if not event.isAutoRepeat():
 
+            if event.key() == Qt.Key_R:
+                self.r_status = False
+
             if event.key() == Qt.Key_S:
                 self.s_status = False
-                #self.vb.setMouseMode(self.vb.PanMode)
-                #self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
 
             if any([event.key() == getattr(Qt, 'Key_'+s) for s in ['S']]):
                 self.vb.setMouseEnabled(x=True, y=True)
-                #self.vb.setMouseMode(self.vb.PanMode)
+
+            if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'SR']):
+                self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
+
+        if event.isAccepted():
+            super(spec2dWidget, self).keyReleaseEvent(event)
+
 
     def mousePressEvent(self, event):
         super(spec2dWidget, self).mousePressEvent(event)
@@ -842,14 +850,34 @@ class spec2dWidget(pg.PlotWidget):
             self.s_status = 2
             self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
 
+        if any([getattr(self, s + '_status') for s in 'r']):
+            self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
+
     def mouseReleaseEvent(self, event):
-        super(spec2dWidget, self).mouseReleaseEvent(event)
-        #super(spec2dWidget, self).mouseReleaseEvent(event)
+        if any([getattr(self, s+'_status') for s in 'r']):
+            self.vb.setMouseMode(self.vb.PanMode)
+            self.vb.rbScaleBox.hide()
+
         if any([getattr(self, s + '_status') for s in 's']):
             self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
 
-        #if event.isAccepted():
-        #    super(spec2dWidget, self).mouseReleaseEvent(event)
+        if self.r_status:
+            print(self.mousePoint_saved, self.mousePoint)
+
+            x, y = self.parent.s[self.parent.s.ind].spec2d.raw.collapse(rect=[[np.min([self.mousePoint_saved.x(), self.mousePoint.x()]),
+                                                                               np.max([self.mousePoint_saved.x(), self.mousePoint.x()])],
+                                                                              [np.min([self.mousePoint_saved.y(), self.mousePoint.y()]),
+                                                                               np.max([self.mousePoint_saved.y(), self.mousePoint.y()])]
+                                                                             ])
+            d = distr1d(x, y)
+            d.dopoint()
+            d.dointerval()
+            print(d.point, d.interval)
+            d.plot(conf=0.683)
+            plt.show()
+
+        if event.isAccepted():
+            super(spec2dWidget, self).mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event):
         super(spec2dWidget, self).mouseMoveEvent(event)

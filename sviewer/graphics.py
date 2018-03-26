@@ -578,6 +578,17 @@ class image():
         else:
             return None
 
+    def collapse(self, axis='x', rect=None):
+        if rect is None:
+            rect = [[self.x[0], self.x[-1]], [self.y[0], self.y[-1]]]
+        self.y_imin, self.y_imax = np.searchsorted(self.y, rect[1][0]), np.searchsorted(self.y, rect[1][1])
+        self.x_imin, self.x_imax = np.searchsorted(self.x, rect[0][0]), np.searchsorted(self.x, rect[0][1])
+        s_axis = 'y' if axis == 'x' else 'x'
+        ind = 1 if axis == 'x' else 0
+        #print(self.x_imin, self.x_imax, self.y_imin, self.y_imax)
+        return getattr(self, s_axis)[getattr(self, s_axis+'_imin'):getattr(self, s_axis+'_imax')], \
+               np.sum(self.z[self.y_imin:self.y_imax, self.x_imin:self.x_imax], axis=ind)
+
 class spec2d():
     def __init__(self, parent):
         self.parent = parent
