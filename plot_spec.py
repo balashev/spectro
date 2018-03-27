@@ -248,8 +248,8 @@ class plotline():
         self.x_locator = MultipleLocator(100)
         self.y_minorLocator = AutoMinorLocator(10)
         self.y_locator = MultipleLocator(1)
-        self.x_formater = None
-        self.y_formater = None
+        self.x_formatter = None
+        self.y_formatter = None
         self.add_residual = True
         self.font = self.parent.font
         self.font_labels = self.parent.font_labels
@@ -425,10 +425,10 @@ class plotline():
         ax.tick_params(axis='both', which='major', labelsize=self.font-2)
 
         # >>> set axis ticks formater:
-        if self.y_formater is not None:
-            ax.yaxis.set_major_formatter(FormatStrFormatter(self.y_formater))
-        if self.x_formater is not None:
-            ax.xaxis.set_major_formatter(FormatStrFormatter(self.x_formater))
+        if self.y_formatter is not None:
+            ax.yaxis.set_major_formatter(FormatStrFormatter(self.y_formatter))
+        if self.x_formatter is not None:
+            ax.xaxis.set_major_formatter(FormatStrFormatter(self.x_formatter))
 
         # >>> set axis labels:
         if self.ylabel is not None:
@@ -554,10 +554,13 @@ class plotline():
         ax.tick_params(axis='both', which='major', labelsize=self.font-2)
 
         # >>> set axis ticks formater:
-        if self.y_formater is not None:
-            ax.yaxis.set_major_formatter(FormatStrFormatter(self.y_formater))
-        if self.x_formater is not None:
-            ax.xaxis.set_major_formatter(FormatStrFormatter(self.x_formater))
+        print('formater', self.y_formatter)
+        if self.y_formatter is not None:
+            ax.yaxis.set_major_formatter(FormatStrFormatter(self.y_formatter))
+        else:
+            ax.yaxis.set_major_formatter(FormatStrFormatter('%0.1f'))
+        if self.x_formatter is not None:
+            ax.xaxis.set_major_formatter(FormatStrFormatter(self.x_formatter))
 
         # >>> set axis labels:
         if self.ylabel is not None:
@@ -592,7 +595,7 @@ class plotline():
                 for c in self.fit.comp:
                     c = c / sum_cont
 
-    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5], pos=0.86, dpos=0.03, color='royalblue', show_ticks=True):
+    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5], pos=0.84, dpos=0.05, color='royalblue', show_ticks=True):
         if 1:
             ymin, ymax = ax.get_ylim()
             pos, dpos = ymin + pos * (ymax - ymin), dpos * (ymax - ymin)

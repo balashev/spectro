@@ -259,6 +259,7 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
 
     print(name, Nmin, Nmax, b)
     ind = 0
+    ESDLA = '_ESDLA' if 'sstack' in name else ''
     if not load:
         if 'metal' in name:
             beta = np.linspace(-1.8, -1.3, ngrid)
@@ -305,7 +306,9 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
         beta_min, norm_min = d.point[0], d.point[1]
 
         if 1:
-            ax = d.plot_contour(conf_levels=[0.6827, 0.9973], xlabel=r'$\beta$', ylabel=r'$\log$(r)', color='k', cmap=None, alpha=0, colorbar=False, ls=['-', '--'])
+            font, xlabel = 24, r'$\beta$'
+            ax = d.plot_contour(conf_levels=[0.6827, 0.9973], xlabel=xlabel, ylabel=r'$\log$(r)', color='k',
+                                color_point='red', cmap=None, alpha=0, colorbar=False, ls=['-', '--'], font=font)
             ax.set_xlim([-1.75, -0.75])
             ax.set_ylim([-1.7, -0.0])
             if rvs:
@@ -361,8 +364,8 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
             ax.tick_params(which='both', width=1)
             ax.tick_params(which='major', length=5)
             ax.tick_params(which='minor', length=3)
-            ax.tick_params(axis='both', which='major', labelsize=16)
-            ax.legend(loc='best', fontsize=12, frameon=None, facecolor=None, framealpha=0)
+            ax.tick_params(axis='both', which='major', labelsize=font-2)
+            ax.legend(loc='best', fontsize=font-2, frameon=None, facecolor=None, framealpha=0)
             plt.tight_layout()
             plt.savefig('C:/science/papers/H2Stack/figures/contour.pdf')
         if 0:
@@ -381,6 +384,7 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
 
     x, spec = makeH2Stack(self, beta=beta_min, Nmin=Nmin, Nmax=Nmax, b=b, norm=norm_min, draw=False)
     self.fit.setValue('cf_0', 1 - 10**norm_min)
+    self.fit.setValue('cf_0', 'sys0_exp0', 'addinfo')
     self.s[ind].spec.norm.err *= rescale
     self.s[ind].set_fit(x=x, y=spec)
     self.s.chi2()
@@ -388,6 +392,14 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
         self.importSpectrum('best_fit={:.2f}_min={:.1f}_max={:.1f}'.format(bf_beta, Nmin, Nmax), spec=[self.s[ind].fit.x(), self.s[ind].fit.y()], append=True)
         self.s[-1].spec.norm = self.s[-1].spec.raw
     self.s.redraw()
+    if draw:
+        self.showLines(show=False)
+        print('C:/science/papers/H2Stack/work/fig_H2_Mass'+ESDLA)
+        self.showlines.loadSettings('C:/science/papers/H2Stack/work/fig_H2_Mass'+ESDLA)
+        self.regions = ['1044..1119']
+        self.showlines.y_formatter = '%.2f'
+        fig = self.showlines.showPlot(True, showH2=[0, 1, 2, 3])
+
 
 def makeHIStack(self, beta=-1.5, N_g=None, Nmin=20.0, Nmax=22.0, load=True, draw=True):
     #>>> make/load templates:
@@ -457,7 +469,7 @@ def HIStackFitPower(self, load=True, draw=True):
     z = np.exp(- (z - np.min(z.flatten()))/rescale**2)
     d = distr1d(beta, z, debug=True)
     d.dopoint()
-    d.interval()
+    d.dointerval()
     beta_min = d.point
     ax = d.plot(conf=0.683, color='dodgerblue', xlabel=r'$\beta$')
     ax.set_xlim([-1.84, -1.79])
@@ -478,7 +490,7 @@ def HIStackFitPower(self, load=True, draw=True):
         #for b in beta:
         #    x, spec = self.makeHIStack(beta=b, Nmin=20, Nmax=22, draw=False)
         #    fig.axes[0].plot(x, spec, '-b', lw=0.5, alpha=0.1)
-        beta = d.interval()
+        beta = d.dointerval()
         x, spec1 = makeHIStack(self, beta=beta[0][0], Nmin=20, Nmax=22, draw=False)
         x, spec2 = makeHIStack(self, beta=beta[0][1], Nmin=20, Nmax=22, draw=False)
         fig.axes[0].plot(x, spec1, '-', c='dodgerblue', lw=0.5)
@@ -491,11 +503,11 @@ def HIStackFitPower(self, load=True, draw=True):
                 self.fit.setValue('z_0', 0)
                 self.fit.setValue('N_0_HI', N)
                 self.showFit()
-                fig.axes[0].plot(self.s[0].fit.x(), self.s[0].fit.y(), '--k', lw=0.5)
+                fig.axes[0].plot(self.s[0].fit.x(), self.s[0].fit.y(), '--k', lw=0.5, zorder=0)
                 lines = plt.gca().get_lines()
-                labelLine(lines[-1], loc, label='{:.1f}'.format(N), fontsize=11)
-        ax2 = fig.add_axes([.70, .30, .27, .41])
-        d.plot(conf=0.683, ax=ax2, color='dodgerblue', xlabel=r'$\beta$')
+                labelLine(lines[-1], loc, label='{:.1f}'.format(N), fontsize=18, zorder=1)
+        ax2 = fig.add_axes([.70, .34, .27, .41])
+        d.plot(conf=0.683, ax=ax2, color='dodgerblue', xlabel=r'$\beta$', fontsize=22)
         ax2.set_xlim([-1.85, -1.785])
         ax2.xaxis.set_minor_locator(AutoMinorLocator(2))
         ax2.xaxis.set_major_locator(MultipleLocator(0.02))

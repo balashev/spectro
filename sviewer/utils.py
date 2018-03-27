@@ -158,7 +158,7 @@ def dms_to_deg(coord):
     return d + (m * 60 + s) / 3600
 
 #Label line with line2D label data
-def labelLine(line,x,label=None,align=True,**kwargs):
+def labelLine(line, x, label=None, align=True, **kwargs):
 
     ax = line.get_axes()
     xdata = line.get_xdata()
@@ -213,9 +213,9 @@ def labelLine(line,x,label=None,align=True,**kwargs):
         kwargs['zorder'] = 2.5
 
     print(x, y, label, trans_angle)
-    ax.text(x,y,label,rotation=trans_angle,**kwargs)
+    ax.text(x, y, label, rotation=trans_angle, **kwargs)
 
-def labelLines(lines,align=True,xvals=None,**kwargs):
+def labelLines(lines, align=True, xvals=None, **kwargs):
 
     ax = lines[0].get_axes()
     labLines = []
@@ -230,10 +230,10 @@ def labelLines(lines,align=True,xvals=None,**kwargs):
 
     if xvals is None:
         xmin,xmax = ax.get_xlim()
-        xvals = np.linspace(xmin,xmax,len(labLines)+2)[1:-1]
+        xvals = np.linspace(xmin, xmax, len(labLines)+2)[1:-1]
 
-    for line,x,label in zip(labLines,xvals,labels):
-        labelLine(line,x,label,align,**kwargs)
+    for line, x, label in zip(labLines, xvals, labels):
+        labelLine(line, x, label, align, **kwargs)
 
 
 class roman():

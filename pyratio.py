@@ -45,7 +45,7 @@ class distr1d():
     def level(self, x, level):
         return self.inter(x) - level
 
-    def plot(self, conf=None, color='orangered', ax=None, xlabel=None, ylabel=None):
+    def plot(self, conf=None, color='orangered', ax=None, xlabel=None, ylabel=None, fontsize=16):
         if ax is None:
             fig, ax = plt.subplots()
         ax.plot(self.x, self.y, '-', color=color, lw=1.5)
@@ -54,13 +54,14 @@ class distr1d():
             mask = np.logical_and(self.x > x[0], self.x < x[1])
             ax.fill_between(self.x[mask], self.y[mask], facecolor=color, alpha=0.3, interpolate=True)
 
+        ax.tick_params(axis='both', which='major', labelsize=fontsize - 2)
         if xlabel is not None:
-            ax.set_xlabel(xlabel)
+            ax.set_xlabel(xlabel, fontsize=fontsize)
 
         if ylabel is None:
-            ax.set_ylabel('pdf')
+            ax.set_ylabel('pdf', fontsize=fontsize)
         else:
-            ax.set_ylabel(ylabel)
+            ax.set_ylabel(ylabel, fontsize=fontsize)
         return ax
 
     def minmax(self, level):
@@ -299,7 +300,7 @@ class distr2d():
                     w.addItem(line)
         app.instance().exec_()
 
-    def plot_contour(self, conf_levels=None, ax=None, xlabel='', ylabel='', color='orangered', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False, ls=None):
+    def plot_contour(self, conf_levels=None, ax=None, xlabel='', ylabel='', color='orangered', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False, ls=None, font=18):
         if ax == None:
             fig, ax = plt.subplots()
         self.dopoint()
@@ -324,8 +325,10 @@ class distr2d():
         ax.scatter(self.point[0], self.point[1], s=200, color=color_point, edgecolors='k', marker='*', zorder=50)
         if colorbar:
             fig.colorbar(cs, ax=ax) #, shrink=0.9)
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
+        ax.set_xlabel(xlabel, fontsize=font)
+        ax.set_ylabel(ylabel, fontsize=font)
+        ax.tick_params(axis='both', which='major', labelsize=30)
+
         return ax
 
     def marginalize(self, over='y'):

@@ -1166,6 +1166,8 @@ class showLinesWidget(QWidget):
             #print(opt, self.parent.options(opt), func(self.parent.options(opt)))
             setattr(self, opt, func(self.parent.options(opt)))
 
+        self.y_formatter = None
+
     def initGUI(self):
         hlayout = QHBoxLayout()
         self.setLayout(hlayout)
@@ -1286,7 +1288,7 @@ class showLinesWidget(QWidget):
         l = QHBoxLayout()
         self.showButton = QPushButton("Show")
         self.showButton.setFixedSize(110, 30)
-        self.showButton.clicked.connect(partial(self.showPlot, True))
+        self.showButton.clicked.connect(partial(self.showPlot, True, []))
         expButton = QPushButton("Export")
         expButton.setFixedSize(110, 30)
         expButton.clicked.connect(self.savePlot)
@@ -1403,7 +1405,7 @@ class showLinesWidget(QWidget):
     def onIndChoose(self):
         self.sys_ind = self.refcomp.currentIndex() + 1
 
-    def showPlot(self, plot=True):
+    def showPlot(self, plot=True, showH2=[]):
         if not self.parent.normview:
             self.parent.normalize()
         if plot:
@@ -1415,25 +1417,25 @@ class showLinesWidget(QWidget):
 
         if not self.regions:
             print(self.parent.lines, type(self.parent.lines[0]))
-            ps = plot_spec(len(self.parent.lines), font=self.font, font_labels=self.font_labels,
+            self.ps = plot_spec(len(self.parent.lines), font=self.font, font_labels=self.font_labels,
                            vel_scale=(self.units=='l'), gray_out=self.gray_out, figure=fig)
             rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order, height=0.9,
                                v_indent=self.v_indent, h_indent=self.h_indent,
                                col_offset=self.col_offset, row_offset=self.row_offset)
-            ps.specify_rects(rects)
-            ps.set_ticklabels()
-            ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
-            ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
-            ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
-            ps.specify_styles()
+            self.ps.specify_rects(rects)
+            self.ps.set_ticklabels()
+            self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
+            self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
+            self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
+            self.ps.specify_styles()
             if len(self.parent.fit.sys) > 0:
                 ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
             else:
                 ps.z_ref = self.parent.z_abs
-            for i, p in enumerate(ps):
-                p.name = ' '.join(self.parent.lines[ps.index(p)].split()[:2])
-                if len(self.parent.lines[ps.index(p)].split()) > 2:
-                    ind = int(self.parent.lines[ps.index(p)].split()[2])
+            for i, p in enumerate(self.ps):
+                p.name = ' '.join(self.parent.lines[self.ps.index(p)].split()[:2])
+                if len(self.parent.lines[self.ps.index(p)].split()) > 2:
+                    ind = int(self.parent.lines[self.ps.index(p)].split()[2])
                 else:
                     ind = self.parent.s.ind
                 print(ind)
@@ -1451,39 +1453,40 @@ class showLinesWidget(QWidget):
                     fit_comp = None
                 print(fit)
                 p.loaddata(d=np.array([s.spec.x(), s.spec.y(), s.spec.err(), s.mask.x()]), f=fit, fit_comp=fit_comp)
-                if len(self.parent.lines[ps.index(p)].split()) == 4:
-                    p.y_min, p.y_max = (float(l) for l in self.parent.lines[ps.index(p)].split()[2:])
+                if len(self.parent.lines[self.ps.index(p)].split()) == 4:
+                    p.y_min, p.y_max = (float(l) for l in self.parent.lines[self.ps.index(p)].split()[2:])
                 for l in self.parent.abs.lines:
                     if p.name == str(l.line):
                         p.wavelength = l.line.l()
                 p.show_comps = self.show_comps
                 p.name_pos = [self.name_x_pos, self.name_y_pos]
                 p.add_residual, p.sig = self.residuals, self.res_sigma
+                p.y_formatter = self.y_formatter
                 ax = p.plot_line()
         else:
-            ps = plot_spec(len(self.parent.regions), font=self.font, font_labels=self.font_labels,
+            self.ps = plot_spec(len(self.parent.regions), font=self.font, font_labels=self.font_labels,
                            vel_scale=True, gray_out=self.gray_out, figure=fig)
             rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order, height=0.9, width=0.99,
                                v_indent=self.v_indent, h_indent=self.h_indent,
                                col_offset=self.col_offset, row_offset=self.row_offset)
-            ps.specify_rects(rects)
+            self.ps.specify_rects(rects)
             if self.ylabel.strip() != '':
-                ps.set_ticklabels(ylabel=self.ylabel)
+                self.ps.set_ticklabels(ylabel=self.ylabel)
             else:
-                ps.set_ticklabels(ylabel=None)
+                self.ps.set_ticklabels(ylabel=None)
             if self.xlabel.strip() != '':
-                ps.set_ticklabels(xlabel=self.xlabel)
+                self.ps.set_ticklabels(xlabel=self.xlabel)
             else:
-                ps.set_ticklabels(xlabel=None)
-            ps.z_ref = self.parent.z_abs
-            ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
-            ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
-            ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
-            ps.specify_styles()
-            for i, p in enumerate(ps):
+                self.ps.set_ticklabels(xlabel=None)
+            self.ps.z_ref = self.parent.z_abs
+            self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
+            self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
+            self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
+            self.ps.specify_styles()
+            for i, p in enumerate(self.ps):
                 st = self.parent.regions[i].split()
                 p.x_min, p.x_max = (float(st) for st in st[0].split('..'))
-                p.y_formater = '%.2f'
+                #p.y_formater = '%.1f'
                 for s in st[1:]:
                     if 'name' in s:
                         p.name = s[4:]
@@ -1512,17 +1515,18 @@ class showLinesWidget(QWidget):
                 p.show_comps = self.show_comps
                 p.name_pos = [self.name_x_pos, self.name_y_pos]
                 p.add_residual, p.sig = self.residuals, self.res_sigma
+                p.y_formatter = self.y_formatter
                 ax = p.plot_line()
                 if self.parent.fit.cf_fit:
                     for i in range(self.parent.fit.cf_num):
                         attr = 'cf_' + str(i)
                         if hasattr(self.parent.fit, attr):
-                            p = getattr(self.parent.fit, attr)
-                            if p.addinfo.find('exp') > -1 and int(p.addinfo[p.addinfo.find('exp')+3:]) == ind:
-                                ax.plot([p.min, p.max], [p.val, p.val], '--', color='orangered')
+                            cf = getattr(self.parent.fit, attr)
+                            if cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind:
+                                ax.plot([cf.min, cf.max], [cf.val, cf.val], '--', color='orangered')
 
-                if 0:
-                    p.showH2(ax, levels=[0, 1, 2, 3])
+                if len(showH2)>0:
+                    p.showH2(ax, levels=showH2)
                 if 0:
                     self.showContCorr(ax=ax)
 
@@ -1540,10 +1544,11 @@ class showLinesWidget(QWidget):
         #self.mw.getFigure().savefig(self.file.text())
 
     def saveSettings(self):
-        fname = QFileDialog.getSaveFileName(self, 'Save settings...', self.parent.work_folder)
+        fname = QFileDialog.getSaveFileName(self, 'Save settings...', self.parent.plot_set_folder)[0]
+        self.parent.options('plot_set_folder', os.path.dirname(fname))
 
-        if fname[0]:
-            f = open(fname[0], "wb")
+        if fname:
+            f = open(fname, "wb")
             o = deepcopy(self.opts)
             for opt, func in self.opts.items():
                 o[opt] = func(getattr(self, opt))
@@ -1559,10 +1564,9 @@ class showLinesWidget(QWidget):
             ax.plot(self.parent.s[self.parent.s.ind].cheb.x(), self.parent.s[self.parent.s.ind].cheb.y(), '-', lw=0.5, color='mediumseagreen')
 
     def loadSettings(self, fname=None):
-        print(fname)
         if fname is None:
-            fname = QFileDialog.getOpenFileName(self, 'Load settings...', self.parent.work_folder)[0]
-
+            fname = QFileDialog.getOpenFileName(self, 'Load settings...', self.parent.plot_set_folder)[0]
+            self.parent.options('plot_set_folder', os.path.dirname(fname))
         if fname:
             f = open(fname, "rb")
             o = pickle.load(f)
@@ -3211,6 +3215,7 @@ class sviewer(QMainWindow):
         self.XQ100folder = self.options('XQ100folder', config=self.config)
         self.P94folder = self.options('P94folder', config=self.config)
         self.work_folder = self.options('work_folder', config=self.config)
+        self.plot_set_folder = self.options('plot_set_folder', config=self.config)
         self.VandelsFile = self.options('VandelsFile', config=self.config)
         self.IGMspecfile = self.options('IGMspecfile', config=self.config)
         self.z_abs = 0
