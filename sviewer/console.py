@@ -187,7 +187,7 @@ class Console(QTextEdit):
 
         elif args[0] == 'save':
             if len(args) == 2:
-                self.parent.saveFile('data/templates/'+args[1])
+                self.parent.saveFile('data/templates/'+args[1]+'.spv')
 
         elif args[0] == 'show':
 

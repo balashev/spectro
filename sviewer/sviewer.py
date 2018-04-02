@@ -2275,7 +2275,7 @@ class loadSDSSwidget(QWidget):
         lbl.move(20, 180)
         self.name = QLineEdit(self)
         self.name.setMaxLength(30)
-        self.name.setFixedSize(200, 20)
+        self.name.setFixedSize(200, 30)
         # self.fiber.setInputMask('9999')
         self.name.move(20, 200)
         
@@ -3631,7 +3631,11 @@ class sviewer(QMainWindow):
         SDSSlist = QAction('&SDSS list', self)        
         SDSSlist.setStatusTip('SDSS list')
         SDSSlist.triggered.connect(self.show_SDSS_list)
-                
+
+        SDSSSearchH2 = QAction('&Search H2', self)
+        SDSSSearchH2.setStatusTip('Search H2 absorption systems')
+        SDSSSearchH2.triggered.connect(self.search_H2)
+
         SDSSH2cand = QAction('&Show H2 cand.', self)        
         SDSSH2cand.setStatusTip('Show H2 cand.')
         SDSSH2cand.triggered.connect(self.show_H2_cand)
@@ -3659,6 +3663,7 @@ class sviewer(QMainWindow):
         SDSSMenu.addAction(SDSSLeelist)
         SDSSMenu.addAction(SDSSlist)
         SDSSMenu.addSeparator()
+        SDSSMenu.addAction(SDSSSearchH2)
         SDSSMenu.addAction(SDSSH2cand)
         SDSSMenu.addSeparator()
         SDSSMenu.addAction(SDSSStack)
@@ -5105,7 +5110,10 @@ class sviewer(QMainWindow):
             self.SDSSlist.setdata(self.SDSSdata)
         else:
             self.statusBar.setText('No SDSS list is loaded')
-    
+
+    def search_H2(self):
+        search_H2(self, z_abs=self.z_abs)
+
     def show_H2_cand(self):
         self.mw = MatplotlibWidget(size=(200,100), dpi=100)
         self.mw.move(QPoint(100,100))

@@ -1,5 +1,4 @@
 show H2 0 1
-show H2 0 1
 ston
 ston
 ston
@@ -19,3 +18,4 @@ FeII
 load stack
 rescale err 0.3
 rescale err 1.2
+show H2 0 1

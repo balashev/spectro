@@ -285,11 +285,22 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
             pickle.dump((beta, norm, z), f)
     else:
         beta, norm, z = pickle.load(open('C:/Temp/H2stack_'+name.replace('.dat', '')+'_{:.1f}_{:.1f}_{:.1f}.dat'.format(Nmin, Nmax, b), 'rb'))
-        print(beta, norm, z)
+        #print(beta, norm, z)
 
     rvs = False
     if draw:
+        # >>> mask some problem at beta=-1
+        if 1:
+            i = np.argwhere(beta == -1)[0]
+            print(i)
+            if len(i) > 0:
+                beta = np.delete(beta, i[0])
+                print(beta, z)
+                z = np.delete(z, i[0], 1)
+                print(z.shape)
+
         Beta, Norm = np.meshgrid(beta, norm)
+
         rescale = np.sqrt(np.nanmin(z.flatten()) / (np.sum(self.s[ind].fit_mask.x()) - 2))
         print(np.nanmin(z.flatten()),  np.sum(self.s[ind].fit_mask.x()))
         print('rescale', rescale)
@@ -399,7 +410,6 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
         self.regions = ['1044..1119']
         self.showlines.y_formatter = '%.2f'
         fig = self.showlines.showPlot(True, showH2=[0, 1, 2, 3])
-
 
 def makeHIStack(self, beta=-1.5, N_g=None, Nmin=20.0, Nmax=22.0, load=True, draw=True):
     #>>> make/load templates:
@@ -579,6 +589,75 @@ def HIStackFitGamma(self, load=True, draw=True):
     self.s[-1].set_fit(x=x, y=spec)
     self.s.chi2()
     self.s.redraw()
+
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+def make_H2_template(self):
+    self.console.exec_command('load H2_2')
+    H2_range = np.linspace(19, 21, 10)
+    spec = None
+    for i, H2 in enumerate(H2_range):
+        print(i)
+        self.fit.sys[0].sp['H2j0'].N.val = H2 - 0.4
+        self.fit.sys[0].sp['H2j1'].N.val = H2 - 0.1
+        self.generate(template='const', z=0.0, fit=True,
+                      xmin=910, xmax=1150, resolution=1800, lyaforest=0,
+                      )
+        if spec is None:
+            x = self.s[self.s.ind].spec.x()
+            spec = np.zeros([H2_range.shape[0], x.shape[0]])
+
+        spec[i] = self.s[self.s.ind].spec.y()
+    f = open('temp/H2_temp', "wb")
+    pickle.dump(H2_range, f)
+    pickle.dump(x, f)
+    pickle.dump(spec, f)
+
+def load_H2_template():
+    f = open('temp/H2_temp', "rb")
+    H2_range = pickle.load(f)
+    x = pickle.load(f)
+    spec = pickle.load(f)
+    return H2_range, x, spec
+
+def weight_H2(x):
+    return 1 / (1 + np.exp((x-3)*5)) * (1 + np.exp((-x-2)))
+
+def search_H2(self, z_abs=2.4, v_range=4000, HI=21.2, H2=19.8):
+    mask = (self.s[self.s.ind].spec.x() < 1130 * (1 + z_abs)) * (self.s[self.s.ind].spec.x() > 911 * (1 + z_abs))
+    x, y, err = self.s[self.s.ind].spec.x()[mask], self.s[self.s.ind].spec.y()[mask], self.s[self.s.ind].spec.err()[mask]
+    if 0:
+        make_H2_template(self)
+    H2_range, x_s, spec = load_H2_template()
+    fig, ax = plt.subplots()
+    ax.plot(x, y)
+    for i, H2 in enumerate(H2_range):
+        #ax.plot(x, spec[i])
+        f = interp1d(x_s, spec[i], fill_value=1)
+        mask = spec[i] < 0.95
+        mask_inter = interp1d(x_s, mask, fill_value=0)
+        v_grid = np.linspace(-v_range, v_range, 100)
+        chi = np.zeros_like(v_grid)
+        for k, v in enumerate(v_grid):
+            z = z_abs + v / 3e5
+            m = mask_inter(x / (1 + z)) == 1
+            res = (y[m] - f(x[m] / (1 + z))) / err[m]
+            w = weight_H2(res)
+            chi[k] = np.sum(res ** 2 * w) / np.sum(w)
+            if 1 and i == 5 and k in [0, 50, 99]:
+                print(x, f(x / (1 + z)))
+                ax.plot(x, f(x / (1 + z)))
+        if 0:
+            ax.plot(v_grid, np.log10(chi), label=H2)
+        if 0:
+            x1 = np.linspace(910, 1150, 200)
+            ax.plot(x1, mask_inter(x1))
+    plt.legend()
+    plt.show()
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
