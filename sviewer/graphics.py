@@ -617,8 +617,11 @@ class Spectrum():
         self.bad_mask = specline(self)
         self.fit_mask = specline(self)
         self.cont = gline()
+        self.cont2d = gline()
         self.spline = gline()
+        self.spline2d = gline()
         self.cont_mask = None
+        self.cont_mask2d = None
         #self.norm = gline()
         self.sm = specline(self)
         self.rebin = None
@@ -794,6 +797,12 @@ class Spectrum():
                 self.parent.spec2dPanel.vb.addItem(self.parent.spec2dPanel.cursorpos, ignoreBounds=True)
                 #self.parent.spec2dPanel.vb.setAspectLocked(False)
                 #self.parent.spec2dPanel.vb.invertY(False)
+            if len(self.parent.s) == 0 or self.active():
+                self.g_cont2d = pg.PlotCurveItem(x=self.cont2d.x, y=self.cont2d.y, pen=self.cont_pen)
+                self.parent.spec2dPanel.vb.addItem(self.g_cont2d)
+                self.g_spline2d = pg.ScatterPlotItem(x=self.spline2d.x, y=self.spline2d.y, size=12, symbol='s',
+                                                   pen=pg.mkPen(0, 0, 0, 255), brush=self.spline_brush)
+                self.parent.spec2dPanel.vb.addItem(self.g_spline2d)
 
     def remove(self):
         try:
@@ -814,7 +823,8 @@ class Spectrum():
             self.remove_g_fit_comps()
         except:
             pass
-        attrs = ['g_fit', 'g_fit_comp', 'points', 'bad_pixels', 'g_cont', 'g_spline', 'normline', 'sm_line']
+        attrs = ['g_fit', 'g_fit_comp', 'points', 'bad_pixels', 'g_cont', 'g_spline',
+                 'normline', 'sm_line', 'g_cheb', 'rebin']
         for attr in attrs:
             try:
                 self.parent.vb.removeItem(getattr(self, attr))
@@ -827,18 +837,7 @@ class Spectrum():
         except:
             pass
 
-        try:
-            self.parent.vb.removeItem(self.g_cheb)
-        except:
-            pass
-        try:
-            self.parent.vb.removeItem(self.normline)
-        except:
-            pass
-        try:
-            self.parent.vb.removeItem(self.rebin)
-        except:
-            pass
+
         try:
             self.parent.residualsPanel.vb.removeItem(self.residuals)
         except:
@@ -850,10 +849,12 @@ class Spectrum():
         except:
             pass
 
-        try:
-            self.parent.spec2dPanel.vb.removeItem(self.image2d)
-        except:
-            pass
+        attrs = ['image2d', 'g_cont2d', 'g_spline2d']
+        for attr in attrs:
+            try:
+                self.parent.spec2dPanel.vb.removeItem(getattr(self, attr))
+            except:
+                pass
 
     def redraw(self):
         self.remove()
@@ -1049,38 +1050,41 @@ class Spectrum():
                 # self.regions.append(pg.LinearRegionItem([self.spec.x()[ind[k]], self.spec.x()[ind[k+1]]], movable=False, brush=pg.mkBrush(100, 100, 100, 30)))
                 self.parent.vb.addItem(self.regions[-1])
 
-    def add_spline(self, x, y):
-        self.spline.add(x, y)
-        self.spline.sort()
-        self.g_spline.setData(x=self.spline.x, y=self.spline.y)
-        self.calc_spline()
+    def add_spline(self, x, y, name=''):
+        getattr(self, 'spline'+name).add(x, y)
+        getattr(self, 'spline'+name).sort()
+        getattr(self, 'g_spline'+name).setData(x=getattr(self, 'spline'+name).x, y=getattr(self, 'spline'+name).y)
+        self.calc_spline(name=name)
         self.update_fit()
 
-    def del_spline(self, x1=None, y1=None, x2=None, y2=None, arg=None):
+    def del_spline(self, x1=None, y1=None, x2=None, y2=None, arg=None, name=''):
+        print(arg)
         if arg is None:
             x1, x2 = min(x1, x2), max(x1, x2)
             y1, y2 = min(y1, y2), max(y1, y2)
-            for i in reversed(range(self.spline.n)):
-                if x1 < self.spline.x[i] < x2 and y1 < self.spline.y[i] < y2:
-                    self.spline.delete(i)
+            for i in reversed(range(getattr(self, 'spline'+name).n)):
+                if x1 < getattr(self, 'spline'+name).x[i] < x2 and y1 < getattr(self, 'spline'+name).y[i] < y2:
+                    getattr(self, 'spline'+name).delete(i)
         else:
-            self.spline.delete(arg)
-        self.g_spline.setData(x=self.spline.x, y=self.spline.y)
-        if self.spline.n > 1:
-            self.calc_spline()
+            getattr(self, 'spline'+name).delete(arg)
+        getattr(self, 'g_spline'+name).setData(x=getattr(self, 'spline'+name).x, y=getattr(self, 'spline'+name).y)
+        if getattr(self, 'spline'+name).n > 1:
+            self.calc_spline(name=name)
         self.update_fit()
-        
-    def calc_spline(self):
-        if self.spline.n > 1:
-            k = 3 if self.spline.n > 3 else self.spline.n-1
-            tck = splrep(self.spline.x, self.spline.y, k=k)
-            self.cont_mask = (self.spec.raw.x > self.spline.x[0]) & (self.spec.raw.x < self.spline.x[-1])
-            self.cont.set_data(self.spec.raw.x[self.cont_mask], splev(self.spec.raw.x[self.cont_mask], tck))
+
+    def calc_spline(self, name=''):
+        if getattr(self, 'spline'+name).n > 1:
+            k = 3 if getattr(self, 'spline'+name).n > 3 else getattr(self, 'spline'+name).n-1
+            tck = splrep(getattr(self, 'spline'+name).x, getattr(self, 'spline'+name).y, k=k)
+
+        if getattr(self, 'spline'+name).n > 1:
+            setattr(self, 'cont_mask'+name, (getattr(self, 'spec'+name).raw.x > getattr(self, 'spline'+name).x[0]) & (getattr(self, 'spec'+name).raw.x < getattr(self, 'spline'+name).x[-1]))
+            getattr(self, 'cont'+name).set_data(getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)], splev(getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)], tck))
         else:
-            self.cont_mask = None
-            self.cont = gline()
+            setattr(self, 'cont_mask' + name, None)
+            setattr(self, 'cont'+name, gline())
         try:
-            self.g_cont.setData(x=self.cont.x, y=self.cont.y)
+            getattr(self, 'g_cont' + name).setData(x=getattr(self, 'cont'+name).x, y=getattr(self, 'cont'+name).y)
         except:
             pass
 

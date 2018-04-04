@@ -20,6 +20,7 @@ from PyQt5.QtGui import QDesktopServices
 from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
 from pyqtgraph.GraphicsScene import exportDialog
 from scipy.integrate import quad
+from scipy.optimize import curve_fit
 from scipy.stats import gaussian_kde
 from sklearn.neighbors import KernelDensity
 import sys
@@ -780,6 +781,7 @@ class spec2dWidget(pg.PlotWidget):
         self.vb = self.getViewBox()
         self.vb.enableAutoRange(y=self.vb.YAxis)
         self.setXLink(self.parent.plot)
+        self.vb.setMenuEnabled(False)
         #self.addLines()
 
         self.cursorpos = pg.TextItem(anchor=(0, 1), fill=pg.mkBrush(0, 0, 0, 0.5))
@@ -788,8 +790,10 @@ class spec2dWidget(pg.PlotWidget):
         #self.getAxis('right').setLabel('axis2', color='#0000ff')
 
     def initstatus(self):
+        self.b_status = False
         self.s_status = False
         self.r_status = False
+        self.mouse_moved = False
 
     def addLines(self):
         # self.addItem(pg.InfiniteLine(0.0, 0, pen=pg.mkPen(color=(100, 100, 100), width=1, style=Qt.DashLine)))
@@ -815,6 +819,11 @@ class spec2dWidget(pg.PlotWidget):
         key = event.key()
 
         if not event.isAutoRepeat():
+            if event.key() == Qt.Key_B:
+                self.vb.setMouseMode(self.vb.RectMode)
+                self.b_status = True
+                self.mouse_moved = False
+
             if event.key() == Qt.Key_R:
                 self.r_status = True
                 self.vb.setMouseMode(self.vb.RectMode)
@@ -828,6 +837,12 @@ class spec2dWidget(pg.PlotWidget):
 
         if not event.isAutoRepeat():
 
+            if event.key() == Qt.Key_B:
+                self.b_status = False
+                if not self.mouse_moved:
+                    self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y(), name='2d')
+                print('keyRelease', self.b_status)
+
             if event.key() == Qt.Key_R:
                 self.r_status = False
 
@@ -837,7 +852,7 @@ class spec2dWidget(pg.PlotWidget):
             if any([event.key() == getattr(Qt, 'Key_'+s) for s in ['S']]):
                 self.vb.setMouseEnabled(x=True, y=True)
 
-            if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'SR']):
+            if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'SBR']):
                 self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
 
@@ -847,20 +862,32 @@ class spec2dWidget(pg.PlotWidget):
 
     def mousePressEvent(self, event):
         super(spec2dWidget, self).mousePressEvent(event)
-        if any([getattr(self, s + '_status') for s in 's']):
+        if self.s_status:
             self.s_status = 2
-            self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
 
-        if any([getattr(self, s + '_status') for s in 'r']):
+        if any([getattr(self, s + '_status') for s in 'brs']):
             self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
 
     def mouseReleaseEvent(self, event):
-        if any([getattr(self, s+'_status') for s in 'r']):
+        if any([getattr(self, s+'_status') for s in 'br']):
             self.vb.setMouseMode(self.vb.PanMode)
             self.vb.rbScaleBox.hide()
 
         if any([getattr(self, s + '_status') for s in 's']):
             self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
+
+        if self.b_status:
+            if event.button() == Qt.LeftButton:
+                if self.mousePoint == self.mousePoint_saved:
+                    self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y(), name='2d')
+                else:
+                    self.parent.s[self.parent.s.ind].del_spline(self.mousePoint_saved.x(), self.mousePoint_saved.y(),
+                                                                self.mousePoint.x(), self.mousePoint.y(), name='2d')
+
+            if event.button() == Qt.RightButton:
+                ind = self.parent.s[self.parent.s.ind].spline2d.find_nearest(self.mousePoint.x(), self.mousePoint.y())
+                self.parent.s[self.parent.s.ind].del_spline(arg=ind, name='2d')
+                event.accept()
 
         if self.r_status:
             print(self.mousePoint_saved, self.mousePoint)
@@ -870,11 +897,28 @@ class spec2dWidget(pg.PlotWidget):
                                                                               [np.min([self.mousePoint_saved.y(), self.mousePoint.y()]),
                                                                                np.max([self.mousePoint_saved.y(), self.mousePoint.y()])]
                                                                              ])
+            if 1:
+                fig, ax = plt.subplots()
+                n = len(x)
+                mean = np.sum(x * y) / np.sum(y)
+                sigma = np.sum(y * (x - mean) ** 2) / np.sum(y)
+
+                def gauss(x, a, x0, sigma):
+                    return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2))
+
+                ax.plot(x, y, '-r')
+                popt, pcov = curve_fit(gauss, x, y, p0=[1, mean, sigma])
+
+                x = np.linspace(x[0], x[-1], 100)
+                y = gauss(x, popt[0], popt[1], popt[2])
+                ax.plot(x, y, '-k')
+
             d = distr1d(x, y)
             d.dopoint()
             d.dointerval()
             print(d.point, d.interval)
-            d.plot(conf=0.683)
+            ax = d.plot(conf=0.683)
+            ax.set_title('FWHM = {:.2f}'.format((d.interval[1] - d.interval[0]) * 2.35 / 2))
             plt.show()
 
         if event.isAccepted():
@@ -3308,11 +3352,12 @@ class sviewer(QMainWindow):
         viewMenu = menubar.addMenu('&View')
         linesMenu = menubar.addMenu('&Lines')
         fitMenu = menubar.addMenu('&Fit')
-        obsMenu = menubar.addMenu('&Observations')
+        spec2dMenu = menubar.addMenu('&2d spec')
         combineMenu = menubar.addMenu('&Combine')
         SDSSMenu = menubar.addMenu('&SDSS')
         samplesMenu = menubar.addMenu('&Samples')
         generateMenu = menubar.addMenu('&Generate')
+        obsMenu = menubar.addMenu('&Observations')
         helpMenu = menubar.addMenu('&Help')
         
         # >>> create File Menu items
@@ -3546,29 +3591,14 @@ class sviewer(QMainWindow):
         fitMenu.addMenu(H2Menu)
         H2Menu.addAction(H2Exc)
 
-        # >>> create Obervations Menu items
-        UVESMenu = QMenu('&UVES', self)
-        UVESMenu.setStatusTip('methods for UVES/VLT')
+        # >>> create Combine Menu items
 
-        self.UVESSetup = QAction('&Setup', self, checkable=True)
-        self.UVESSetup.setStatusTip('&Choose appropriate Setup')
-        self.UVESSetup.triggered.connect(self.chooseUVESSetup)
-        self.UVESSetup.setChecked(self.UVESSetup_status)
+        extract = QAction('&Extract', self)
+        extract.setStatusTip('extract 1d spectrum from 2d spectrum')
+        extract.triggered.connect(self.extract2d)
 
-        UVESetc = QAction('&load ETC data', self)
-        UVESetc.setStatusTip('Add data from UVES ETC')
-        UVESetc.triggered.connect(self.addUVESetc)
-
-        UVESMenu.addAction(self.UVESSetup)
-        UVESMenu.addAction(UVESetc)
-        obsMenu.addMenu(UVESMenu)
-
-        observability = QAction('&Observability', self)
-        observability.setStatusTip('&Calculate observability for given targets')
-        observability.triggered.connect(self.observability)
-
-        obsMenu.addSeparator()
-        obsMenu.addAction(observability)
+        spec2dMenu.addAction(extract)
+        combineMenu.addSeparator()
 
         # >>> create Combine Menu items
         
@@ -3756,7 +3786,31 @@ class sviewer(QMainWindow):
         generateMenu.addSeparator()
         generateMenu.addAction(colorColorPlot)
 
-        # >>> create Generate Menu items
+        # >>> create Obervations Menu items
+        UVESMenu = QMenu('&UVES', self)
+        UVESMenu.setStatusTip('methods for UVES/VLT')
+
+        self.UVESSetup = QAction('&Setup', self, checkable=True)
+        self.UVESSetup.setStatusTip('&Choose appropriate Setup')
+        self.UVESSetup.triggered.connect(self.chooseUVESSetup)
+        self.UVESSetup.setChecked(self.UVESSetup_status)
+
+        UVESetc = QAction('&load ETC data', self)
+        UVESetc.setStatusTip('Add data from UVES ETC')
+        UVESetc.triggered.connect(self.addUVESetc)
+
+        UVESMenu.addAction(self.UVESSetup)
+        UVESMenu.addAction(UVESetc)
+        obsMenu.addMenu(UVESMenu)
+
+        observability = QAction('&Observability', self)
+        observability.setStatusTip('&Calculate observability for given targets')
+        observability.triggered.connect(self.observability)
+
+        obsMenu.addSeparator()
+        obsMenu.addAction(observability)
+
+        # >>> create Help Menu items
         howto = QAction('&How to ...', self)
         howto.setShortcut('F1')
         howto.setStatusTip('How to do')
@@ -4946,6 +5000,26 @@ class sviewer(QMainWindow):
         ax.plot(x, y, '-o')
         mw.show()
         self.statusBar.setText('Excitation diagram for H2 rotational level for {:d} component is shown'.format(self.comp))
+
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # >>>
+    # >>>   2d spec routines
+    # >>>
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    def extract2d(self):
+        s = self.s[self.s.ind]
+        window = 20
+        slit = 1.05
+        print(s.spec2d.raw.x.shape, s.spec2d.raw.x)
+        m = s.cont_mask2d == True
+        for x in range(s.spec2d.raw.x[m]):
+            print(x)
+
 
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

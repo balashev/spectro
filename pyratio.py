@@ -62,6 +62,7 @@ class distr1d():
             ax.set_ylabel('pdf', fontsize=fontsize)
         else:
             ax.set_ylabel(ylabel, fontsize=fontsize)
+
         return ax
 
     def minmax(self, level):
