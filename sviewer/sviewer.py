@@ -5013,12 +5013,19 @@ class sviewer(QMainWindow):
 
     def extract2d(self):
         s = self.s[self.s.ind]
-        window = 20
+        window = 3
         slit = 1.05
-        print(s.spec2d.raw.x.shape, s.spec2d.raw.x)
-        m = s.cont_mask2d == True
-        for x in range(s.spec2d.raw.x[m]):
-            print(x)
+        print(s.spec2d.raw.z.shape)
+        x, y = [], []
+        for k, i in enumerate(np.where(s.cont_mask2d)[0]):
+            mask = np.exp(-5*np.exp(-((s.spec2d.raw.y-s.cont2d.y[k])/slit)**2))
+            #print(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i-window:i+window]), mask), axis=0))
+            sky = np.mean(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i-window:i+window]), mask), axis=0) / np.sum(mask))
+            flux = np.sum((s.spec2d.raw.z[:, i] - sky)*(1-mask)) / np.sum(1-mask)
+            x.append(s.spec2d.raw.x[i])
+            y.append(flux)
+            print(s.spec2d.raw.x[i], sky, flux)
+        self.s.append(Spectrum(self, name='extracted', data=[np.asarray(x), np.asarray(y), np.ones_like(y)]))
 
 
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
