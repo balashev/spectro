@@ -901,16 +901,18 @@ class spec2dWidget(pg.PlotWidget):
                 fig, ax = plt.subplots()
                 n = len(x)
                 mean = np.sum(x * y) / np.sum(y)
-                sigma = np.sum(y * (x - mean) ** 2) / np.sum(y)
+                c = np.median(np.append(y[:int(n/4)], y[int(3*n/4)]))
+                sigma = np.sum((y-c) * (x - mean) ** 2) / np.sum((y-c))
+                print(mean, x, sigma)
 
-                def gauss(x, a, x0, sigma):
-                    return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2))
+                def gauss(x, a, c, x0, sigma):
+                    return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2)) + c
 
                 ax.plot(x, y, '-r')
-                popt, pcov = curve_fit(gauss, x, y, p0=[1, mean, sigma])
+                popt, pcov = curve_fit(gauss, x, y, p0=[1, c, mean, sigma])
 
                 x = np.linspace(x[0], x[-1], 100)
-                y = gauss(x, popt[0], popt[1], popt[2])
+                y = gauss(x, popt[0], popt[1], popt[2], popt[3])
                 ax.plot(x, y, '-k')
 
             d = distr1d(x, y)
@@ -5013,19 +5015,50 @@ class sviewer(QMainWindow):
 
     def extract2d(self):
         s = self.s[self.s.ind]
-        window = 3
+        window = 5
         slit = 1.05
         print(s.spec2d.raw.z.shape)
-        x, y = [], []
-        for k, i in enumerate(np.where(s.cont_mask2d)[0]):
-            mask = np.exp(-5*np.exp(-((s.spec2d.raw.y-s.cont2d.y[k])/slit)**2))
-            #print(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i-window:i+window]), mask), axis=0))
-            sky = np.mean(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i-window:i+window]), mask), axis=0) / np.sum(mask))
-            flux = np.sum((s.spec2d.raw.z[:, i] - sky)*(1-mask)) / np.sum(1-mask)
-            x.append(s.spec2d.raw.x[i])
-            y.append(flux)
-            print(s.spec2d.raw.x[i], sky, flux)
-        self.s.append(Spectrum(self, name='extracted', data=[np.asarray(x), np.asarray(y), np.ones_like(y)]))
+        def gauss(x, a, c, x0, sigma):
+            return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2)) + c
+
+        yf, err = [], []
+        if 0:
+            for k, i in enumerate(np.where(s.cont_mask2d)[0]):
+                mask = np.exp(-5*np.exp(-((s.spec2d.raw.y-s.cont2d.y[k])/slit)**2))
+                sky = np.sum(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i-window:i+window+1]), mask), axis=0) / (2*window + 1)) / np.sum(mask)
+                print(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i-window:i+window+1]), mask), axis=0) / (2*window + 1))
+                flux = np.sum((s.spec2d.raw.z[:, i] - sky)*(1-mask)) / np.sum(1-mask)
+                yf.append(flux)
+                print(s.spec2d.raw.x[i], sky, flux)
+        else:
+            plot = 0
+            for k, i in enumerate(np.where(s.cont_mask2d)[0]):
+                print(s.spec2d.raw.x[i])
+                x, y = s.spec2d.raw.y-s.cont2d.y[k], s.spec2d.raw.z[:, i]
+                n = len(x)
+                mean = np.sum(x * y) / np.sum(y)
+                c = np.median(np.append(y[:int(n / 4)], y[int(3 * n / 4)]))
+                sigma = slit/1.4 #np.sum(np.abs(y-c) * (x - mean) ** 2) / np.sum(np.abs(y-c))
+                a = (np.max(y) - c) * (2 * sigma**2)
+                print(a, c, mean, sigma)
+                if plot:
+                    fig, ax = plt.subplots()
+                    ax.plot(x, y, '-r')
+                    xf = np.linspace(x[0], x[-1], 100)
+                    ax.plot(xf, gauss(xf, a, c, mean, sigma), '--b')
+
+                popt, pcov = curve_fit(gauss, x, y, p0=[a, c, mean, sigma])
+                print(popt)
+                yf.append(gauss(popt[2], popt[0], popt[1], popt[2], popt[3]) - popt[1])
+
+                if plot:
+                    ax.plot(xf, gauss(xf, popt[0], popt[1], popt[2], popt[3]), '-k')
+
+                err.append(np.sqrt(popt[1]))
+            plt.show()
+
+        self.s.append(Spectrum(self, name='extracted', data=[s.spec2d.raw.x[s.cont_mask2d],
+                                                             np.asarray(yf)*0.04, np.asarray(err)*0.04]))
 
 
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

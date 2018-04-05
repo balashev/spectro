@@ -360,15 +360,21 @@ class Console(QTextEdit):
             return N
 
         elif args[0] == 'rescale':
-            if len(args) == 3:
+            if len(args) == 3 or len(args) == 2:
                 mask = np.logical_and(self.parent.s[self.parent.s.ind].spec.raw.x > self.parent.plot.vb.viewRange()[0][0],
                                       self.parent.s[self.parent.s.ind].spec.raw.x < self.parent.plot.vb.viewRange()[0][1])
-                if args[1] == 'y':
-                    self.parent.s[self.parent.s.ind].spec.raw.y[mask] *= float(args[2])
+                if args[1] == 'y' or len(args) == 2:
+                    self.parent.s[self.parent.s.ind].spec.raw.y[mask] *= float(args[-1])
                     self.parent.s.redraw()
-                if args[1] == 'err':
-                    self.parent.s[self.parent.s.ind].spec.raw.err[mask] *= float(args[2])
+                if args[1] == 'err' or len(args) == 2:
+                    self.parent.s[self.parent.s.ind].spec.raw.err[mask] *= float(args[-1])
                     self.parent.s.redraw()
+
+        elif args[0] == 'shift':
+            if len(args) == 2:
+                self.parent.s[self.parent.s.ind].spec.raw.x += float(args[1])
+                self.parent.s[self.parent.s.ind].spec.norm.x += float(args[1])
+                self.parent.s.redraw()
 
         elif args[0] == 'set':
             if len(args) == 3:
