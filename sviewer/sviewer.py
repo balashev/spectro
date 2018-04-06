@@ -6,6 +6,7 @@ import emcee
 import h5py
 import inspect
 from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs
+import matplotlib.pyplot as plt
 from multiprocessing import Process
 import pickle
 import platform
@@ -3289,10 +3290,7 @@ class sviewer(QMainWindow):
 
     def initUI(self):
         
-        #ds = QDesktopWidget().availableGeometry()
-        #self.resize(ds.width(), ds.height())
-        
-        dbg = pg.dbg()
+        #dbg = pg.dbg()
         # self.specview sets the type of plot representation
         for l in ['specview', 'selectview', 'linelabels', 'showinactive', 'show_osc', 'fitType', 'fitComp', 'fitPoints']:
             setattr(self, l , self.options(l))
@@ -3628,6 +3626,10 @@ class sviewer(QMainWindow):
         rescaleExp.setStatusTip('Rescale exposure')
         rescaleExp.triggered.connect(self.rescaleExposure)
 
+        rescaleErrs = QAction('&Rescale errs', self)
+        rescaleErrs.setStatusTip('Rescale uncertainties')
+        rescaleErrs.triggered.connect(self.rescaleErrs)
+
         combine = QAction('&Combine...', self)
         combine.setStatusTip('Combine exposures')
         combine.triggered.connect(self.combine)
@@ -3643,6 +3645,7 @@ class sviewer(QMainWindow):
         combineMenu.addAction(coscaleExp)
         combineMenu.addAction(shiftExp)
         combineMenu.addAction(rescaleExp)
+        combineMenu.addAction(rescaleErrs)
         combineMenu.addSeparator()
         combineMenu.addAction(combine)
         combineMenu.addAction(rebin)
@@ -4113,7 +4116,8 @@ class sviewer(QMainWindow):
                 for k in range(int(d[i].split()[1])):
                     i += 1
                     self.fit.readPars(d[i])
-                self.setz_abs(self.fit.sys[0].z.val)
+                if int(d[i].split()[1]) > 0:
+                    self.setz_abs(self.fit.sys[0].z.val)
 
             if 'fit:' in d[i]:
                 ns = int(d[i].split()[1])
@@ -4525,6 +4529,7 @@ class sviewer(QMainWindow):
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
     def showExpList(self):
         if self.exp is None:
             self.exp = expTableWidget(self)
@@ -4601,6 +4606,7 @@ class sviewer(QMainWindow):
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
     def chooseUVESSetup(self):
         if not self.UVESSetup.isChecked():
             self.UVESSetup_status = -1
@@ -4648,6 +4654,7 @@ class sviewer(QMainWindow):
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
     def normalize(self, state=None):
         if self.normview != state:
             if state == None:
@@ -4664,7 +4671,6 @@ class sviewer(QMainWindow):
                 self.abs.redraw()
             except:
                 pass
-
 
     def setFitModel(self):
         if self.fitModel is None:
@@ -4845,7 +4851,6 @@ class sviewer(QMainWindow):
             f.close()
 
         self.showMCMC()
-
 
     def stopFit(self):
         """
@@ -5119,6 +5124,38 @@ class sviewer(QMainWindow):
 
     def rescaleExposure(self):
         pass
+
+    def rescaleErrs(self):
+        print('rescale err', self.s.ind)
+        fig, ax = plt.subplots()
+        s = self.s[self.s.ind]
+        x = s.spec.raw.x[s.cont_mask]
+        print(s.cont_mask)
+        f = (s.spec.raw.y[s.cont_mask] - s.cont.y) / s.spec.raw.err[s.cont_mask]
+        ax.hist(f, bins=np.linspace(np.min(f), np.max(f), int((np.max(f) - np.min(f))/0.3)+1))
+        m = np.abs(f) < 5
+        mean, std = np.mean(f[m]), np.std(f[m])
+        print(mean, std)
+        xmin, xmax = mean - 1 * std, mean + 3 * std
+        m = (xmin < f) * (f < xmax)
+        kde = gaussian_kde(f[m])
+        x = np.linspace(xmin, xmax, np.sqrt(len(f[m])))
+        fig, ax = plt.subplots()
+        ax.plot(x, kde(x), '-r')
+
+        if 1:
+            n = len(x)
+
+            def gauss(x, a, x0, sigma):
+                return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2))
+            popt, pcov = curve_fit(gauss, x, kde(x), p0=[2 * std**2, mean, std])
+
+            y = gauss(x, popt[0], popt[1], popt[2])
+            ax.plot(x, y, '-k')
+            print(popt)
+
+        self.s[self.s.ind].spec.raw.err *= popt[2]
+        plt.show()
 
     def crosscorrExporsures(self, i1, i2):
         self.s.coscaleExposures()
