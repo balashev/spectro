@@ -74,8 +74,7 @@ class plotSpectrum(pg.PlotWidget):
         self.customMenu = True
         self.vb.setMenuEnabled(not self.customMenu)
         self.vb.disableAutoRange()
-        self.regions = []
-        self.r_ind = -1
+        self.regions = regionList(self)
         self.cursorpos = pg.TextItem(anchor=(0, 1))
         self.vb.addItem(self.cursorpos, ignoreBounds=True)
         self.specname = pg.TextItem(anchor=(1, 1))
@@ -308,8 +307,7 @@ class plotSpectrum(pg.PlotWidget):
                         self.parent.fitResults.close()
 
             if event.key() == Qt.Key_Q:
-                pass
-                #self.parent.importSpectrum(r'D:\science\spectra_program\synthetic\synthetic\temp\fit.dat', append=True)
+                self.parent.calc_cont()
 
             if event.key() == Qt.Key_U:
                 self.u_status += 1
@@ -412,8 +410,7 @@ class plotSpectrum(pg.PlotWidget):
 
             if event.key() == Qt.Key_R:
                 self.r_status = False
-                self.r_ind = -1
-                    
+
             if event.key() == Qt.Key_S:
                 self.s_status = False
 
@@ -456,9 +453,8 @@ class plotSpectrum(pg.PlotWidget):
 
         self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
         if self.r_status:
-            self.regions.append(regionItem(self))
-            self.r_ind == len(self.regions)
-            self.vb.addItem(self.regions[-1])
+            self.r_status == 2
+            self.regions.add()
 
     def mouseReleaseEvent(self, event):
         if any([getattr(self, s+'_status') for s in 'abcdrsuwx']):
@@ -547,7 +543,7 @@ class plotSpectrum(pg.PlotWidget):
             self.p_status = 1 if self.p_status == 2 else 2
 
         if self.r_status:
-            self.r_ind = -1
+            self.r_status = 1
 
         if self.s_status or self.d_status:
             for s in self.parent.s:
@@ -614,9 +610,8 @@ class plotSpectrum(pg.PlotWidget):
         pos = self.vb.sceneBoundingRect()
         self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(pos.left()+10,pos.bottom()-10)))
         self.specname.setPos(self.vb.mapSceneToView(QPoint(pos.right()-10,pos.bottom()-10)))
-        if self.r_status and event.type() == QEvent.MouseMove:
-            if self.r_ind > 0:
-                self.regions[self.r_ind].setRegion([self.mousePoint_saved.x(), self.mousePoint.x()])
+        if self.r_status == 2 and event.type() == QEvent.MouseMove:
+            self.regions[-1].setRegion([self.mousePoint_saved.x(), self.mousePoint.x()])
 
         if (self.a_status or self.c_status) and event.type() == QEvent.MouseMove:
             self.vb.rbScaleBox.hide()
@@ -1225,19 +1220,19 @@ class showLinesWidget(QWidget):
         l1 = QHBoxLayout()
         self.numLines = QPushButton('Lines: '+str(len(self.parent.lines)))
         self.numLines.setCheckable(True)
-        self.numLines.setFixedSize(90, 25)
+        self.numLines.setFixedSize(110, 25)
         self.numLines.clicked.connect(partial(self.changeState, 'lines'))
         self.numRegions = QPushButton('Region: '+str(len(self.parent.plot.regions)))
         self.numRegions.setCheckable(True)
-        self.numRegions.setFixedSize(90, 25)
+        self.numRegions.setFixedSize(110, 25)
         self.numRegions.clicked.connect(partial(self.changeState, 'regions'))
         l1.addWidget(self.numLines)
         l1.addStretch(1)
         l1.addWidget(self.numRegions)
         l.addLayout(l1)
         self.lines = QTextEdit()
-        self.setLines()
-        self.lines.setFixedSize(200, self.frameGeometry().height())
+        self.setLines(init=True)
+        self.lines.setFixedSize(240, self.frameGeometry().height())
         self.lines.textChanged.connect(self.readLines)
         l.addWidget(self.lines)
         self.chooseLine = QComboBox()
@@ -1368,12 +1363,13 @@ class showLinesWidget(QWidget):
         if attr is not None:
             setattr(self, attr, self.opts[attr](text))
 
-    def setLines(self):
+    def setLines(self, init=False):
         if self.regions:
-            print("\n".join([str(p) for p in self.parent.plot.regions]))
-            self.lines.setText("\n".join([str(p) for p in self.parent.plot.regions]))
+            self.lines.setText(str(self.parent.plot.regions))
         else:
-            self.lines.setText("\n".join([str(l) for l in self.parent.lines]))
+            if init:
+                self.parent.lines = [str(l) for l in self.parent.lines]
+            self.lines.setText("\n".join(self.parent.lines))
         self.readLines()
 
     def changeState(self, s=None):
@@ -1418,11 +1414,8 @@ class showLinesWidget(QWidget):
 
     def readLines(self):
         if self.regions:
-            self.parent.regions = []
-            for line in self.lines.toPlainText().splitlines():
-                #if line in [str(p) for p in self.parent.plot.regions]:
-                self.parent.regions.append(line)
-            self.numRegions.setText('Regions: ' + str(len(self.parent.regions)))
+            self.parent.plot.regions.fromText(self.lines.toPlainText())
+            self.numRegions.setText('Regions: ' + str(len(self.parent.plot.regions)))
         else:
             self.parent.lines = []
             for line in self.lines.toPlainText().splitlines():
@@ -1476,9 +1469,9 @@ class showLinesWidget(QWidget):
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
             self.ps.specify_styles()
             if len(self.parent.fit.sys) > 0:
-                ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
+                self.ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
             else:
-                ps.z_ref = self.parent.z_abs
+                self.ps.z_ref = self.parent.z_abs
             for i, p in enumerate(self.ps):
                 p.name = ' '.join(self.parent.lines[self.ps.index(p)].split()[:2])
                 if len(self.parent.lines[self.ps.index(p)].split()) > 2:
@@ -1511,7 +1504,7 @@ class showLinesWidget(QWidget):
                 p.y_formatter = self.y_formatter
                 ax = p.plot_line()
         else:
-            self.ps = plot_spec(len(self.parent.regions), font=self.font, font_labels=self.font_labels,
+            self.ps = plot_spec(len(self.parent.plot.regions), font=self.font, font_labels=self.font_labels,
                            vel_scale=True, gray_out=self.gray_out, figure=fig)
             rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order, height=0.9, width=0.99,
                                v_indent=self.v_indent, h_indent=self.h_indent,
@@ -1531,8 +1524,9 @@ class showLinesWidget(QWidget):
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
             self.ps.specify_styles()
             for i, p in enumerate(self.ps):
-                st = self.parent.regions[i].split()
-                p.x_min, p.x_max = (float(st) for st in st[0].split('..'))
+                st = str(self.parent.plot.regions[i]).split()
+                print(st)
+                p.x_min, p.x_max = (float(s) for s in st[0].split('..'))
                 #p.y_formater = '%.1f'
                 for s in st[1:]:
                     if 'name' in s:
@@ -1601,7 +1595,7 @@ class showLinesWidget(QWidget):
                 o[opt] = func(getattr(self, opt))
             pickle.dump(o, f)
             pickle.dump(self.parent.lines, f)
-            pickle.dump(self.regions, f)
+            pickle.dump(str(self.parent.plot.regions), f)
             f.close()
 
     def showContCorr(self, ax):
@@ -1621,9 +1615,7 @@ class showLinesWidget(QWidget):
             for opt, item in o.items():
                 setattr(self, opt, item)
             self.parent.lines = pickle.load(f)
-            print(self.parent.lines)
-            self.regions = pickle.load(f)
-            print(self.regions)
+            self.parent.plot.regions.fromText(pickle.load(f))
             f.close()
         self.close()
         self.parent.showLines()
@@ -3290,7 +3282,7 @@ class sviewer(QMainWindow):
 
     def initUI(self):
         
-        #dbg = pg.dbg()
+        dbg = pg.dbg()
         # self.specview sets the type of plot representation
         for l in ['specview', 'selectview', 'linelabels', 'showinactive', 'show_osc', 'fitType', 'fitComp', 'fitPoints']:
             setattr(self, l , self.options(l))
@@ -4113,10 +4105,11 @@ class sviewer(QMainWindow):
             if 'fit_model' in d[i]:
                 self.plot.remove_pcRegion()
                 self.fit = fitPars(self)
-                for k in range(int(d[i].split()[1])):
+                num = int(d[i].split()[1])
+                for k in range(num):
                     i += 1
                     self.fit.readPars(d[i])
-                if int(d[i].split()[1]) > 0:
+                if num > 0:
                     self.setz_abs(self.fit.sys[0].z.val)
 
             if 'fit:' in d[i]:
@@ -4396,7 +4389,7 @@ class sviewer(QMainWindow):
             for f in self.sdss_filters:
                 f.update(m)
 
-    def import2dSpectrum(self, filelist, spec=None, header=0, dir_path='', scale_factor=1, append=False, corr=True):
+    def import2dSpectrum(self, filelist, spec=None, header=0, dir_path='', ind=None, append=False):
 
         if isinstance(filelist, str):
             filelist = [filelist]
@@ -4404,6 +4397,8 @@ class sviewer(QMainWindow):
         for line in filelist:
             filename = line.split()[0]
             print(filename)
+            if ind is not None:
+                self.s.ind = ind
             s = self.s[self.s.ind]
 
             if spec is None:
@@ -4871,13 +4866,18 @@ class sviewer(QMainWindow):
         else:
             self.fitResults.refresh()
 
+    def calc_cont(self):
+        x = self.plot.vb.getState()['viewRange'][0]
+        self.s[self.s.ind].calc_cont(x[0], x[-1])
+        print(x)
+
     def fitCont(self, typ='GP'):
         """
         fit Continuum using specified model.
             - kind        : can be 'cheb', 'GP',
         """
         s = self.s[0]
-        mask = (self.s.spec.norm.x() > self.fit.cont_left) * (self.s.spec.norm.x() < self.fit.cont_right)
+        mask = (self.s[0].spec.norm.x() > self.fit.cont_left) * (self.s[0].spec.norm.x() < self.fit.cont_right)
         fit = s.fit.f(s.spec.norm.x())
         mask = np.logical_and(fit > 0.05, s.fit_mask.x())
         x = s.norm.x[mask]

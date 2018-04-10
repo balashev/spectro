@@ -17,12 +17,13 @@ import pyqtgraph as pg
 from PyQt5.QtCore import Qt, QRectF
 from PyQt5.QtGui import QFont, QColor, QBrush
 from PyQt5.QtWidgets import QApplication
+import re
 from scipy.interpolate import interp1d, splrep, splev
 from scipy.optimize import curve_fit
 from scipy.stats import gaussian_kde
 
 from ..profiles import tau, convolveflux, makegrid
-#from .external import regularsmooth as ds
+from .external import sg_smooth as sg
 from .utils import Timer, debug, MaskableList
 
 class Speclist(list):
@@ -1110,6 +1111,27 @@ class Spectrum():
         #self.set_fit_mask()
         #self.rewrite_mask()
 
+    def calc_cont(self, xl=None, xr=None, iter=5):
+        if xl is None:
+            xl = self.spec.raw.x[0]
+        if xr is None:
+            xr = self.spec.raw.x[-1]
+
+        print(xl, xr)
+        mask = (xl < self.spec.raw.x) * (self.spec.raw.x < xr)
+        ys = self.spec.raw.y[mask]
+
+        for i in range(iter):
+            print(np.sum(mask), len(ys), len(self.spec.raw.y[mask]))
+            mask[mask] *= (ys - self.spec.raw.y[mask]) / self.spec.raw.err[mask] < 2.5
+            ys = sg.savitzky_golay(self.spec.raw.y[mask], window_size=301, order=7)
+
+        inter = interp1d(self.spec.raw.x[mask], ys, fill_value=(ys[0], ys[-1]))
+
+        self.cont_mask = (xl < self.spec.raw.x ) & (self.spec.raw.x < xr)
+        self.cont.set_data(self.spec.raw.x[self.cont_mask], inter(self.spec.raw.x[self.cont_mask]))
+        self.redraw()
+
     def findFitLines(self, ind=-1, tlim=0.01, all=True, debug=False):
         """
         Function to prepare lines to fit.
@@ -1625,13 +1647,52 @@ class Spectrum():
             self.parent.s[self.parent.s.s_ind].redraw()
             ev.accept() 
 
+class regionList(list):
+    def __init__(self, parent):
+        super(regionList).__init__()
+        self.parent = parent
+
+    def check(self, reg):
+        if isinstance(reg, str):
+            if reg in [str(r) for r in self]:
+                return [str(r) for r in self].index(reg)
+        elif isinstance(reg, regionItem):
+            if reg in self:
+                return self.index(reg)
+
+    def add(self, reg=None):
+        if reg is None or (self.check(reg) is None and len(re.findall('[\d\.]+\.\.[\d\.]+', reg))>0):
+            if reg is None:
+                self.append(regionItem(self))
+            else:
+                self.append(regionItem(self, xmin=float(reg.split()[0].split('..')[0]), xmax=float(reg.split()[0].split('..')[1])))
+                if len(reg.split()) > 1:
+                    self[-1].addinfo = ' '.join(reg.split()[1:])
+
+            self.parent.vb.addItem(self[-1])
+
+    def remove(self, reg):
+        i = self.check(reg)
+        if i is not None:
+            self.parent.vb.removeItem(self[i])
+            del self[i]
+
+    def fromText(self, text):
+        for i in reversed(range(len(self))):
+            self.remove(str(self[i]))
+        for reg in text.splitlines():
+            self.add(reg)
+
+    def __str__(self):
+        return '\n'.join([str(r) for r in self])
+
 class regionItem(pg.LinearRegionItem):
-    def __init__(self, parent, brush=pg.mkBrush(173, 173, 173, 100), xmin=None, xmax=None):
+    def __init__(self, parent, brush=pg.mkBrush(173, 173, 173, 100), xmin=None, xmax=None, addinfo=''):
         self.parent = parent
         if xmin is None:
-            xmin = self.parent.mousePoint_saved.x()
+            xmin = self.parent.parent.mousePoint_saved.x()
         if xmax is None:
-            xmax = self.parent.mousePoint_saved.x()
+            xmax = self.parent.parent.mousePoint_saved.x()
         super().__init__(values=[xmin, xmax],
                          orientation=pg.LinearRegionItem.Vertical,
                          brush=brush)
@@ -1644,6 +1705,8 @@ class regionItem(pg.LinearRegionItem):
         self.inactivePen = pg.mkPen(150, 150, 150, 255, style=Qt.DashLine)
         self.inactiveBrush = pg.mkBrush(100, 100, 100, 255)
         self.inactiveBrush.setStyle(Qt.Dense5Pattern)
+
+        self.addinfo = addinfo
 
     def updateLines(self):
         if self.active:
@@ -1692,19 +1755,17 @@ class regionItem(pg.LinearRegionItem):
                 self.setRegion([self.size_full[0], self.size_full[0]+1])
                 self.setBrush(self.inactiveBrush)
             self.updateLines()
-            self.parent.updateRegions()
+            self.parent.parent.updateRegions()
 
         if ev.button() == Qt.LeftButton:
             if (QApplication.keyboardModifiers() == Qt.ControlModifier):
-                self.remove()
+                self.parent.remove(self)
 
-    def remove(self):
-        self.parent.vb.removeItem(self)
-        ind = self.parent.regions.index(self)
-        del self.parent.regions[ind]
+    #def __eq__(self, other):
+    #    return (self.xmin == other.xmin) * (self.xmax == other.xmax)
 
     def __str__(self):
-        return "{0:.1f}..{1:.1f}".format(self.getRegion()[0], self.getRegion()[1])
+        return "{0:.1f}..{1:.1f} ".format(self.getRegion()[0], self.getRegion()[1]) + self.addinfo
 
 class SpectrumFilter():
     def __init__(self, parent, name=None):
