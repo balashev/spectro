@@ -355,8 +355,12 @@ class Console(QTextEdit):
             N = a(0,0,0)
             for i in c:
                 if args[1] in self.parent.fit.sys[i].sp:
-                    print(self.parent.fit.sys[i].sp[args[1]].N.val)
                     N += a(self.parent.fit.sys[i].sp[args[1]].N.val, 0, 0)
+                if args[1] in ['H2', 'HD', 'CO']:
+                    for s, v in self.parent.fit.sys[i].sp.items():
+                        if args[1] in s:
+                            print(s)
+                            N += a(v.N.val, 0, 0)
             return N
 
         elif args[0] == 'rescale':

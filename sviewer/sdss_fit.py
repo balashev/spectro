@@ -290,7 +290,7 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
     rvs = False
     if draw:
         # >>> mask some problem at beta=-1
-        if 1:
+        if 0:
             i = np.argwhere(beta == -1)[0]
             print(i)
             if len(i) > 0:
@@ -493,19 +493,20 @@ def HIStackFitPower(self, load=True, draw=True):
     if draw:
         self.showLines(show=False)
         self.showlines.loadSettings('C:/science/papers/H2Stack/work/fig_HI_Mass')
-        self.regions = ['1196..1241']
+        self.plot.regions.fromText('1196..1241')
         fig = self.showlines.showPlot(False)
         #eta = d.rvs(30)
         #print(beta)
         #for b in beta:
         #    x, spec = self.makeHIStack(beta=b, Nmin=20, Nmax=22, draw=False)
         #    fig.axes[0].plot(x, spec, '-b', lw=0.5, alpha=0.1)
-        beta = d.dointerval()
-        x, spec1 = makeHIStack(self, beta=beta[0][0], Nmin=20, Nmax=22, draw=False)
-        x, spec2 = makeHIStack(self, beta=beta[0][1], Nmin=20, Nmax=22, draw=False)
-        fig.axes[0].plot(x, spec1, '-', c='dodgerblue', lw=0.5)
-        fig.axes[0].plot(x, spec2, '-', c='dodgerblue', lw=0.5)
-        fig.axes[0].fill_between(x, spec1, spec2, facecolor='dodgerblue', alpha=0.3, zorder=0)
+        if 0:
+            beta = d.dointerval()
+            x, spec1 = makeHIStack(self, beta=beta[0][0], Nmin=20, Nmax=22, draw=False)
+            x, spec2 = makeHIStack(self, beta=beta[0][1], Nmin=20, Nmax=22, draw=False)
+            fig.axes[0].plot(x, spec1, '-', c='dodgerblue', lw=0.5)
+            fig.axes[0].plot(x, spec2, '-', c='dodgerblue', lw=0.5)
+            fig.axes[0].fill_between(x, spec1, spec2, facecolor='dodgerblue', alpha=0.3, zorder=0)
 
         # >>> add individual HI profiles
         if 1:
@@ -513,7 +514,7 @@ def HIStackFitPower(self, load=True, draw=True):
                 self.fit.setValue('z_0', 0)
                 self.fit.setValue('N_0_HI', N)
                 self.showFit()
-                fig.axes[0].plot(self.s[0].fit.x(), self.s[0].fit.y(), '--k', lw=0.5, zorder=0)
+                fig.axes[0].plot(self.s[-1].fit.x(), self.s[-1].fit.y(), '--k', lw=0.5, zorder=0)
                 lines = plt.gca().get_lines()
                 labelLine(lines[-1], loc, label='{:.1f}'.format(N), fontsize=18, zorder=1)
         ax2 = fig.add_axes([.70, .34, .27, .41])

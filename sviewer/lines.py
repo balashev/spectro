@@ -484,7 +484,7 @@ class Doublet():
             for d in combinations(lines, 2):
                 for i in [-1,1]:
                     x = self.line_temp.value() * (d[0] / d[1])**i
-                    self.temp.append(pg.InfiniteLine(x, angle=90, pen=pg.mkPen(color=(160, 80, 44), width=1, style=Qt.SolidLine)))
+                    self.temp.append(doubletTempLine(self, x, angle=90, pen=pg.mkPen(color=(160, 80, 44), width=1, style=Qt.SolidLine)))
                     self.parent.vb.addItem(self.temp[-1])
 
     def remove_temp(self):
@@ -508,7 +508,7 @@ class Doublet():
         self.parent.parent.setz_abs(self.z)
         self.redraw()
 
-    def find(self, x1, x2, toll=9e-2):
+    def find(self, x1, x2, toll=9e-2, show=True):
         """
         Function which found most appropriate doublet using two wavelengths.
         parameters:
@@ -526,17 +526,35 @@ class Doublet():
                 if -toll < 1 - (diff / (1 - d[0] / d[1])) < toll:
                     res.append(1- (diff / (1- d[0]/d[1])))
                     ind.append((k, d[0]))
-        self.remove_temp()
+        if show:
+            self.remove_temp()
+
         if len(res) > 0:
             i = np.argmin(np.abs(res))
             self.name = ind[i][0] #.decode('UTF-8').replace('_', '')
             self.z = x1 / ind[i][1] - 1
-            self.parent.parent.console.exec_command('show '+self.name)
-            self.parent.parent.setz_abs(self.z)
-            self.draw()
+            if show:
+                self.parent.parent.console.exec_command('show '+self.name)
+                self.parent.parent.setz_abs(self.z)
+                self.draw()
+            else:
+                return self.name, self.z
         else:
             self.parent.doublets.remove(self)
             del self
+
+class doubletTempLine(pg.InfiniteLine):
+    def __init__(self, parent, x, **kwargs):
+        super().__init__(x, **kwargs)
+        self.parent = parent
+        self.x = x
+
+    def setMouseHover(self, hover):
+        super().setMouseHover(hover)
+        name, z = self.parent.find(self.x, self.parent.line_temp.getXPos(), show=False)
+        anchor = (0, 1) if 'DLA' not in name else (0, 0)
+        self.parent.temp.append(doubletLabel(self.parent, name, self.x/(1+z), angle=90, anchor=anchor))
+        self.parent.parent.vb.addItem(self.parent.temp[-1])
 
 class doubletLabel(pg.TextItem):
     def __init__(self, parent, name, line, **kwrds):

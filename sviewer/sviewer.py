@@ -470,7 +470,7 @@ class plotSpectrum(pg.PlotWidget):
             if self.mousePoint == self.mousePoint_saved:
                 if self.parent.line_reper.name in self.parent.fit.sys[-1].sp:
                     self.parent.fit.addSys(self.parent.comp)
-                    self.parent.fit.sys[-1].z.val = self.mousePoint.x() / self.parent.line_reper.l - 1
+                    self.parent.fit.sys[-1].z.val = self.mousePoint.x() / self.parent.line_reper.l() - 1
                     self.parent.fit.sys[-1].zrange(200)
                     self.parent.comp = len(self.parent.fit.sys) - 1
                     try:
@@ -1250,9 +1250,9 @@ class showLinesWidget(QWidget):
         #validator.ScientificNotation
         names = ['Size:', 'width:', '', 'height:', '',
                  'Panels:', 'rows:', '', 'cols:', '',
-                 'Indents:', 'vert.:', '', 'hor.:', '',
+                 'Indents:', 'hor.:', '', 'vert.:', '',
                  'Order', '', '', '', '',
-                 '0ffets:', 'col:', '', 'row:', '',
+                 '0ffets between:', 'col:', '', 'row:', '',
                  'X-units:', '', '', '', '',
                  'X-scale:', 'min:', '', 'max:', '',
                  'Y-scale:', 'min:', '', 'max:', '',
@@ -1615,7 +1615,7 @@ class showLinesWidget(QWidget):
             for opt, item in o.items():
                 setattr(self, opt, item)
             self.parent.lines = pickle.load(f)
-            self.parent.plot.regions.fromText(pickle.load(f))
+            self.parent.plot.regions.fromText(str(pickle.load(f)))
             f.close()
         self.close()
         self.parent.showLines()
@@ -4084,9 +4084,7 @@ class sviewer(QMainWindow):
             if 'regions' in d[i]:
                 ns = int(d[i].split()[1])
                 for r in range(ns):
-                    self.plot.regions.append(
-                        regionItem(self.plot, xmin=float(d[i + 1 + r].split()[0]), xmax=float(d[i + 1 + r].split()[1])))
-                    self.plot.r_ind == len(self.plot.regions)
+                    self.plot.regions.append(regionItem(self.plot, xmin=float(d[i + 1 + r].split()[0]), xmax=float(d[i + 1 + r].split()[1])))
                     self.plot.vb.addItem(self.plot.regions[-1])
                     # self.plot.regions[self.plot.r_ind].setRegion(float(d[i + 1 + r].split()[0]), float(d[i + 1 + r].split()[1]))
 

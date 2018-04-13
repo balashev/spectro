@@ -1,21 +1,21 @@
-rescale 0.9
-rescale 0.9
-rescale 0.9
-rescale 0.9
-shift 1
-ston
-ston
-ston
-ston
-ston
-ston
-show CI*
-show CI**
-hide all
-show H2 0 1
-show CI
-show CI*
-show CI**
-hide CI**
-show CI**
-hide CI**
+logN H2j1
+logN H2j2
+logN H2j3
+logN H2j4
+logN H2j0 H2j1 H2j2 H2j3
+logN H2
+logN H2
+logN H2
+logN H2
+logN H2
+logN HD
+show H2
+show H2 2 3
+show H2 2 4
+show H2 0 1 2 3 4
+FeII
+SiII
+CIV
+FeII
+CIV
+FeII
