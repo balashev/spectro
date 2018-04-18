@@ -918,6 +918,7 @@ class spec2dWidget(pg.PlotWidget):
             ax = d.plot(conf=0.683)
             ax.set_title('FWHM = {:.2f}'.format((d.interval[1] - d.interval[0]) * 2.35 / 2))
             plt.show()
+            self.r_status = False
 
         if event.isAccepted():
             super(spec2dWidget, self).mouseReleaseEvent(event)
@@ -927,7 +928,7 @@ class spec2dWidget(pg.PlotWidget):
         self.mousePoint = self.vb.mapSceneToView(event.pos())
         self.mouse_moved = True
         self.cursorpos.setText('x={0:.3f}, y={1:.2f}'.format(self.mousePoint.x(), self.mousePoint.y()))
-        if len(self.parent.s[self.parent.s.ind].spec2d.raw.z.shape) == 2:
+        if len(self.parent.s) > 0 and len(self.parent.s[self.parent.s.ind].spec2d.raw.z.shape) == 2:
             self.cursorpos.setText(self.cursorpos.textItem.toPlainText() + ', z={:.2e}'.format(self.parent.s[self.parent.s.ind].spec2d.raw.find_nearest(self.mousePoint.x(), self.mousePoint.y())))
         #print(self.vb.state['mouseMode'])
         pos = self.vb.sceneBoundingRect()
@@ -1179,7 +1180,7 @@ class showLinesWidget(QWidget):
         super().__init__()
         self.parent = parent
         self.resize(800, 700)
-        self.move(200,100)
+        self.move(200, 100)
         #self.setWindowFlags(Qt.FramelessWindowHint)
 
         self.initData()
@@ -1188,7 +1189,7 @@ class showLinesWidget(QWidget):
         self.setStyleSheet(open('config/styles.ini').read())
 
     def initData(self):
-        self.savedText = ''
+        self.savedText = None
         self.opts = OrderedDict([
                     ('width', float), ('height', float),
                     ('rows', int), ('cols', int), ('order', str),
@@ -1263,9 +1264,9 @@ class showLinesWidget(QWidget):
                  'X-ticks:', 'scale:', '', 'num', '',
                  'Y-ticks:', 'scale:', '', 'num', '',
                  'Line labels:', 'font:', '', '', '',
-                 '', 'x_pos:', '', 'y_pos:', '']
+                 '', 'hor.:', '', 'vert.:', '']
 
-        positions = [(i, j) for i in range(15) for j in range(5)]
+        positions = [(i, j) for i in range(16) for j in range(5)]
 
         for position, name in zip(positions, names):
             if name == '':
@@ -1367,9 +1368,7 @@ class showLinesWidget(QWidget):
         if self.regions:
             self.lines.setText(str(self.parent.plot.regions))
         else:
-            if init:
-                self.parent.lines = [str(l) for l in self.parent.lines]
-            self.lines.setText("\n".join(self.parent.lines))
+            self.lines.setText(str(self.parent.lines))
         self.readLines()
 
     def changeState(self, s=None):
@@ -1379,7 +1378,10 @@ class showLinesWidget(QWidget):
             if s == 'regions':
                 self.regions = True
             text = self.lines.toPlainText()
-            self.lines.setText(self.savedText)
+            if self.savedText is None:
+                self.setLines(init=True)
+            else:
+                self.lines.setText(self.savedText)
             self.savedText = text
             self.readLines()
         self.chooseLine.clear()
@@ -1417,18 +1419,7 @@ class showLinesWidget(QWidget):
             self.parent.plot.regions.fromText(self.lines.toPlainText())
             self.numRegions.setText('Regions: ' + str(len(self.parent.plot.regions)))
         else:
-            self.parent.lines = []
-            for line in self.lines.toPlainText().splitlines():
-                print(' '.join(line.split()[:2]))
-                ind = self.parent.abs.index(' '.join(line.split()[:2]))
-                if ind > -1:
-                    self.parent.lines.append(line)
-                #if ' '.join(line.split()[:2]) in [str(l.line) for l in self.parent.abs.lines]:
-                #    if '.' in line.split()[1]:
-                #        pass
-                #    else:
-                #        self.parent.lines.append(line)
-
+            self.parent.lines.fromText(self.lines.toPlainText())
             self.numLines.setText('Lines: '+str(len(self.parent.lines)))
 
     def selectLine(self, line):
@@ -1475,7 +1466,7 @@ class showLinesWidget(QWidget):
             for i, p in enumerate(self.ps):
                 p.name = ' '.join(self.parent.lines[self.ps.index(p)].split()[:2])
                 if len(self.parent.lines[self.ps.index(p)].split()) > 2:
-                    ind = int(self.parent.lines[self.ps.index(p)].split()[2])
+                    ind = int(self.parent.lines[self.ps.index(p)].split()[2][4:])
                 else:
                     ind = self.parent.s.ind
                 print(ind)
@@ -1594,7 +1585,7 @@ class showLinesWidget(QWidget):
             for opt, func in self.opts.items():
                 o[opt] = func(getattr(self, opt))
             pickle.dump(o, f)
-            pickle.dump(self.parent.lines, f)
+            pickle.dump(str(self.parent.lines), f)
             pickle.dump(str(self.parent.plot.regions), f)
             f.close()
 
@@ -1614,7 +1605,7 @@ class showLinesWidget(QWidget):
             print(o)
             for opt, item in o.items():
                 setattr(self, opt, item)
-            self.parent.lines = pickle.load(f)
+            self.parent.lines.fromText(str(pickle.load(f)))
             self.parent.plot.regions.fromText(str(pickle.load(f)))
             f.close()
         self.close()
@@ -3163,7 +3154,7 @@ class buttonpanel(QFrame):
         self.z_panel.move(55, 20)
         self.z_panel.textChanged[str].connect(self.zChanged)
         self.z_panel.setMaxLength(12)
-        self.z_panel.resize(90, 30)
+        self.z_panel.resize(120, 30)
         validator = QDoubleValidator()
         validator.setLocale(QLocale('C'))
         self.z_panel.setValidator(validator)
@@ -3172,24 +3163,24 @@ class buttonpanel(QFrame):
         self.normalize = QPushButton('Normalize', self)
         self.normalize.setCheckable(True)
         self.normalize.clicked[bool].connect(self.parent.normalize)
-        self.normalize.move(150, 20)
+        self.normalize.move(180, 20)
         self.normalize.resize(110, 30)
 
         self.fitbutton = QPushButton('Fit', self)
         self.fitbutton.setCheckable(True)
         self.fitbutton.clicked.connect(self.parent.fitLM)
         self.fitbutton.setStyleSheet('QPushButton::checked { background-color: rgb(168,66,195);}')
-        self.fitbutton.move(270, 20)
+        self.fitbutton.move(300, 20)
         self.fitbutton.resize(70, 30)
 
         self.SAS = QPushButton('SAS', self)
         self.SAS.clicked.connect(partial(self.openURL, 'SAS'))
-        self.SAS.move(400, 20)
+        self.SAS.move(450, 20)
         self.SAS.resize(70, 30)
 
         self.SkyS = QPushButton('SkyS', self)
         self.SkyS.clicked.connect(partial(self.openURL, 'SkyS'))
-        self.SkyS.move(500, 20)
+        self.SkyS.move(530, 20)
         self.SkyS.resize(70, 30)
 
     def initStyle(self):
@@ -3258,7 +3249,7 @@ class sviewer(QMainWindow):
         self.VandelsFile = self.options('VandelsFile', config=self.config)
         self.IGMspecfile = self.options('IGMspecfile', config=self.config)
         self.z_abs = 0
-        self.lines = []
+        self.lines = lineList(self)
         self.line_reper = line('HI', 1215.6701, 0.4164, 6.265e8, ref='???')
         self.regions = []
         self.show_residuals = self.options('show_residuals')
@@ -3556,12 +3547,16 @@ class sviewer(QMainWindow):
         fitPoly.setStatusTip('Fit by polynomial function')
         fitPoly.triggered.connect(partial(self.fitPoly, None))
 
-        H2Menu = QMenu('&H2', self)
-        H2Menu.setStatusTip('Some additional H2 methods')
+        AncMenu = QMenu('&Ancillary', self)
+        AncMenu.setStatusTip('Some ancillary for fit procedures')
 
         H2Exc = QAction('&H2 exc. diagram', self)
         H2Exc.setStatusTip('Show H2 excitation diagram')
         H2Exc.triggered.connect(self.H2ExcDiag)
+
+        MetalAbundance = QAction('&Metal abundance', self)
+        MetalAbundance.setStatusTip('Show Metal abundances')
+        MetalAbundance.triggered.connect(self.showMetalAbundance)
 
 
         fitMenu.addAction(setFit)
@@ -3580,8 +3575,9 @@ class sviewer(QMainWindow):
         fitMenu.addAction(fitPower)
         fitMenu.addAction(fitPoly)
         fitMenu.addSeparator()
-        fitMenu.addMenu(H2Menu)
-        H2Menu.addAction(H2Exc)
+        fitMenu.addMenu(AncMenu)
+        AncMenu.addAction(H2Exc)
+        AncMenu.addAction(MetalAbundance)
 
         # >>> create Combine Menu items
 
@@ -3998,8 +3994,8 @@ class sviewer(QMainWindow):
 
         if remove_regions:
             for r in reversed(self.plot.regions[:]):
-                self.vb.removeItem(r)
-            self.plot.regions = []
+                self.plot.regions.remove(r)
+            self.plot.regions = regionList(self)
 
         if remove_doublets:
             for d in reversed(self.plot.doublets[:]):
@@ -4084,9 +4080,7 @@ class sviewer(QMainWindow):
             if 'regions' in d[i]:
                 ns = int(d[i].split()[1])
                 for r in range(ns):
-                    self.plot.regions.append(regionItem(self.plot, xmin=float(d[i + 1 + r].split()[0]), xmax=float(d[i + 1 + r].split()[1])))
-                    self.plot.vb.addItem(self.plot.regions[-1])
-                    # self.plot.regions[self.plot.r_ind].setRegion(float(d[i + 1 + r].split()[0]), float(d[i + 1 + r].split()[1]))
+                    self.plot.regions.add('..'.join(d[i+1+r].split()))
 
             if 'doublets' in d[i]:
                 ns = int(d[i].split()[1])
@@ -4098,7 +4092,7 @@ class sviewer(QMainWindow):
                 ns = int(d[i].split()[1])
                 for r in range(ns):
                     i += 1
-                    self.lines.append(d[i].strip())
+                    self.lines.add(d[i].strip())
 
             if 'fit_model' in d[i]:
                 self.plot.remove_pcRegion()
@@ -4748,7 +4742,7 @@ class sviewer(QMainWindow):
             if timer:
                 tim = t.time('out')
                 if self.animateFit:
-                    t.sleep(max(0, 0.15-tim))
+                    t.sleep(max(0, 0.02-tim))
 
             return self.s.chi()
 
@@ -5005,6 +4999,57 @@ class sviewer(QMainWindow):
         ax.plot(x, y, '-o')
         mw.show()
         self.statusBar.setText('Excitation diagram for H2 rotational level for {:d} component is shown'.format(self.comp))
+
+    def showMetalAbundance(self):
+        """
+        Show metal abundances, metallicity and depletions based on the fit
+        """
+        names = set()
+        for sys in self.fit.sys:
+            for sp in sys.sp.keys():
+                names.add(sp)
+
+        refs = set(names)
+        for sys in self.fit.sys:
+            refs = refs & sys.sp.keys()
+
+        names = list(names)
+        inds = np.argsort([condens_temperature(name) for name in names])
+        names = [names[i] for i in inds]
+
+        ref = list(refs)[0]
+
+        print(names, refs)
+
+        fig, ax = plt.subplots()
+        for sys in self.fit.sys:
+            color = np.random.rand(3, )
+            m = metallicity(ref, sys.sp[ref].N.fitres(), 22.0)
+            print(ref, sys.sp[ref].N.fitres(), m)
+            for i, sp in enumerate(names):
+                if sp in sys.sp.keys():
+                    print(sp, metallicity(sp, sys.sp[sp].N.fitres(), 22.0) / m)
+                    ax.scatter(i, (metallicity(sp, sys.sp[sp].N.fitres(), 22.0) / m).val, c=color)
+        ax.set_xticks(np.arange(len(names)))
+        ax.set_xticklabels(names)
+        plt.draw()
+
+        sp = {}
+        for name in names:
+            sp[name] = a(0, 0, 'd')
+            for sys in self.fit.sys:
+                if name in sys.sp.keys():
+                    sp[name] += sys.sp[name].N.fitres()
+
+        dep_ref = 'ZnII'
+        fig, ax = plt.subplots()
+        for k, v in sp.items():
+            print(k, v.log().val, metallicity(k, v, 22.0).val, depletion(k, v, sp[dep_ref], ref=dep_ref).val)
+            ax.scatter(names.index(k), depletion(k, v, sp[dep_ref], ref=dep_ref).val, c='k')
+
+        ax.set_xticks(np.arange(len(names)))
+        ax.set_xticklabels(names)
+        plt.show()
 
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

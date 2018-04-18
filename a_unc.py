@@ -298,7 +298,6 @@ class a:
         
         if isinstance(other, a):
             other.dec()
-            print(self.type, other.type)
             if self.type == 'm' and other.type == 'm':
                 res.val = self.val/other.val
                 d = max(self.plus/other.val, self.minus/other.val, self.val/(other.val+other.plus), self.val/(other.val-other.minus))/100   
@@ -451,7 +450,6 @@ class a:
             - sample     :  1d np.array with the sample of n
         """
         self.log()
-        print(self.val - 4 * self.minus, self.val + 4 * self.plus)
         d = distr(self, a=self.val - 4 * self.minus, b=self.val + 4 * self.plus)
 
         return d.rvs(size=n)

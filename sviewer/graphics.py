@@ -1084,6 +1084,7 @@ class Spectrum():
         else:
             setattr(self, 'cont_mask' + name, None)
             setattr(self, 'cont'+name, gline())
+        print('calc_spline', np.sum(self.cont_mask), self.cont.x)
         try:
             getattr(self, 'g_cont' + name).setData(x=getattr(self, 'cont'+name).x, y=getattr(self, 'cont'+name).y)
         except:

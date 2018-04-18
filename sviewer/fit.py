@@ -1,8 +1,10 @@
 from copy import copy
 import gc
 from collections import OrderedDict
+from ..a_unc import a
 from ..atomic import abundance, doppler
 from ..pyratio import pyratio
+
 class par:
     def __init__(self, parent, name, val, min, max, step, addinfo='', vary=True, fit=True, show=True):
         self.parent = parent
@@ -15,6 +17,11 @@ class par:
             d = {'z': 8, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3, 'me': 3,
                  'res': 0, 'Ntot': 3, 'logn': 3, 'logT': 3}
             self.dec = d[self.name]
+
+        if self.name in ['N', 'Ntot', 'logn', 'logT', 'dtoh', 'me', 'mu']:
+            self.form = 'l'
+        else:
+            self.form = 'd'
 
         if self.name in ['b', 'N']:
             self.sys = self.parent.parent
@@ -106,6 +113,10 @@ class par:
             return '{0:.{1}f}'.format(getattr(self, attr), self.dec)
 
     def fitres(self):
+        unc = self.unc if self.unc is not None else 0
+        return a(self.val, unc, self.form)
+
+    def fitstr(self):
         if self.unc is not None:
             return '{0} = {1:.{3}f} +/- {2:.{3}f}'.format(str(self), self.val, self.unc, self.dec)
         else:

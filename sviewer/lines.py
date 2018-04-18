@@ -260,11 +260,10 @@ class absSystemIndicator():
         self.activelist = [l for l in self.lines if l.active]
 
     def index(self, linename):
-
         if linename in self.linenames:
             return self.linenames.index(linename)
         else:
-            return -1
+            return None
 
     def redraw(self, z=None):
         self.update()
@@ -360,8 +359,10 @@ class LineLabel(pg.TextItem):
         if ev.double():
             self.setActive(not self.active)
             if self.active and str(self.line) not in self.parent.parent.lines:
-                self.parent.parent.lines.append(str(self.line))
-            if not self.active and str(self.line) in self.parent.parent.lines:
+                print('double', str(self.line) + ' exp_' + str(self.parent.parent.s.ind))
+                self.parent.parent.lines.add(str(self.line) + ' exp_' + str(self.parent.parent.s.ind))
+                print('lines', self.parent.parent.lines)
+            if not self.active:
                 self.parent.parent.lines.remove(str(self.line))
             ev.accept()
 
@@ -376,6 +377,40 @@ class LineLabel(pg.TextItem):
             return True
         else:
             return False
+
+class lineList(list):
+    def __init__(self, parent):
+        super(lineList).__init__()
+        self.parent = parent
+        #' '.join(l.split()[0:2])
+
+    def check(self, line):
+        if line in self:
+            return self.index(line)
+
+    def add(self, line=None):
+        if line is not None and self.check(line) is None:
+            self.append(line)
+            self.setActive(line, True)
+
+    def remove(self, line):
+        i = self.check(line)
+        if i is not None:
+            self.setActive(line, False)
+            del self[i]
+
+    def setActive(self, line, active=False):
+        if self.parent.abs.index(' '.join(line.split()[0:2])) is not None:
+            self.parent.abs.lines[self.parent.abs.index(' '.join(line.split()[0:2]))].setActive(active)
+
+    def fromText(self, text):
+        for i in reversed(range(len(self))):
+            self.remove(self[i])
+        for line in text.splitlines():
+            self.add(line)
+
+    def __str__(self):
+        return '\n'.join([str(l) for l in self])
 
 class choiceLinesWidget(QWidget):
     def __init__(self, parent, d):

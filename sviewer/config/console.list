@@ -1,21 +1,21 @@
-logN H2j1
-logN H2j2
-logN H2j3
-logN H2j4
-logN H2j0 H2j1 H2j2 H2j3
-logN H2
-logN H2
-logN H2
-logN H2
-logN H2
-logN HD
-show H2
-show H2 2 3
-show H2 2 4
-show H2 0 1 2 3 4
-FeII
-SiII
-CIV
-FeII
-CIV
-FeII
+logN NIII
+logN NiII
+MgI
+ZnII
+CrII
+NiII
+logN ZnII
+logN SiII
+MgII
+show CI*
+show CI**
+show CII*
+CII
+ZnII
+OI*
+show OI*
+show OI**
+OI*
+show Si*
+show SiII*
+SiII*

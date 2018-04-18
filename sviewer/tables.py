@@ -323,9 +323,9 @@ class QSOlistTable(pg.TableWidget):
 
         for idx in self.selectedIndexes():
             print(idx.row())
-            self.parent.normview = False
+            #self.parent.normview = False
             self.row_clicked(idx.row())
-            self.parent.normalize()
+            self.parent.normalize(True)
             x, y = self.parent.s[-1].spec.norm.x, self.parent.s[-1].spec.norm.y
             mask = (x > 1215.6701 * (1 + float(self.cell_value('z_min')))) * (x < 1215.6701 * (1 + float(self.cell_value('z_max'))))
             for r in self.parent.plot.regions:
@@ -542,9 +542,9 @@ class QSOlistTable(pg.TableWidget):
         if 'Lya' == self.cat:
             if colInd == 0:
                 filename = self.cell_value('name').strip()
-                for r in self.parent.plot.regions:
-                    r.remove()
-                self.parent.regions = []
+                #for r in self.parent.plot.regions:
+                #    r.remove()
+                #self.parent.regions = []
                 self.parent.importSpectrum(self.folder + '/spectra/' + filename + '.dat')
                 self.parent.s[-1].spec.raw.clean(min=-1, max=2)
                 self.parent.s[-1].set_data()

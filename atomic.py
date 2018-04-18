@@ -4,8 +4,8 @@ import h5py
 import numpy as np
 import re
 import os
-from a_unc import a
 from mendeleev import element
+from .a_unc import a
 
 class e():
     """
@@ -959,6 +959,7 @@ def condens_temperature(name):
     return: t
         - t            :   Condensation temperature
     """
+    name = e(name).get_element_name()
     d = {
     'Li': 1142,
     'Be': 1452,
@@ -1109,12 +1110,14 @@ def metallicity(element, logN, logNH, mode=None):
     """
     element = e(element).get_element_name()
     if isinstance(logN, a) or isinstance(logNH, a):
+        if not isinstance(logNH, a):
+            logNH = 10**logNH
         if mode == 'Solar':
-            return logN / logNH / a(Asplund2009(element), 'l')
+            return (logN / logNH / a(Asplund2009(element), 'l')).log()
         else:
-            return logN / logNH / 10**(Asplund2009(element)[0])
+            return (logN / logNH / 10**(Asplund2009(element)[0])).log()
     
-    if isinstance(logN, float) or isinstance(logNH, float):
+    if isinstance(logN, float) and isinstance(logNH, float):
         return logN - logNH - Asplund2009(element)[0]
 
 
@@ -1155,9 +1158,9 @@ def depletion(element, logN, logNref, ref='Zn', mode=None):
     element_ref = e(ref).get_element_name()
     if isinstance(logN, a) or isinstance(logNref, a):
         if mode == 'Solar':
-            return logN / logNref * a(Asplund2009(element_ref), 'l') / a(Asplund2009(element), 'l')
+            return (logN / logNref * a(Asplund2009(element_ref), 'l') / a(Asplund2009(element), 'l')).log()
         else:
-            return logN / logNref * 10 ** (Asplund2009(element_ref)[0] - Asplund2009(element)[0])
+            return (logN / logNref * 10 ** (Asplund2009(element_ref)[0] - Asplund2009(element)[0])).log()
 
 def doppler(element, turb, kin):
     """

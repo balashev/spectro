@@ -472,8 +472,8 @@ class fitResultsWidget(QTextEdit):
     def refresh(self):
         s = ''
         for p in self.parent.fit.list():
-            print(p, p.fitres())
-            s += p.fitres() + '\n'
+            print(p, p.fitstr())
+            s += p.fitstr() + '\n'
         self.setText(s)
 
     def keyPressEvent(self, event):

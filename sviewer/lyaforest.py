@@ -56,7 +56,9 @@ def Lyaforest_scan(parent, data):
         x = np.linspace(data[0][1], data[0][-2], int((data[0][-2]-data[0][1])/0.017))
     else:
         x = np.logspace(np.log10(data[0][1]), np.log10(data[0][-2]), int((data[0][-2]-data[0][1])/0.017))
+    print(data[0], x)
     y, err = spectres.spectres(data[0], data[1], x, spec_errs=data[2])
+    print(data[0], x)
     s = Spectrum(parent, name='rebinned')
     s.set_data([x, y, err])
     s.spec.norm.set_data(x, y, err=err)
