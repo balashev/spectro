@@ -8,6 +8,7 @@ import re
 from scipy.optimize import minimize
 from scipy.stats import rv_continuous
 from scipy.integrate import quad
+import warnings
 
 class a:
     r"""
@@ -227,10 +228,16 @@ class a:
                 
     def log(self):
         if self.repr == 'dec':
-            assert self.val > 0 and self.val-self.minus > 0, ('Argument of log is <= 0')
+            #assert self.val > 0 and self.val-self.minus > 0, ('Argument of log is <= 0')
             if self.type == 'm':
                 self.plus = np.log10(self.val+self.plus) - np.log10(self.val)
-                self.minus = np.log10(self.val) - np.log10(self.val-self.minus)
+                if self.val < 0:
+                    assert self.val > 0, ('Argument of log is <= 0')
+                elif self.val-self.minus < 0:
+                    self.minus = np.inf
+                    warnings.warn('Argument of minus boundary is <= 0, set to -np.inf')
+                else:
+                    self.minus = np.log10(self.val) - np.log10(self.val - self.minus)
             self.val = np.log10(self.val)
             self.repr = 'log'
         return self
@@ -299,7 +306,7 @@ class a:
         if isinstance(other, a):
             other.dec()
             if self.type == 'm' and other.type == 'm':
-                res.val = self.val/other.val
+                res.val = self.val / other.val
                 d = max(self.plus/other.val, self.minus/other.val, self.val/(other.val+other.plus), self.val/(other.val-other.minus))/100   
                 res = self.mini(self.div_lnL, other, d, res)
             else: 
@@ -467,7 +474,8 @@ class distr(rv_continuous):
 if __name__ == '__main__':        
     
     print("Running tests ...")
-    
+
+    print(a(2,4,4, 'd').log())
     if 0:
         x = a("$19\pm0.2", 'l')
         x = a(19, 0.2, 0.1)
@@ -493,7 +501,7 @@ if __name__ == '__main__':
         print((f + e).log())
         print(((x+z) + (y+w)).log())
     
-    if 1:
+    if 0:
         # various types how to set a value
         x = []
         x.append(a(1))

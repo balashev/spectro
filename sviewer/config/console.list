@@ -1,21 +1,21 @@
-logN NIII
-logN NiII
-MgI
-ZnII
-CrII
-NiII
-logN ZnII
-logN SiII
-MgII
-show CI*
-show CI**
-show CII*
-CII
-ZnII
-OI*
-show OI*
-show OI**
-OI*
-show Si*
-show SiII*
+PII
+SI
+CoII
 SiII*
+GeII
+ston
+ston
+SiII*
+show SiII*
+y 0 4
+PII
+SiII*
+MgI
+SiII*
+show SiII*
+SIII
+MgI
+MgI
+show MgI
+ClII
+show ClII

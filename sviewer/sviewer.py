@@ -1469,7 +1469,7 @@ class showLinesWidget(QWidget):
                     ind = int(self.parent.lines[self.ps.index(p)].split()[2][4:])
                 else:
                     ind = self.parent.s.ind
-                print(ind)
+                print(p.name, ind)
                 s = self.parent.s[ind]
                 if s.fit.n() > 0:
                     fit = np.array([s.fit.x(), s.fit.y()])
@@ -1482,13 +1482,13 @@ class showLinesWidget(QWidget):
                 else:
                     fit = None
                     fit_comp = None
-                print(fit)
                 p.loaddata(d=np.array([s.spec.x(), s.spec.y(), s.spec.err(), s.mask.x()]), f=fit, fit_comp=fit_comp)
                 if len(self.parent.lines[self.ps.index(p)].split()) == 4:
                     p.y_min, p.y_max = (float(l) for l in self.parent.lines[self.ps.index(p)].split()[2:])
                 for l in self.parent.abs.lines:
                     if p.name == str(l.line):
                         p.wavelength = l.line.l()
+                print(p.wavelength)
                 p.show_comps = self.show_comps
                 p.name_pos = [self.name_x_pos, self.name_y_pos]
                 p.add_residual, p.sig = self.residuals, self.res_sigma
@@ -1889,6 +1889,7 @@ class fitMCMCWidget(QWidget):
         self.results = QTextEdit('')
         self.results.setFixedSize(500, 400)
         self.results.setText('# fit results are here')
+        self.results.textChanged.connect(self.fitresChanged)
         grid.addWidget(self.results, 3, 1)
         self.chooseShow = chooseShowParsWidget(self)
         self.chooseShow.setFixedSize(200, 800)
@@ -1908,11 +1909,16 @@ class fitMCMCWidget(QWidget):
         self.check_button = QPushButton("Check")
         self.check_button.setFixedSize(120, 30)
         self.check_button.clicked[bool].connect(self.check)
+
+        self.loadres_button = QPushButton("Check")
+        self.loadres_button.setFixedSize(120, 30)
+        self.loadres_button.clicked[bool].connect(self.loadres)
         hbox = QHBoxLayout()
         hbox.addWidget(self.show_button)
         hbox.addWidget(self.stats_button)
         hbox.addWidget(self.check_button)
         hbox.addStretch(1)
+        hbox.addWidget(self.loadres_button)
 
         showlayout = QVBoxLayout()
         showlayout.addLayout(h)
@@ -1945,6 +1951,15 @@ class fitMCMCWidget(QWidget):
                         self.prior[words[0]] = a(float(words[1]), float(words[2]), 'd')
                     elif len(words) == 4:
                         self.prior[words[0]] = a(float(words[1]), float(words[2]), float(words[3]), 'd')
+
+    def fitresChanged(self):
+        for line in self.results.toPlainText().splitlines():
+            if not line.startswith('#'):
+                words = line.split()
+                if words[0] in self.parent.fit.pars():
+                    if len(words) == 3:
+                        print(words[2])
+                        self.parent.fit.setValue(words[0], words[2], attr='unc')
 
     def setOpts(self, arg=None):
         setattr(self, 'MCMC_'+arg, getattr(self, arg).isChecked())
@@ -2156,6 +2171,9 @@ class fitMCMCWidget(QWidget):
 
 
         plt.show()
+
+    def loadres(self):
+        pass
 
     def closeEvent(self, event):
         #for opt, func in self.opts.items():
@@ -3547,7 +3565,7 @@ class sviewer(QMainWindow):
         fitPoly.setStatusTip('Fit by polynomial function')
         fitPoly.triggered.connect(partial(self.fitPoly, None))
 
-        AncMenu = QMenu('&Ancillary', self)
+        AncMenu = QMenu('&Diagnostic plots', self)
         AncMenu.setStatusTip('Some ancillary for fit procedures')
 
         H2Exc = QAction('&H2 exc. diagram', self)
@@ -5004,6 +5022,7 @@ class sviewer(QMainWindow):
         """
         Show metal abundances, metallicity and depletions based on the fit
         """
+        colors = ['royalblue', 'orangered', 'seagreen', 'darkmagenta', 'skyblue', 'paleviotelred', 'chocolate']
         names = set()
         for sys in self.fit.sys:
             for sp in sys.sp.keys():
@@ -5023,13 +5042,13 @@ class sviewer(QMainWindow):
 
         fig, ax = plt.subplots()
         for sys in self.fit.sys:
-            color = np.random.rand(3, )
-            m = metallicity(ref, sys.sp[ref].N.fitres(), 22.0)
-            print(ref, sys.sp[ref].N.fitres(), m)
+            color = colors[self.fit.sys.index(sys)]
+            m = metallicity(ref, sys.sp[ref].N.unc, 22.0)
             for i, sp in enumerate(names):
                 if sp in sys.sp.keys():
-                    print(sp, metallicity(sp, sys.sp[sp].N.fitres(), 22.0) / m)
-                    ax.scatter(i, (metallicity(sp, sys.sp[sp].N.fitres(), 22.0) / m).val, c=color)
+                    y = metallicity(sp, sys.sp[sp].N.unc, 22.0) / m
+                    ax.scatter(i, y.val, c=color)
+                    ax.errorbar([i], [y.val], yerr=[[y.minus], [y.plus]], c=color)
         ax.set_xticks(np.arange(len(names)))
         ax.set_xticklabels(names)
         plt.draw()
@@ -5039,13 +5058,22 @@ class sviewer(QMainWindow):
             sp[name] = a(0, 0, 'd')
             for sys in self.fit.sys:
                 if name in sys.sp.keys():
-                    sp[name] += sys.sp[name].N.fitres()
+                    sp[name] += sys.sp[name].N.unc
 
         dep_ref = 'ZnII'
         fig, ax = plt.subplots()
-        for k, v in sp.items():
-            print(k, v.log().val, metallicity(k, v, 22.0).val, depletion(k, v, sp[dep_ref], ref=dep_ref).val)
-            ax.scatter(names.index(k), depletion(k, v, sp[dep_ref], ref=dep_ref).val, c='k')
+        if 1:
+            for k, v in sp.items():
+                print(k, v.log().val, metallicity(k, v, 22.0).val, depletion(k, v, sp[dep_ref], ref=dep_ref).val)
+                #ax.scatter(names.index(k), depletion(k, v, sp[dep_ref], ref=dep_ref).val, c='k')
+
+        for sys in self.fit.sys:
+            color = colors[self.fit.sys.index(sys)]
+            if dep_ref in sys.sp.keys():
+                for k, v in sys.sp.items():
+                    y = depletion(k, v.N.unc, sys.sp[dep_ref].N.unc, ref=dep_ref)
+                    ax.scatter(names.index(k), y.val, c=color)
+                    ax.errorbar([names.index(k)], [y.val], yerr=[[y.minus], [y.plus]], c=color)
 
         ax.set_xticks(np.arange(len(names)))
         ax.set_xticklabels(names)

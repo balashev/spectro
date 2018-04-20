@@ -668,8 +668,9 @@ class pcRegion():
             pass
         self.parent.parent.fit.cf_num += 1
         if x1 is not None and x2 is not None:
-            self.parent.parent.fit.add('cf_' + str(self.parent.parent.fit.cf_num))
+            self.parent.parent.fit.add('cf_' + str(self.parent.parent.fit.cf_num-1))
             self.updateFitModel()
+
 
     def draw(self):
         self.gline = pg.PlotCurveItem(x=[self.x1, self.x2], y=[self.value, self.value], pen=pg.mkPen(color=self.color), clickable=True)

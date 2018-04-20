@@ -262,8 +262,8 @@ class plotline():
         self.spec = data()
         self.fit = data()
 
-        print(self.filename)
         if self.filename is not None:
+            print('filename:', self.filename)
             d = np.genfromtxt(self.filename[0], skip_header=2, unpack=True)
             if Path(self.filename[0].replace('.dat', '_fit.dat')).exists():
                 f = np.genfromtxt(self.filename[0].replace('.dat', '_fit.dat'), skip_header=2, unpack=True)

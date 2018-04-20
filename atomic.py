@@ -5,7 +5,13 @@ import numpy as np
 import re
 import os
 from mendeleev import element
-from .a_unc import a
+
+if __name__ == '__main__':
+    import sys
+    sys.path.append('C:/science/python')
+    from spectro.a_unc import a
+else:
+    from .a_unc import a
 
 class e():
     """
@@ -643,7 +649,7 @@ class atomicData(OrderedDict):
     def makedatabase(self):
         f = h5py.File('data/atomic.hdf5', 'w')
         self.readMorton()
-        self.readCashman()
+        #self.readCashman()
         self.readH2(j=[0,1,2,3,4,5,6])
         self.readHD()
         self.readCO()

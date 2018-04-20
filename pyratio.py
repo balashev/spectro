@@ -416,6 +416,7 @@ class speci:
             self.num = len(n)  # number of levels with estimated column density
         else:
             self.num = num
+        self.set_names()
         self.g = np.zeros(self.num)
         self.E = np.zeros(self.num)
         self.descr = ['']*self.num
@@ -470,7 +471,13 @@ class speci:
             self.g = [i*2+1 for i in range(self.num)]
         if self.name == 'CII':
             self.g = [i*2 for i in range(self.num)]
-            
+
+    def set_names(self):
+        if self.name in ['CI', 'CII', 'SiII', 'OI']:
+            self.names = [self.name + '*'*k for k in range(self.num)]
+        elif self.name in ['HD', 'CO']:
+            self.names = [self.name + 'j'+ str(k) for k in range(self.num)]
+
     def coll_rate(self, part, i, j, T):
         l = self.coll[part].rate(i, j)
         #print(l, part, i, j)

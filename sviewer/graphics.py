@@ -130,7 +130,7 @@ class Speclist(list):
         for s in self:
             s.findFitLines(ind, all=all, debug=False)
 
-    def calcFit(self, ind=-1, recalc=False, redraw=True, timer=True):
+    def calcFit(self, ind=-1, recalc=False, redraw=True, timer=False):
         if timer:
             t = Timer()
         for s in self:
@@ -737,7 +737,7 @@ class Spectrum():
             self.g_fit = pg.PlotCurveItem(x=[], y=[], pen=self.fit_pen)
         self.parent.vb.addItem(self.g_fit)
         self.set_gfit()
-        if len(self.parent.fit.sys) > 1:
+        if len(self.parent.fit.sys) > 0:
             self.construct_g_fit_comps()
 
         if self.parent.normview:
@@ -1379,6 +1379,7 @@ class Spectrum():
             if self.parent.fit.cont_fit:
                 flux = flux * self.correctContinuum(x)
 
+
             # >>> set fit graphics
             if ind == -1:
                 self.set_fit(x=x, y=flux)
@@ -1416,7 +1417,8 @@ class Spectrum():
             if self.resolution not in [None, 0]:
                 if ind == -1:
                     x_spec = self.spec.norm.x
-                    mask_glob = np.zeros_like(x_spec)
+                    #mask_glob = np.zeros_like(x_spec)
+                    mask_glob = self.mask.norm.x
                     for line in self.fit_lines:
                         if ind == -1 or ind == line.sys:
                             line.tau.getrange(tlim=tau_limit)
@@ -1478,6 +1480,13 @@ class Spectrum():
             # >>> correct for artificial continuum:
             if self.parent.fit.cont_fit:
                 flux = flux * self.correctContinuum(x)
+
+            # >>> correct for artificial continuum:
+            if self.parent.fit.disp_fit:
+                for i in range(self.parent.fit.disp_num):
+                    if getattr(self.parent.fit, 'dispz_' + str(i)).addinfo == 'exp_' + str(self.ind()):
+                        f = interp1d(x + (x - getattr(self.parent.fit, 'dispz_' + str(i)).val) * getattr(self.parent.fit, 'disps_' + str(i)).val, flux, bounds_error=False, fill_value=1)
+                        flux = f(x)
 
             # >>> set fit graphics
             if ind == -1:
