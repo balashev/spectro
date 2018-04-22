@@ -76,6 +76,8 @@ class e():
         
         self.nu = None
         self.J = None
+        if 'j' in self.name:
+            self.J = int(self.name[int(self.name.index('j'))+1:])
         self.b = None
         
         for k in kwargs.items():

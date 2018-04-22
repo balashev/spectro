@@ -5007,20 +5007,27 @@ class sviewer(QMainWindow):
         """
         Show H2 excitation diagram for the selected component 
         """
-        x, y = [], []
-        for sp in self.fit.sys[self.comp].sp:
-            print(sp)
-            if 'H2' in sp:
-                x.append(self.atomic[sp].energy)
-                y.append(self.fit.sys[self.comp].sp[sp].N.val - np.log10(self.atomic[sp].stats))
-        arg = np.argsort(x)
-        x = np.array(x)[arg]
-        y = np.array(y)[arg]
-        print(x, y)
+        data = np.genfromtxt('data/H2/energy_X.dat', comments='#', unpack=True)
         mw = MatplotlibWidget()
         ax = mw.getFigure().add_subplot(111)
+        for sys in self.fit.sys:
+            if any(['H2' in name for name in self.fit.sys[0].sp.keys()]):
+                x, y = [], []
+                for sp in sys.sp:
+                    print(sp)
+                    if 'H2' in sp:
+                        m = np.logical_and(data[0] == 0, data[1] == int(sp[3:]))
+                        x.append(float(data[2][m]))
+                        #x.append(self.atomic[sp].energy)
+                        y.append(sys.sp[sp].N.val - np.log10(self.atomic[sp].statw()))
+                arg = np.argsort(x)
+                x = np.array(x)[arg]
+                y = np.array(y)[arg]
+                ax.plot(x, y, '-o', label='sys_'+str(self.fit.sys.index(sys)))
 
-        ax.plot(x, y, '-o')
+        ax.set_xlabel(r'Energy, cm$^{-1}$')
+        ax.set_ylabel(r'$\log N$ / g')
+        ax.legend(loc='best')
         mw.show()
         self.statusBar.setText('Excitation diagram for H2 rotational level for {:d} component is shown'.format(self.comp))
 
