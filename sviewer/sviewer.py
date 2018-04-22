@@ -1444,6 +1444,8 @@ class showLinesWidget(QWidget):
             fig = self.mw.getFigure()
         else:
             fig = plt.figure(figsize=(self.width, self.height))
+        print('dpi', fig.dpi)
+        fig.set_dpi(300)
         #self.subplot = self.mw.getFigure().add_subplot(self.rows, self.cols, 1)
 
         if not self.regions:
@@ -1572,7 +1574,8 @@ class showLinesWidget(QWidget):
     def savePlot(self):
         fig = self.showPlot(plot=False)
         self.plotfile = self.file.text()
-        fig.savefig(self.file.text())
+        print(fig.dpi)
+        fig.savefig(self.file.text(), dpi=fig.dpi)
         #self.mw.getFigure().savefig(self.file.text())
 
     def saveSettings(self):
@@ -1602,7 +1605,6 @@ class showLinesWidget(QWidget):
         if fname:
             f = open(fname, "rb")
             o = pickle.load(f)
-            print(o)
             for opt, item in o.items():
                 setattr(self, opt, item)
             self.parent.lines.fromText(str(pickle.load(f)))
@@ -1975,7 +1977,6 @@ class fitMCMCWidget(QWidget):
 
     def MCMC(self, init=True):
         self.parent.setFit(comp=-1)
-
         def lnprior(x, pars, prior):
             lp = 0
             for k, v in prior.items():
@@ -1987,9 +1988,9 @@ class fitMCMCWidget(QWidget):
             res = True
             for xi, p in zip(x, pars):
                 res *= self.parent.fit.setValue(p, xi)
-            # print(x)
+            self.parent.fit.update()
+            print(self.parent.fit.sys[0].Ntot.val, self.parent.fit.sys[0].sp['CI'].N.val, self.parent.fit.sys[0].sp['CI*'].N.val, self.parent.fit.sys[0].sp['CI**'].N.val)
             self.parent.s.calcFit(recalc=True, redraw=False, timer=False)
-            # print(self.parent.s.chi2())
             chi = self.parent.s.chi2()
             if res and not np.isnan(chi):
                 return -chi
@@ -2001,6 +2002,8 @@ class fitMCMCWidget(QWidget):
 
         nwalkers = int(self.parent.options('MCMC_walkers'))
         nsteps = int(self.parent.options('MCMC_iters'))
+
+        self.parent.s.prepareFit(-1, all=False)
 
         if init:
             pars, pos = [], []
@@ -2134,6 +2137,7 @@ class fitMCMCWidget(QWidget):
                 if p.startswith('z'):
                     samples[:, i] = samples[:, i] * 1000
             fig, ax0 = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
+            print(np.sum(np.isinf(lnprobs[-nwalkers:])))
             ax0[0, 0].hist(-lnprobs[-nwalkers:], 20, normed=1, histtype='bar', color='crimson', label='$\chi^2$')
             ax0[0, 0].legend()
             ax0[0, 0].set_title('$\chi^2$ distribution')
@@ -4107,6 +4111,7 @@ class sviewer(QMainWindow):
                     self.plot.doublets.append(Doublet(self.plot, name=d[i].split()[0], z=float(d[i].split()[1])))
 
             if 'lines' in d[i]:
+                self.lines = lineList(self)
                 ns = int(d[i].split()[1])
                 for r in range(ns):
                     i += 1
@@ -4725,6 +4730,9 @@ class sviewer(QMainWindow):
     def fitLM(self, comp=-1):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self.panel.fitbutton.setChecked(True)
+
+        self.parent.showfullfit = False
+
         if self.animateFit:
             if 1:
                 self.thread = threading.Thread(target=self.LM, args=(), kwargs={'comp': comp}, daemon=True)
@@ -4753,9 +4761,7 @@ class sviewer(QMainWindow):
                 self.s[self.s.ind].resolution = self.fit.res.val
 
             self.s.prepareFit(ind=comp, all=False)
-            print('prepared')
             self.s.calcFit(recalc=True, redraw=self.animateFit)
-            print('prepared')
 
             if timer:
                 tim = t.time('out')

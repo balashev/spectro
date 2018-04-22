@@ -203,9 +203,8 @@ class fitSystem:
                 return self.sp[sp].N.val
 
     def pyratio(self, init=False):
-        if init: # and self.pr is None:
+        if init or self.pr is None:
             self.pr = pyratio(z=self.z.val)
-            print(self.pr, self.z.val)
             d = {'CO': [-1, 10], 'CI': [-1, 3]}
             for s in self.sp.keys():
                 if 'CO' in s:

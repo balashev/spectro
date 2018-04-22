@@ -1,21 +1,21 @@
-PII
-SI
-CoII
-SiII*
-GeII
-ston
-ston
-SiII*
-show SiII*
-y 0 4
-PII
-SiII*
-MgI
-SiII*
-show SiII*
-SIII
-MgI
-MgI
-show MgI
-ClII
-show ClII
+SiII
+show MgII
+SiIII
+show CaII
+CaII
+NV
+CIV
+SiIII
+show all
+hide all
+FeII
+SiIII
+SiII
+SiII
+FeII
+SiII
+FeII
+FeII
+SiII
+FeII
+CIV

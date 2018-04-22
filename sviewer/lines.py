@@ -588,7 +588,7 @@ class doubletTempLine(pg.InfiniteLine):
         super().setMouseHover(hover)
         name, z = self.parent.find(self.x, self.parent.line_temp.getXPos(), show=False)
         anchor = (0, 1) if 'DLA' not in name else (0, 0)
-        self.parent.temp.append(doubletLabel(self.parent, name, self.x/(1+z), angle=90, anchor=anchor))
+        self.parent.temp.append(doubletLabel(self.parent, name + '_' + str(int(self.parent.line_temp.getXPos()/(1+z))), self.x/(1+z), angle=90, anchor=anchor))
         self.parent.parent.vb.addItem(self.parent.temp[-1])
 
 class doubletLabel(pg.TextItem):

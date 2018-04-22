@@ -813,7 +813,6 @@ class fitModelSysWidget(QFrame):
         self.refresh()
 
     def onChanged(self, s, attr, species=None):
-        print('onChanged', s, attr)
         if s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT']:
             setattr(getattr(self.fit.sys[self.ind], s), attr, float(getattr(self, s + '_' + attr).text()))
         if s in ['b', 'N']:
