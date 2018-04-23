@@ -9,6 +9,7 @@ from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, 
 import matplotlib.pyplot as plt
 from multiprocessing import Process
 import pickle
+import os
 import platform
 from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget, QDesktopWidget,
                              QAction, QActionGroup, qApp, QFileDialog, QTextEdit, QVBoxLayout,
@@ -24,6 +25,7 @@ from scipy.integrate import quad
 from scipy.optimize import curve_fit
 from scipy.stats import gaussian_kde
 from sklearn.neighbors import KernelDensity
+import subprocess
 import sys
 sys.path.append('C:/science/python')
 import threading
@@ -1202,10 +1204,9 @@ class showLinesWidget(QWidget):
                     ('font', int), ('xlabel', str), ('ylabel', str),
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
                     ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
-                    ('plotfile', str)
+                    ('plotfile', str), ('show_H2', str), ('pos_H2', float),
                     ])
         for opt, func in self.opts.items():
-            print(opt, func)
             #print(opt, self.parent.options(opt), func(self.parent.options(opt)))
             setattr(self, opt, func(self.parent.options(opt)))
 
@@ -1250,7 +1251,7 @@ class showLinesWidget(QWidget):
         validator.setLocale(locale)
         #validator.ScientificNotation
         names = ['Size:', 'width:', '', 'height:', '',
-                 'Panels:', 'rows:', '', 'cols:', '',
+                 'Panels:', 'cols:', '', 'rows:', '',
                  'Indents:', 'hor.:', '', 'vert.:', '',
                  'Order', '', '', '', '',
                  '0ffets between:', 'col:', '', 'row:', '',
@@ -1264,27 +1265,28 @@ class showLinesWidget(QWidget):
                  'X-ticks:', 'scale:', '', 'num', '',
                  'Y-ticks:', 'scale:', '', 'num', '',
                  'Line labels:', 'font:', '', '', '',
-                 '', 'hor.:', '', 'vert.:', '']
+                 '', 'hor.:', '', 'vert.:', '',
+                 'H2:', '', '', 'pos:', '',]
 
-        positions = [(i, j) for i in range(16) for j in range(5)]
+        positions = [(i, j) for i in range(17) for j in range(5)]
 
         for position, name in zip(positions, names):
             if name == '':
                 continue
             grid.addWidget(QLabel(name), *position)
 
-
-        self.opt_but = OrderedDict([('width', [0, 2]), ('height', [0, 4]), ('rows', [1, 2]), ('cols', [1, 4]),
+        self.opt_but = OrderedDict([('width', [0, 2]), ('height', [0, 4]), ('cols', [1, 2]), ('rows', [1, 4]),
                                     ('v_indent', [2, 2]), ('h_indent', [2, 4]), ('col_offset', [4, 2]), ('row_offset', [4, 4]),
                                     ('xmin', [6, 2]), ('xmax', [6, 4]), ('ymin', [7, 2]), ('ymax', [7, 4]),
                                     ('res_sigma', [8, 4]), ('font', [10, 2]),
                                     ('xlabel', [11, 2]), ('ylabel', [11, 4]),
                                     ('x_ticks', [12, 2]), ('xnum', [12, 4]), ('y_ticks', [13, 2]), ('ynum', [13, 4]),
-                                    ('font_labels', [14, 2]), ('name_x_pos', [15, 2]), ('name_y_pos', [15, 4]),])
+                                    ('font_labels', [14, 2]), ('name_x_pos', [15, 2]), ('name_y_pos', [15, 4]),
+                                    ('show_H2', [16, 2]), ('pos_H2', [16, 4])])
         for opt, v in self.opt_but.items():
             b = QLineEdit(str(getattr(self, opt)))
             b.setFixedSize(80, 30)
-            if opt not in ['xlabel', 'ylabel']:
+            if opt not in ['xlabel', 'ylabel', 'show_H2']:
                 b.setValidator(validator)
             b.textChanged[str].connect(partial(self.onChanged, attr=opt))
             grid.addWidget(b, v[0], v[1])
@@ -1331,11 +1333,10 @@ class showLinesWidget(QWidget):
         l = QHBoxLayout()
         self.showButton = QPushButton("Show")
         self.showButton.setFixedSize(110, 30)
-        self.showButton.clicked.connect(partial(self.showPlot, True, []))
+        self.showButton.clicked.connect(partial(self.showPlot, False, []))
         expButton = QPushButton("Export")
         expButton.setFixedSize(110, 30)
-        expButton.clicked.connect(self.savePlot)
-        print(self.plotfile)
+        expButton.clicked.connect(partial(self.showPlot, True, []))
         self.file = QLineEdit(self.plotfile)
         self.file.setFixedSize(350, 30)
         self.file.textChanged[str].connect(self.setFilename)
@@ -1436,23 +1437,17 @@ class showLinesWidget(QWidget):
     def onIndChoose(self):
         self.sys_ind = self.refcomp.currentIndex() + 1
 
-    def showPlot(self, plot=True, showH2=[]):
+    def showPlot(self, savefig=True, showH2=[]):
         if not self.parent.normview:
             self.parent.normalize()
-        if plot:
-            self.mw = MatplotlibWidget(size=(self.width, self.height))
-            fig = self.mw.getFigure()
-        else:
-            fig = plt.figure(figsize=(self.width, self.height))
-        print('dpi', fig.dpi)
-        fig.set_dpi(300)
+        fig = plt.figure(figsize=(self.width, self.height), dpi=300)
         #self.subplot = self.mw.getFigure().add_subplot(self.rows, self.cols, 1)
 
         if not self.regions:
             print(self.parent.lines, type(self.parent.lines[0]))
             self.ps = plot_spec(len(self.parent.lines), font=self.font, font_labels=self.font_labels,
                            vel_scale=(self.units=='l'), gray_out=self.gray_out, figure=fig)
-            rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order, height=0.9,
+            rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order,
                                v_indent=self.v_indent, h_indent=self.h_indent,
                                col_offset=self.col_offset, row_offset=self.row_offset)
             self.ps.specify_rects(rects)
@@ -1499,7 +1494,7 @@ class showLinesWidget(QWidget):
         else:
             self.ps = plot_spec(len(self.parent.plot.regions), font=self.font, font_labels=self.font_labels,
                            vel_scale=True, gray_out=self.gray_out, figure=fig)
-            rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order, height=0.9, width=0.99,
+            rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order,
                                v_indent=self.v_indent, h_indent=self.h_indent,
                                col_offset=self.col_offset, row_offset=self.row_offset)
             self.ps.specify_rects(rects)
@@ -1559,24 +1554,24 @@ class showLinesWidget(QWidget):
                             if cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind:
                                 ax.plot([cf.min, cf.max], [cf.val, cf.val], '--', color='orangered')
 
-                if len(showH2)>0:
-                    p.showH2(ax, levels=showH2)
+                if self.show_H2.strip() != '':
+                    p.showH2(ax, levels=[int(s) for s in self.show_H2.split()], pos=self.pos_H2)
                 if 0:
                     self.showContCorr(ax=ax)
 
-        print('plot', plot)
-        if plot:
-            self.mw.show()
-            self.mw.draw()
+        if savefig:
+            self.plotfile = self.file.text()
+        else:
+            self.plotfile = os.path.dirname(os.path.realpath(__file__)) + '/output/lines.pdf'
 
-        return fig
+        fig.savefig(self.plotfile, dpi=fig.dpi)
 
-    def savePlot(self):
-        fig = self.showPlot(plot=False)
-        self.plotfile = self.file.text()
-        print(fig.dpi)
-        fig.savefig(self.file.text(), dpi=fig.dpi)
-        #self.mw.getFigure().savefig(self.file.text())
+        if sys.platform.startswith('darwin'):
+            subprocess.call(('open', self.plotfile))
+        elif os.name == 'nt':
+            os.startfile(self.plotfile)
+        elif os.name == 'posix':
+            subprocess.call(('xdg-open', self.plotfile))
 
     def saveSettings(self):
         fname = QFileDialog.getSaveFileName(self, 'Save settings...', self.parent.plot_set_folder)[0]
@@ -1989,7 +1984,6 @@ class fitMCMCWidget(QWidget):
             for xi, p in zip(x, pars):
                 res *= self.parent.fit.setValue(p, xi)
             self.parent.fit.update()
-            print(self.parent.fit.sys[0].Ntot.val, self.parent.fit.sys[0].sp['CI'].N.val, self.parent.fit.sys[0].sp['CI*'].N.val, self.parent.fit.sys[0].sp['CI**'].N.val)
             self.parent.s.calcFit(recalc=True, redraw=False, timer=False)
             chi = self.parent.s.chi2()
             if res and not np.isnan(chi):
@@ -2079,11 +2073,10 @@ class fitMCMCWidget(QWidget):
                 c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
 
                 fig = c.plotter.plot(figsize=(30, 30),
-                                        filename="fit.png",
+                                        filename="output/fit.png",
                                         display=True,
                                         truth=truth
                                         )
-                fig.savefig("output/triangle.png")
 
     def stats(self):
         pars, nwalkers, samples, lnprobs = self.readChain()
@@ -2171,8 +2164,6 @@ class fitMCMCWidget(QWidget):
                                            facecolor='green', interpolate=True, alpha=0.5)
                 ax[vert, hor].plot(np.arange(niters), SomeChain[:, i], color='b')
                 ax[vert, hor].set_title(pars[i])
-
-
 
         plt.show()
 
@@ -4730,8 +4721,6 @@ class sviewer(QMainWindow):
     def fitLM(self, comp=-1):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self.panel.fitbutton.setChecked(True)
-
-        self.parent.showfullfit = False
 
         if self.animateFit:
             if 1:

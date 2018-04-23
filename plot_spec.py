@@ -42,7 +42,7 @@ class rect_param():
         - order       : order of the panel, 'v' for vertical and 'h' for horizontal
     """
     def __init__(self, n_rows=1, n_cols=1, row_offset=0, col_offset=0, 
-                 width=0.95, height=0.9,  order='v', v_indent=0.05, h_indent=0.03):
+                 width=1.0, height=1.0,  order='v', v_indent=0.05, h_indent=0.03):
         self.n_rows = n_rows
         self.n_cols = n_cols
         self.row_offset = row_offset
@@ -73,6 +73,7 @@ class plot_spec(list):
         self.figure = figure
         self.show_comps = show_comps
         self.gray_out = gray_out
+        self.order = 'v'
 
         if isinstance(arg, int):
             for i in range(arg):
@@ -109,9 +110,7 @@ class plot_spec(list):
         left = rect_pars[0].v_indent 
         top = 1 
         for r in rect_pars:
-            top -= r.h_indent
-            print(top, r.h_indent)
-            panel_h = r.height/r.n_rows - r.row_offset
+            panel_h = (r.height - r.h_indent - r.row_offset*(r.n_rows-1))/r.n_rows
             panel_w = (r.width - r.v_indent - r.col_offset*(r.n_cols-1))/r.n_cols
             for i in range(r.n_rows*r.n_cols):        
                 if r.order is 'v':
@@ -123,9 +122,11 @@ class plot_spec(list):
                 rects.append(rectangle(left+(panel_w+r.col_offset)*col, top-(panel_h+r.row_offset)*row, panel_w, panel_h))
                 #[left+(panel_w+r.col_offset)*col, top-panel_h*(row+1)-r.row_offset*row, panel_w, panel_h])
             top -= r.height
-            if r.row_offset == 0:
-                top -= r.h_indent
-                
+            top -= r.h_indent
+            #if r.row_offset == 0:
+            #    top -= r.h_indent
+
+        self.rect = rect_pars[0]
         for i, line in enumerate(self):
             line.rect = rects[i]
    
@@ -163,23 +164,57 @@ class plot_spec(list):
             col = [p1 for p1 in self if abs(p1.rect.left - p.rect.left)<0.01]
             if all([abs(p1.rect.top-p.rect.bottom)>0.001 for p1 in col]):
                 p.xticklabels = 1
-                if xlabels is None:
-                    p.xlabel = xlabel
+
+        for p in self:
+            if all([abs(p1.rect.right - p.rect.left) > 0.001 for p1 in self]):
+                p.yticklabels = 1
+
+        for p in self:
+            p.xlabel = None
+            p.ylabel = None
+
         if xlabels is not None:
             for i, p in enumerate(self):
                 if i in xlabels:
                     p.xlabel = xlabel
-                
-        for p in self:
-            if all([abs(p1.rect.right-p.rect.left)>0.001 for p1 in self]):
-                p.yticklabels = 1                
-                if ylabels is None:
-                    p.ylabel = ylabel
+        else:
+            if self.rect.order == 'h':
+                inds = list(range(len(self)-self.rect.n_cols, len(self)))
+            if self.rect.order == 'v':
+                k = len(self) // self.rect.n_cols
+                print(len(self), k)
+                inds = np.append(k * np.arange(1, k+1) - 1, len(self)-1)
+            print(inds)
+            for i, p in enumerate(self):
+                if i in inds:
+                    p.xlabel = xlabel
+
         if ylabels is not None:
             for i, p in enumerate(self):
                 if i in ylabels:
                     p.ylabel = ylabel
-                
+        else:
+            for i, p in enumerate(self):
+                if self.rect.order == 'h':
+                    k = (len(self) - 1)  // self.rect.n_cols
+                    if k == 0:
+                        inds = [0]
+                    elif k == 1:
+                        inds = [0, self.rect.n_cols]
+                    else:
+                        inds = [(k // 2) * self.rect.n_cols]
+                if self.rect.order == 'v':
+                    k = min(self.rect.n_rows, len(self))
+                    if k == 0:
+                        inds = [0]
+                    elif k == 1:
+                        inds = [0, 1]
+                    else:
+                        inds = [(k // 2)]
+            for i, p in enumerate(self):
+                if i in inds:
+                    p.ylabel = ylabel
+
     def set_ticks(self, x_tick=100, x_num=10, y_tick=1, y_num=10):
         for p in self:
             p.x_minorLocator = AutoMinorLocator(x_num)
@@ -595,26 +630,27 @@ class plotline():
                 for c in self.fit.comp:
                     c = c / sum_cont
 
-    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5], pos=0.84, dpos=0.05, color='royalblue', show_ticks=True):
+    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5], pos=0.84, dpos=0.05, color='cornflowerblue', show_ticks=True):
         if 1:
             ymin, ymax = ax.get_ylim()
             pos, dpos = ymin + pos * (ymax - ymin), dpos * (ymax - ymin)
-            print(pos, dpos)
+            xmin, xmax = ax.get_xlim()
         lines = atomicData.H2(levels)
-        lines = [l for l in lines if l.l()*(1+self.parent.z_ref) > ax.get_xlim()[0] and l.l()*(1+self.parent.z_ref) < ax.get_xlim()[1]]
-        s = [str(line).split()[1][:2] for line in lines]
+        lines = [l for l in lines if l.l()*(1+self.parent.z_ref) > xmin and l.l()*(1+self.parent.z_ref) < xmax]
+        s = set([str(line).split()[1][:str(line).split()[1].index('-')] for line in lines])
         for band in s:
+            pos_y = pos if 'L' in band else pos - dpos - dpos * (ymax - ymin)
             b_lines = [line for line in lines if band in str(line)]
-            l = [line.l() for line in b_lines]
-            if 1:
-                if show_ticks:
-                    for line in b_lines:
-                        if line.j_l in levels:
-                            ax.plot([line.l() * (1 + self.parent.z_ref), line.l() * (1 + self.parent.z_ref)], [pos, pos + dpos], lw=0.75, color=color, ls='-')
-                    ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)], [pos + dpos, pos + dpos], lw=0.75, color=color, ls='-')
-            ax.text(np.min(l) * (1 + self.parent.z_ref), pos + dpos, band + '-0', ha='left', va='bottom', fontsize=self.parent.font-4, color=color)
-
-
+            b_lines = [line for line in b_lines if line.l()*(1 + self.parent.z_ref) > xmin and line.l()*(1 + self.parent.z_ref) < xmax]
+            if str(min(levels)) in [str(line).split()[0][3:] for line in b_lines]:
+                l = [line.l() for line in b_lines]
+                if 1:
+                    if show_ticks:
+                        for line in b_lines:
+                            if line.j_l in levels:
+                                ax.plot([line.l() * (1 + self.parent.z_ref), line.l() * (1 + self.parent.z_ref)], [pos_y, pos_y + dpos], lw=0.75, color=color, ls='-')
+                        ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)], [pos_y + dpos, pos_y + dpos], lw=0.75, color=color, ls='-')
+                ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0', ha='left', va='bottom', fontsize=self.parent.font-4, color=color)
 
     def __str__(self):
         return 'plot line object: ' + str(self.name) + ', ' + str(self.wavelength)
