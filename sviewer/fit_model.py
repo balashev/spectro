@@ -1,11 +1,14 @@
+from astropy.io import ascii
+from collections import OrderedDict
 from functools import partial
+from io import StringIO
+import numpy as np
 from PyQt5.QtCore import Qt, QSize, QLocale
 from PyQt5.QtGui import QIcon, QDoubleValidator
 from PyQt5.QtWidgets import (QWidget, QTreeWidget, QTabWidget, QHBoxLayout,
                              QVBoxLayout, QTreeWidgetItem, QLineEdit, QFrame,
                              QLabel, QPushButton, QCheckBox, QComboBox,
                              QScrollArea, QApplication, QTextEdit)
-
 from .utils import Timer
 from ..pyratio import pyratio
 
@@ -536,25 +539,97 @@ class fitModelWidget(QWidget):
         self.onTabChanged()
         event.accept()
 
-class fitResultsWidget(QTextEdit):
+class fitResultsWidget(QWidget):
     def __init__(self, parent):
         super(fitResultsWidget, self).__init__()
         self.parent = parent
+        self.init_GUI()
         self.setStyleSheet(open('config/styles.ini').read())
 
         self.setGeometry(200, 200, 750, 900)
         self.setWindowTitle('Fit results')
         self.refresh()
 
+    def init_GUI(self):
+        layout = QVBoxLayout()
+        self.output = QTextEdit()
+        #self.output.setSizeAdjustPolicy(QTextEdit.AdjustToContents)
+        #self.output.setSizeAdjustPolicy(QTextEdit.AdjustToContentsOnFirstShow)
+        hl = QHBoxLayout()
+        self.latexTable = QPushButton('Table view:')
+        self.latexTable.setCheckable(True)
+        self.latexTable.setChecked(False)
+        self.latexTable.setFixedSize(120, 30)
+        self.latexTable.clicked.connect(self.refresh)
+        self.vert = QCheckBox('vertical')
+        self.vert.setChecked(True)
+        self.vert.clicked.connect(self.refresh)
+        self.showb = QCheckBox('show tied b')
+        self.showb.setChecked(False)
+        self.showb.clicked.connect(self.refresh)
+        hl.addWidget(self.latexTable)
+        hl.addWidget(self.vert)
+        hl.addWidget(self.showb)
+        hl.addStretch(0)
+        layout.addWidget(self.output)
+        #layout.addStretch(1)
+        layout.addLayout(hl)
+        self.setLayout(layout)
+
     def refresh(self):
+        if self.latexTable.isChecked():
+            self.latex()
+        else:
+            self.text()
+
+    def text(self):
         s = ''
         for p in self.parent.fit.list():
             print(p, p.fitres())
             s += p.fitres() + '\n'
-        self.setText(s)
+        self.output.setText(s)
+
+    def latex(self):
+        fit = self.parent.fit
+        sps = OrderedDict()
+        for sys in fit.sys:
+            for sp in sys.sp.keys():
+                sps[sp] = 1
+        if self.vert.isChecked():
+            names = ['par'] + ['comp '+str(i+1) for i in range(len(fit.sys))]
+            data = [['z'] + list(sps.keys())]
+            #d = ['$log N($'+sp+')']
+            for sys in fit.sys:
+                d = [sys.z.fitres(latex=True)]
+                for sp in sps.keys():
+                    if sp in sys.sp.keys():
+                        d.append(sys.sp[sp].N.fitres(latex=True, dec=2))
+                    else:
+                        d.append(' ')
+                data.append(d)
+        else:
+            names = ['comp', 'z'] + list(sps.keys())
+            print(names)
+            data = [[str(i+1) for i in range(len(fit.sys))]]
+            data.append([sys.z.fitres(latex=True) for sys in fit.sys])
+            for sp in sps.keys():
+                d = []
+                for sys in fit.sys:
+                    if sp in sys.sp.keys():
+                        d.append(sys.sp[sp].N.fitres(latex=True, dec=2))
+                    else:
+                        d.append(' ')
+                data.append(d)
+        print(data)
+        output = StringIO()
+        ascii.write(data, output, names=names, format='latex')
+        table = output.getvalue()
+        print(table)
+        self.output.setText(table)
+        output.close()
 
     def keyPressEvent(self, event):
-        super(QTextEdit, self).keyPressEvent(event)
+        super(QWidget, self).keyPressEvent(event)
         key = event.key()
 
         if not event.isAutoRepeat():
@@ -604,7 +679,7 @@ class fitModelSysWidget(QFrame):
         Ncons_vary = all([hasattr(self.fit.sys[self.ind], attr) for attr in ['Ntot', 'logT', 'logn']])
         self.cons = self.addParent(self.treeWidget, 'b tied', checkable=True, expanded=cons_vary)
         self.Ncons = self.addParent(self.treeWidget, 'N tied', checkable=True, expanded=Ncons_vary)
-        for s, name in zip(['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'mol'], ['z','b_turb', 'Tkin, K', 'N_tot', 'logn', 'logT', 'f(H2)']):
+        for s, name in zip(['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf'], ['z','b_turb', 'Tkin, K', 'N_tot', 'logn', 'logT', 'logf']):
             if s == 'z':
                 item = QTreeWidgetItem(self.z)
             elif s in ['turb', 'kin']:
@@ -626,7 +701,7 @@ class fitModelSysWidget(QFrame):
             setattr(self, s + '_vary', QCheckBox())
             getattr(self, s + '_vary').setChecked(getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
             getattr(self, s + '_vary').stateChanged.connect(self.varyChanged)
-            if (s in ['turb', 'kin'] and not cons_vary) or (s in ['Ntot', 'logn', 'logT', 'mol'] and not Ncons_vary):
+            if (s in ['turb', 'kin'] and not cons_vary) or (s in ['Ntot', 'logn', 'logT', 'logf'] and not Ncons_vary):
                 self.fit.sys[self.ind].remove(s)
 
             self.treeWidget.setItemWidget(item, 2, getattr(self, s + '_vary'))
@@ -780,7 +855,7 @@ class fitModelSysWidget(QFrame):
         self.refresh()
 
     def varyChanged(self):
-        for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'mol']:
+        for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']:
             if hasattr(self.fit.sys[self.ind], s):
                 setattr(getattr(self.fit.sys[self.ind], s), 'vary', getattr(self, s + '_vary').isChecked())
             #print('state:', getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
@@ -798,7 +873,7 @@ class fitModelSysWidget(QFrame):
                 self.fit.sys[self.ind].add(s)
             else:
                 self.fit.sys[self.ind].remove(s)
-        for s in ['Ntot', 'logn', 'logT', 'mol']:
+        for s in ['Ntot', 'logn', 'logT', 'logf']:
             if self.Ncons.isExpanded():
                 self.fit.sys[self.ind].add(s)
             else:
@@ -813,7 +888,7 @@ class fitModelSysWidget(QFrame):
         self.refresh()
 
     def onChanged(self, s, attr, species=None):
-        if s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'mol']:
+        if s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']:
             setattr(getattr(self.fit.sys[self.ind], s), attr, float(getattr(self, s + '_' + attr).text()))
         if s in ['b', 'N']:
             setattr(getattr(self.fit.sys[self.ind].sp[species], s), attr, float(getattr(self, species + '_' + s + '_' + attr).text()))
@@ -851,7 +926,7 @@ class fitModelSysWidget(QFrame):
             self.fit.update()
 
             names = ['val', 'max', 'min', 'step']
-            for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'mol']:
+            for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']:
                 if hasattr(self.fit.sys[self.ind], s):
                     getattr(self, s+'_vary').setChecked(getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
                     for attr in names:

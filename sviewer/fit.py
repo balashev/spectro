@@ -19,7 +19,7 @@ class par:
             self.dec = 8
         else:
             d = {'z': 8, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3, 'me': 3,
-                 'res': 0, 'Ntot': 3, 'logn': 3, 'logT': 3, 'mol': 3}
+                 'res': 0, 'Ntot': 3, 'logn': 3, 'logT': 3, 'logf': 3}
             self.dec = d[self.name]
 
         if self.name in ['N', 'Ntot', 'logn', 'logT', 'dtoh', 'me', 'mu']:
@@ -29,7 +29,7 @@ class par:
 
         if self.name in ['b', 'N']:
             self.sys = self.parent.parent
-        elif self.name in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'mol']:
+        elif self.name in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']:
             self.sys = self.parent
         else:
             self.sys = None
@@ -42,7 +42,7 @@ class par:
         self.fit = fit
         self.fit_w = self.fit
         self.show = show
-        self.unc = None
+        self.unc = a()
 
     def set(self, val, attr='val'):
         if attr == 'unc':
@@ -82,6 +82,9 @@ class par:
         for attr in attrs:
             setattr(self, attr, getattr(other, attr))
 
+    def latexname(self):
+        pass
+
     def ref(self, val=None, attr='val'):
         # special function for lmfit to translate redshift to velocity space
         if self.name.startswith('z'):
@@ -102,7 +105,7 @@ class par:
 
     def __repr__(self):
         s = self.name
-        if self.name in ['z', 'b', 'N', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'mol']:
+        if self.name in ['z', 'b', 'N', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']:
             s += '_' + str(self.sys.ind)
         if self.name in ['b', 'N']:
             s += '_' + self.parent.name
@@ -110,7 +113,7 @@ class par:
 
     def __str__(self):
         s = self.name
-        if self.name in ['z', 'b', 'N', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'mol']:
+        if self.name in ['z', 'b', 'N', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']:
             s += '_' + str(self.sys.ind)
         if self.name in ['b', 'N']:
             s += '_' + self.parent.name
@@ -122,11 +125,16 @@ class par:
         else:
             return '{0:.{1}f}'.format(getattr(self, attr), self.dec)
 
-    def fitres(self):
+    def fitres(self, latex=False, dec=None):
+        if dec is None:
+            dec = self.dec
         if self.unc is not None:
-            return '{0} = {1:.{4}f} + {2:.{4}f} - {3:.{4}f}'.format(str(self), self.val, self.unc.plus, self.unc.minus, self.dec)
+            if latex:
+                return '${0:.{3}f}^{{+{1:.{3}f}}}_{{-{2:.{3}f}}}$'.format(self.val, self.unc.plus, self.unc.minus, dec)
+            else:
+                return '{0} = {1:.{4}f} + {2:.{4}f} - {3:.{4}f}'.format(str(self), self.val, self.unc.plus, self.unc.minus, dec)
         else:
-            return '{0} = {1:.{2}f}'.format(str(self), self.val, self.dec)
+            return '{0} = {1:.{2}f}'.format(str(self), self.val, dec)
 
 class fitSpecies:
     def __init__(self, parent, name=None):
@@ -162,11 +170,11 @@ class fitSystem:
             self.logn = par(self, 'logn', 2, -2, 5, 0.05)
         if name in 'logT':
             self.logT = par(self, 'logT', 2, 0.5, 5, 0.05)
-        if name in 'mol':
-            self.mol = par(self, 'mol', 0, -6, 0, 0.05)
+        if name in 'logf':
+            self.logf = par(self, 'logf', 0, -6, 0, 0.05)
 
     def remove(self, name):
-        if name in ['turb', 'kin', 'Ntot', 'logn', 'logT', 'mol']:
+        if name in ['turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']:
             if hasattr(self, name):
                 delattr(self, name)
 
@@ -180,7 +188,7 @@ class fitSystem:
 
     def duplicate(self, other):
         self.z.duplicate(other.z)
-        attrs = ['turb', 'kin', 'Ntot', 'logn', 'logT', 'mol']
+        attrs = ['turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']
         for attr in attrs:
             if hasattr(other, attr):
                 self.add(attr)
@@ -222,7 +230,7 @@ class fitSystem:
         if self.pr is not None:
             self.pr.pars['T'].value = self.logT.val
             self.pr.pars['n'].value = self.logn.val
-            self.pr.pars['f'].value = self.mol.val
+            self.pr.pars['f'].value = self.logf.val
             for k in self.pr.species.keys():
                 col = self.pr.predict(name=k, level=-1, logN=self.Ntot.val)
                 for s in self.sp.keys():
@@ -313,10 +321,10 @@ class fitPars:
                 self.add(name)
             res = getattr(self, name).set(val, attr)
 
-        if s[0] in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'mol']:
+        if s[0] in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']:
             while len(self.sys) <= int(s[1]):
                 self.addSys()
-            if s[0] in ['turb', 'kin', 'Ntot', 'logn', 'logT', 'mol']:
+            if s[0] in ['turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']:
                 if not hasattr(self.sys[int(s[1])], s[0]):
                     self.sys[int(s[1])].add(s[0])
             res = getattr(self.sys[int(s[1])], s[0]).set(val, attr)
@@ -363,7 +371,7 @@ class fitPars:
             if hasattr(self, name):
                 par = getattr(self, name)
 
-        if s[0] in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'mol']:
+        if s[0] in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']:
             if len(self.sys) > int(s[1]) and hasattr(self.sys[int(s[1])], s[0]):
                 par = getattr(self.sys[int(s[1])], s[0])
 
@@ -416,7 +424,7 @@ class fitPars:
                         pars[str(p)] = p
         if len(self.sys) > 0:
             for sys in self.sys:
-                for attr in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'mol']:
+                for attr in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']:
                     if hasattr(sys, attr):
                         p = getattr(sys, attr)
                         pars[str(p)] = p

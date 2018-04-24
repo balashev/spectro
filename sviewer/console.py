@@ -191,7 +191,7 @@ class Console(QTextEdit):
 
         elif args[0] == 'show':
 
-            lines = []
+            lines, color = [], (23, 190, 207)
             if args[1] == 'all':
                 for s in self.parent.atomic.keys():
                     if '*' not in s:
@@ -202,9 +202,7 @@ class Console(QTextEdit):
                 #    lines += self.parent.atomic[s].lines
 
             elif args[1] == 'H2' or 'H2j' in args[1]:
-                #for k in reversed(list(self.parent.atomic.keys())):
-                #    if 'H2' in k:
-                #        del self.parent.atomic[k]
+                color = (255, 115, 63)
                 energy = None
                 if 'H2j' in args[1]:
                     j = [int(args[1][3:])]
@@ -235,6 +233,7 @@ class Console(QTextEdit):
                 #self.parent.atomic.readHD()
                 for j in j:
                     lines += self.parent.atomic.list('HDj{:d}'.format(j))
+                color = (254, 255, 63)
 
             elif args[1] == 'CO' or 'COj' in args[1]:
                 if 'COj' in args[1]:
@@ -253,7 +252,7 @@ class Console(QTextEdit):
                 for k in self.parent.atomic.keys():
                     if 'HF' in k:
                         lines += self.parent.atomic.list('HF')
-
+                color = (255, 69, 69)
             else:
                 if args[1] in self.parent.atomic.keys():
                     lines += self.parent.atomic.list(args[1])
@@ -266,7 +265,7 @@ class Console(QTextEdit):
                 for l in reversed(lines):
                     if l.f() > f:
                         del l
-            self.parent.abs.add(lines, color=(23, 190, 207))
+            self.parent.abs.add(lines, color=color)
 
             return ''
 

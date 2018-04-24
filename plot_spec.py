@@ -414,19 +414,20 @@ class plotline():
         # >>> add residuals
         if self.add_residual and self.show_fit:
             color_res = col.tableau20[7]
+            color_linres = 'mediumpurple' #col.tableau20[5]
             null_res = self.y_max + (self.y_max-self.y_min) * 0.10
             delt_res = (self.y_max - self.y_min) * 0.08
             self.y_max = self.y_max + self.add_residual*(self.y_max-self.y_min)*0.28
-            ax.axhline(null_res, color=col.tableau20[5], ls='--', zorder=0)
-            ax.axhline(null_res+delt_res, color=col.tableau20[5], ls='--', zorder=0)
-            ax.axhline(null_res-delt_res, color=col.tableau20[5], ls='--', zorder=0)
+            ax.axhline(null_res, color=color_linres, ls='--', zorder=0)
+            ax.axhline(null_res+delt_res, color=color_linres, ls='--', zorder=0)
+            ax.axhline(null_res-delt_res, color=color_linres, ls='--', zorder=0)
             #ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res-1.1*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
             #ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res+0.9*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
             x_pos = self.x_max - 0.01*(self.x_max - self.x_min)
             ax.text(x_pos, null_res+delt_res, r'+'+str(self.sig)+'$\sigma$', fontsize=self.font-2,
-                    color=col.tableau20[4], backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
+                    color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
             ax.text(x_pos, null_res-delt_res, r'-'+str(self.sig)+'$\sigma$', fontsize=self.font-2,
-                    color=col.tableau20[4], backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
+                    color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
             fit = interpolate.interp1d(self.fit.x, self.fit.y, bounds_error=False)
             try:
                 if sum(self.points) > 0:
