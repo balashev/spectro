@@ -369,7 +369,6 @@ class plotSpectrum(pg.PlotWidget):
                 self.b_status = False
                 if not self.mouse_moved:
                     self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y())
-                print('keyRelease', self.b_status)
 
             if event.key() == Qt.Key_C:
                 if (QApplication.keyboardModifiers() != Qt.ControlModifier):
@@ -1903,16 +1902,20 @@ class fitMCMCWidget(QWidget):
         self.stats_button = QPushButton("Stats")
         self.stats_button.setFixedSize(120, 30)
         self.stats_button.clicked[bool].connect(self.stats)
+        self.stats_all_button = QPushButton("Stats all")
+        self.stats_all_button.setFixedSize(120, 30)
+        self.stats_all_button.clicked[bool].connect(self.stats_all)
         self.check_button = QPushButton("Check")
         self.check_button.setFixedSize(120, 30)
         self.check_button.clicked[bool].connect(self.check)
 
-        self.loadres_button = QPushButton("Check")
+        self.loadres_button = QPushButton("Load")
         self.loadres_button.setFixedSize(120, 30)
         self.loadres_button.clicked[bool].connect(self.loadres)
         hbox = QHBoxLayout()
         hbox.addWidget(self.show_button)
         hbox.addWidget(self.stats_button)
+        hbox.addWidget(self.stats_all_button)
         hbox.addWidget(self.check_button)
         hbox.addStretch(1)
         hbox.addWidget(self.loadres_button)
@@ -2105,8 +2108,43 @@ class fitMCMCWidget(QWidget):
                 vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
                 d.plot(conf=0.683, ax=ax[vert, hor])
                 ax[vert, hor].set_title(pars[i])
+
         plt.show()
 
+    def stats_all(self):
+
+        pars, nwalkers, samples, lnprobs = self.readChain()
+
+        mask = np.array([p.show for p in self.parent.fit.list_fit()])
+        burnin = int(self.parent.options('MCMC_burnin'))
+        k = len(self.parent.fit.list())# samples.shape[1]
+        n_hor = int(k ** 0.5)
+        if n_hor <= 1:
+            n_hor = 2
+        n_vert = int(k / n_hor + 1)
+        self.results.setText('')
+        values = []
+        for k in range(nwalkers * burnin + 1, samples.shape[0]):
+            for xi, p in zip(samples[k], pars):
+                self.parent.fit.setValue(p, xi)
+            self.parent.fit.update()
+            values.append([p.val for p in self.parent.fit.list()])
+
+        values = np.asarray(values)
+        fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
+        for i, p in enumerate(self.parent.fit.list()):
+            if np.std(values[:,i]) > 0:
+                d = distr1d(values[:,i])
+                d.dopoint()
+                d.dointerval()
+                res = a(d.point, d.point - d.interval[0], d.interval[1] - d.point)
+                f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
+                self.results.setText(self.results.toPlainText() + str(p) + ': ' + res.latex(f=f) + '\n')
+                vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
+                d.plot(conf=0.683, ax=ax[vert, hor])
+                ax[vert, hor].set_title(str(p))
+
+        plt.show()
 
     def check(self):
         self.MCMCqc()

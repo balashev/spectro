@@ -42,6 +42,7 @@ class FLineEdit(QLineEdit):
             self.setMaxLength(l)
 
     def calcFit(self):
+        print(self.varF)
         if self.var in ['N', 'b', 'z', 'kin', 'turb', 'v', 'c', 'Ntot', 'logn', 'logT']:
             self.parent.parent.s.reCalcFit(self.parent.tab.currentIndex())
         elif self.var in ['mu', 'me', 'dtoh', 'res'] or any([x in self.var for x in ['dispz', 'disps']]):

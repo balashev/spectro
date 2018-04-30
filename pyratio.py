@@ -7,14 +7,16 @@ from chainconsumer import ChainConsumer
 import collections
 import corner
 import emcee
+import glob
 from matplotlib.colors import ListedColormap, LogNorm
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
+import pickle
 from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph.opengl as gl
 from scipy import interpolate, integrate, optimize
-from scipy.stats import rv_continuous, norm, chi2
+from scipy.stats import chi2, gaussian_kde, rv_continuous, norm
 import os, sys
 sys.path.append('C:/Science/python')
 from spectro import colors as col
@@ -22,13 +24,22 @@ from spectro.a_unc import a
 from spectro.sviewer.utils import printProgressBar, Timer
 
 class distr1d():
-    def __init__(self, x, y, xtol=1e-5, debug=False):
+    def __init__(self, x, y=None, xtol=1e-5, debug=False):
         self.x = x
-        self.y = y
+        if y is not None:
+            self.y = y
+        else:
+            self.kde()
         self.xtol = xtol
         self.debug = debug
         self.normalize()
         self.interpolate()
+
+    def kde(self):
+        kde = gaussian_kde(self.x)
+        x = np.linspace(np.min(self.x), np.max(self.x), np.min([100, np.sqrt(len(self.x))]))
+        self.y = kde(x)
+        self.x = x
 
     def normalize(self):
         inter = interpolate.interp1d(self.x, self.y)
@@ -45,14 +56,17 @@ class distr1d():
     def level(self, x, level):
         return self.inter(x) - level
 
-    def plot(self, conf=None, color='orangered', ax=None, xlabel=None, ylabel=None, fontsize=16):
+    def plot(self, x=None, conf=None, color='orangered', ax=None, xlabel=None, ylabel=None, fontsize=16, alpha=0.3):
         if ax is None:
             fig, ax = plt.subplots()
-        ax.plot(self.x, self.y, '-', color=color, lw=1.5)
+        if x is None:
+            x = self.x
+        ax.plot(x, self.inter(x), '-', color=color, lw=1.5)
         if conf is not None:
-            x, level = self.dointerval(conf=conf)
-            mask = np.logical_and(self.x > x[0], self.x < x[1])
-            ax.fill_between(self.x[mask], self.y[mask], facecolor=color, alpha=0.3, interpolate=True)
+            self.dointerval(conf=conf)
+            print('interval plot', self.interval)
+            mask = np.logical_and(x > self.interval[0], x < self.interval[1])
+            ax.fill_between(x[mask], self.inter(x)[mask], facecolor=color, alpha=alpha, interpolate=True)
 
         ax.tick_params(axis='both', which='major', labelsize=fontsize - 2)
         if xlabel is not None:
@@ -256,7 +270,7 @@ class distr2d():
         res = optimize.fsolve(self.func, n, args=(conf), xtol=self.xtol, full_output=self.debug)
         print(res[0])
         self.interval = self.minmax(res[0])
-        print('interval:', interval[0], interval[1])
+        print('interval:', self.interval[0], self.interval[1])
 
         level = self.level(conf=conf)
         print(level)
@@ -301,7 +315,7 @@ class distr2d():
                     w.addItem(line)
         app.instance().exec_()
 
-    def plot_contour(self, conf_levels=None, ax=None, xlabel='', ylabel='', color='orangered', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False, ls=None, font=18):
+    def plot_contour(self, conf_levels=None, ax=None, xlabel='', ylabel='', color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False, ls=None, font=18):
         if ax == None:
             fig, ax = plt.subplots()
         self.dopoint()
@@ -323,12 +337,13 @@ class distr2d():
         if ls is not None:
             for c, s in zip(c.collections[:len(ls)], ls[::-1]):
                 c.set_dashes(s)
-        ax.scatter(self.point[0], self.point[1], s=200, color=color_point, edgecolors='k', marker='*', zorder=50)
+        if color_point is not None:
+            ax.scatter(self.point[0], self.point[1], s=200, color=color_point, edgecolors='k', marker='*', zorder=50)
         if colorbar:
             fig.colorbar(cs, ax=ax) #, shrink=0.9)
         ax.set_xlabel(xlabel, fontsize=font)
         ax.set_ylabel(ylabel, fontsize=font)
-        ax.tick_params(axis='both', which='major', labelsize=30)
+        ax.tick_params(axis='both', which='major', labelsize=font)
 
         return ax
 
@@ -864,8 +879,8 @@ class par():
         # >>> UV flux
         if name == 'UV':
             self.label = r'$\log\,\xi$'
-            self.init = 1.0
-            self.range = [0, 3]
+            self.init = 0
+            self.range = [-1, 2]
             self.init_range = 0.3
             
        # >>> electron number density
@@ -931,6 +946,7 @@ class pyratio():
 
         - z           : redshift of the medium, need for CMB calculations
         - f_He        : fraction of Helium nuclei, respect to hydrogen nuclei
+        - UVB         : include UV backgroun in calculation
         - logs        : if logs==1 compare log values of ratios when calculating likelihood.
         - calctype    : type of calculation to be performed:
                             allowed:
@@ -940,20 +956,23 @@ class pyratio():
 
             
     """
-    def __init__(self, z=0, f_He=0.085, conf_levels=[0.68269], calctype='popratios'):
+    def __init__(self, z=0, f_He=0.085, UVB=True, conf_levels=[0.68269], logs=1, calctype='popratios'):
         self.species = collections.OrderedDict()
         self.pars = collections.OrderedDict()
         self.Planck1 = 8*np.pi*ac.h.cgs.value
         self.Planck2 = (ac.h.cgs/ac.k_B.cgs*ac.c.cgs).value
         self.z = z
-        self.logs = 1
+        self.logs = logs
         self.f_He = f_He
         self.theta_range = []
         self.calctype = calctype
+        self.folder = os.path.dirname(os.path.realpath(__file__))
+        self.UVB = UVB
+        if self.UVB:
+            self.set_UVB()
         if self.calctype == 'numbdens':
             self.set_pars(['Ntot'])
         self.conf_levels = conf_levels
-        self.folder = os.path.dirname(os.path.realpath(__file__))
         self.timer = Timer()
 
     def add_spec(self, name, n=None, num=None):
@@ -1023,7 +1042,20 @@ class pyratio():
         print('parameters in calculations: ', [p for p in self.pars])
         for p in self.pars.values():
             p.show()
-                
+
+    def set_UVB(self):
+        files = glob.glob(self.folder+'/data/pyratio/KS18_Fiducial_Q18/*.txt')
+        z = [float(f[-8:-4]) for f in files]
+        try:
+            ind = z.index(self.z)
+            data = np.genfromtxt(files[ind], comments='#', unpack=True)
+            self.uvb = interpolate.interp1d(data[0], data[1], fill_value='extrapolate')
+        except:
+            ind = np.searchsorted(z, self.z)
+            data_min = np.genfromtxt(files[ind - 1], comments='#', unpack=True)
+            data_max = np.genfromtxt(files[ind], comments='#', unpack=True)
+            self.uvb = interpolate.interp1d(data_min[0], data_min[1] + (data_max[1] - data_max[1]) * (self.z - z[ind]) / (z[ind+1] - z[ind]), fill_value='extrapolate')
+
     def u_CMB(self, nu):
         """
         calculate CMB flux density at given wavelenght array frequencies
@@ -1060,24 +1092,6 @@ class pyratio():
         W = np.zeros([speci.num, speci.num])
         #self.timer.time('rates in')
 
-        if 0:
-            for u in range(speci.num):
-                for l in range(speci.num):
-                    #print(i,j, speci.A[i,j])
-                    #print(i, j, u_CMB(abs(speci.E[j]-speci.E[i]))*speci.B[i,j], speci.A[i,j])
-                    if debug in [None, 'A']:
-                        W[u, l] += speci.A[u, l]
-                    if debug in [None, 'CMB']:
-                        W[u, l] += self.u_CMB(abs(speci.E[u] - speci.E[l])) * speci.B[u, l]
-                    if debug in [None, 'C']:
-                        if any(x in self.pars.keys() for x in ['n', 'e', 'H2', 'H']):
-                            W[u, l] += self.collision_rate(speci, u, l)
-                        #print('coll:', u, l, self.collision_rate(speci, u, l, verbose=0))
-                    if debug in [None, 'UV']:
-                        if 'UV' in self.pars:
-                            W[u, l] += self.pumping_rate(speci, u, l)
-                            #sprint('radp:', u, l, self.pumping_rate(speci, u, l))
-
         #self.timer.time('A')
         if debug in [None, 'A']:
             W += speci.Aij
@@ -1097,16 +1111,16 @@ class pyratio():
             for u in range(speci.num):
                 for l in range(speci.num):
                     if 'UV' in self.pars:
-                        W[u, l] += self.pumping_rate(speci, u, l)
-                        #sprint('radp:', u, l, self.pumping_rate(speci, u, l))
+                        W[u, l] += self.pumping_rate(speci, u, l, x=10**self.pars['UV'].value)
+                        #print('Ratio:',  self.pumping_rate(speci, u, l, x=0) / self.pumping_rate(speci, u, l, x=0.15))
 
         #self.timer.time('solve')
         if debug is None:
-            K = -np.transpose(W)
+            K = np.transpose(W)
             for i in range(speci.num):
                 for k in range(speci.num):
-                    if k != i: K[i, i] += W[i, k]
-            return np.insert(np.linalg.solve(K[1:,1:],-K[1:,0]), 0, 1)
+                    if k != i: K[i, i] -= W[i, k]
+            return np.insert(np.abs(np.linalg.solve(K[1:, 1:], -K[1:, 0])), 0, 1)
 
         elif debug in ['A', 'CMB', 'C', 'UV']:
             return W
@@ -1145,30 +1159,30 @@ class pyratio():
 
         return coll
     
-    def pumping_rate(self, speci, u, l):
+    def pumping_rate(self, speci, u, l, x=1):
         """
         calculates fluorescence excitattion rates for l -> u transition of given species
+        x is the
         """
         pump = 0
-        x = 10**self.pars['UV'].value
         for k in range(speci.num, speci.fullnum):
             if speci.A[k,l] != 0:
                 s = 0
                 for i in range(speci.num):
-                    s += speci.A[k,i] + self.exc_rate(speci, k, i) * x
-                pump += self.exc_rate(speci, u, k) * x * (speci.A[k,l] + self.exc_rate(speci, k, l) * x) / s
-        
+                    s += speci.A[k,i] + self.exc_rate(speci, k, i, galactic=x)
+                pump += self.exc_rate(speci, u, k, galactic=x) * (speci.A[k,l] + self.exc_rate(speci, k, l, galactic=x)) / s
         return pump
     
-    def exc_rate(self, speci, u, l):
+    def exc_rate(self, speci, u, l, galactic=1):
         """
         calculates excitation rates (B_ul * u(\nu)) in specified field (by u), 
                             for l -> u transition of given species 
         """
         nu = abs(speci.E[u]-speci.E[l])*ac.c.cgs.value
-        return speci.B[u,l] * self.uv(nu) / nu
+        #print('exc rates', ac.c.cgs.value / nu * 1e8, galactic, self.uv(nu, kind='Draine') * galactic / self.uv(nu, kind='UVB'))
+        return speci.B[u,l] * (self.uv(nu, kind='Draine') * galactic + self.uv(nu, kind='UVB')) / nu
         
-    def uv(self, nu, kind='Habing'):
+    def uv(self, nu, kind='Draine'):
         """
         UV field density in [erg/cm^3]
         parameters:
@@ -1180,6 +1194,14 @@ class pyratio():
         return:
             uv       : energy density of UV field in [erg/cm^3]
         """
+
+        if kind=='UVB':
+            if self.UVB:
+                #print(ac.c.cgs.value / nu * 1e8, self.uvb(ac.c.cgs.value / nu * 1e8))
+                return self.uvb(ac.c.cgs.value / nu * 1e8) * 4 * np.pi / ac.c.cgs.value * nu
+            else:
+                return 0
+
         if kind == 'Habing':
             return 4e-14 * np.ones_like(nu)
             
@@ -1191,14 +1213,14 @@ class pyratio():
             l = ac.c.cgs.value / nu / 1e-4 # in 1 mkm
             if isinstance(l, float):
                 l = np.array(l)
-            uv = np.zeros_like(l)
+            uvm = np.zeros_like(l)
             mask = np.logical_and(0.134 < l, l < 0.245)
-            uv[mask] = 2.373e-14 * l[mask]**(-0.6678)
+            uvm[mask] = 2.373e-14 * l[mask]**(-0.6678)
             mask = np.logical_and(0.110 < l, l < 0.134)
-            uv[mask] = 6.825e-13 * l[mask]
+            uvm[mask] = 6.825e-13 * l[mask]
             mask = np.logical_and(0.091 < l, l < 0.110)
-            uv[mask] = 1.287e-9 * l[mask]**4.4172
-            return uv
+            uvm[mask] = 1.287e-9 * l[mask]**4.4172
+            return uvm
 
     def lnpops(self):
         """
@@ -1349,7 +1371,7 @@ class pyratio():
             - logN       : column density as <a> object
         """
         if name is None:
-            name = self.species.keys()[0]
+            name = list(self.species.keys())[0]
 
         x = self.balance(self.species[name].name)
 
@@ -1450,12 +1472,14 @@ class pyratio():
             axi.legend(loc=4)
         #plt.show()
 
-    def calc_grid(self, grid_num=50, plot=1, verbose=1, title='', ax=None, alpha=1, color=None, zorder=1):
+    def calc_grid(self, grid_num=50, plot=1, verbose=1, output=None,
+                  title='', ax=None, alpha=1, color=None, zorder=1, ):
         """
         calculate ranges for two parameters using given populations of levels
         parameters:
             - grid_num     :  number of points in the grid for each parameter
             - plot         :  specify graphs to plot: 1 is for contour, 2 is for filled contours
+            - output       :  name of output file for probalbility
             - title        :  title name for the plot
             - ax           :  axes object where to plot data, of not present make it if plot==1.
             - alpha        :  alpha value for the contour plots
@@ -1464,11 +1488,13 @@ class pyratio():
         """
         self.get_vary()
 
+        out = None
+
         if len(self.vary) == 1:
             out = self.calc_1d(self.vary, grid_num=grid_num, plot=plot, verbose=verbose, title=title, ax=ax, alpha=alpha, color=color, zorder=zorder)
 
         if len(self.vary) == 2:
-            out = self.calc_2d(self.vary, grid_num=grid_num, plot=plot, verbose=verbose, title=title, ax=ax, alpha=alpha, color=color, zorder=zorder)
+            out = self.calc_2d(self.vary, grid_num=grid_num, plot=plot, verbose=verbose, output=output, title=title, ax=ax, alpha=alpha, color=color, zorder=zorder)
 
         return out
 
@@ -1537,13 +1563,16 @@ class pyratio():
 
         return out
 
-    def calc_2d(self, vary, grid_num=50, plot=1, verbose=1, title='', ax=None, alpha=1, color=None, zorder=1):
+    def calc_2d(self, vary, grid_num=50, plot=1, verbose=1, marginalize=True, output=None,
+                title='', ax=None, alpha=1, color=None, zorder=1):
         """
         calculate ranges for two parameters using given populations of levels
         parameters:
             - vary         :  list of variables
             - grid_num     :  number of points in the grid for each parameter
             - plot         :  specify graphs to plot: 1 is for contour, 2 is for filled contours
+            - verbose      :  print details of calculations
+            - marginalize  :  print and plot marginalized estimates
             - title        :  title name for the plot
             - ax           :  axes object where to plot data, of not present make it if plot==1.
             - alpha        :  alpha value for the contour plots
@@ -1576,6 +1605,7 @@ class pyratio():
         Z = np.zeros([len(X1), len(X2)])
         printProgressBar(0, grid_num, prefix='Progress:')
         for i in range(len(X1)):
+            print(i)
             self.pars[vary[0]].value = X1[i]
             for k in range(len(X2)):
                 self.pars[vary[1]].value = X2[k]
@@ -1586,22 +1616,30 @@ class pyratio():
             print(max(Z.flatten()))
 
         print(X1, X2, np.exp(Z))
+
+        if output is not None:
+            with open(output, "wb") as f:
+                pickle.dump(X1, f)
+                pickle.dump(X2, f)
+                pickle.dump(np.exp(Z), f)
+
         d = distr2d(X1, X2, np.exp(Z))
         point = d.dopoint()
 
-        if plot:
-            d1 = d.marginalize('x')
-            print('marg point:', d1.dopoint())
-            d1.plot()
-            d2 = d.marginalize('x')
-            print('marg point:', d2.dopoint())
-            ax1 = d2.plot()
-            mcmc = np.genfromtxt('C:/Users/Serj/Desktop/kde.dat', unpack=True)
-            ax1.plot(mcmc[0], mcmc[1]*0.93)
-
-
-        for c in self.conf_levels:
-            print('marg interval:', d1.interval(conf=c))
+        if marginalize:
+            if plot:
+                d1 = d.marginalize('x')
+                d1.dopoint()
+                d1.dointerval()
+                print('marg point:', d1.point)
+                print('marg interval:', d1.interval)
+                d1.plot()
+                d2 = d.marginalize('y')
+                d2.dopoint()
+                d2.dointerval()
+                print('marg point:', d2.point)
+                print('marg interval:', d2.interval)
+                d2.plot()
 
         if plot > 0:
             print('plot regions...')
@@ -1677,7 +1715,7 @@ class pyratio():
             if 1:
                 print(vary)
                 d.dointerval(0.6827)
-                print(interval)
+                print(d.interval)
                 out.append([vary[0], a(d.point[0], d.interval[0][1] - d.point[0], d.point[0] - d.interval[0][0])])
                 out.append([vary[1], a(d.point[1], d.interval[1][1] - d.point[1], d.point[1] - d.interval[1][0])])
 
@@ -2076,7 +2114,7 @@ if __name__ == '__main__':
         plt.show()
 
     # check calculation with Ntot
-    if 1:
+    if 0:
         pr = pyratio(z=2.525, calctype='numbdens')
         pr.set_pars(['T', 'n', 'f'])
         pr.set_prior('f', a(0, 0, 0))
@@ -2124,3 +2162,12 @@ if __name__ == '__main__':
             pr.species[0].coll['pH2'].plot(0, 1, ax=ax)
         plt.savefig('C:/Users/Serj/Desktop/W_CO.pdf')
         plt.show()
+
+    if 1:
+        pr = pyratio(z=2.5)
+        pr.set_pars(['T', 'n', 'f', 'UV'])
+        pr.set_prior('f', a(0, 0, 0))
+        pr.set_prior('T', a(1.7, 0, 0))
+        pr.add_spec('CI', [a(), a(), a()])
+        pr.pars['n'].value = 2
+        pr.predict()

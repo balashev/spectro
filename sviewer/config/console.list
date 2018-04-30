@@ -1,21 +1,21 @@
-show all
-hide all
-FeII
+CII*
+show CII*
+stats
+stats
+stats
+SiII
+SNaI
+NaI
+show NaI
+logN CaI
+logN NaI
+NaI
+show H2 0 1
 SiIII
-SiII
-SiII
-FeII
-SiII
-FeII
-FeII
-SiII
-FeII
-CIV
-show H2 5 6
-show H2 4 5
-logN H2
-show HD
-show HD
-Show HD
-show HD
-FeII
+SiIII*
+show NaI
+stats
+stats
+show DI
+SII
+NI

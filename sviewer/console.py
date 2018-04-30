@@ -471,6 +471,27 @@ class Console(QTextEdit):
 
             return s
 
+        elif args[0] == 'stats':
+            st = ''
+            for r in self.parent.plot.regions:
+                st += str(r)
+                xmin, xmax = float(str(r).split('..')[0]), float(str(r).split('..')[1])
+                s = self.parent.s[self.parent.s.ind]
+                if self.parent.normview:
+                    mask = (xmin < s.spec.x()) * (s.spec.x() < xmax)
+                    if np.sum(mask) > 0:
+                        st += '  ' + str(np.std(s.spec.y()[mask]-1) / np.mean(s.spec.err()[mask])) + '\n'
+                    else:
+                        st += ' there is no continuum \n'
+                else:
+                    mask = (xmin < s.spec.x()[s.cont_mask]) * (s.spec.x()[s.cont_mask] < xmax)
+                    if np.sum(mask) > 0:
+                        st += '  ' + str(np.std(s.spec.y()[s.cont_mask][mask] - s.cont.y[mask]) / np.mean(s.spec.err()[s.cont_mask][mask])) + '\n'
+                    else:
+                        st += ' there is no continuum \n'
+
+            return st
+
         elif args[0] == 'ew':
             s = ''
             for r in self.parent.plot.regions:
