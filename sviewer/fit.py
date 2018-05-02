@@ -369,7 +369,7 @@ class fitPars:
     def getValue(self, name, attr='val'):
         s = name.split('_')
         par = None
-        if s[0] in ['mu', 'me', 'dtoh', 'res']:
+        if s[0] in ['mu', 'me', 'dtoh']:
             if hasattr(self, s[0]):
                 par = getattr(self, s[0])
 

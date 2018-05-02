@@ -401,7 +401,7 @@ class fitModelWidget(QWidget):
 
     def stateChanged(self, item):
         print('stateChaged', item.name)
-        if item.name in ['mu', 'me', 'dtoh', 'res']:
+        if item.name in ['mu', 'me', 'dtoh']:
             if item.isExpanded():
                 self.parent.fit.add(item.name)
             else:

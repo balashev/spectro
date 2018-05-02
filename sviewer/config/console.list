@@ -1,13 +1,3 @@
-stats
-show DI
-SII
-NI
-299792.46/6.6
-CI
-show H2 0 1 2 3 4
-hide all
-show H2 0 1
-show H2 0 1
 9700*0.5
 0.8*6700
 1.3*4100
@@ -17,5 +7,15 @@ show H2 0 1
 show H2 0 1
 show H2j4
 show H2j5
+show H2j6
+logN H2
+stats
+ston
+stats
+ston
+show H2 0 1
+show H2 2 3
+show H2j5
+show H2j4
 show H2j6
 logN H2
