@@ -2609,7 +2609,7 @@ class ExportDataWidget(QWidget):
     def save(self):
         self.parent.save_opt = self.opt
         self.parent.saveFile(self.filename)
-        #self.parent.options('filename_saved', self.filename)
+        self.parent.options('filename_saved', self.filename)
         self.close()
 
     def closeEvent(self, event):
@@ -4783,9 +4783,6 @@ class sviewer(QMainWindow):
             self.fit.update(redraw=False)
             if timer:
                 t.time('in')
-
-            if 'res' in [str(s) for s in self.fit.list_fit()]:
-                self.s[self.s.ind].resolution = self.fit.res.val
 
             self.s.prepareFit(ind=comp, all=False)
             self.s.calcFit(recalc=True, redraw=self.animateFit)

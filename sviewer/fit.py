@@ -11,6 +11,8 @@ class par:
         self.name = name
         if 'cont' in self.name:
             self.dec = 4
+        elif 'res' in self.name:
+            self.dec = 1
         elif 'cf' in self.name:
             self.dec = 3
         elif 'dispz' in self.name:
@@ -19,7 +21,7 @@ class par:
             self.dec = 8
         else:
             d = {'z': 8, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3, 'me': 3,
-                 'res': 0, 'Ntot': 3, 'logn': 3, 'logT': 3, 'logf': 3}
+                 'Ntot': 3, 'logn': 3, 'logT': 3, 'logf': 3}
             self.dec = d[self.name]
 
         if self.name in ['N', 'Ntot', 'logn', 'logT', 'dtoh', 'me', 'mu']:
@@ -249,6 +251,8 @@ class fitPars:
         self.cont_num = 0
         self.cont_left = 3500
         self.cont_right = 4000
+        self.res_fit = False
+        self.res_num = 0
         self.cf_fit = False
         self.cf_num = 0
         self.disp_fit = False
@@ -265,8 +269,8 @@ class fitPars:
             self.me = par(self, 'me', 0, -3, 1, 0.01)
         if name in 'dtoh':
             self.dtoh = par(self, 'dtoh', -4.5, -5.4, -4, 0.01)
-        if name in 'res':
-            self.res = par(self, 'res', 45000, 1000, 60000, 1)
+        if 'res' in name:
+            setattr(self, name, par(self, name, 45000, 1000, 60000, 1, addinfo='exp_0'))
         if 'cont' in name:
             setattr(self, name, par(self, name, 0, -0.5, 0.5, 0.01))
         if 'cf' in name:
@@ -277,7 +281,7 @@ class fitPars:
             setattr(self, name, par(self, name, 1e-5, -1e-4, 1e-4, 1e-6, addinfo='exp_0'))
 
     def remove(self, name):
-        if name in ['mu', 'me', 'dtoh', 'res'] or any([x in name for x in ['cont', 'cf', 'disp']]):
+        if name in ['mu', 'me', 'dtoh', 'res'] or any([x in name for x in ['cont', 'res', 'cf', 'disp']]):
             if hasattr(self, name):
                 delattr(self, name)
                 #gc.collect()
@@ -311,12 +315,12 @@ class fitPars:
         elif attr in ['vary', 'fit']:
             val = int(val)
 
-        if s[0] in ['mu', 'me', 'dtoh', 'res']:
+        if s[0] in ['mu', 'me', 'dtoh']:
             if not hasattr(self, s[0]):
                 self.add(s[0])
             res = getattr(self, s[0]).set(val, attr)
 
-        if s[0] in ['cont', 'cf', 'dispz', 'disps']:
+        if s[0] in ['cont', 'res', 'cf', 'dispz', 'disps']:
             if not hasattr(self, name):
                 self.add(name)
             res = getattr(self, name).set(val, attr)
@@ -352,7 +356,9 @@ class fitPars:
 
             if hasattr(sys, 'Ntot'):
                 sys.pyratio()
-
+        if self.res_fit and self.res_num > 0:
+            for i in range(self.res_num):
+                self.parent.s[int(getattr(self, 'res_'+str(i)).addinfo[4:])].resolution = self.getValue('res_'+str(i))
         if redraw and self.cf_fit:
             for i in range(self.cf_num):
                 try:
@@ -367,7 +373,7 @@ class fitPars:
             if hasattr(self, s[0]):
                 par = getattr(self, s[0])
 
-        if s[0] in ['cont', 'cf', 'dispz', 'disps']:
+        if s[0] in ['cont', 'res', 'cf', 'dispz', 'disps']:
             if hasattr(self, name):
                 par = getattr(self, name)
 
@@ -409,6 +415,12 @@ class fitPars:
                 if hasattr(self, attr):
                     p = getattr(self, attr)
                     pars[str(p)] = p
+        if self.res_fit and self.res_num > 0:
+            for i in range(self.res_num):
+                attr = 'res_' + str(i)
+                if hasattr(self, attr):
+                    p = getattr(self, attr)
+                    pars[str(p)] = p
         if self.cf_fit and self.cf_num > 0:
             for i in range(self.cf_num):
                 attr = 'cf_' + str(i)
@@ -444,11 +456,12 @@ class fitPars:
         if 'cont' in s[0]:
             self.cont_num = max(self.cont_num, int(s[0][5:]) + 1)
             self.cont_fit = True
-
+        if 'res' in s[0]:
+            self.res_fit = True
+            self.res_num = max(self.res_num, int(s[0][4:]) + 1)
         if 'cf' in s[0]:
             self.cf_fit = True
             self.parent.plot.add_pcRegion()
-
         if 'disp' in s[0]:
             self.disp_fit = True
             self.disp_num = max(self.disp_num, int(s[0][6:]) + 1)
@@ -456,6 +469,8 @@ class fitPars:
         for attr, val in zip(reversed(attrs), reversed(s[1:])):
             self.setValue(s[0], val, attr)
 
+        if 'res' in s[0]:
+            self.parent.s[int(s[0][4:])].resolution = getattr(self, s[0]).val
         if 'cf' in s[0]:
             self.parent.plot.pcRegions[-1].updateFromFit()
 

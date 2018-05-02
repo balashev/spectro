@@ -18,7 +18,8 @@ class FLineEdit(QLineEdit):
         self.parent = parent
         self.var = var
         self.name = name
-        self.returnPressed.connect(self.calcFit)
+        if self.name is not '':
+            self.returnPressed.connect(self.calcFit)
         self.setLength()
         if 1:
             validator = QDoubleValidator()
@@ -42,10 +43,9 @@ class FLineEdit(QLineEdit):
             self.setMaxLength(l)
 
     def calcFit(self):
-        print(self.varF)
         if self.var in ['N', 'b', 'z', 'kin', 'turb', 'v', 'c', 'Ntot', 'logn', 'logT']:
             self.parent.parent.s.reCalcFit(self.parent.tab.currentIndex())
-        elif self.var in ['mu', 'me', 'dtoh', 'res'] or any([x in self.var for x in ['dispz', 'disps']]):
+        elif self.var in ['mu', 'me', 'dtoh'] or any([x in self.var for x in ['dispz', 'disps', 'res']]):
             self.parent.parent.s.prepareFit()
             self.parent.parent.s.calcFit()
 
@@ -160,12 +160,26 @@ class fitModelWidget(QWidget):
             self.addChild('cont', 'cont' + str(i))
         self.cont.setExpanded(self.parent.fit.cont_fit)
 
-        for s, name in zip(['mu', 'me', 'dtoh', 'res'], ['mp/me', 'metallicity', 'D/H', 'resolution']):
+        for s, name in zip(['mu', 'me', 'dtoh'], ['mp/me', 'metallicity', 'D/H']):
             print(s+'_p')
             setattr(self, s + '_p', self.addParent(self.treeWidget, name, expanded=hasattr(self.parent.fit, s)))
             getattr(self, s + '_p').name = s
             self.addChild(s + '_p', s)
         #self.treeWidget.itemChanged.connect(self.stateChanged)
+
+        self.res = self.addParent(self.treeWidget, 'Resolution', expanded=self.parent.fit.res_fit)
+        self.res.name = 'res'
+
+        self.res_m = QTreeWidgetItem(self.res)
+        self.res_m.setTextAlignment(3, Qt.AlignRight)
+        self.res_m.setText(3, 'num: ')
+        self.res_num = FLineEdit(self, str(self.parent.fit.res_num))
+        self.res_num.setFixedSize(30, 30)
+        self.res_num.returnPressed.connect(self.numResChanged)
+        self.treeWidget.setItemWidget(self.res_m, 4, self.res_num)
+        for i in range(self.parent.fit.res_num):
+            self.addChild('res', 'res_' + str(i))
+        self.res.setExpanded(self.parent.fit.res_fit)
 
         self.cf = self.addParent(self.treeWidget, 'Covering factors', expanded=self.parent.fit.cf_fit)
         self.cf.name = 'cf'
@@ -228,7 +242,7 @@ class fitModelWidget(QWidget):
                 # print('create combo:', species)
                 combo.activated.connect(partial(self.setApplied, name=name))
                 self.treeWidget.setItemWidget(getattr(self, name), 10, combo)
-            if any([x in name for x in ['cf', 'dispz']]) and k > 2:
+            if any([x in name for x in ['res', 'cf', 'dispz']]) and k > 2:
                 setattr(self, name + '_applied_exp', QComboBox(self))
                 combo = getattr(self, name + '_applied_exp')
                 combo.setFixedSize(70, 30)
@@ -256,6 +270,29 @@ class fitModelWidget(QWidget):
         else:
             setattr(getattr(self.parent.fit, name), 'addinfo', sp1)
         self.refresh()
+
+    def updateRes(self, excl=''):
+        try:
+            self.res.setExpanded(self.parent.fit.res_fit)
+            self.res_num.setText(str(self.parent.fit.res_num))
+        except:
+            pass
+        if self.parent.fit.res_fit:
+            print(self.parent.fit.list())
+            for res in self.parent.fit.list():
+                if 'res' in str(res):
+                    try:
+                        combo = getattr(self, str(res) + '_applied_exp')
+                        combo.clear()
+                        sp = list(['exp_' + str(i) for i in range(len(self.parent.s))])
+                        combo.addItems(sp)
+                        s = getattr(res, 'addinfo')
+                        if s != '' and s in sp:
+                            combo.setCurrentText(s)
+                        else:
+                            combo.setCurrentIndex(0)
+                    except:
+                        pass
 
     def updateCF(self, excl=''):
         try:
@@ -357,23 +394,8 @@ class fitModelWidget(QWidget):
         self.parent.abs.redraw(z=self.parent.fit.sys[self.parent.comp].z.val)
 
     def varyChanged(self, name=''):
-        if 0:
-            for s in ['mu', 'me', 'dtoh', 'res']:
-                if hasattr(self.parent.fit, s):
-                    setattr(getattr(self.parent.fit, s), 'vary', getattr(self, s+'_vary').isChecked())
-            if self.parent.fit.cont_num > 0:
-                for i in range(self.parent.fit.cont_num):
-                    s = 'cont' + str(i)
-                    if hasattr(self.parent.fit, s):
-                        setattr(getattr(self.parent.fit, s), 'vary', getattr(self, s + '_vary').isChecked())
-            if self.parent.fit.cf_num > 0:
-                for i in range(self.parent.fit.cf_num):
-                    s = 'cf_' + str(i)
-                    if hasattr(self.parent.fit, s):
-                        setattr(getattr(self.parent.fit, s), 'vary', getattr(self, s + '_vary').isChecked())
-        else:
-            if hasattr(self.parent.fit, name):
-                setattr(getattr(self.parent.fit, name), 'vary', getattr(self, name + '_vary').isChecked())
+        if hasattr(self.parent.fit, name):
+            setattr(getattr(self.parent.fit, name), 'vary', getattr(self, name + '_vary').isChecked())
         if self.refr:
             self.refresh('varyChanged')
 
@@ -392,6 +414,15 @@ class fitModelWidget(QWidget):
                     self.parent.fit.add('cont'+str(i))
                 else:
                     self.parent.fit.remove('cont'+str(i))
+
+        if item.name == 'res':
+            self.parent.fit.res_fit = self.res.isExpanded()
+            #self.parent.fit.cf_num = int(self.cf_num.text())
+            for i in range(self.parent.fit.res_num):
+                if self.res.isExpanded():
+                    self.parent.fit.add('res_'+str(i))
+                else:
+                    self.parent.fit.remove('res_'+str(i))
 
         if item.name == 'cf':
             self.parent.fit.cf_fit = self.cf.isExpanded()
@@ -428,6 +459,24 @@ class fitModelWidget(QWidget):
                     self.parent.fit.remove('cont' + str(i))
                     getattr(self, 'cont').removeChild(getattr(self, 'cont' + str(i)))
             self.parent.fit.cont_num = k
+            if self.refr:
+                self.refresh()
+
+    def numResChanged(self):
+        k = int(self.res_num.text())
+        print(k)
+        sign = 1 if k > self.parent.fit.res_num else -1
+        if k != self.parent.fit.res_num:
+            rang = range(self.parent.fit.res_num, k) if sign == 1 else range(self.parent.fit.res_num-1, k-1, -1)
+            for i in list(rang):
+                if k > self.parent.fit.res_num:
+                    self.parent.fit.add('res_' + str(i))
+                    self.addChild('res', 'res_' + str(i))
+                else:
+                    print(i)
+                    self.parent.fit.remove('res_' + str(i))
+                    getattr(self, 'res').removeChild(getattr(self, 'res_' + str(i)))
+            self.parent.fit.res_num = k
             if self.refr:
                 self.refresh()
 
@@ -473,13 +522,14 @@ class fitModelWidget(QWidget):
         self.parent.fit.cont_right = float(self.cont_right.text())
 
     def onChanged(self, s, attr):
-        if s in ['mu', 'me', 'dtoh', 'res'] or any([c in s for c in ['cont', 'cf', 'disp']]):
+        if s in ['mu', 'me', 'dtoh'] or any([c in s for c in ['cont', 'res', 'cf', 'disp']]):
             print(hasattr(self.parent.fit, s))
             if hasattr(self.parent.fit, s):
                 setattr(getattr(self.parent.fit, s), attr, float(getattr(self, s + '_' + attr).text()))
 
-        if s == 'res':
-            self.parent.s[self.parent.s.ind].resolution = self.parent.fit.res.val
+        if 'res' in s:
+            print(getattr(self.parent.fit, s).addinfo, getattr(self.parent.fit, s).addinfo[4:])
+            self.parent.s[int(getattr(self.parent.fit, s).addinfo[4:])].resolution = self.parent.fit.getValue(s)
 
         if self.refr:
             self.refresh(s + '_' + attr)
@@ -495,6 +545,7 @@ class fitModelWidget(QWidget):
                         getattr(self, s + '_' + attr).setText(getattr(self.parent.fit, s).str(attr))
                     if attr != 'val':
                         getattr(self, s+'_'+attr).setEnabled(getattr(getattr(self.parent.fit, s), 'vary'))
+        self.updateRes(excl=excl)
         self.updateCF(excl=excl)
         self.updateDisp(excl=excl)
         if self.tab.currentIndex() > -1:
@@ -1064,9 +1115,8 @@ class chooseFitParsWidget(QWidget):
 
     def ok(self):
         self.hide()
-        del self.parent.chooseFit
+        self.parent.chooseFit = None
         self.deleteLater()
-
 
     def cancel(self):
         for par in self.parent.fit.list():
