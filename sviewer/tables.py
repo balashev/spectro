@@ -211,6 +211,8 @@ class QSOlistTable(pg.TableWidget):
             self.filename_saved = ''
         if self.cat == 'Vandels':
             self.setWindowTitle('Vandels catalog')
+        if self.cat == 'Kodiaq':
+            self.setWindowTitle('KODIAQ DR2 catalog')
         if self.cat is None:
             self.setWindowTitle('QSO list of files')
         self.cellDoubleClicked.connect(self.row_clicked)
@@ -230,6 +232,7 @@ class QSOlistTable(pg.TableWidget):
             self.contextMenu.addSeparator()
             self.contextMenu.addAction('Plot data').triggered.connect(self.plotLines)
             self.contextMenu.addAction('Save doublets').triggered.connect(self.saveDoublets)
+            self.contextMenu.addAction('Update line').triggered.connect(self.updateLine)
             self.cellChanged.connect(self.saveLines)
         if self.cat == 'Vandels':
             self.contextMenu.addSeparator()
@@ -356,6 +359,19 @@ class QSOlistTable(pg.TableWidget):
             filename = self.folder+'/cont/'+self.cell_value('name').strip().replace('.dat', '')
             self.parent.save_opt = ['cont', 'others']
             self.parent.saveFile(filename, save_name=False)
+
+    def updateLine(self):
+        row = self.currentItem().row()
+        print(row)
+        sp = self.parent.fit.sys[0].sp['HI']
+        #for col, val in zip(['N', 'Nerr', 'b', 'berr'], [sp.N.val, sp.N.step, sp.b.val, sp.b.step]):
+        #    self.set_cell_value(row, col, '{0:6.3f}'.format(val))
+        for line in fileinput.input(self.folder + '/lines.dat', inplace=True):
+            if len(line.split()) > 7:
+                if line.split()[0] == self.item(row, 0).text() and line.split()[8] == self.item(row, 8).text():
+                    print(line[:11] + '{0:6.3f}   {1:5.3f}  {2:6.3f}   {3:5.3f}'.format(sp.N.val, sp.N.step, sp.b.val,sp.b.step) + line[41:-1])
+                else:
+                    print(line.replace('\n', ''))
 
     def saveLines(self, row, col):
         if row == self.edit_item[0] and col == self.edit_item[1]:
@@ -596,6 +612,19 @@ class QSOlistTable(pg.TableWidget):
                 self.parent.vb.enableAutoRange()
                 self.parent.import2dSpectrum(filename.replace('.fits', '_2D.fits'))
                 self.parent.setz_abs(self.cell_value('zspec'))
+
+        if self.cat == 'Kodiaq':
+            if colInd in [0]:
+                filename = self.folder + '/' + self.cell_value('qso') + '/' + self.cell_value('pi_date') + '/' + self.cell_value('spec_prefix')
+                hdulist = fits.open(filename+'_f.fits')
+                y = hdulist[0].data
+                x = np.power(10, hdulist[0].header['CRVAL1'] + np.arange(len(y)) * hdulist[0].header['CDELT1'])
+                hdulist = fits.open(filename + '_e.fits')
+                err = hdulist[0].data
+                mask = np.logical_and(y > -5, y < 5)
+                self.parent.importSpectrum(self.cell_value('spec_prefix'), spec=[x[mask], y[mask], err[mask]])
+                self.parent.vb.enableAutoRange()
+
         if load_spectrum:
 
             self.parent.importSpectrum(filename)
@@ -639,6 +668,10 @@ class QSOlistTable(pg.TableWidget):
 
     def columnIndex(self, columnname):
         return [self.horizontalHeaderItem(x).text() for x in range(self.columnCount())].index(columnname)
+
+    def set_cell_value(self, row, columnname, text):
+        print(self.columnIndex(columnname), text)
+        self.item(row, self.columnIndex(columnname)).setText(text)
 
     def cell_value(self, columnname, row=None):
 

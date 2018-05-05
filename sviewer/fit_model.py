@@ -649,10 +649,19 @@ class fitResultsWidget(QWidget):
                 sps[sp] = 1
         if self.vert.isChecked():
             names = ['par'] + ['comp '+str(i+1) for i in range(len(fit.sys))]
-            data = [['z'] + list(sps.keys())]
+            data = ['z']
+            if self.showb.isChecked():
+                data += ['b, km/s']
+            data += list([r'$\log N$(' + s + ')' for s in sps.keys()])
+            data = [data]
             #d = ['$log N($'+sp+')']
             for sys in fit.sys:
                 d = [sys.z.fitres(latex=True)]
+                if self.showb.isChecked():
+                    sp = sys.sp[list(sys.sp.keys())[0]]
+                    if sp.b.addinfo is not '':
+                        sp = sys.sp[sp.b.addinfo]
+                    d.append(sp.b.fitres(latex=True, dec=2))
                 for sp in sps.keys():
                     if sp in sys.sp.keys():
                         d.append(sys.sp[sp].N.fitres(latex=True, dec=2))
@@ -660,10 +669,21 @@ class fitResultsWidget(QWidget):
                         d.append(' ')
                 data.append(d)
         else:
-            names = ['comp', 'z'] + list(sps.keys())
+            names = ['comp', 'z']
+            if self.showb.isChecked():
+                names += ['b, km/s']
+            names += list([r'$\log N$(' + s + ')' for s in sps.keys()])
             print(names)
             data = [[str(i+1) for i in range(len(fit.sys))]]
             data.append([sys.z.fitres(latex=True) for sys in fit.sys])
+            if self.showb.isChecked():
+                d = []
+                for sys in fit.sys:
+                    sp = sys.sp[list(sys.sp.keys())[0]]
+                    if sp.b.addinfo is not '':
+                        sp = sys.sp[sp.b.addinfo]
+                    d.append(sp.b.fitres(latex=True, dec=2))
+                data.append(d)
             for sp in sps.keys():
                 d = []
                 for sys in fit.sys:

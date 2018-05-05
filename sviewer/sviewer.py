@@ -1517,7 +1517,7 @@ class showLinesWidget(QWidget):
                 #p.y_formater = '%.1f'
                 for s in st[1:]:
                     if 'name' in s:
-                        p.name = s[4:]
+                        p.name = s[5:]
                     if 'exp' in s:
                         ind = int(s[4:])
                 if not any(['name' in s for s in st]):
@@ -1550,8 +1550,8 @@ class showLinesWidget(QWidget):
                         attr = 'cf_' + str(i)
                         if hasattr(self.parent.fit, attr):
                             cf = getattr(self.parent.fit, attr)
-                            if cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind:
-                                ax.plot([cf.min, cf.max], [cf.val, cf.val], '--', color='orangered')
+                            if (len(cf.addinfo.split('_'))>1 and cf.addinfo.split('_')[1]=='all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+4:]) == ind):
+                                ax.plot([np.max([cf.min, p.x_min]), np.min([cf.max, p.x_max])], [cf.val, cf.val], '--', color='orangered')
 
                 if self.show_H2.strip() != '':
                     p.showH2(ax, levels=[int(s) for s in self.show_H2.split()], pos=self.pos_H2)
@@ -1559,18 +1559,18 @@ class showLinesWidget(QWidget):
                     self.showContCorr(ax=ax)
 
         if savefig:
-            self.plotfile = self.file.text()
+            plotfile = self.plotfile
         else:
-            self.plotfile = os.path.dirname(os.path.realpath(__file__)) + '/output/lines.pdf'
+            plotfile = os.path.dirname(os.path.realpath(__file__)) + '/output/lines.pdf'
 
-        fig.savefig(self.plotfile, dpi=fig.dpi)
+        fig.savefig(plotfile, dpi=fig.dpi)
 
         if sys.platform.startswith('darwin'):
-            subprocess.call(('open', self.plotfile))
+            subprocess.call(('open', plotfile))
         elif os.name == 'nt':
-            os.startfile(self.plotfile)
+            os.startfile(plotfile)
         elif os.name == 'posix':
-            subprocess.call(('xdg-open', self.plotfile))
+            subprocess.call(('xdg-open', plotfile))
 
     def saveSettings(self):
         fname = QFileDialog.getSaveFileName(self, 'Save settings...', self.parent.plot_set_folder)[0]
@@ -3298,6 +3298,7 @@ class sviewer(QMainWindow):
         self.work_folder = self.options('work_folder', config=self.config)
         self.plot_set_folder = self.options('plot_set_folder', config=self.config)
         self.VandelsFile = self.options('VandelsFile', config=self.config)
+        self.KodiaqFile = self.options('KodiaqFile', config=self.config)
         self.IGMspecfile = self.options('IGMspecfile', config=self.config)
         self.z_abs = 0
         self.lines = lineList(self)
@@ -3778,6 +3779,13 @@ class sviewer(QMainWindow):
             Vandels.setStatusTip('load Vandels catalog')
             Vandels.triggered.connect(self.showVandels)
 
+        Kodiaq = None
+
+        if self.KodiaqFile is not None and os.path.isfile(self.KodiaqFile):
+            Kodiaq = QAction('&KODIAQ DR2', self)
+            Kodiaq.setStatusTip('load Kodiaq DR2 catalog')
+            Kodiaq.triggered.connect(self.showKodiaq)
+
         IGMspecMenu = None
         if self.IGMspecfile is not None and os.path.isfile(self.IGMspecfile):
             IGMspecMenu = QMenu('&IGMspec', self)
@@ -3797,6 +3805,8 @@ class sviewer(QMainWindow):
         samplesMenu.addMenu(LyaforestMenu)
         if Vandels is not None:
             samplesMenu.addAction(Vandels)
+        if Kodiaq is not None:
+            samplesMenu.addAction(Kodiaq)
         samplesMenu.addSeparator()
         if IGMspecMenu is not None:
             samplesMenu.addMenu(IGMspecMenu)
@@ -5710,8 +5720,14 @@ class sviewer(QMainWindow):
     def showVandels(self):
         data = np.genfromtxt(self.VandelsFile, delimiter=',', names=True,
                              dtype=('U19', '<f8', '<f8', '<f8', 'U12', '<f8', 'U10', '<f8', 'U9', '<i4', '<f8', '<f8', '<f8', '<f8', 'U24'))
-        self.Vandelstable = QSOlistTable(self, 'Vandels', folder=os.path.dirname(self.VandelsFile))
-        self.Vandelstable.setdata(data)
+        self.VandelsTable = QSOlistTable(self, 'Vandels', folder=os.path.dirname(self.VandelsFile))
+        self.VandelsTable.setdata(data)
+
+    def showKodiaq(self):
+        data = np.genfromtxt(self.KodiaqFile, names=True,
+                             dtype=('U17', 'U30', 'U25', 'U14', 'U17', 'U10', 'U15', 'U9', '<f8', '<f8', '<f8', '<i4'))
+        self.KodiaqTable = QSOlistTable(self, 'Kodiaq', folder=os.path.dirname(self.KodiaqFile))
+        self.KodiaqTable.setdata(data)
 
     def showIGMspec(self, cat, data=None):
         self.IGMspecTable = IGMspecTable(self, cat)

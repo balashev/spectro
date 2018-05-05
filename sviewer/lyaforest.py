@@ -330,7 +330,7 @@ class plotLyalines(pg.PlotWidget):
 
     def set_data(self, data=None):
         if data is None:
-            for attr in ['err', 'points', 'metals', 'check']:
+            for attr in ['err', 'points', 'metals', 'bad', 'check']:
                 try:
                     self.vb.removeItem(getattr(self, attr))
                 except:
@@ -345,6 +345,9 @@ class plotLyalines(pg.PlotWidget):
             mask = np.asarray(['me' in d for d in data['comment']])
             self.metals = pg.ScatterPlotItem(self.data['N'][mask], self.data['b'][mask], symbol='o', pen={'color': 0.0, 'width': 1}, brush=pg.mkBrush(223, 31, 223))
             self.vb.addItem(self.metals)
+            mask = np.asarray(['bad' in d for d in data['comment']])
+            self.bad = pg.ScatterPlotItem(self.data['N'][mask], self.data['b'][mask], symbol='o', pen={'color': 0.0, 'width': 1}, brush=pg.mkBrush(253, 255, 63))
+            self.vb.addItem(self.bad)
             mask = data['comment'] == 'checked'
             self.check = pg.ScatterPlotItem(self.data['N'][mask], self.data['b'][mask], symbol='o', pen={'color': 0.0, 'width': 1}, brush=pg.mkBrush(162, 209, 91))
             self.vb.addItem(self.check)
