@@ -369,9 +369,11 @@ class QSOlistTable(pg.TableWidget):
         for line in fileinput.input(self.folder + '/lines.dat', inplace=True):
             if len(line.split()) > 7:
                 if line.split()[0] == self.item(row, 0).text() and line.split()[8] == self.item(row, 8).text():
-                    print(line[:11] + '{0:6.3f}   {1:5.3f}  {2:6.3f}   {3:5.3f}'.format(sp.N.val, sp.N.step, sp.b.val,sp.b.step) + line[41:-1])
+                    s = '{0:9.7f}  {1:6.3f}   {2:5.3f}  {3:6.3f}   {4:5.3f}'.format(self.parent.fit.sys[0].z.val, sp.N.val, sp.N.step, sp.b.val,sp.b.step) + line[41:-1]
+                    print(s)
                 else:
                     print(line.replace('\n', ''))
+        self.setRow(row, s.split())
 
     def saveLines(self, row, col):
         if row == self.edit_item[0] and col == self.edit_item[1]:
@@ -595,6 +597,10 @@ class QSOlistTable(pg.TableWidget):
                     self.parent.s[-1].resolution = 48000 #float(self.cell_value('resolution'))
                     self.filename_saved = filename
                 #self.parent.s.redraw()
+                self.parent.s[-1].mask.set(x=np.zeros_like(self.parent.s[-1].spec.x(), dtype=bool))
+                self.parent.s[-1].set_fit_mask()
+                self.parent.s[-1].update_points()
+                self.parent.s[-1].set_res()
                 self.parent.fit.setValue('z_0', float(self.cell_value('z')))
                 self.parent.fit.setValue('N_0_HI', float(self.cell_value('N')))
                 self.parent.fit.setValue('b_0_HI', float(self.cell_value('b')))
