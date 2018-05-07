@@ -701,7 +701,7 @@ class fitResultsWidget(QWidget):
         output.close()
 
     def keyPressEvent(self, event):
-        super(QWidget, self).keyPressEvent(event)
+        super(fitResultsWidget, self).keyPressEvent(event)
         key = event.key()
 
         if not event.isAutoRepeat():

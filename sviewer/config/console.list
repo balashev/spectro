@@ -1,15 +1,3 @@
-ston
-CI
-show CI
-299794.26/6.25
-299794.26 / 5.8
-stats
-snr
-ston
-stats
-299794.26 / 8
-299794.26 / 6.6
-299794.24
 299794.24/8
 NiII
 SiIV
@@ -19,3 +7,15 @@ show CaII
 CaII
 show NaI
 show NaI
+show H2 0 1
+show H2 0 1
+show H2 2 3
+show H2 4 5
+logN H2
+FeII*
+show SiII*
+SiII*
+show SiII*
+show SiII*
+show FeII*
+FeII*

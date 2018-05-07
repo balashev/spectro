@@ -1607,6 +1607,15 @@ class showLinesWidget(QWidget):
         self.close()
         self.parent.showLines()
 
+    def keyPressEvent(self, event):
+        super(showLinesWidget, self).keyPressEvent(event)
+        key = event.key()
+
+        if not event.isAutoRepeat():
+            if event.key() == Qt.Key_L:
+                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+                    self.parent.showlines.close()
+
     def closeEvent(self, ev):
         for opt, func in self.opts.items():
             print(opt, func(getattr(self, opt)))
@@ -5042,9 +5051,10 @@ class sviewer(QMainWindow):
         Show H2 excitation diagram for the selected component 
         """
         data = np.genfromtxt('data/H2/energy_X.dat', comments='#', unpack=True)
-        mw = MatplotlibWidget()
-        ax = mw.getFigure().add_subplot(111)
+        fig, ax = plt.subplots(figsize=(6,7))
         for sys in self.fit.sys:
+            label = 'sys_'+str(self.fit.sys.index(sys)+1)
+            label = 'z = '+str(sys.z.str(attr='val')[:8])
             if any(['H2' in name for name in self.fit.sys[0].sp.keys()]):
                 x, y = [], []
                 for sp in sys.sp:
@@ -5053,16 +5063,23 @@ class sviewer(QMainWindow):
                         m = np.logical_and(data[0] == 0, data[1] == int(sp[3:]))
                         x.append(float(data[2][m]))
                         #x.append(self.atomic[sp].energy)
-                        y.append(sys.sp[sp].N.val - np.log10(self.atomic[sp].statw()))
+                        y.append(sys.sp[sp].N.unc.log() - np.log10(self.atomic[sp].statw()))
+                        y[-1].log()
+                        y[-1].val = sys.sp[sp].N.val - np.log10(self.atomic[sp].statw())
                 arg = np.argsort(x)
                 x = np.array(x)[arg]
                 y = np.array(y)[arg]
-                ax.plot(x, y, '-o', label='sys_'+str(self.fit.sys.index(sys)))
+
+                p = ax.plot(x, [v.val for v in y], '-') #, label='sys_' + str(self.fit.sys.index(sys)))
+                ax.errorbar(x, [v.val for v in y], yerr=[[v.plus for v in y], [v.minus for v in y]],  fmt='o', color = p[0].get_color(), label=label)
 
         ax.set_xlabel(r'Energy, cm$^{-1}$')
         ax.set_ylabel(r'$\log N$ / g')
-        ax.legend(loc='best')
-        mw.show()
+        if len(self.fit.sys) > 1:
+            ax.legend(loc='best')
+        fig.tight_layout()
+        plt.savefig(os.path.dirname(os.path.realpath(__file__)) + '/output/H2_exc.pdf', bbox_inches='tight')
+        plt.show()
         self.statusBar.setText('Excitation diagram for H2 rotational level for {:d} component is shown'.format(self.comp))
 
     def showMetalAbundance(self):
@@ -5356,8 +5373,8 @@ class sviewer(QMainWindow):
                 with open(filename) as f:
                     n = np.min([len(line.split()) for line in f])
                 print(n)
-                self.SDSSdata = np.genfromtxt(filename, names=True, dtype=None, unpack=True, usecols=range(n), delimiter='\t')
-
+                self.SDSSdata = np.genfromtxt(filename, names=True, dtype=None, unpack=True, usecols=range(n), comments='#')
+                print(self.SDSSdata)
             elif '.fits' in filename:
                 hdulist = fits.open(filename)
                 data = hdulist[1].data
