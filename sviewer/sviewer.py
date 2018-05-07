@@ -1,4 +1,5 @@
 from astropy.io import fits
+from ccdproc import cosmicray_lacosmic
 from chainconsumer import ChainConsumer
 from collections import OrderedDict
 from copy import deepcopy
@@ -2310,6 +2311,52 @@ class fitExtWidget(QWidget):
             self.fitExt()
 
 
+class cosmic2dWidget(QWidget):
+    def __init__(self, parent):
+        super(cosmic2dWidget, self).__init__()
+        self.parent = parent
+        self.init_GUI()
+        self.setStyleSheet(open('config/styles.ini').read())
+
+        self.setGeometry(200, 200, 350, 500)
+        self.setWindowTitle('Mask Cosmic rays')
+
+    def init_GUI(self):
+        layout = QVBoxLayout()
+        self.input = QTextEdit()
+        self.input.setText('sigclip=3 \nsigfrac=3.')
+        #self.output.setSizeAdjustPolicy(QTextEdit.AdjustToContents)
+        #self.output.setSizeAdjustPolicy(QTextEdit.AdjustToContentsOnFirstShow)
+        hl = QHBoxLayout()
+        run = QPushButton('Run')
+        run.setFixedSize(120, 30)
+        run.clicked.connect(self.run)
+        hl.addWidget(run)
+        hl.addStretch(0)
+        layout.addWidget(self.input)
+        #layout.addStretch(1)
+        layout.addLayout(hl)
+        self.setLayout(layout)
+
+    def run(self):
+        kwargs = {}
+        for line in self.input.toPlainText().splitlines():
+            if line.split('=')[1].replace('.', '', 1).strip().isdigit():
+                kwargs[line.split('=')[0]] = float(line.split('=')[1])
+            else:
+                kwargs[line.split('=')[0]] = line.split('=')[1]
+
+        print(kwargs)
+        z, mask = cosmicray_lacosmic(self.parent.s[0].spec2d.raw.z, **kwargs)
+        if 0:
+            self.parent.s.append(Spectrum(self.parent, name='difference'))
+            self.parent.s[-1].spec2d.set(x=self.parent.s[0].spec2d.raw.x, y=self.parent.s[0].spec2d.raw.y, z=z)
+        else:
+            self.parent.s[0].spec2d.
+
+        self.parent.s.redraw()
+
+
 class SDSSentry():
     def __init__(self, name):
         self.name = name
@@ -3646,7 +3693,12 @@ class sviewer(QMainWindow):
         extract.setStatusTip('extract 1d spectrum from 2d spectrum')
         extract.triggered.connect(self.extract2d)
 
+        cosmic2d = QAction('&Mask cosmics', self)
+        cosmic2d.setStatusTip('mask cosmic rays')
+        cosmic2d.triggered.connect(self.cosmic2d)
+
         spec2dMenu.addAction(extract)
+        spec2dMenu.addAction(cosmic2d)
         combineMenu.addSeparator()
 
         # >>> create Combine Menu items
@@ -4462,6 +4514,10 @@ class sviewer(QMainWindow):
             print(filename)
             if ind is not None:
                 self.s.ind = ind
+            else:
+                self.s.append(Spectrum(self, name=filename))
+                self.s.ind = len(self.s) - 1
+
             s = self.s[self.s.ind]
 
             if spec is None:
@@ -4493,6 +4549,9 @@ class sviewer(QMainWindow):
 
                 elif filename.endswith('.dat'):
                     s.spec2d = None
+
+            else:
+                s.spec2d.set(x=spec[0], y=spec[1], z=spec[2])
 
         self.s.redraw()
 
@@ -5200,6 +5259,10 @@ class sviewer(QMainWindow):
         self.s.append(Spectrum(self, name='extracted', data=[s.spec2d.raw.x[s.cont_mask2d],
                                                              np.asarray(yf)*0.04, np.asarray(err)*0.04]))
 
+    def cosmic2d(self):
+
+        self.cosmic2dwindow = cosmic2dWidget(self)
+        self.cosmic2dwindow.show()
 
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

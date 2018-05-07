@@ -565,8 +565,8 @@ class image():
             self.y = np.arange(z.shape[1])
         if err is not None:
             self.err = err
-        self.pos = [self.x[0], self.y[0]]
-        self.scale = [(self.x[-1] - self.x[0]) / self.z.shape[1], (self.y[-1] - self.y[0]) / self.z.shape[0]]
+        self.pos = [self.x[0]-(self.x[1]-self.x[0]), self.y[0]-(self.y[1]-self.y[0])]
+        self.scale = [(self.x[-1] - self.x[0]) / (self.z.shape[1]-1), (self.y[-1] - self.y[0]) / (self.z.shape[0]-1)]
         self.getQuantile()
 
     def getQuantile(self, quantile=0.997):
