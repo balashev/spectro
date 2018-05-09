@@ -1,4 +1,5 @@
 from astropy.io import fits
+from astropy.convolution import Gaussian2DKernel, convolve
 from ccdproc import cosmicray_lacosmic
 from chainconsumer import ChainConsumer
 from collections import OrderedDict
@@ -6,6 +7,7 @@ from copy import deepcopy
 import emcee
 import h5py
 import inspect
+import itertools
 from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs
 import matplotlib.pyplot as plt
 from multiprocessing import Process
@@ -23,6 +25,7 @@ from PyQt5.QtGui import QDesktopServices
 from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
 from pyqtgraph.GraphicsScene import exportDialog
 from scipy.integrate import quad
+from scipy.ndimage import median_filter, generic_filter
 from scipy.optimize import curve_fit
 from scipy.stats import gaussian_kde
 from sklearn.neighbors import KernelDensity
@@ -391,8 +394,6 @@ class plotSpectrum(pg.PlotWidget):
                 self.d_status = False
 
             if event.key() == Qt.Key_E:
-                #if self.e_status == 1:
-                #    self.parent.s.setSpec(self.parent.s.ind + 1)
                 self.e_status = False
 
             if event.key() == Qt.Key_H:
@@ -789,8 +790,10 @@ class spec2dWidget(pg.PlotWidget):
 
     def initstatus(self):
         self.b_status = False
-        self.s_status = False
+        self.e_status = False
         self.r_status = False
+        self.s_status = False
+        self.x_status = False
         self.mouse_moved = False
 
     def addLines(self):
@@ -817,10 +820,25 @@ class spec2dWidget(pg.PlotWidget):
         key = event.key()
 
         if not event.isAutoRepeat():
+
+            if event.key() == Qt.Key_Down or event.key() == Qt.Key_Right:
+                if self.e_status:
+                    self.parent.s.setSpec(self.parent.s.ind + 1)
+
+            if event.key() == Qt.Key_Up or event.key() == Qt.Key_Left:
+                if self.e_status:
+                    self.parent.s.setSpec(self.parent.s.ind - 1)
+
             if event.key() == Qt.Key_B:
                 self.vb.setMouseMode(self.vb.RectMode)
                 self.b_status = True
                 self.mouse_moved = False
+
+            if event.key() == Qt.Key_E:
+                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+                    self.parent.s.remove(self.parent.s.ind)
+                else:
+                    self.e_status = True
 
             if event.key() == Qt.Key_R:
                 self.r_status = True
@@ -829,6 +847,10 @@ class spec2dWidget(pg.PlotWidget):
             if event.key() == Qt.Key_S:
                 self.s_status = True
                 self.vb.setMouseEnabled(x=False, y=False)
+
+            if event.key() == Qt.Key_X:
+                self.x_status = True
+                self.vb.setMouseMode(self.vb.RectMode)
 
     def keyReleaseEvent(self, event):
         #super(spec2dWidget, self).keyReleaseEvent(event)
@@ -841,16 +863,22 @@ class spec2dWidget(pg.PlotWidget):
                     self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y(), name='2d')
                 print('keyRelease', self.b_status)
 
+            if event.key() == Qt.Key_E:
+                self.e_status = False
+
             if event.key() == Qt.Key_R:
                 self.r_status = False
 
             if event.key() == Qt.Key_S:
                 self.s_status = False
 
+            if event.key() == Qt.Key_X:
+                self.x_status = False
+
             if any([event.key() == getattr(Qt, 'Key_'+s) for s in ['S']]):
                 self.vb.setMouseEnabled(x=True, y=True)
 
-            if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'SBR']):
+            if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'BRSX']):
                 self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
 
@@ -863,11 +891,20 @@ class spec2dWidget(pg.PlotWidget):
         if self.s_status:
             self.s_status = 2
 
-        if any([getattr(self, s + '_status') for s in 'brs']):
+        if any([getattr(self, s + '_status') for s in 'brsx']):
             self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
 
+        if self.x_status:
+            self.parent.s[self.parent.s.ind].spec2d.raw.add_mask(
+                rect=[[np.min([self.mousePoint_saved.x(), self.mousePoint_saved.x()]),
+                       np.max([self.mousePoint_saved.x(), self.mousePoint_saved.x()])],
+                      [np.min([self.mousePoint_saved.y(), self.mousePoint_saved.y()]),
+                       np.max([self.mousePoint_saved.y(), self.mousePoint_saved.y()])]
+                      ], add=(QApplication.keyboardModifiers() != Qt.ControlModifier))
+            self.parent.s.redraw()
+
     def mouseReleaseEvent(self, event):
-        if any([getattr(self, s+'_status') for s in 'br']):
+        if any([getattr(self, s+'_status') for s in 'brx']):
             self.vb.setMouseMode(self.vb.PanMode)
             self.vb.rbScaleBox.hide()
 
@@ -888,8 +925,6 @@ class spec2dWidget(pg.PlotWidget):
                 event.accept()
 
         if self.r_status:
-            print(self.mousePoint_saved, self.mousePoint)
-
             x, y = self.parent.s[self.parent.s.ind].spec2d.raw.collapse(rect=[[np.min([self.mousePoint_saved.x(), self.mousePoint.x()]),
                                                                                np.max([self.mousePoint_saved.x(), self.mousePoint.x()])],
                                                                               [np.min([self.mousePoint_saved.y(), self.mousePoint.y()]),
@@ -913,7 +948,7 @@ class spec2dWidget(pg.PlotWidget):
                 y = gauss(x, popt[0], popt[1], popt[2], popt[3])
                 ax.plot(x, y, '-k')
 
-            d = distr1d(x, y)
+            d = distr1d(x, y - popt[1])
             d.dopoint()
             d.dointerval()
             print(d.point, d.interval)
@@ -921,6 +956,15 @@ class spec2dWidget(pg.PlotWidget):
             ax.set_title('FWHM = {:.2f}'.format((d.interval[1] - d.interval[0]) * 2.35 / 2))
             plt.show()
             self.r_status = False
+
+        if self.x_status:
+            self.parent.s[self.parent.s.ind].spec2d.raw.add_mask(
+                rect=[[np.min([self.mousePoint_saved.x(), self.mousePoint.x()]),
+                       np.max([self.mousePoint_saved.x(), self.mousePoint.x()])],
+                      [np.min([self.mousePoint_saved.y(), self.mousePoint.y()]),
+                       np.max([self.mousePoint_saved.y(), self.mousePoint.y()])]
+                      ], add=(QApplication.keyboardModifiers() != Qt.ControlModifier))
+            #self.parent.s.redraw()
 
         if event.isAccepted():
             super(spec2dWidget, self).mouseReleaseEvent(event)
@@ -942,10 +986,14 @@ class spec2dWidget(pg.PlotWidget):
             self.mousePoint_saved = self.mousePoint
             im = self.parent.s[self.parent.s.ind].image2d
             levels = im.getLevels()
-            im.setLevels([levels[0]*(1-delta[0]*10), levels[0] + (levels[1]-levels[0])*(1-delta[1]*10)])
+            print(levels)
+            d = self.parent.s[self.parent.s.ind].spec2d.raw.quantile[1] - self.parent.s[self.parent.s.ind].spec2d.raw.quantile[0]
+            self.parent.s[self.parent.s.ind].spec2d.raw.setLevels(levels[0] + d*delta[0]*4, levels[1] + d*delta[1]/2)
+            im.setLevels(self.parent.s[self.parent.s.ind].spec2d.raw.levels)
 
         if self.s_status and event.type() == QEvent.MouseMove:
             self.vb.rbScaleBox.hide()
+
 
     def wheelEvent(self, event):
         super(spec2dWidget, self).wheelEvent(event)
@@ -2315,47 +2363,433 @@ class cosmic2dWidget(QWidget):
     def __init__(self, parent):
         super(cosmic2dWidget, self).__init__()
         self.parent = parent
+        self.exp_pixel = 1
+        self.exp_factor = 0.5
+        self.extr_height = 1
+        self.extr_width = 3
+        self.extr_slit = 1.3
+        self.extr_window = 1
+        self.extr_border = 30
+        self.helio_corr = 0.0
+        self.rescale_window = 50
         self.init_GUI()
         self.setStyleSheet(open('config/styles.ini').read())
-
-        self.setGeometry(200, 200, 350, 500)
-        self.setWindowTitle('Mask Cosmic rays')
+        self.setGeometry(200, 200, 550, 800)
+        self.setWindowTitle('Spectrum Extraction')
 
     def init_GUI(self):
         layout = QVBoxLayout()
+
+        self.tab = QTabWidget()
+        self.tab.setGeometry(0, 0, 550, 700)
+        self.tab.setMinimumSize(550, 700)
+        self.tab.setCurrentIndex(0)
+        self.init_GUI_CosmicRays()
+        self.init_GUI_Extraction()
+        self.init_GUI_Correction()
+        layout.addWidget(self.tab)
+        hl = QHBoxLayout()
+        exposure = QPushButton('Exposure:')
+        exposure.setFixedSize(100, 30)
+        exposure.clicked.connect(self.changeExp)
+        self.expchoose = QComboBox()
+        self.expchoose.setFixedSize(400, 30)
+        for s in self.parent.s:
+            self.expchoose.addItem(s.filename)
+        self.exp_ind = self.parent.s.ind
+        self.expchoose.currentIndexChanged.connect(self.onExpChoose)
+        self.expchoose.setCurrentIndex(self.exp_ind)
+        hl.addWidget(exposure)
+        hl.addWidget(self.expchoose)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+        layout.addStretch(1)
+        self.setLayout(layout)
+
+    def init_GUI_CosmicRays(self):
+
+        frame = QFrame(self)
+        layout = QVBoxLayout()
         self.input = QTextEdit()
-        self.input.setText('sigclip=3 \nsigfrac=3.')
-        #self.output.setSizeAdjustPolicy(QTextEdit.AdjustToContents)
-        #self.output.setSizeAdjustPolicy(QTextEdit.AdjustToContentsOnFirstShow)
+        self.input.setText('sigclip=4.5\nsigfrac=0.3\nobjlim=5.\npssl=0.0\ngain=1.0\nreadnoise=6.5\nsatlevel=65535.0\nniter=4\nsepmed=1\ncleantype=meanmask\nfsmode=median\npsffwhm=2.5\npsfsize=7\npsfk=None\npsfbeta=4.765')
+        layout.addWidget(QLabel('cosmicray_lacosmic arguments:'))
+        layout.addWidget(self.input)
         hl = QHBoxLayout()
         run = QPushButton('Run')
         run.setFixedSize(120, 30)
-        run.clicked.connect(self.run)
+        run.clicked.connect(partial(self.run, update='new'))
+        add = QPushButton('Add')
+        add.setFixedSize(120, 30)
+        add.clicked.connect(partial(self.run, update='add'))
+        clear = QPushButton('Clear')
+        clear.setFixedSize(120, 30)
+        clear.clicked.connect(self.clear)
         hl.addWidget(run)
+        hl.addWidget(add)
         hl.addStretch(0)
-        layout.addWidget(self.input)
-        #layout.addStretch(1)
+        hl.addWidget(clear)
         layout.addLayout(hl)
-        self.setLayout(layout)
+        hl = QHBoxLayout()
+        expand = QPushButton('Expand:')
+        expand.setFixedSize(120, 30)
+        expand.clicked.connect(self.expand)
+        self.expPixel = QLineEdit()
+        self.expPixel.setText(str(self.exp_pixel))
+        self.expPixel.setFixedSize(40, 30)
+        self.expFactor = QLineEdit()
+        self.expFactor.setText(str(self.exp_factor))
+        self.expFactor.setFixedSize(40, 30)
+        intelExpand = QPushButton('Intel. expand')
+        intelExpand.setFixedSize(120, 30)
+        intelExpand.clicked.connect(self.intelExpand)
+        hl.addWidget(expand)
+        hl.addWidget(self.expPixel)
+        hl.addStretch(0)
+        hl.addWidget(self.expFactor)
+        hl.addWidget(intelExpand)
+        layout.addLayout(hl)
+        hl = QHBoxLayout()
+        extrapolate = QPushButton('Extrapolate')
+        extrapolate.setFixedSize(120, 30)
+        extrapolate.clicked.connect(partial(self.extrapolate, inplace=False))
+        self.extrHeight = QLineEdit()
+        self.extrHeight.setText(str(self.extr_height))
+        self.extrHeight.setFixedSize(40, 30)
+        self.extrWidth = QLineEdit()
+        self.extrWidth.setText(str(self.extr_width))
+        self.extrWidth.setFixedSize(40, 30)
+        hl.addWidget(extrapolate)
+        hl.addWidget(QLabel('h:'))
+        hl.addWidget(self.extrHeight)
+        hl.addWidget(QLabel('w:'))
+        hl.addWidget(self.extrWidth)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+        frame.setLayout(layout)
+        self.tab.addTab(frame, 'Cosmic Rays')
 
-    def run(self):
+    def init_GUI_Extraction(self):
+
+        frame = QFrame(self)
+        layout = QVBoxLayout()
+        hl = QHBoxLayout()
+        trace = QPushButton('Trace')
+        trace.setFixedSize(120, 30)
+        trace.clicked.connect(partial(self.trace))
+        hl.addWidget(trace)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        hl.addWidget(QLabel('Slit:'))
+        self.extrSlit = QLineEdit()
+        self.extrSlit.setText(str(self.extr_slit))
+        self.extrSlit.setFixedSize(40, 30)
+        hl.addWidget(self.extrSlit)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        hl.addWidget(QLabel('Window:'))
+        self.extrWindow = QLineEdit()
+        self.extrWindow.setText(str(self.extr_window))
+        self.extrWindow.setFixedSize(40, 30)
+        hl.addWidget(self.extrWindow)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        hl.addWidget(QLabel('Border steepness:'))
+        self.extrBorder = QLineEdit()
+        self.extrBorder.setText(str(self.extr_border))
+        self.extrBorder.setFixedSize(60, 30)
+        hl.addWidget(self.extrBorder)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        self.helio = QCheckBox('Helio. corr:')
+        self.helio.setFixedSize(80, 30)
+        self.helio.setChecked(True)
+        hl.addWidget(self.helio)
+        self.helioCorr = QLineEdit()
+        self.helioCorr.setText(str(self.helio_corr))
+        self.helioCorr.setFixedSize(60, 30)
+        hl.addWidget(self.helioCorr)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        self.airVac = QCheckBox('Airvac. corr.')
+        self.airVac.setFixedSize(80, 30)
+        self.airVac.setChecked(True)
+        hl.addWidget(self.airVac)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        layout.addStretch(0)
+        hl = QHBoxLayout()
+        extract = QPushButton('Extract')
+        extract.setFixedSize(120, 30)
+        extract.clicked.connect(partial(self.extract))
+        hl.addWidget(extract)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+        frame.setLayout(layout)
+        self.tab.addTab(frame, 'Extract')
+
+    def init_GUI_Correction(self):
+
+        frame = QFrame(self)
+        layout = QVBoxLayout()
+        hl = QHBoxLayout()
+        hl.addWidget(QLabel('Window:'))
+        self.rescaleWindow = QLineEdit()
+        self.rescaleWindow.setText(str(self.rescale_window))
+        self.rescaleWindow.setFixedSize(50, 30)
+        hl.addWidget(self.rescaleWindow)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        dispersion = QPushButton('Calc dispersion')
+        dispersion.setFixedSize(140, 30)
+        dispersion.clicked.connect(partial(self.dispersion))
+        hl.addWidget(dispersion)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        rescale = QPushButton('Rescale from:')
+        rescale.setFixedSize(120, 30)
+        rescale.clicked.connect(partial(self.rescale))
+        hl.addWidget(rescale)
+        self.expResChoose = QComboBox()
+        self.expResChoose.setFixedSize(250, 30)
+        for s in self.parent.s:
+            self.expResChoose.addItem(s.filename)
+        self.exp_res_ind = self.parent.s.ind
+        self.expResChoose.setCurrentIndex(self.exp_res_ind)
+        hl.addWidget(rescale)
+        hl.addWidget(self.expResChoose)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        layout.addStretch(0)
+        frame.setLayout(layout)
+        self.tab.addTab(frame, 'Corrections')
+
+    def changeExp(self):
+        self.exp_ind += 1
+        if self.exp_ind >= len(self.parent.s):
+            self.exp_ind = 0
+        self.expchoose.setCurrentIndex(self.exp_ind)
+
+    def onExpChoose(self, index):
+        self.exp_ind = index
+
+    def updateExpChoose(self):
+        self.expchoose.clear()
+        for s in self.parent.s:
+            self.expchoose.addItem(s.filename)
+        self.expchoose.setCurrentIndex(self.exp_ind)
+        self.expResChoose.clear()
+        for s in self.parent.s:
+            self.expResChoose.addItem(s.filename)
+        self.expResChoose.setCurrentIndex(self.exp_res_ind)
+
+    def run(self, update='new'):
+        if self.parent.s[self.exp_ind].spec2d.raw.mask is None:
+            self.parent.s[self.exp_ind].spec2d.raw.mask = np.zeros_like(self.parent.s[self.exp_ind].spec2d.raw.z)
         kwargs = {}
         for line in self.input.toPlainText().splitlines():
-            if line.split('=')[1].replace('.', '', 1).strip().isdigit():
+            if line.split('=')[1].replace('-', '', 1).replace('.', '', 1).strip().isdigit():
                 kwargs[line.split('=')[0]] = float(line.split('=')[1])
             else:
                 kwargs[line.split('=')[0]] = line.split('=')[1]
 
         print(kwargs)
-        z, mask = cosmicray_lacosmic(self.parent.s[0].spec2d.raw.z, **kwargs)
-        if 0:
-            self.parent.s.append(Spectrum(self.parent, name='difference'))
-            self.parent.s[-1].spec2d.set(x=self.parent.s[0].spec2d.raw.x, y=self.parent.s[0].spec2d.raw.y, z=z)
-        else:
-            self.parent.s[0].spec2d.
+        z = self.parent.s[self.exp_ind].spec2d.raw.z
+        z = np.insert(z, 0, z[:4], axis=0)
+        z = np.insert(z, z.shape[0], z[-4:], axis=0)
+        z, mask = cosmicray_lacosmic(z, **kwargs)
+        #mask[mask == 1] = np.nan
+        if update == 'new':
+            self.parent.s[self.exp_ind].spec2d.raw.mask = mask[4:-4]
+        if update == 'add':
+            self.parent.s[self.exp_ind].spec2d.raw.mask = np.logical_or(self.parent.s[self.exp_ind].spec2d.raw.mask, mask[4:-4])
 
         self.parent.s.redraw()
 
+    def clear(self):
+        self.parent.s[self.exp_ind].spec2d.raw.mask = np.zeros_like(self.parent.s[self.exp_ind].spec2d.raw.z)
+        self.parent.s.redraw()
+
+    def expand(self):
+        self.exp_pixel = int(self.expPixel.text())
+        mask = self.parent.s[self.exp_ind].spec2d.raw.mask
+        m = np.copy(mask)
+        for p in itertools.product(np.linspace(-self.exp_pixel, self.exp_pixel, 2*self.exp_pixel+1).astype(int), repeat=2):
+            m1 = np.copy(mask)
+            if p[0] < 0:
+                m1 = np.insert(m1[:p[0],:], [0]*np.abs(p[0]), 0, axis=0)
+            if p[0] > 0:
+                m1 = np.insert(m1[p[0]:, :], [m1.shape[0]-p[0]]*p[0], 0, axis=0)
+            if p[1] < 0:
+                m1 = np.insert(m1[:,:p[1]], [0]*np.abs(p[1]), 0, axis=1)
+            if p[1] > 0:
+                m1 = np.insert(m1[:, p[1]:], [m1.shape[1]-p[1]]*p[1], 0, axis=1)
+            m = np.logical_or(m, m1)
+        self.parent.s[self.exp_ind].spec2d.raw.mask = m
+        self.parent.s.redraw()
+
+    def intelExpand(self):
+        self.exp_factor = float(self.expFactor.text())
+        r = self.parent.s[self.exp_ind].spec2d.raw
+        z_saved, mask_saved = np.copy(r.z), np.copy(r.mask)
+        self.expand()
+        self.extrapolate(inplace=True)
+        r.mask = np.logical_and(np.abs(r.z / z_saved - 1) > self.exp_factor, r.mask)
+        r.z = z_saved
+        self.parent.s.redraw()
+
+    def extrapolate(self, inplace=False):
+        raw = self.parent.s[self.exp_ind].spec2d.raw
+        z = np.copy(raw.z)
+        self.extr_width, self.extr_height = float(self.extrWidth.text()), float(self.extrHeight.text())
+        if 0:
+            x, y = np.arange(z.shape[1]), np.arange(z.shape[0])
+            x, y = np.meshgrid(x, y)
+            #z[raw.mask] = np.nan
+            inter = interp2d(x[~raw.mask], y[~raw.mask], z[~raw.mask]) #, fill_value='extrapolate')
+            rows, cols = np.where(raw.mask)
+            for row, col in zip(rows, cols):
+                z[row, col] = inter(col, row)
+        else:
+            if 0:
+                from skimage.morphology import disk
+                from skimage.filters.rank import median
+                z = median(z, disk(5), mask=raw.mask)
+            else:
+                if 0:
+                    z = median_filter(raw.z, footprint=np.ones((5, 3)))
+                if 0:
+                    z[raw.mask] = np.nan
+                    z = generic_filter(z, np.nanmean, 7)
+                if 1:
+                    z[raw.mask] = np.nan
+                    print(self.extr_width, self.extr_height)
+                    kernel = Gaussian2DKernel(x_stddev=self.extr_width, y_stddev=self.extr_height)
+                    z = convolve(z, kernel)
+        z1 = np.copy(raw.z)
+        z1[raw.mask] = z[raw.mask]
+        if not inplace:
+            self.parent.s.append(Spectrum(self.parent, 'CR_removed'))
+            self.parent.s[-1].spec2d.set(x=raw.x, y=raw.y, z=z1)
+            self.updateExpChoose()
+        else:
+            raw.z = z1
+        self.parent.s.redraw()
+
+    def trace(self):
+        s = self.parent.s[self.exp_ind]
+        plot = 0
+        z = s.spec2d.raw.z
+        kernel = Gaussian2DKernel(x_stddev=10, y_stddev=0.3)
+        z = convolve(z, kernel)
+
+        def gauss(x, a, c, x0, sigma):
+            return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2)) + c
+
+        if plot:
+            fig, ax = plt.subplots(2, 2, sharex=True)
+
+        if 1:
+            self.parent.s.append(Spectrum(self.parent, 'smoothed'))
+            self.parent.s[-1].spec2d.set(x=s.spec2d.raw.x, y=s.spec2d.raw.y, z=z)
+            self.updateExpChoose()
+            self.parent.s.redraw()
+
+        for k, i in enumerate(np.where(s.cont_mask2d)[0]):
+            print(s.spec2d.raw.x[i])
+            x, y = s.spec2d.raw.y - s.cont2d.y[k], z[:, i]
+            n = len(x)
+            mean = np.sum(x * y) / np.sum(y)
+            c = np.median(np.append(y[:int(n / 4)], y[int(3 * n / 4)]))
+            sigma = slit / 1.4  # np.sum(np.abs(y-c) * (x - mean) ** 2) / np.sum(np.abs(y-c))
+            a = (np.max(y) - c) * (2 * sigma ** 2)
+            if plot:
+                ax.plot(x, y, '-r')
+                xf = np.linspace(x[0], x[-1], 100)
+                ax.plot(xf, gauss(xf, a, c, mean, sigma), '--b')
+
+            popt, pcov = curve_fit(gauss, x, y, p0=[a, c, mean, sigma])
+            print(popt)
+            yf.append(gauss(popt[2], popt[0], popt[1], popt[2], popt[3]) - popt[1])
+
+            if plot:
+                ax.plot(xf, gauss(xf, popt[0], popt[1], popt[2], popt[3]), '-k')
+
+            if plot:
+                plt.show()
+
+    def extract(self):
+
+        s = self.parent.s[self.exp_ind]
+        self.extr_window = int(self.extrWindow.text())
+        self.extr_slit = float(self.extrSlit.text())
+
+        yf, err, sk = [], [], []
+        for k, i in enumerate(np.where(s.cont_mask2d)[0]):
+            mask = 1 / (np.exp(-40 * (np.abs(s.spec2d.raw.y - s.cont2d.y[k]) - self.extr_slit)) + 1)
+            sky = np.sum(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i - self.extr_window:i + self.extr_window + 1]), mask),
+                                axis=0) / (2 * self.extr_window + 1)) / np.sum(mask)
+            sk.append(sky)
+            # print(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i-window:i+window+1]), mask), axis=0) / (2*window + 1))
+            flux = np.sum((s.spec2d.raw.z[:, i] - sky) * (1 - mask)) / np.sum(1 - mask)
+            yf.append(flux)
+            print(s.spec2d.raw.x[i], sky, flux)
+            err.append(np.sqrt(sky))
+        self.parent.s.append(Spectrum(self.parent, 'extracted', data=[s.spec2d.raw.x[s.cont_mask2d], np.asarray(yf) * 0.01,
+                                                        np.asarray(err) * 0.005]))
+        if self.helio.isChecked():
+            self.helio_corr = float(self.helioCorr.text())
+            self.parent.s[-1].helio_vel = self.helio_corr
+            self.parent.s[-1].apply_shift(self.helio_corr)
+        if self.airVac.isChecked():
+            self.parent.s[-1].airvac()
+
+        self.parent.s[-1].spec2d.set(x=self.parent.s[-1].spec.x(), y=s.spec2d.raw.y,
+                              z=s.spec2d.raw.z[:, s.cont_mask2d] - np.asarray(sk))
+        self.updateExpChoose()
+        self.parent.s.redraw(len(self.parent.s)-1)
+
+    def dispersion(self):
+        s = self.parent.s[self.exp_ind]
+        self.rescale_window = int(self.rescaleWindow.text()) / 2
+        #s.calc_cont(window=self.rescale_window*4 + 1)
+        x = s.spec.x()[s.cont_mask]
+        y = s.spec.y()[s.cont_mask]
+        err = s.spec.err()[s.cont_mask]
+
+        std = []
+        ref = np.arange(np.sum(s.cont_mask))
+        for k, i in enumerate(np.where(s.cont_mask)[0]):
+            mask = np.logical_and(ref > i-self.rescale_window, ref < i+self.rescale_window)
+            std.append(np.std(y[mask] - s.cont.y[mask]) / np.mean(err[mask]))
+
+        self.parent.s.append(Spectrum(self.parent, 'error_dispersion', data=[s.cont.x, np.asarray(std)]))
+        print(len(s.cont.x), len(std))
+        self.updateExpChoose()
+        self.parent.s.redraw(len(self.parent.s)-1)
+
+    def rescale(self):
+        self.exp_res_ind = self.expResChoose.currentIndex()
+        s = self.parent.s[self.exp_res_ind]
+        inter = interp1d(s.cont.x, s.cont.y, fill_value='extrapolate')
+        s = self.parent.s[self.exp_ind]
+        s.spec.raw.err *= inter(s.spec.raw.x)
+        self.parent.s.redraw(self.exp_ind)
 
 class SDSSentry():
     def __init__(self, name):
@@ -2693,12 +3127,6 @@ class combineWidget(QWidget):
         hbox.addStretch(1)
         vbox.addLayout(hbox)
         vbox.addWidget(QLabel('wavelength scale: '))
-        if 0:
-            self.treeWidget = QTreeWidget()
-            self.treeWidget.setHeaderHidden(True)
-            self.addItems(self.treeWidget)
-            self.treeWidget.setColumnCount(3)
-            self.treeWidget.setColumnWidth(0, 200)
 
         self.tab = QTabWidget()
         self.tab.setGeometry(0, 0, 550, 200)
@@ -3478,7 +3906,11 @@ class sviewer(QMainWindow):
         exportAction = QAction('&Export spectrum...', self)
         exportAction.setStatusTip('Export spectrum')
         exportAction.triggered.connect(self.showExportDialog)
-        
+
+        export2dAction = QAction('&Export 2d spectrum...', self)
+        export2dAction.setStatusTip('Export 2d spectrum')
+        export2dAction.triggered.connect(self.show2dExportDialog)
+
         exportDataAction = QAction('&Export data...', self)
         exportDataAction.setStatusTip('Export data')
         exportDataAction.triggered.connect(self.showExportDataDialog)
@@ -3505,8 +3937,9 @@ class sviewer(QMainWindow):
         fileMenu.addAction(saveAsAction)
         fileMenu.addSeparator()
         fileMenu.addAction(importAction)
-        fileMenu.addAction(import2dAction)
         fileMenu.addAction(exportAction)
+        fileMenu.addAction(import2dAction)
+        fileMenu.addAction(export2dAction)
         fileMenu.addSeparator()
         fileMenu.addAction(exportDataAction)
         fileMenu.addSeparator()
@@ -3691,7 +4124,7 @@ class sviewer(QMainWindow):
 
         extract = QAction('&Extract', self)
         extract.setStatusTip('extract 1d spectrum from 2d spectrum')
-        extract.triggered.connect(self.extract2d)
+        extract.triggered.connect(self.cosmic2d)
 
         cosmic2d = QAction('&Mask cosmics', self)
         cosmic2d.setStatusTip('mask cosmic rays')
@@ -4525,27 +4958,30 @@ class sviewer(QMainWindow):
                     filename = dir_path + filename
 
                 if filename.endswith('.fits'):
-                    hdulist = fits.open(filename)
-                    if 'INSTRUME' in hdulist[0].header and 'XSHOOTER' in hdulist[0].header['INSTRUME']:
-                        x = np.linspace(hdulist[0].header['CRVAL1'] * 10,
-                                        hdulist[0].header['CRVAL1'] * 10 + hdulist[0].header['CDELT1'] * 10 *
-                                        hdulist[0].data.shape[1],
-                                        hdulist[0].data.shape[1])
-                        y = np.linspace(hdulist[0].header['CRVAL2'],
-                                        hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] *
-                                        hdulist[0].data.shape[0],
-                                        hdulist[0].data.shape[0])
-                        s.spec2d.set(x=x, y=y, z=hdulist[0].data)
-                    if 'ORIGFILE' in hdulist[0].header and 'VANDELS' in hdulist[0].header['ORIGFILE']:
-                        x = np.linspace(hdulist[0].header['CRVAL1'],
-                                        hdulist[0].header['CRVAL1'] + hdulist[0].header['CDELT1'] * hdulist[0].data.shape[1],
-                                        hdulist[0].data.shape[1])
-                        y = np.linspace(hdulist[0].header['CRVAL2'],
-                                        hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] *
-                                        hdulist[0].data.shape[0],
-                                        hdulist[0].data.shape[0])
-                        s.spec2d.set(x=x, y=y, z=hdulist[0].data)
-
+                    with fits.open(filename, memmap=False) as hdulist:
+                        if 'INSTRUME' in hdulist[0].header and 'XSHOOTER' in hdulist[0].header['INSTRUME']:
+                            x = np.linspace(hdulist[0].header['CRVAL1'] * 10,
+                                            hdulist[0].header['CRVAL1'] * 10 + hdulist[0].header['CDELT1'] * 10 *
+                                            hdulist[0].data.shape[1],
+                                            hdulist[0].data.shape[1])
+                            y = np.linspace(hdulist[0].header['CRVAL2'],
+                                            hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] *
+                                            hdulist[0].data.shape[0],
+                                            hdulist[0].data.shape[0])
+                            s.spec2d.set(x=x, y=y, z=hdulist[0].data)
+                        if 'ORIGFILE' in hdulist[0].header and 'VANDELS' in hdulist[0].header['ORIGFILE']:
+                            x = np.linspace(hdulist[0].header['CRVAL1'],
+                                            hdulist[0].header['CRVAL1'] + hdulist[0].header['CDELT1'] * hdulist[0].data.shape[1],
+                                            hdulist[0].data.shape[1])
+                            y = np.linspace(hdulist[0].header['CRVAL2'],
+                                            hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] *
+                                            hdulist[0].data.shape[0],
+                                            hdulist[0].data.shape[0])
+                            s.spec2d.set(x=x, y=y, z=hdulist[0].data)
+                        if 'ORIGIN' in hdulist[0].header and 'sviewer' in hdulist[0].header['ORIGIN']:
+                            s.spec2d.set(x=hdulist[1].data, y=hdulist[2].data, z=hdulist[3].data)
+                            if len(hdulist) == 5:
+                                s.spec2d.raw.mask = np.copy(hdulist[4].data).astype(bool)
 
                 elif filename.endswith('.dat'):
                     s.spec2d = None
@@ -4563,7 +4999,15 @@ class sviewer(QMainWindow):
             
             self.exportSpectrum(fname[0])
             self.statusBar.setText('Spectrum is written to ' + fname[0])
-    
+
+    def show2dExportDialog(self):
+
+        fname = QFileDialog.getSaveFileName(self, 'Export 2d spectrum', self.work_folder)
+
+        if fname[0]:
+            self.export2dSpectrum(fname[0])
+            self.statusBar.setText('2d Spectrum is written to ' + fname[0])
+
     def showExportDataDialog(self):
 
         self.exportData = ExportDataWidget(self, 'export')
@@ -4575,7 +5019,18 @@ class sviewer(QMainWindow):
         else:
             data = np.c_[self.s[self.s.ind].spec.x(), self.s[self.s.ind].spec.y()]
         np.savetxt(filename, data, fmt='%10.5f')
-    
+
+    def export2dSpectrum(self, filename):
+        r = self.s[self.s.ind].spec2d.raw
+        hdul = fits.HDUList()
+        hdul.append(fits.PrimaryHDU(header=fits.Header(cards=[fits.Card('ORIGIN', 'sviewer')])))
+        hdul.append(fits.PrimaryHDU(r.x))
+        hdul.append(fits.PrimaryHDU(r.y))
+        hdul.append(fits.ImageHDU(data=r.z))
+        if r.mask is not None:
+            hdul.append(fits.ImageHDU(data=r.mask.astype(int)))
+        hdul.writeto(filename, overwrite=True)
+
     def showImportListDialog(self):
 
         fname = QFileDialog.getOpenFileName(self, 'Import list of spectra', self.work_folder)
@@ -5211,53 +5666,6 @@ class sviewer(QMainWindow):
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
-    def extract2d(self):
-        s = self.s[self.s.ind]
-        window = 5
-        slit = 1.05
-        print(s.spec2d.raw.z.shape)
-        def gauss(x, a, c, x0, sigma):
-            return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2)) + c
-
-        yf, err = [], []
-        if 0:
-            for k, i in enumerate(np.where(s.cont_mask2d)[0]):
-                mask = np.exp(-5*np.exp(-((s.spec2d.raw.y-s.cont2d.y[k])/slit)**2))
-                sky = np.sum(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i-window:i+window+1]), mask), axis=0) / (2*window + 1)) / np.sum(mask)
-                print(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i-window:i+window+1]), mask), axis=0) / (2*window + 1))
-                flux = np.sum((s.spec2d.raw.z[:, i] - sky)*(1-mask)) / np.sum(1-mask)
-                yf.append(flux)
-                print(s.spec2d.raw.x[i], sky, flux)
-        else:
-            plot = 0
-            for k, i in enumerate(np.where(s.cont_mask2d)[0]):
-                print(s.spec2d.raw.x[i])
-                x, y = s.spec2d.raw.y-s.cont2d.y[k], s.spec2d.raw.z[:, i]
-                n = len(x)
-                mean = np.sum(x * y) / np.sum(y)
-                c = np.median(np.append(y[:int(n / 4)], y[int(3 * n / 4)]))
-                sigma = slit/1.4 #np.sum(np.abs(y-c) * (x - mean) ** 2) / np.sum(np.abs(y-c))
-                a = (np.max(y) - c) * (2 * sigma**2)
-                print(a, c, mean, sigma)
-                if plot:
-                    fig, ax = plt.subplots()
-                    ax.plot(x, y, '-r')
-                    xf = np.linspace(x[0], x[-1], 100)
-                    ax.plot(xf, gauss(xf, a, c, mean, sigma), '--b')
-
-                popt, pcov = curve_fit(gauss, x, y, p0=[a, c, mean, sigma])
-                print(popt)
-                yf.append(gauss(popt[2], popt[0], popt[1], popt[2], popt[3]) - popt[1])
-
-                if plot:
-                    ax.plot(xf, gauss(xf, popt[0], popt[1], popt[2], popt[3]), '-k')
-
-                err.append(np.sqrt(popt[1]))
-            plt.show()
-
-        self.s.append(Spectrum(self, name='extracted', data=[s.spec2d.raw.x[s.cont_mask2d],
-                                                             np.asarray(yf)*0.04, np.asarray(err)*0.04]))
 
     def cosmic2d(self):
 

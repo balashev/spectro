@@ -1,21 +1,21 @@
-299794.24/8
-NiII
-SiIV
-CIV
-NaI
-show CaII
-CaII
-show NaI
-show NaI
-show H2 0 1
-show H2 0 1
-show H2 2 3
-show H2 4 5
-logN H2
-FeII*
-show SiII*
-SiII*
-show SiII*
-show SiII*
-show FeII*
-FeII*
+1.2/0.8
+rescale y 1.5
+rescale y 1.5
+rescale y 1.1
+rescale y 1.05
+shift -20
+shift 18
+shift 0.5
+shift 0.1
+stats
+stats
+ston
+stats
+ston
+stats
+ston
+stats
+ston
+40/1.4
+30/1.2
+43/1.4

@@ -264,6 +264,7 @@ class Speclist(list):
         self.redraw()
 
     def minmax(self):
+
         minv, maxv = self[0].spec.x()[0], self[0].spec.x()[0]
         for s in self:
             minv = np.min([minv, s.spec.x()[0]])
@@ -552,6 +553,7 @@ class image():
         self.y = np.asarray(y)
         self.z = np.asarray(z)
         self.err = np.asarray(err)
+        self.mask = None
 
     def set_data(self, x=None, y=None, z=None, err=None):
         self.z = z
@@ -567,11 +569,22 @@ class image():
             self.err = err
         self.pos = [self.x[0]-(self.x[1]-self.x[0]), self.y[0]-(self.y[1]-self.y[0])]
         self.scale = [(self.x[-1] - self.x[0]) / (self.z.shape[1]-1), (self.y[-1] - self.y[0]) / (self.z.shape[0]-1)]
+        #self.mask = np.zeros_like(self.z)
         self.getQuantile()
+        self.setLevels(self.quantile[0], self.quantile[1])
 
     def getQuantile(self, quantile=0.997):
         x = np.sort(self.z.flatten())
         self.quantile = [x[int(len(x)*(1-quantile)/2)], x[int(len(x)*(1+quantile)/2)]]
+
+    def setLevels(self, bottom, top):
+        top, bottom = np.max([top, bottom]), np.min([top, bottom])
+        if top - bottom < (self.quantile[1] - self.quantile[0]) / 100:
+            top += ((self.quantile[1] - self.quantile[0]) / 100 - (top - bottom)) /2
+            bottom -= ((self.quantile[1] - self.quantile[0]) / 100 - (top - bottom)) / 2
+        #top = np.max([np.min([top, self.quantile[1]]), self.quantile[0]])
+        #bottom = np.max([np.min([bottom, self.quantile[1]]), self.quantile[0]])
+        self.levels = [bottom, top]
 
     def find_nearest(self, x, y):
         if len(self.z.shape) == 2:
@@ -589,6 +602,14 @@ class image():
         # print(self.x_imin, self.x_imax, self.y_imin, self.y_imax)
         return getattr(self, s_axis)[getattr(self, s_axis + '_imin'):getattr(self, s_axis + '_imax')], \
                np.sum(self.z[self.y_imin:self.y_imax, self.x_imin:self.x_imax], axis=ind)
+
+    def add_mask(self, rect=None, add=True):
+        if self.mask is None:
+            self.mask = np.zeros_like(self.z)
+        if rect is not None:
+            x1, x2 = np.searchsorted(self.x, rect[0][0]), np.searchsorted(self.x, rect[0][1])
+            y1, y2 = np.searchsorted(self.y, rect[1][0]), np.searchsorted(self.y, rect[1][1])
+            self.mask[y1:y2+1, x1:x2+1] = int(add)
 
 
 class spec2d():
@@ -669,6 +690,8 @@ class Spectrum():
             cmap[-1] = [1,0.4,0]
             map = pg.ColorMap(np.linspace(0,1,cdict.N), cmap, mode='rgb')
             self.colormap = map.getLookupTable(0.0, 1.0, 256, alpha=False)
+            map = pg.ColorMap(np.linspace(0, 1, 2), [[1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.0]], mode='rgb')
+            self.maskcolormap = map.getLookupTable(1.0, 0.0, 2, alpha=True)
         else:
             if self.parent.showinactive:
                 self.view = self.parent.specview.replace('err', '')
@@ -792,10 +815,18 @@ class Spectrum():
                 self.image2d.scale(self.spec2d.raw.scale[0], self.spec2d.raw.scale[1])
                 self.image2d.setLookupTable(self.colormap)
                 #self.image2d.setLevels([np.min(self.spec2d.raw.z), np.max(self.spec2d.raw.z)])
-                self.image2d.setLevels(self.spec2d.raw.quantile)
+                self.image2d.setLevels(self.spec2d.raw.levels)
                 self.parent.spec2dPanel.vb.addItem(self.image2d)
                 self.parent.spec2dPanel.vb.removeItem(self.parent.spec2dPanel.cursorpos)
                 self.parent.spec2dPanel.vb.addItem(self.parent.spec2dPanel.cursorpos, ignoreBounds=True)
+                if self.spec2d.raw.mask is not None:
+                    self.mask2d = pg.ImageItem()
+                    self.mask2d.setImage(self.spec2d.raw.mask.T)
+                    self.mask2d.translate(self.spec2d.raw.pos[0], self.spec2d.raw.pos[1])
+                    self.mask2d.scale(self.spec2d.raw.scale[0], self.spec2d.raw.scale[1])
+                    self.mask2d.setLookupTable(self.maskcolormap)
+                    self.parent.spec2dPanel.vb.addItem(self.mask2d)
+
                 #self.parent.spec2dPanel.vb.setAspectLocked(False)
                 #self.parent.spec2dPanel.vb.invertY(False)
             if len(self.parent.s) == 0 or self.active():
@@ -850,7 +881,7 @@ class Spectrum():
         except:
             pass
 
-        attrs = ['image2d', 'g_cont2d', 'g_spline2d']
+        attrs = ['image2d', 'mask2d', 'g_cont2d', 'g_spline2d']
         for attr in attrs:
             try:
                 self.parent.spec2dPanel.vb.removeItem(getattr(self, attr))
@@ -880,6 +911,7 @@ class Spectrum():
                 self.spec.add(data[0][mask], data[1][mask])
             else:
                 mask = data[1] != np.NaN
+        print(len(self.spec.raw.x), len(self.spec.raw.y))
         self.spec.raw.interpolate()
         self.wavelmin, self.wavelmax = self.spec.raw.x[0], self.spec.raw.x[-1]
         self.mask.set(x=np.zeros_like(self.spec.raw.x, dtype=bool))
@@ -1111,7 +1143,7 @@ class Spectrum():
         #self.set_fit_mask()
         #self.rewrite_mask()
 
-    def calc_cont(self, xl=None, xr=None, iter=5):
+    def calc_cont(self, xl=None, xr=None, iter=5, window=301):
         if xl is None:
             xl = self.spec.raw.x[0]
         if xr is None:
@@ -1124,7 +1156,7 @@ class Spectrum():
         for i in range(iter):
             print(np.sum(mask), len(ys), len(self.spec.raw.y[mask]))
             mask[mask] *= (ys - self.spec.raw.y[mask]) / self.spec.raw.err[mask] < 2.5
-            ys = sg.savitzky_golay(self.spec.raw.y[mask], window_size=301, order=7)
+            ys = sg.savitzky_golay(self.spec.raw.y[mask], window_size=window, order=7)
 
         inter = interp1d(self.spec.raw.x[mask], ys, fill_value=(ys[0], ys[-1]))
 
