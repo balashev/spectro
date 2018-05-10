@@ -783,6 +783,7 @@ class spec2dWidget(pg.PlotWidget):
         self.vb.setMenuEnabled(False)
         #self.addLines()
 
+        self.slits = []
         self.cursorpos = pg.TextItem(anchor=(0, 1), fill=pg.mkBrush(0, 0, 0, 0.5))
         self.vb.addItem(self.cursorpos, ignoreBounds=True)
 
@@ -843,6 +844,11 @@ class spec2dWidget(pg.PlotWidget):
             if event.key() == Qt.Key_R:
                 self.r_status = True
                 self.vb.setMouseMode(self.vb.RectMode)
+                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+                    for s in self.slits:
+                        self.vb.removeItem(s[0])
+                        self.vb.removeItem(s[1])
+                    self.slits = []
 
             if event.key() == Qt.Key_S:
                 self.s_status = True
@@ -851,6 +857,9 @@ class spec2dWidget(pg.PlotWidget):
             if event.key() == Qt.Key_X:
                 self.x_status = True
                 self.vb.setMouseMode(self.vb.RectMode)
+                if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
+                    self.vb.removeItem(self.parent.s[self.parent.s.ind].mask2d)
+
 
     def keyReleaseEvent(self, event):
         #super(spec2dWidget, self).keyReleaseEvent(event)
@@ -874,6 +883,8 @@ class spec2dWidget(pg.PlotWidget):
 
             if event.key() == Qt.Key_X:
                 self.x_status = False
+                self.parent.s.redraw()
+
 
             if any([event.key() == getattr(Qt, 'Key_'+s) for s in ['S']]):
                 self.vb.setMouseEnabled(x=True, y=True)
@@ -931,6 +942,10 @@ class spec2dWidget(pg.PlotWidget):
                                                                                np.max([self.mousePoint_saved.y(), self.mousePoint.y()])]
                                                                              ])
             if 1:
+                try:
+                    plt.close()
+                except:
+                    pass
                 fig, ax = plt.subplots()
                 n = len(x)
                 mean = np.sum(x * y) / np.sum(y)
@@ -947,14 +962,21 @@ class spec2dWidget(pg.PlotWidget):
                 x = np.linspace(x[0], x[-1], 100)
                 y = gauss(x, popt[0], popt[1], popt[2], popt[3])
                 ax.plot(x, y, '-k')
+                ax.set_title('FWHM = {0:.2f}, center={1:.2f}'.format(popt[3] * 2.35482, popt[2]))
+                plt.show()
+            if 0:
+                d = distr1d(x, y - popt[1])
+                d.dopoint()
+                d.dointerval()
+                print(d.point, d.interval)
+                ax = d.plot(conf=0.683)
 
-            d = distr1d(x, y - popt[1])
-            d.dopoint()
-            d.dointerval()
-            print(d.point, d.interval)
-            ax = d.plot(conf=0.683)
-            ax.set_title('FWHM = {:.2f}'.format((d.interval[1] - d.interval[0]) * 2.35 / 2))
-            plt.show()
+            self.slits.append([pg.ErrorBarItem(x=np.asarray([self.mousePoint_saved.x() + self.mousePoint.x()]) / 2, y=np.asarray([popt[2]]),
+                                               top=np.asarray([popt[3]]), bottom=np.asarray([popt[3]]), pen=pg.mkPen('c', width=2), beam=4),
+                               pg.ScatterPlotItem(x=np.asarray([self.mousePoint_saved.x() + self.mousePoint.x()]) / 2, y=np.asarray([popt[2]]),
+                                                  pen=pg.mkPen('k', width=0.5), brush=pg.mkBrush('c'))])
+            self.vb.addItem(self.slits[-1][0])
+            self.vb.addItem(self.slits[-1][1])
             self.r_status = False
 
         if self.x_status:
@@ -2367,9 +2389,9 @@ class cosmic2dWidget(QWidget):
         self.exp_factor = 0.5
         self.extr_height = 1
         self.extr_width = 3
-        self.extr_slit = 1.3
+        self.extr_slit = 1.0
         self.extr_window = 1
-        self.extr_border = 30
+        self.extr_border = 5
         self.helio_corr = 0.0
         self.rescale_window = 50
         self.init_GUI()
@@ -2499,7 +2521,7 @@ class cosmic2dWidget(QWidget):
         layout.addLayout(hl)
 
         hl = QHBoxLayout()
-        hl.addWidget(QLabel('Border steepness:'))
+        hl.addWidget(QLabel('Border indent:'))
         self.extrBorder = QLineEdit()
         self.extrBorder.setText(str(self.extr_border))
         self.extrBorder.setFixedSize(60, 30)
@@ -2649,7 +2671,10 @@ class cosmic2dWidget(QWidget):
         z_saved, mask_saved = np.copy(r.z), np.copy(r.mask)
         self.expand()
         self.extrapolate(inplace=True)
-        r.mask = np.logical_and(np.abs(r.z / z_saved - 1) > self.exp_factor, r.mask)
+        r.mask = np.logical_or(mask_saved, np.logical_and(np.abs(r.z / z_saved - 1) > self.exp_factor, r.mask))
+        self.parent.s.append(Spectrum(self.parent, 'delta'))
+        self.parent.s[-1].spec2d.set(x=r.x, y=r.y, z=r.z / z_saved - 1)
+        self.parent.s[-1].spec2d.raw.setLevels(-self.exp_factor, self.exp_factor)
         r.z = z_saved
         self.parent.s.redraw()
 
@@ -2738,20 +2763,28 @@ class cosmic2dWidget(QWidget):
         s = self.parent.s[self.exp_ind]
         self.extr_window = int(self.extrWindow.text())
         self.extr_slit = float(self.extrSlit.text())
+        self.extr_border = int(self.extrBorder.text())
 
         yf, err, sk = [], [], []
         for k, i in enumerate(np.where(s.cont_mask2d)[0]):
-            mask = 1 / (np.exp(-40 * (np.abs(s.spec2d.raw.y - s.cont2d.y[k]) - self.extr_slit)) + 1)
-            sky = np.sum(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i - self.extr_window:i + self.extr_window + 1]), mask),
-                                axis=0) / (2 * self.extr_window + 1)) / np.sum(mask)
+            if 0:
+                mask = 1 / (np.exp(-40 * (np.abs(s.spec2d.raw.y - s.cont2d.y[k]) - self.extr_slit)) + 1)
+            else:
+                mask_sky = 1 / (np.exp(-40 * (np.abs(s.spec2d.raw.y - s.cont2d.y[k]) - self.extr_slit * 2)) + 1)
+                mask_sky[:self.extr_border] = 0
+                mask_sky[-self.extr_border:] = 0
+                mask_flux = np.exp(-(np.abs(s.spec2d.raw.y - s.cont2d.y[k])/self.extr_slit/2.35482)**2)
+
+            sky = np.sum(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i - self.extr_window:i + self.extr_window + 1]), mask_sky),
+                                axis=0) / (2 * self.extr_window + 1)) / np.sum(mask_sky)
             sk.append(sky)
             # print(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i-window:i+window+1]), mask), axis=0) / (2*window + 1))
-            flux = np.sum((s.spec2d.raw.z[:, i] - sky) * (1 - mask)) / np.sum(1 - mask)
+            flux = np.sum((s.spec2d.raw.z[:, i] - sky) * mask_flux) / np.sum(mask_flux)
             yf.append(flux)
             print(s.spec2d.raw.x[i], sky, flux)
             err.append(np.sqrt(sky))
-        self.parent.s.append(Spectrum(self.parent, 'extracted', data=[s.spec2d.raw.x[s.cont_mask2d], np.asarray(yf) * 0.01,
-                                                        np.asarray(err) * 0.005]))
+        self.parent.s.append(Spectrum(self.parent, 'extracted', data=[s.spec2d.raw.x[s.cont_mask2d], np.asarray(yf),
+                                                        np.asarray(err)]))
         if self.helio.isChecked():
             self.helio_corr = float(self.helioCorr.text())
             self.parent.s[-1].helio_vel = self.helio_corr

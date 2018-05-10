@@ -458,21 +458,21 @@ class Console(QTextEdit):
             self.parent.vb.removeItem(self.savefit)
 
         elif args[0] == 'ston':
-            s = ''
+            s = 'region        ston'
             for r in self.parent.plot.regions:
                 s += str(r)
                 xmin, xmax = float(str(r).split('..')[0]), float(str(r).split('..')[1])
                 spec = self.parent.s[self.parent.s.ind].spec
-                mask = (xmin < spec.x()) * (spec.x() < xmax)
-                if np.sum(mask) > 0:
-                    s += '  ' + str(np.mean(spec.y()[mask]/spec.err()[mask])) + '\n'
-                else:
-                    s += ' there is no continuum \n'
-
+                if self.parent.normview:
+                    mask = (xmin < spec.x()) * (spec.x() < xmax)
+                    if np.sum(mask) > 0:
+                        s += '  ' + str(np.mean(spec.y()[mask]/spec.err()[mask])) + '\n'
+                    else:
+                        s += ' there is no continuum \n'
             return s
 
         elif args[0] == 'stats':
-            st = ''
+            st = 'region             snr       err_disp  snr/disp\n'
             for r in self.parent.plot.regions:
                 st += str(r)
                 xmin, xmax = float(str(r).split('..')[0]), float(str(r).split('..')[1])
@@ -480,13 +480,15 @@ class Console(QTextEdit):
                 if self.parent.normview:
                     mask = (xmin < s.spec.x()) * (s.spec.x() < xmax)
                     if np.sum(mask) > 0:
-                        st += '  ' + str(np.std(s.spec.y()[mask]-1) / np.mean(s.spec.err()[mask])) + '\n'
+                        ston, disp = np.mean(s.spec.y()[mask]/s.spec.err()[mask]), np.std(s.spec.y()[mask]-1) / np.mean(s.spec.err()[mask])
+                        st += '   {0:6.2f}    {1:6.3f}    {2:6.2f}\n'.format(ston, disp, ston/disp)
                     else:
                         st += ' there is no continuum \n'
                 else:
                     mask = (xmin < s.spec.x()[s.cont_mask]) * (s.spec.x()[s.cont_mask] < xmax)
                     if np.sum(mask) > 0:
-                        st += '  ' + str(np.std(s.spec.y()[s.cont_mask][mask] - s.cont.y[mask]) / np.mean(s.spec.err()[s.cont_mask][mask])) + '\n'
+                        ston, disp = np.mean(s.spec.y()[s.cont_mask][mask] / s.spec.err()[s.cont_mask][mask]), np.std(s.spec.y()[s.cont_mask][mask] - s.cont.y[mask]) / np.mean(s.spec.err()[s.cont_mask][mask])
+                        st += '   {0:6.2f}    {1:6.3f}    {2:6.2f}\n'.format(ston, disp, ston/disp)
                     else:
                         st += ' there is no continuum \n'
 
@@ -503,6 +505,17 @@ class Console(QTextEdit):
                     if np.sum(mask) > 0:
                         s += '  ' + str(np.trapz(1 - fit.y()[mask], x=fit.x()[mask])) + '\n'
             return s
+
+        elif args[0] == '2d':
+            s = self.parent.s[self.parent.s.ind].spec2d
+
+            if args[1] == 'scale':
+                s.set(x=s.raw.x, y=s.raw.y, z=s.raw.z*float(args[2]))
+
+            if args[1] == 'levels':
+                s.raw.setLevels(float(args[2]), float(args[3]))
+
+            self.parent.s.redraw()
 
         else:
             return None

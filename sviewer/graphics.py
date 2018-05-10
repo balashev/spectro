@@ -567,7 +567,8 @@ class image():
             self.y = np.arange(z.shape[1])
         if err is not None:
             self.err = err
-        self.pos = [self.x[0]-(self.x[1]-self.x[0]), self.y[0]-(self.y[1]-self.y[0])]
+        print('set 2d', self.x, self.y)
+        self.pos = [self.x[0] - (self.x[1] - self.x[0]) / 2, self.y[0] - (self.y[1] - self.y[0]) / 2]
         self.scale = [(self.x[-1] - self.x[0]) / (self.z.shape[1]-1), (self.y[-1] - self.y[0]) / (self.z.shape[0]-1)]
         #self.mask = np.zeros_like(self.z)
         self.getQuantile()
@@ -575,7 +576,9 @@ class image():
 
     def getQuantile(self, quantile=0.997):
         x = np.sort(self.z.flatten())
+        x = x[~np.isnan(x)]
         self.quantile = [x[int(len(x)*(1-quantile)/2)], x[int(len(x)*(1+quantile)/2)]]
+        print('quantile', self.quantile)
 
     def setLevels(self, bottom, top):
         top, bottom = np.max([top, bottom]), np.min([top, bottom])
