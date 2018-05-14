@@ -902,6 +902,7 @@ class Spectrum():
     def set_data(self, data=None):
         if data is not None:
             if len(data) >= 3:
+                print(data[1], data[2])
                 mask = np.logical_and(data[1] != 0, data[2] != 0)
                 print(len(data[0]), np.sum(mask))
                 self.spec.add(data[0][mask], data[1][mask], err=data[2][mask])

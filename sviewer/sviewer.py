@@ -2443,6 +2443,8 @@ class cosmic2dWidget(QWidget):
         self.rescale_window = 50
         self.mask_type = 'moffat'
         self.moffat = moffat_func()
+        self.trace_pos = None
+        self.trace_width = [None, None]
         self.init_GUI()
         self.setStyleSheet(open('config/styles.ini').read())
         self.setGeometry(200, 200, 550, 800)
@@ -2543,8 +2545,9 @@ class cosmic2dWidget(QWidget):
 
         frame = QFrame(self)
         layout = QVBoxLayout()
+
         hl = QHBoxLayout()
-        trace = QPushButton('Trace:')
+        trace = QPushButton('Trace each:')
         trace.setFixedSize(120, 30)
         trace.clicked.connect(partial(self.trace))
         self.traceStep = QLineEdit()
@@ -2552,6 +2555,14 @@ class cosmic2dWidget(QWidget):
         self.traceStep.setFixedSize(50, 30)
         hl.addWidget(trace)
         hl.addWidget(self.traceStep)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        traceFit = QPushButton('Fit trace')
+        traceFit.setFixedSize(120, 30)
+        traceFit.clicked.connect(partial(self.trace_fit))
+        hl.addWidget(traceFit)
         hl.addStretch(0)
         layout.addLayout(hl)
 
@@ -2788,7 +2799,6 @@ class cosmic2dWidget(QWidget):
 
         inds = np.where(s.cont_mask2d)[0]
         for k, i in zip(np.arange(len(inds))[:-self.trace_step:self.trace_step], inds[:-self.trace_step:self.trace_step]):
-            print(k, i)
             x, y = s.spec2d.raw.collapse(rect=[[s.spec2d.raw.x[i+int(self.trace_step/2)-4], s.spec2d.raw.x[i+int(self.trace_step/2)+4]], [s.spec2d.raw.y[self.extr_border], s.spec2d.raw.y[-self.extr_border]]])
 
             x_0 = s.cont2d.y[k]
@@ -2800,29 +2810,57 @@ class cosmic2dWidget(QWidget):
                 popt, pcov = curve_fit(self.moffat_fit_integ, x, y, p0=[a, x_0, gamma, c])
 
                 fwhm = Moffat1D(popt[0], popt[1], popt[2], 4.765).fwhm
-                print(np.abs(popt[1] - s.cont2d.y[k]), self.extr_slit / 3, np.abs(fwhm/self.extr_slit - 1))
                 if np.abs(popt[1] - s.cont2d.y[k]) < self.extr_slit / 3 and np.abs(fwhm/self.extr_slit - 1) < 0.3:
                     pos.append(s.spec2d.raw.x[i+int(self.trace_step/2)])
                     trace.append(popt[1])
                     width.append(fwhm)
+                print(k, s.spec2d.raw.x[i+int(self.trace_step/2)], popt[1], fwhm)
             except:
                 pass
 
-        #ax.errorbar(np.asarray(pos), np.asarray(trace), yerr=np.asarray(width), fmt='o')
+        print(pos, trace, width)
+        self.parent.spec2dPanel.addSlits(pos, trace, width)
 
+    def trace_fit(self):
+        try:
+            self.parent.spec2dPanel.vb.removeItem(self.trace_pos)
+            self.parent.spec2dPanel.vb.removeItem(self.trace_width[0])
+            self.parent.spec2dPanel.vb.removeItem(self.trace_width[1])
+        except:
+            pass
+
+        pos, trace, width = np.array([]), np.array([]), np.array([])
+        for s in self.parent.spec2dPanel.slits:
+            pos = np.append(pos, s[0].opts['x'])
+            trace = np.append(trace, s[0].opts['y'])
+            width = np.append(width, s[0].opts['top']*2)
+        inds = np.argsort(pos)
+        pos, trace, width = pos[inds], trace[inds], width[inds]
         if 1:
             p = np.polyfit(pos, trace, 3)
             print(np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x)[::100])
-            self.parent.s[self.parent.s.ind].cont2d.y = np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x)
+            #self.parent.s[self.parent.s.ind].cont2d.y = np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x)
+            self.trace_pos = np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x)
             p = np.polyfit(pos, width, 3)
-            print(np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x)[::100])
-            #self.parent.spec2dPanel.vb.addItem(pg.)
+            self.trace_width = [self.trace_pos - np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x) / 2,
+                                self.trace_pos + np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x) / 2]
         else:
+            x1, x2, y1, y2 = pos[0], pos[-1], trace[0], trace[-1]
             powerlaw = lambda x, amp, index, c: amp * (x ** index) + c
-            popt, pcov = curve_fit(powerlaw, )
-
-        self.parent.s.redraw()
-        self.parent.spec2dPanel.addSlits(pos, trace, width)
+            popt, pcov = curve_fit(powerlaw, p0=(x2 * (y2 - y1) / (x1 - x2), -1, (y1*x1 - y2*x2)/(x1-x2)))
+            print(popt)
+            self.trace_pos = powerlaw(self.parent.s[self.parent.s.ind].cont2d.x, popt[0], popt[1], popt[2])
+        if 0:
+            self.parent.s.redraw()
+        else:
+            self.trace_pos = pg.PlotCurveItem(x=self.parent.s[self.parent.s.ind].cont2d.x, y=self.trace_pos, pen=pg.mkPen(255, 255, 255, width=3))
+            self.parent.spec2dPanel.vb.addItem(self.trace_pos)
+            for ind in [0,1]:
+                self.trace_width[ind] = pg.PlotCurveItem(x=self.parent.s[self.parent.s.ind].cont2d.x, y=self.trace_width[ind], pen=pg.mkPen(255, 255, 255, width=3, style=Qt.DashLine))
+                self.parent.spec2dPanel.vb.addItem(self.trace_width[ind])
+        #else:
+        #    self.trace_pos = None
+        #    self.trace_width = [None, None]
         #plt.show()
 
     def extract(self):
@@ -2836,15 +2874,19 @@ class cosmic2dWidget(QWidget):
 
         for k, i in enumerate(np.where(s.cont_mask2d)[0]):
             if self.mask_type == 'moffat':
-                mask = self.moffat.ppf([0.02, 0.98], loc=s.cont2d.y[k],
-                                  scale=self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1))
-                print(mask)
+                if self.trace_pos == None:
+                    x_0, gamma = s.cont2d.y[k], self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+                else:
+                    x_0 = self.trace_pos.getData()[1][k]
+                    gamma = (self.trace_width[1].getData()[1][k] - x_0) * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+                #print(loc, scale)
+                mask = self.moffat.ppf([0.02, 0.98], loc=x_0, scale=gamma)
+                #print(mask)
                 mask_sky = np.logical_or(s.spec2d.raw.y < mask[0], s.spec2d.raw.y > mask[1])
             else:
                 mask_sky = 1 / (np.exp(-40 * (np.abs(s.spec2d.raw.y - s.cont2d.y[k]) - self.extr_slit * 2)) + 1)
             mask_sky[:self.extr_border] = 0
             mask_sky[-self.extr_border:] = 0
-            print(mask_sky)
 
             sky = np.sum(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i - self.extr_window:i + self.extr_window + 1]), mask_sky),
                                 axis=0) / (2 * self.extr_window + 1)) / np.sum(mask_sky)
@@ -2865,24 +2907,32 @@ class cosmic2dWidget(QWidget):
 
         sky = sk[:]
         sky[mask] = savgol_filter(sk[mask], 21, 5)
-        ax.plot(s.spec2d.raw.x[s.cont_mask2d], sky)
+        ax.plot(s.spec2d.raw.x[s.cont_mask2d], sky, '-k')
 
         plt.show()
 
         for k, i in enumerate(np.where(s.cont_mask2d)[0]):
+            print(k, i)
             if self.mask_type == 'moffat':
-                mask = self.moffat.cdf(s.spec2d.raw.z[:, i], loc=s.cont2d.y[k],
-                                  scale=self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1))
+                if self.trace_pos == None:
+                    x_0, gamma = s.cont2d.y[k], self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+                else:
+                    x_0 = self.trace_pos.getData()[1][k]
+                    gamma = (self.trace_width[1].getData()[1][k] - x_0) * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+                mask = self.moffat_fit_integ(s.spec2d.raw.y, 1, x_0=x_0, gamma=gamma, c=0)
             elif self.mask_type == 'rectangular':
                 mask = 1 / (np.exp(-40 * (np.abs(s.spec2d.raw.y - s.cont2d.y[k]) - self.extr_slit)) + 1)
             elif self.mask_type == 'gaussian':
                 mask = np.exp(-(np.abs(s.spec2d.raw.y - s.cont2d.y[k]) / self.extr_slit / 2.35482) ** 2)
 
-            mask_err = mask < 0.05
+            mask_err = self.moffat.ppf([0.02, 0.98], loc=x_0, scale=gamma)
+            mask_err = np.logical_or(s.spec2d.raw.y < mask_err[0], s.spec2d.raw.y > mask_err[1])
+            mask_err[:self.extr_border] = 0
+            mask_err[-self.extr_border:] = 0
             # print(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i-window:i+window+1]), mask), axis=0) / (2*window + 1))
             flux = np.sum((s.spec2d.raw.z[:, i] - sky[k]) * mask) / np.sum(mask)
+            #print(mask, mask_err)
             yf.append(flux)
-            print(s.spec2d.raw.x[i], sky[k], flux)
             err.append(np.std(s.spec2d.raw.z[:, i][mask_err]))
 
         #np.savetxt('temp/sky.dat', (s.spec2d.raw.x[s.cont_mask2d], sk))
@@ -4714,6 +4764,7 @@ class sviewer(QMainWindow):
                         try:
                             if all([slash not in specname for slash in ['/', '\\']]):
                                 specname = folder + '/' + specname
+
                             if not self.importSpectrum(specname, append=True):
                                 st = re.findall(r'spec-\d{4}-\d{5}-\d+', specname)
                                 if len(st) > 0:
@@ -4727,6 +4778,21 @@ class sviewer(QMainWindow):
 
                 if i > len(d) - 1:
                     break
+
+                if ind == -1 and 'spectrum' in d[i]:
+                    n = int(d[i].split()[1])
+                    if n > 0:
+                        x, y, err = [], [], []
+                        if n > 0:
+                            for t in range(n):
+                                i += 1
+                                w = d[i].split()
+                                x.append(float(w[0]))
+                                y.append(float(w[1]))
+                                if len(w) > 2:
+                                    err.append(float(w[2]))
+                        self.importSpectrum(specname, spec=[np.asarray(x), np.asarray(y), np.asarray(err)], append=True)
+                        ind = len(self.s) - 1
 
                 if ind > -1:
                     while all([x not in d[i] for x in ['%', '----', 'doublet', 'region', 'fit_model']]):
