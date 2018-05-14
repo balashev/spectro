@@ -1,11 +1,12 @@
 import sys
 import copy
 from mendeleev import element
+import numpy as np
 from PyQt5.QtCore import Qt, QRectF
 from PyQt5.QtGui import (QFont, QTextCursor)
 from PyQt5.QtWidgets import (QTextEdit)
 import pyqtgraph as pg
-import numpy as np
+from statsmodels.stats.weightstats import DescrStatsW
 
 from ..a_unc import a
 from .utils import Timer, roman
@@ -492,6 +493,18 @@ class Console(QTextEdit):
                     else:
                         st += ' there is no continuum \n'
 
+            return st
+
+        elif args[0] == 'level':
+            st = 'region               mean        weigthed    weighted err\n'
+            for r in self.parent.plot.regions:
+                st += str(r)
+                xmin, xmax = float(str(r).split('..')[0]), float(str(r).split('..')[1])
+                spec = self.parent.s[self.parent.s.ind].spec
+                mask = (xmin < spec.x()) * (spec.x() < xmax)
+                waver = DescrStatsW(spec.y()[mask], weights=1.0/spec.err()[mask], ddof=1)
+                if np.sum(mask) > 0:
+                    st += ' {0:10.3f}  {1:10.3f}  {2:10.3f}\n'.format(np.average(spec.y()[mask]), waver.mean, waver.std)
             return st
 
         elif args[0] == 'ew':

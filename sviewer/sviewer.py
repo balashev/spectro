@@ -936,33 +936,75 @@ class spec2dWidget(pg.PlotWidget):
                 event.accept()
 
         if self.r_status:
+            self.mousePoint = self.vb.mapSceneToView(event.pos())
             x, y = self.parent.s[self.parent.s.ind].spec2d.raw.collapse(rect=[[np.min([self.mousePoint_saved.x(), self.mousePoint.x()]),
                                                                                np.max([self.mousePoint_saved.x(), self.mousePoint.x()])],
                                                                               [np.min([self.mousePoint_saved.y(), self.mousePoint.y()]),
                                                                                np.max([self.mousePoint_saved.y(), self.mousePoint.y()])]
                                                                              ])
+            wave = (self.mousePoint_saved.x() + self.mousePoint.x()) / 2
             if 1:
                 try:
                     plt.close()
                 except:
                     pass
                 fig, ax = plt.subplots()
-                n = len(x)
-                mean = np.sum(x * y) / np.sum(y)
-                c = np.median(np.append(y[:int(n/4)], y[int(3*n/4)]))
-                sigma = np.sum((y-c) * (x - mean) ** 2) / np.sum((y-c))
-                print(mean, x, sigma)
-
-                def gauss(x, a, c, x0, sigma):
-                    return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2)) + c
-
                 ax.plot(x, y, '-r')
-                popt, pcov = curve_fit(gauss, x, y, p0=[1, c, mean, sigma])
+                #xf = np.linspace(x[0], x[-1], 100)
+                n = len(x)
 
-                x = np.linspace(x[0], x[-1], 100)
-                y = gauss(x, popt[0], popt[1], popt[2], popt[3])
-                ax.plot(x, y, '-k')
-                ax.set_title('FWHM = {0:.2f}, center={1:.2f}'.format(popt[3] * 2.35482, popt[2]))
+                if 0:
+                    def gauss(x, a, x_0, sigma, c):
+                        return a * np.exp(-(x - x_0) ** 2 / (2 * sigma ** 2)) + c
+
+                    x_0 = x[np.argmax(y)]
+                    c = np.median(np.append(y[:int(n/4)], y[int(3*n/4)]))
+                    #sigma = np.sum((y-c) * (x - mean) ** 2) / np.sum((y-c))
+                    a = np.trapz(y-c, x)
+                    sigma = np.max(y) / np.sqrt(2*np.pi) / a
+
+                    print('init:', c, x_0, a, sigma)
+
+                    ax.plot(xf, gauss(xf, a, x_0, sigma, c), '--r')
+
+                    popt, pcov = curve_fit(gauss, x, y, p0=[a, x_0, sigma, c])
+
+                    ax.plot(xf, gauss(xf, popt[0], popt[1], popt[2], popt[3]), '-k')
+                    ax.set_title('FWHM = {0:.2f}, center={1:.2f}'.format(popt[2] * 2.35482, popt[1]))
+
+                if 1:
+                    def moffat_fit_integ(x, a, x_0, gamma, c):
+                        dx = np.median(np.diff(x)) / 2
+                        x = np.append(x - dx, x[-1] + dx)
+                        y = moffat.cdf(x, loc=x_0, scale=gamma) / norm
+
+                        return a * np.diff(y) + c
+
+                    x_0 = x[np.argmax(y)]
+                    c = np.median(np.append(y[:int(n / 4)], y[int(3 * n / 4)]))
+                    sigma = np.std((y - c) * x) / np.std(y - c)
+                    gamma = 2.35482 * sigma / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+                    a = np.max(y) - c
+
+                    moffat = moffat_func()
+                    norm = moffat.cdf(20, loc=0, scale=gamma)
+
+                    #ax.plot(x, moffat_fit_integ(x, a, x_0, gamma, c), '--b')
+                    popt, pcov = curve_fit(moffat_fit, x, y, p0=[a, x_0, gamma, c])
+
+                    ax.plot(x, moffat_fit(x, popt[0], popt[1], popt[2], popt[3]), '-g')
+
+                    print(popt)
+
+                    popt, pcov = curve_fit(moffat_fit_integ, x, y, p0=[a, x_0, gamma, c])
+
+                    ax.plot(x, moffat_fit_integ(x, popt[0], popt[1], popt[2], popt[3]), '-b')
+
+                    print(popt)
+
+                    x_0 = popt[1]
+                    fwhm = Moffat1D(popt[0], popt[1], popt[2], 4.765).fwhm
+                    ax.set_title('FWHM = {0:.2f}, center={1:.2f}'.format(fwhm, x_0))
                 plt.show()
             if 0:
                 d = distr1d(x, y - popt[1])
@@ -971,12 +1013,8 @@ class spec2dWidget(pg.PlotWidget):
                 print(d.point, d.interval)
                 ax = d.plot(conf=0.683)
 
-            self.slits.append([pg.ErrorBarItem(x=np.asarray([self.mousePoint_saved.x() + self.mousePoint.x()]) / 2, y=np.asarray([popt[2]]),
-                                               top=np.asarray([popt[3]]), bottom=np.asarray([popt[3]]), pen=pg.mkPen('c', width=2), beam=4),
-                               pg.ScatterPlotItem(x=np.asarray([self.mousePoint_saved.x() + self.mousePoint.x()]) / 2, y=np.asarray([popt[2]]),
-                                                  pen=pg.mkPen('k', width=0.5), brush=pg.mkBrush('c'))])
-            self.vb.addItem(self.slits[-1][0])
-            self.vb.addItem(self.slits[-1][1])
+
+            self.addSlits([wave], [x_0], [fwhm])
             self.r_status = False
 
         if self.x_status:
@@ -1044,6 +1082,14 @@ class spec2dWidget(pg.PlotWidget):
             else:
                 self.updateScaleBox(ev.buttonDownPos(), ev.pos())
 
+    def addSlits(self, wave, x_0, fwhm):
+        self.slits.append([pg.ErrorBarItem(x=np.asarray(wave), y=np.asarray(x_0),
+                                           top=np.asarray(fwhm) / 2, bottom=np.asarray(fwhm) / 2,
+                                           pen=pg.mkPen('c', width=2), beam=4),
+                           pg.ScatterPlotItem(x=np.asarray(wave), y=np.asarray(x_0),
+                                              pen=pg.mkPen('k', width=0.5), brush=pg.mkBrush('c'))])
+        self.vb.addItem(self.slits[-1][0])
+        self.vb.addItem(self.slits[-1][1])
 
 class preferencesWidget(QWidget):
     def __init__(self, parent):
@@ -2385,15 +2431,18 @@ class cosmic2dWidget(QWidget):
     def __init__(self, parent):
         super(cosmic2dWidget, self).__init__()
         self.parent = parent
+        self.trace_step = 200
         self.exp_pixel = 1
         self.exp_factor = 0.5
         self.extr_height = 1
         self.extr_width = 3
         self.extr_slit = 1.0
-        self.extr_window = 1
-        self.extr_border = 5
+        self.extr_window = 0
+        self.extr_border = 3
         self.helio_corr = 0.0
         self.rescale_window = 50
+        self.mask_type = 'moffat'
+        self.moffat = moffat_func()
         self.init_GUI()
         self.setStyleSheet(open('config/styles.ini').read())
         self.setGeometry(200, 200, 550, 800)
@@ -2495,10 +2544,14 @@ class cosmic2dWidget(QWidget):
         frame = QFrame(self)
         layout = QVBoxLayout()
         hl = QHBoxLayout()
-        trace = QPushButton('Trace')
+        trace = QPushButton('Trace:')
         trace.setFixedSize(120, 30)
         trace.clicked.connect(partial(self.trace))
+        self.traceStep = QLineEdit()
+        self.traceStep.setText(str(self.trace_step))
+        self.traceStep.setFixedSize(50, 30)
         hl.addWidget(trace)
+        hl.addWidget(self.traceStep)
         hl.addStretch(0)
         layout.addLayout(hl)
 
@@ -2716,47 +2769,61 @@ class cosmic2dWidget(QWidget):
             raw.z = z1
         self.parent.s.redraw()
 
+    def moffat_fit_integ(self, x, a, x_0, gamma, c):
+        norm = self.moffat.cdf(20, loc=0, scale=gamma)
+        dx = np.median(np.diff(x)) / 2
+        x = np.append(x - dx, x[-1] + dx)
+        y = self.moffat.cdf(x, loc=x_0, scale=gamma) / norm
+
+        return a * np.diff(y) + c
+
     def trace(self):
+        self.trace_step = int(self.traceStep.text())
+        self.extr_slit = float(self.extrSlit.text())
         s = self.parent.s[self.exp_ind]
-        plot = 0
-        z = s.spec2d.raw.z
-        kernel = Gaussian2DKernel(x_stddev=10, y_stddev=0.3)
-        z = convolve(z, kernel)
 
-        def gauss(x, a, c, x0, sigma):
-            return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2)) + c
+        pos, trace, width = [], [], []
 
-        if plot:
-            fig, ax = plt.subplots(2, 2, sharex=True)
+        fig, ax = plt.subplots()
+
+        inds = np.where(s.cont_mask2d)[0]
+        for k, i in zip(np.arange(len(inds))[:-self.trace_step:self.trace_step], inds[:-self.trace_step:self.trace_step]):
+            print(k, i)
+            x, y = s.spec2d.raw.collapse(rect=[[s.spec2d.raw.x[i+int(self.trace_step/2)-4], s.spec2d.raw.x[i+int(self.trace_step/2)+4]], [s.spec2d.raw.y[self.extr_border], s.spec2d.raw.y[-self.extr_border]]])
+
+            x_0 = s.cont2d.y[k]
+            c = np.median(np.append(y[:int(len(y) / 4)], y[int(3 * len(y) / 4)]))
+            gamma = 2.35482 * self.extr_slit  / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+            a = np.max(y) - c
+
+            try:
+                popt, pcov = curve_fit(self.moffat_fit_integ, x, y, p0=[a, x_0, gamma, c])
+
+                fwhm = Moffat1D(popt[0], popt[1], popt[2], 4.765).fwhm
+                print(np.abs(popt[1] - s.cont2d.y[k]), self.extr_slit / 3, np.abs(fwhm/self.extr_slit - 1))
+                if np.abs(popt[1] - s.cont2d.y[k]) < self.extr_slit / 3 and np.abs(fwhm/self.extr_slit - 1) < 0.3:
+                    pos.append(s.spec2d.raw.x[i+int(self.trace_step/2)])
+                    trace.append(popt[1])
+                    width.append(fwhm)
+            except:
+                pass
+
+        #ax.errorbar(np.asarray(pos), np.asarray(trace), yerr=np.asarray(width), fmt='o')
 
         if 1:
-            self.parent.s.append(Spectrum(self.parent, 'smoothed'))
-            self.parent.s[-1].spec2d.set(x=s.spec2d.raw.x, y=s.spec2d.raw.y, z=z)
-            self.updateExpChoose()
-            self.parent.s.redraw()
+            p = np.polyfit(pos, trace, 3)
+            print(np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x)[::100])
+            self.parent.s[self.parent.s.ind].cont2d.y = np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x)
+            p = np.polyfit(pos, width, 3)
+            print(np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x)[::100])
+            #self.parent.spec2dPanel.vb.addItem(pg.)
+        else:
+            powerlaw = lambda x, amp, index, c: amp * (x ** index) + c
+            popt, pcov = curve_fit(powerlaw, )
 
-        for k, i in enumerate(np.where(s.cont_mask2d)[0]):
-            print(s.spec2d.raw.x[i])
-            x, y = s.spec2d.raw.y - s.cont2d.y[k], z[:, i]
-            n = len(x)
-            mean = np.sum(x * y) / np.sum(y)
-            c = np.median(np.append(y[:int(n / 4)], y[int(3 * n / 4)]))
-            sigma = slit / 1.4  # np.sum(np.abs(y-c) * (x - mean) ** 2) / np.sum(np.abs(y-c))
-            a = (np.max(y) - c) * (2 * sigma ** 2)
-            if plot:
-                ax.plot(x, y, '-r')
-                xf = np.linspace(x[0], x[-1], 100)
-                ax.plot(xf, gauss(xf, a, c, mean, sigma), '--b')
-
-            popt, pcov = curve_fit(gauss, x, y, p0=[a, c, mean, sigma])
-            print(popt)
-            yf.append(gauss(popt[2], popt[0], popt[1], popt[2], popt[3]) - popt[1])
-
-            if plot:
-                ax.plot(xf, gauss(xf, popt[0], popt[1], popt[2], popt[3]), '-k')
-
-            if plot:
-                plt.show()
+        self.parent.s.redraw()
+        self.parent.spec2dPanel.addSlits(pos, trace, width)
+        #plt.show()
 
     def extract(self):
 
@@ -2766,23 +2833,61 @@ class cosmic2dWidget(QWidget):
         self.extr_border = int(self.extrBorder.text())
 
         yf, err, sk = [], [], []
+
         for k, i in enumerate(np.where(s.cont_mask2d)[0]):
-            if 0:
-                mask = 1 / (np.exp(-40 * (np.abs(s.spec2d.raw.y - s.cont2d.y[k]) - self.extr_slit)) + 1)
+            if self.mask_type == 'moffat':
+                mask = self.moffat.ppf([0.02, 0.98], loc=s.cont2d.y[k],
+                                  scale=self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1))
+                print(mask)
+                mask_sky = np.logical_or(s.spec2d.raw.y < mask[0], s.spec2d.raw.y > mask[1])
             else:
                 mask_sky = 1 / (np.exp(-40 * (np.abs(s.spec2d.raw.y - s.cont2d.y[k]) - self.extr_slit * 2)) + 1)
-                mask_sky[:self.extr_border] = 0
-                mask_sky[-self.extr_border:] = 0
-                mask_flux = np.exp(-(np.abs(s.spec2d.raw.y - s.cont2d.y[k])/self.extr_slit/2.35482)**2)
+            mask_sky[:self.extr_border] = 0
+            mask_sky[-self.extr_border:] = 0
+            print(mask_sky)
 
             sky = np.sum(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i - self.extr_window:i + self.extr_window + 1]), mask_sky),
                                 axis=0) / (2 * self.extr_window + 1)) / np.sum(mask_sky)
             sk.append(sky)
+
+        sk = np.asarray(sk)
+        from scipy.signal import savgol_filter
+        fig, ax = plt.subplots()
+        ax.plot(s.spec2d.raw.x[s.cont_mask2d], sk)
+        mask = np.ones_like(sk, dtype=bool)
+        for i in range(3):
+            y = savgol_filter(sk[mask], 101, 5)
+            ax.plot(s.spec2d.raw.x[s.cont_mask2d][mask], y, '--r')
+
+            mask[mask] = np.logical_and((sk[mask] / y - 1) < 0.3, mask[mask])
+
+            # y, lmbd = smooth_data(data[0], data[1], d=4, stdev=1e-4)
+
+        sky = sk[:]
+        sky[mask] = savgol_filter(sk[mask], 21, 5)
+        ax.plot(s.spec2d.raw.x[s.cont_mask2d], sky)
+
+        plt.show()
+
+        for k, i in enumerate(np.where(s.cont_mask2d)[0]):
+            if self.mask_type == 'moffat':
+                mask = self.moffat.cdf(s.spec2d.raw.z[:, i], loc=s.cont2d.y[k],
+                                  scale=self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1))
+            elif self.mask_type == 'rectangular':
+                mask = 1 / (np.exp(-40 * (np.abs(s.spec2d.raw.y - s.cont2d.y[k]) - self.extr_slit)) + 1)
+            elif self.mask_type == 'gaussian':
+                mask = np.exp(-(np.abs(s.spec2d.raw.y - s.cont2d.y[k]) / self.extr_slit / 2.35482) ** 2)
+
+            mask_err = mask < 0.05
             # print(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i-window:i+window+1]), mask), axis=0) / (2*window + 1))
-            flux = np.sum((s.spec2d.raw.z[:, i] - sky) * mask_flux) / np.sum(mask_flux)
+            flux = np.sum((s.spec2d.raw.z[:, i] - sky[k]) * mask) / np.sum(mask)
             yf.append(flux)
-            print(s.spec2d.raw.x[i], sky, flux)
-            err.append(np.sqrt(sky))
+            print(s.spec2d.raw.x[i], sky[k], flux)
+            err.append(np.std(s.spec2d.raw.z[:, i][mask_err]))
+
+        #np.savetxt('temp/sky.dat', (s.spec2d.raw.x[s.cont_mask2d], sk))
+
+
         self.parent.s.append(Spectrum(self.parent, 'extracted', data=[s.spec2d.raw.x[s.cont_mask2d], np.asarray(yf),
                                                         np.asarray(err)]))
         if self.helio.isChecked():
@@ -2795,6 +2900,7 @@ class cosmic2dWidget(QWidget):
         self.parent.s[-1].spec2d.set(x=self.parent.s[-1].spec.x(), y=s.spec2d.raw.y,
                               z=s.spec2d.raw.z[:, s.cont_mask2d] - np.asarray(sk))
         self.updateExpChoose()
+
         self.parent.s.redraw(len(self.parent.s)-1)
 
     def dispersion(self):

@@ -4,12 +4,13 @@ Created on Fri Dec 23 11:25:04 2016
 
 @author: Serj
 """
-
+from astropy.modeling.functional_models import Moffat1D
 import inspect
 from itertools import compress
 from math import atan2,degrees
 import numpy as np
 import os
+from scipy.stats import rv_continuous
 import threading
 import time
 
@@ -303,3 +304,18 @@ class StoppableThread(threading.Thread):
 
     def stopped(self):
         return self._stop_event.is_set()
+
+# ---------------------------------------------------------
+# fitting functions
+
+class moffat_func(rv_continuous):
+    "Moffat spectral distribution"
+
+    def _pdf(self, x):
+        # return 1.198436723 / gamma ** 2 * (1 + (x / gamma)**2) ** (-4.765)
+        return 1.198436723 * (1 + x ** 2) ** (-4.765)
+
+def moffat_fit(x, a, x_0, gamma, c):
+    moffat = Moffat1D(a, x_0, gamma, 4.765)
+    return moffat(x) + c
+

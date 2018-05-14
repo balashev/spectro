@@ -159,4 +159,6 @@ The list of commands:
 >>> lines load <name>     :  save highlighted lines indicators to 'data/lines/<name>.dat'. If name is not specified use data/lines/saved.dat file
 >>> lines all             :  highlight all lines with shown indicators
 >>> lines none            :  unhighlight all lines      
->>> ston                  :  return ston ratios in the selected regions. (how to select regions see Key command 'r')                                       
+>>> ston                  :  return ston ratios in the selected regions. (how to select regions see Key command 'r')   
+>>> stats                 :  return ston, dispesrion of uncertainties and ... for the selected regions. (how to select regions see Key command 'r')
+>>> level                 :  return estimate of the flux level for the selected regions. (how to select regions see Key command 'r')                                       

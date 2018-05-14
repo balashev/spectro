@@ -52,19 +52,15 @@ To shift doublet position: Hold <Shift> and drag doublet by its label.
 To delete doublet: Hold <Ctrl> and click on the doublet label.
 To set redshift value for other indicators: <Double Left Mouse Click> on the doublet label.  
 
+                       
 
-
-
-
-
-
-
-2' (not worked yet). Working with regions:
-- Region is the wavelenght range that can be collapsed to reduced unused wavelenght range
-- To construct region press <r> Key and select region by left mouse button
-- Region can be adjusted by moving its boundaries, or gragged by mouse when SHIFT is pressed
-- To collapse/expand region use left mouse button double click.
-- To remove region click on it when pressing CTRL. 
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+Working with regions:  
+- to construct         :         hold <r> Key and select region by left mouse button
+- to adjust boundaries :         hold SHIFT and move boundaries by mouse
+- to drag              :         hold SHIFT and move by mouse
+- to remove            :         hold CTRL and click on the region
+- to collapse/expand   :         left mouse button double click on the region 
 
 
 

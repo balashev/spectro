@@ -602,7 +602,6 @@ class image():
         self.x_imin, self.x_imax = np.searchsorted(self.x, rect[0][0]), np.searchsorted(self.x, rect[0][1])
         s_axis = 'y' if axis == 'x' else 'x'
         ind = 1 if axis == 'x' else 0
-        # print(self.x_imin, self.x_imax, self.y_imin, self.y_imax)
         return getattr(self, s_axis)[getattr(self, s_axis + '_imin'):getattr(self, s_axis + '_imax')], \
                np.sum(self.z[self.y_imin:self.y_imax, self.x_imin:self.x_imax], axis=ind)
 
@@ -1766,8 +1765,10 @@ class regionItem(pg.LinearRegionItem):
                 l.setHoverPen(self.inactivePen)
 
     def hoverEvent(self, ev):
-        if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
-            super().hoverEvent(ev)
+        self.lines[0].setMovable((QApplication.keyboardModifiers() == Qt.ShiftModifier))
+        self.lines[1].setMovable((QApplication.keyboardModifiers() == Qt.ShiftModifier))
+        #if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
+        #    super(regionItem).hoverEvent(ev)
 
     def setMouseHover(self, hover):
         ## Inform the item that the mouse is(not) hovering over it
