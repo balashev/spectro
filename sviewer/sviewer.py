@@ -1,13 +1,10 @@
 from astropy.io import fits
-from astropy.convolution import Gaussian2DKernel, convolve
-from ccdproc import cosmicray_lacosmic
 from chainconsumer import ChainConsumer
 from collections import OrderedDict
 from copy import deepcopy
 import emcee
 import h5py
 import inspect
-import itertools
 from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs
 import matplotlib.pyplot as plt
 from multiprocessing import Process
@@ -25,7 +22,6 @@ from PyQt5.QtGui import QDesktopServices
 from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
 from pyqtgraph.GraphicsScene import exportDialog
 from scipy.integrate import quad
-from scipy.ndimage import median_filter, generic_filter
 from scipy.optimize import curve_fit
 from scipy.stats import gaussian_kde
 from sklearn.neighbors import KernelDensity
@@ -841,6 +837,9 @@ class spec2dWidget(pg.PlotWidget):
                 else:
                     self.e_status = True
 
+            if event.key() == Qt.Key_M:
+                self.vb.addItem(self.parent.s[self.parent.s.ind].mask2d)
+
             if event.key() == Qt.Key_R:
                 self.r_status = True
                 self.vb.setMouseMode(self.vb.RectMode)
@@ -857,8 +856,11 @@ class spec2dWidget(pg.PlotWidget):
             if event.key() == Qt.Key_X:
                 self.x_status = True
                 self.vb.setMouseMode(self.vb.RectMode)
+                s = self.parent.s[self.parent.s.ind].spec2d
+                if s.cr is None:
+                    s.cr = image(x=s.raw.x, y=s.raw.y, mask=np.zeros_like(s.raw.z))
                 if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
-                    self.vb.removeItem(self.parent.s[self.parent.s.ind].mask2d)
+                    self.vb.removeItem(self.parent.s[self.parent.s.ind].cr_mask2d)
 
 
     def keyReleaseEvent(self, event):
@@ -875,6 +877,9 @@ class spec2dWidget(pg.PlotWidget):
             if event.key() == Qt.Key_E:
                 self.e_status = False
 
+            if event.key() == Qt.Key_M:
+                self.vb.removeItem(self.parent.s[self.parent.s.ind].mask2d)
+
             if event.key() == Qt.Key_R:
                 self.r_status = False
 
@@ -883,6 +888,7 @@ class spec2dWidget(pg.PlotWidget):
 
             if event.key() == Qt.Key_X:
                 self.x_status = False
+                #self.vb.addItem(self.parent.s[self.parent.s.ind].cr_mask2d)
                 self.parent.s.redraw()
 
 
@@ -1018,7 +1024,7 @@ class spec2dWidget(pg.PlotWidget):
             self.r_status = False
 
         if self.x_status:
-            self.parent.s[self.parent.s.ind].spec2d.raw.add_mask(
+            self.parent.s[self.parent.s.ind].spec2d.cr.add_mask(
                 rect=[[np.min([self.mousePoint_saved.x(), self.mousePoint.x()]),
                        np.max([self.mousePoint_saved.x(), self.mousePoint.x()])],
                       [np.min([self.mousePoint_saved.y(), self.mousePoint.y()]),
@@ -2228,6 +2234,8 @@ class fitMCMCWidget(QWidget):
                 d.dopoint()
                 d.dointerval()
                 res = a(d.point, d.point - d.interval[0], d.interval[1] - d.point)
+                self.parent.fit.setValue(p, res, 'unc')
+                self.parent.fit.setValue(p, res.val)
                 f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
                 print(p, res.latex(f=f))
                 self.results.setText(self.results.toPlainText() + p + ': ' + res.latex(f=f) + '\n')
@@ -2426,10 +2434,9 @@ class fitExtWidget(QWidget):
         if qKeyEvent.key() == Qt.Key_Return:
             self.fitExt()
 
-
-class cosmic2dWidget(QWidget):
+class extract2dWidget(QWidget):
     def __init__(self, parent):
-        super(cosmic2dWidget, self).__init__()
+        super(extract2dWidget, self).__init__()
         self.parent = parent
         self.trace_step = 200
         self.exp_pixel = 1
@@ -2438,7 +2445,7 @@ class cosmic2dWidget(QWidget):
         self.extr_width = 3
         self.extr_slit = 1.0
         self.extr_window = 0
-        self.extr_border = 3
+        self.extr_border = 7
         self.helio_corr = 0.0
         self.rescale_window = 50
         self.mask_type = 'moffat'
@@ -2454,11 +2461,12 @@ class cosmic2dWidget(QWidget):
         layout = QVBoxLayout()
 
         self.tab = QTabWidget()
-        self.tab.setGeometry(0, 0, 550, 700)
-        self.tab.setMinimumSize(550, 700)
+        self.tab.setGeometry(0, 0, 550, 550)
+        self.tab.setMinimumSize(550, 550)
         self.tab.setCurrentIndex(0)
         self.init_GUI_CosmicRays()
         self.init_GUI_Extraction()
+        self.init_GUI_Sky()
         self.init_GUI_Correction()
         layout.addWidget(self.tab)
         hl = QHBoxLayout()
@@ -2489,16 +2497,20 @@ class cosmic2dWidget(QWidget):
         layout.addWidget(self.input)
         hl = QHBoxLayout()
         run = QPushButton('Run')
-        run.setFixedSize(120, 30)
+        run.setFixedSize(80, 30)
         run.clicked.connect(partial(self.run, update='new'))
         add = QPushButton('Add')
-        add.setFixedSize(120, 30)
+        add.setFixedSize(80, 30)
         add.clicked.connect(partial(self.run, update='add'))
+        raw = QPushButton('From raw')
+        raw.setFixedSize(80, 30)
+        raw.clicked.connect(partial(self.run, update='raw'))
         clear = QPushButton('Clear')
-        clear.setFixedSize(120, 30)
+        clear.setFixedSize(100, 30)
         clear.clicked.connect(self.clear)
         hl.addWidget(run)
         hl.addWidget(add)
+        hl.addWidget(raw)
         hl.addStretch(0)
         hl.addWidget(clear)
         layout.addLayout(hl)
@@ -2566,30 +2578,18 @@ class cosmic2dWidget(QWidget):
         hl.addStretch(0)
         layout.addLayout(hl)
 
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        #line.setFrameShadow(QFrame.Sunken)
+        line.setStyleSheet("QFrame {border: 0.5px solid rgb(100,100,100);}")
+        layout.addWidget(line)
+
         hl = QHBoxLayout()
         hl.addWidget(QLabel('Slit:'))
         self.extrSlit = QLineEdit()
         self.extrSlit.setText(str(self.extr_slit))
         self.extrSlit.setFixedSize(40, 30)
         hl.addWidget(self.extrSlit)
-        hl.addStretch(0)
-        layout.addLayout(hl)
-
-        hl = QHBoxLayout()
-        hl.addWidget(QLabel('Window:'))
-        self.extrWindow = QLineEdit()
-        self.extrWindow.setText(str(self.extr_window))
-        self.extrWindow.setFixedSize(40, 30)
-        hl.addWidget(self.extrWindow)
-        hl.addStretch(0)
-        layout.addLayout(hl)
-
-        hl = QHBoxLayout()
-        hl.addWidget(QLabel('Border indent:'))
-        self.extrBorder = QLineEdit()
-        self.extrBorder.setText(str(self.extr_border))
-        self.extrBorder.setFixedSize(60, 30)
-        hl.addWidget(self.extrBorder)
         hl.addStretch(0)
         layout.addLayout(hl)
 
@@ -2613,7 +2613,6 @@ class cosmic2dWidget(QWidget):
         hl.addStretch(0)
         layout.addLayout(hl)
 
-        layout.addStretch(0)
         hl = QHBoxLayout()
         extract = QPushButton('Extract')
         extract.setFixedSize(120, 30)
@@ -2621,8 +2620,43 @@ class cosmic2dWidget(QWidget):
         hl.addWidget(extract)
         hl.addStretch(0)
         layout.addLayout(hl)
+        layout.addStretch(0)
         frame.setLayout(layout)
         self.tab.addTab(frame, 'Extract')
+
+    def init_GUI_Sky(self):
+
+        frame = QFrame(self)
+        layout = QVBoxLayout()
+
+        hl = QHBoxLayout()
+        hl.addWidget(QLabel('Window:'))
+        self.extrWindow = QLineEdit()
+        self.extrWindow.setText(str(self.extr_window))
+        self.extrWindow.setFixedSize(40, 30)
+        hl.addWidget(self.extrWindow)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        hl.addWidget(QLabel('Border indent:'))
+        self.extrBorder = QLineEdit()
+        self.extrBorder.setText(str(self.extr_border))
+        self.extrBorder.setFixedSize(60, 30)
+        hl.addWidget(self.extrBorder)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        extract = QPushButton('Calc Sky')
+        extract.setFixedSize(120, 30)
+        extract.clicked.connect(partial(self.sky))
+        hl.addWidget(extract)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+        layout.addStretch(0)
+        frame.setLayout(layout)
+        self.tab.addTab(frame, 'Sky model')
 
     def init_GUI_Correction(self):
 
@@ -2685,106 +2719,51 @@ class cosmic2dWidget(QWidget):
         self.expResChoose.setCurrentIndex(self.exp_res_ind)
 
     def run(self, update='new'):
-        if self.parent.s[self.exp_ind].spec2d.raw.mask is None:
-            self.parent.s[self.exp_ind].spec2d.raw.mask = np.zeros_like(self.parent.s[self.exp_ind].spec2d.raw.z)
-        kwargs = {}
-        for line in self.input.toPlainText().splitlines():
-            if line.split('=')[1].replace('-', '', 1).replace('.', '', 1).strip().isdigit():
-                kwargs[line.split('=')[0]] = float(line.split('=')[1])
-            else:
-                kwargs[line.split('=')[0]] = line.split('=')[1]
 
-        print(kwargs)
-        z = self.parent.s[self.exp_ind].spec2d.raw.z
-        z = np.insert(z, 0, z[:4], axis=0)
-        z = np.insert(z, z.shape[0], z[-4:], axis=0)
-        z, mask = cosmicray_lacosmic(z, **kwargs)
-        #mask[mask == 1] = np.nan
-        if update == 'new':
-            self.parent.s[self.exp_ind].spec2d.raw.mask = mask[4:-4]
-        if update == 'add':
-            self.parent.s[self.exp_ind].spec2d.raw.mask = np.logical_or(self.parent.s[self.exp_ind].spec2d.raw.mask, mask[4:-4])
+        if update in ['new', 'add']:
+            kwargs = {}
+            for line in self.input.toPlainText().splitlines():
+                if line.split('=')[1].replace('-', '', 1).replace('.', '', 1).strip().isdigit():
+                    kwargs[line.split('=')[0]] = float(line.split('=')[1])
+                else:
+                    kwargs[line.split('=')[0]] = line.split('=')[1]
+
+            self.parent.s[self.exp_ind].spec2d.cr_remove(update, **kwargs)
+
+        elif update == 'raw':
+            s = self.parent.s[self.exp_ind].spec2d
+            if s.cr is None:
+                s.cr = image(x=s.raw.x, y=s.raw.y, mask=np.zeros_like(s.raw.z))
+            if s.raw.mask is not None:
+                s.cr.mask = np.logical_or(s.cr.mask, s.raw.mask)
 
         self.parent.s.redraw()
 
     def clear(self):
-        self.parent.s[self.exp_ind].spec2d.raw.mask = np.zeros_like(self.parent.s[self.exp_ind].spec2d.raw.z)
+        self.parent.s[self.exp_ind].spec2d.cr.mask = np.zeros_like(self.parent.s[self.exp_ind].spec2d.raw.z)
         self.parent.s.redraw()
 
     def expand(self):
         self.exp_pixel = int(self.expPixel.text())
-        mask = self.parent.s[self.exp_ind].spec2d.raw.mask
-        m = np.copy(mask)
-        for p in itertools.product(np.linspace(-self.exp_pixel, self.exp_pixel, 2*self.exp_pixel+1).astype(int), repeat=2):
-            m1 = np.copy(mask)
-            if p[0] < 0:
-                m1 = np.insert(m1[:p[0],:], [0]*np.abs(p[0]), 0, axis=0)
-            if p[0] > 0:
-                m1 = np.insert(m1[p[0]:, :], [m1.shape[0]-p[0]]*p[0], 0, axis=0)
-            if p[1] < 0:
-                m1 = np.insert(m1[:,:p[1]], [0]*np.abs(p[1]), 0, axis=1)
-            if p[1] > 0:
-                m1 = np.insert(m1[:, p[1]:], [m1.shape[1]-p[1]]*p[1], 0, axis=1)
-            m = np.logical_or(m, m1)
-        self.parent.s[self.exp_ind].spec2d.raw.mask = m
+
+        self.parent.s[self.exp_ind].spec2d.expand_mask(self.exp_pixel)
         self.parent.s.redraw()
 
     def intelExpand(self):
         self.exp_factor = float(self.expFactor.text())
-        r = self.parent.s[self.exp_ind].spec2d.raw
-        z_saved, mask_saved = np.copy(r.z), np.copy(r.mask)
-        self.expand()
-        self.extrapolate(inplace=True)
-        r.mask = np.logical_or(mask_saved, np.logical_and(np.abs(r.z / z_saved - 1) > self.exp_factor, r.mask))
-        self.parent.s.append(Spectrum(self.parent, 'delta'))
-        self.parent.s[-1].spec2d.set(x=r.x, y=r.y, z=r.z / z_saved - 1)
-        self.parent.s[-1].spec2d.raw.setLevels(-self.exp_factor, self.exp_factor)
-        r.z = z_saved
+        self.parent.s[self.exp_ind].spec2d.intelExpand(self.exp_factor)
         self.parent.s.redraw()
 
     def extrapolate(self, inplace=False):
-        raw = self.parent.s[self.exp_ind].spec2d.raw
-        z = np.copy(raw.z)
         self.extr_width, self.extr_height = float(self.extrWidth.text()), float(self.extrHeight.text())
-        if 0:
-            x, y = np.arange(z.shape[1]), np.arange(z.shape[0])
-            x, y = np.meshgrid(x, y)
-            #z[raw.mask] = np.nan
-            inter = interp2d(x[~raw.mask], y[~raw.mask], z[~raw.mask]) #, fill_value='extrapolate')
-            rows, cols = np.where(raw.mask)
-            for row, col in zip(rows, cols):
-                z[row, col] = inter(col, row)
-        else:
-            if 0:
-                from skimage.morphology import disk
-                from skimage.filters.rank import median
-                z = median(z, disk(5), mask=raw.mask)
-            else:
-                if 0:
-                    z = median_filter(raw.z, footprint=np.ones((5, 3)))
-                if 0:
-                    z[raw.mask] = np.nan
-                    z = generic_filter(z, np.nanmean, 7)
-                if 1:
-                    z[raw.mask] = np.nan
-                    print(self.extr_width, self.extr_height)
-                    kernel = Gaussian2DKernel(x_stddev=self.extr_width, y_stddev=self.extr_height)
-                    z = convolve(z, kernel)
-        z1 = np.copy(raw.z)
-        z1[raw.mask] = z[raw.mask]
-        if not inplace:
-            self.parent.s.append(Spectrum(self.parent, 'CR_removed'))
-            self.parent.s[-1].spec2d.set(x=raw.x, y=raw.y, z=z1)
-            self.updateExpChoose()
-        else:
-            raw.z = z1
+        self.parent.s[self.exp_ind].spec2d.extrapolate(inplace, self.extr_width, self.extr_height)
+        self.updateExpChoose()
         self.parent.s.redraw()
 
     def moffat_fit_integ(self, x, a, x_0, gamma, c):
-        norm = self.moffat.cdf(20, loc=0, scale=gamma)
         dx = np.median(np.diff(x)) / 2
         x = np.append(x - dx, x[-1] + dx)
-        y = self.moffat.cdf(x, loc=x_0, scale=gamma) / norm
+        y = self.moffat.cdf(x, loc=x_0, scale=gamma)
 
         return a * np.diff(y) + c
 
@@ -2863,11 +2842,11 @@ class cosmic2dWidget(QWidget):
         #    self.trace_width = [None, None]
         #plt.show()
 
-    def extract(self):
+    def sky(self):
 
         s = self.parent.s[self.exp_ind]
-        self.extr_window = int(self.extrWindow.text())
         self.extr_slit = float(self.extrSlit.text())
+        self.extr_window = int(self.extrWindow.text())
         self.extr_border = int(self.extrBorder.text())
 
         yf, err, sk = [], [], []
@@ -2879,17 +2858,29 @@ class cosmic2dWidget(QWidget):
                 else:
                     x_0 = self.trace_pos.getData()[1][k]
                     gamma = (self.trace_width[1].getData()[1][k] - x_0) * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
-                #print(loc, scale)
-                mask = self.moffat.ppf([0.02, 0.98], loc=x_0, scale=gamma)
-                #print(mask)
+                mask = self.moffat.ppf([0.01, 0.99], loc=x_0, scale=gamma)
                 mask_sky = np.logical_or(s.spec2d.raw.y < mask[0], s.spec2d.raw.y > mask[1])
             else:
                 mask_sky = 1 / (np.exp(-40 * (np.abs(s.spec2d.raw.y - s.cont2d.y[k]) - self.extr_slit * 2)) + 1)
             mask_sky[:self.extr_border] = 0
             mask_sky[-self.extr_border:] = 0
 
-            sky = np.sum(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i - self.extr_window:i + self.extr_window + 1]), mask_sky),
-                                axis=0) / (2 * self.extr_window + 1)) / np.sum(mask_sky)
+            if k == 10:
+                fig, ax = plt.subplots()
+                ax.plot(s.spec2d.raw.y[mask_sky], np.sum(
+                    np.multiply(np.transpose(s.spec2d.raw.z[:, i - self.extr_window:i + self.extr_window + 1]),
+                                mask_sky), axis=0)[mask_sky], 'ok')
+                plt.show()
+
+            if 0:
+                def fun(x, t, y):
+                    return x[0] * np.exp(-x[1] * t) * np.sin(x[2] * t) - y
+
+                p = np.polyfit(s.spec2d.raw.y[mask_sky], s.spec2d.raw.z[:, i][mask_sky], 3)
+                res_robust = least_squares(fun, x0, loss='soft_l1', f_scale=0.1, args=(t_train, y_train))
+            else:
+                sky = np.median(
+                    np.mean(s.spec2d.raw.z[mask_sky, i - self.extr_window:i + self.extr_window + 1], axis=0))
             sk.append(sky)
 
         sk = np.asarray(sk)
@@ -2911,14 +2902,19 @@ class cosmic2dWidget(QWidget):
 
         plt.show()
 
+    def extract(self):
+
+        s = self.parent.s[self.exp_ind]
+        self.extr_slit = float(self.extrSlit.text())
+
         for k, i in enumerate(np.where(s.cont_mask2d)[0]):
-            print(k, i)
             if self.mask_type == 'moffat':
                 if self.trace_pos == None:
                     x_0, gamma = s.cont2d.y[k], self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
                 else:
                     x_0 = self.trace_pos.getData()[1][k]
                     gamma = (self.trace_width[1].getData()[1][k] - x_0) * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+                print(s.spec2d.raw.x[i], x_0, gamma)
                 mask = self.moffat_fit_integ(s.spec2d.raw.y, 1, x_0=x_0, gamma=gamma, c=0)
             elif self.mask_type == 'rectangular':
                 mask = 1 / (np.exp(-40 * (np.abs(s.spec2d.raw.y - s.cont2d.y[k]) - self.extr_slit)) + 1)
@@ -2979,6 +2975,19 @@ class cosmic2dWidget(QWidget):
         s = self.parent.s[self.exp_ind]
         s.spec.raw.err *= inter(s.spec.raw.x)
         self.parent.s.redraw(self.exp_ind)
+
+    def keyPressEvent(self, event):
+        super(extract2dWidget, self).keyPressEvent(event)
+        key = event.key()
+
+        if not event.isAutoRepeat():
+            if event.key() == Qt.Key_D:
+                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+                    self.parent.extract2dwindow.close()
+
+    def closeEvent(self, event):
+        self.parent.extract2dwindow = None
+        event.accept()
 
 class SDSSentry():
     def __init__(self, name):
@@ -3995,6 +4004,7 @@ class sviewer(QMainWindow):
         self.fitResults = None
         self.fitres = None
         self.MCMC = None
+        self.extract2dwindow = None
 
     def initUI(self):
         
@@ -4284,6 +4294,10 @@ class sviewer(QMainWindow):
         H2Exc.setStatusTip('Show H2 excitation diagram')
         H2Exc.triggered.connect(self.H2ExcDiag)
 
+        H2ExcTemp = QAction('&H2 Excitation temperature', self)
+        H2ExcTemp.setStatusTip('Calculate H2 excitation temperature')
+        H2ExcTemp.triggered.connect(self.H2ExcitationTemp)
+
         MetalAbundance = QAction('&Metal abundance', self)
         MetalAbundance.setStatusTip('Show Metal abundances')
         MetalAbundance.triggered.connect(self.showMetalAbundance)
@@ -4307,20 +4321,17 @@ class sviewer(QMainWindow):
         fitMenu.addSeparator()
         fitMenu.addMenu(AncMenu)
         AncMenu.addAction(H2Exc)
+        AncMenu.addAction(H2ExcTemp)
         AncMenu.addAction(MetalAbundance)
 
         # >>> create Combine Menu items
 
         extract = QAction('&Extract', self)
         extract.setStatusTip('extract 1d spectrum from 2d spectrum')
-        extract.triggered.connect(self.cosmic2d)
-
-        cosmic2d = QAction('&Mask cosmics', self)
-        cosmic2d.setStatusTip('mask cosmic rays')
-        cosmic2d.triggered.connect(self.cosmic2d)
+        extract.setShortcut('Ctrl+D')
+        extract.triggered.connect(self.extract2d)
 
         spec2dMenu.addAction(extract)
-        spec2dMenu.addAction(cosmic2d)
         combineMenu.addSeparator()
 
         # >>> create Combine Menu items
@@ -5173,7 +5184,14 @@ class sviewer(QMainWindow):
                                             hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] *
                                             hdulist[0].data.shape[0],
                                             hdulist[0].data.shape[0])
-                            s.spec2d.set(x=x, y=y, z=hdulist[0].data)
+                            err, mask = None, None
+                            for h in hdulist[1:]:
+                                if h.header['EXTNAME'].strip() == 'ERRS':
+                                    err = h.data
+                                if h.header['EXTNAME'].strip() == 'QUAL':
+                                    mask = h.data
+                            s.spec2d.set(x=x, y=y, z=hdulist[0].data, err=err, mask=mask)
+
                         if 'ORIGFILE' in hdulist[0].header and 'VANDELS' in hdulist[0].header['ORIGFILE']:
                             x = np.linspace(hdulist[0].header['CRVAL1'],
                                             hdulist[0].header['CRVAL1'] + hdulist[0].header['CDELT1'] * hdulist[0].data.shape[1],
@@ -5383,6 +5401,7 @@ class sviewer(QMainWindow):
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
 
     def chooseUVESSetup(self):
         if not self.UVESSetup.isChecked():
@@ -5782,7 +5801,7 @@ class sviewer(QMainWindow):
                         m = np.logical_and(data[0] == 0, data[1] == int(sp[3:]))
                         x.append(float(data[2][m]))
                         #x.append(self.atomic[sp].energy)
-                        y.append(sys.sp[sp].N.unc.log() - np.log10(self.atomic[sp].statw()))
+                        y.append(copy(sys.sp[sp].N.unc).log() - np.log10(self.atomic[sp].statw()))
                         y[-1].log()
                         y[-1].val = sys.sp[sp].N.val - np.log10(self.atomic[sp].statw())
                 arg = np.argsort(x)
@@ -5800,6 +5819,17 @@ class sviewer(QMainWindow):
         plt.savefig(os.path.dirname(os.path.realpath(__file__)) + '/output/H2_exc.pdf', bbox_inches='tight')
         plt.show()
         self.statusBar.setText('Excitation diagram for H2 rotational level for {:d} component is shown'.format(self.comp))
+
+    def H2ExcitationTemp(self):
+        from ..excitation_temp import ExcitationTemp
+
+        for sys in self.fit.sys:
+            if all([x in sys.sp.keys() for x in ['H2j0', 'H2j1']]):
+                Temp = ExcitationTemp('H2')
+                # print(Temp.col_dens(num=4, Temp=92, Ntot=21.3))
+                n = [sys.sp['H2j0'].N.unc, sys.sp['H2j1'].N.unc]
+                print(n)
+                Temp.calcTemp(n, calc='boot', plot=1, verbose=1)
 
     def showMetalAbundance(self):
         """
@@ -5872,10 +5902,13 @@ class sviewer(QMainWindow):
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    def cosmic2d(self):
+    def extract2d(self):
 
-        self.cosmic2dwindow = cosmic2dWidget(self)
-        self.cosmic2dwindow.show()
+        if self.extract2dwindow is None:
+            self.extract2dwindow = extract2dWidget(self)
+            self.extract2dwindow.show()
+        else:
+            self.extract2dwindow.close()
 
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

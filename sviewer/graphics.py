@@ -5,10 +5,11 @@ Created on Thu Dec 22 11:38:59 2016
 @author: Serj
 """
 import astropy.constants as ac
-from astropy.convolution import convolve, Gaussian1DKernel
+from astropy.convolution import convolve, Gaussian1DKernel, Gaussian2DKernel
 from bisect import bisect_left
+from ccdproc import cosmicray_lacosmic
 from copy import deepcopy
-from itertools import groupby, count
+import itertools
 from matplotlib.cm import get_cmap
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
@@ -548,37 +549,39 @@ class image():
     """
     class for working with images (2d spectra) inside Spectrum plotting
     """
-    def __init__(self, x = [], y = [], z=[], err = []):
-        self.x = np.asarray(x)
-        self.y = np.asarray(y)
-        self.z = np.asarray(z)
-        self.err = np.asarray(err)
-        self.mask = None
+    def __init__(self, x=None, y=None, z=None, err=None, mask=None):
+        if any([v is not None for v in [x, y, z, err, mask]]):
+            self.set_data(x=x, y=y, z=z, err=err, mask=mask)
 
-    def set_data(self, x=None, y=None, z=None, err=None):
-        self.z = z
+    def set_data(self, x=None, y=None, z=None, err=None, mask=None):
+        for attr, val in zip(['z', 'err', 'mask'], [z, err, mask]):
+            if val is not None:
+                setattr(self, attr, np.asarray(val))
+            else:
+                setattr(self, attr, val)
         if x is not None:
-            self.x = x
+            self.x = np.asarray(x)
         else:
             self.x = np.arange(z.shape[0])
         if y is not None:
-            self.y = y
+            self.y = np.asarray(y)
         else:
             self.y = np.arange(z.shape[1])
-        if err is not None:
-            self.err = err
+
         print('set 2d', self.x, self.y)
         self.pos = [self.x[0] - (self.x[1] - self.x[0]) / 2, self.y[0] - (self.y[1] - self.y[0]) / 2]
-        self.scale = [(self.x[-1] - self.x[0]) / (self.z.shape[1]-1), (self.y[-1] - self.y[0]) / (self.z.shape[0]-1)]
+        self.scale = [(self.x[-1] - self.x[0]) / (self.x.shape[0]-1), (self.y[-1] - self.y[0]) / (self.y.shape[0]-1)]
         #self.mask = np.zeros_like(self.z)
         self.getQuantile()
         self.setLevels(self.quantile[0], self.quantile[1])
 
     def getQuantile(self, quantile=0.997):
-        x = np.sort(self.z.flatten())
-        x = x[~np.isnan(x)]
-        self.quantile = [x[int(len(x)*(1-quantile)/2)], x[int(len(x)*(1+quantile)/2)]]
-        print('quantile', self.quantile)
+        if self.z is not None:
+            x = np.sort(self.z.flatten())
+            x = x[~np.isnan(x)]
+            self.quantile = [x[int(len(x)*(1-quantile)/2)], x[int(len(x)*(1+quantile)/2)]]
+        else:
+            self.quantile = [0, 1]
 
     def setLevels(self, bottom, top):
         top, bottom = np.max([top, bottom]), np.min([top, bottom])
@@ -591,7 +594,7 @@ class image():
 
     def find_nearest(self, x, y):
         if len(self.z.shape) == 2:
-            return self.z[np.min([self.z.shape[0]-1, np.searchsorted(self.y, y)]), np.min([self.z.shape[1]-1,np.searchsorted(self.x, x)])]
+            return self.z[np.min([self.z.shape[0]-1, (np.abs(self.y - y)).argmin()]), np.min([self.z.shape[1]-1, (np.abs(self.x - x)).argmin()])]
         else:
             return None
 
@@ -609,20 +612,73 @@ class image():
         if self.mask is None:
             self.mask = np.zeros_like(self.z)
         if rect is not None:
-            x1, x2 = np.searchsorted(self.x, rect[0][0]), np.searchsorted(self.x, rect[0][1])
-            y1, y2 = np.searchsorted(self.y, rect[1][0]), np.searchsorted(self.y, rect[1][1])
+            x1, x2 = (np.abs(self.x - rect[0][0])).argmin(), (np.abs(self.x - rect[0][1])).argmin()
+            y1, y2 = (np.abs(self.y - rect[1][0])).argmin(), (np.abs(self.y - rect[1][1])).argmin()
             self.mask[y1:y2+1, x1:x2+1] = int(add)
-
 
 class spec2d():
     def __init__(self, parent):
         self.parent = parent
         self.raw = image()
+        self.cr = None
+        self.sky = image()
+        self.trace = specline(self)
+        self.trace_width = specline(self)
 
-    def set(self, x=None, y=None, z=None, err=None):
-        if z is not None:
-            self.raw.set_data(x=x, y=y, z=z, err=err)
+    def set(self, x=None, y=None, z=None, err=None, mask=None):
+        self.raw.set_data(x=x, y=y, z=z, err=err, mask=None)
 
+    def cr_remove(self, update, **kwargs):
+        if self.cr is None:
+            self.cr = image(x=self.raw.x, y=self.raw.y, mask=np.zeros_like(self.raw.z))
+        z = self.raw.z
+        z = np.insert(z, 0, z[:4], axis=0)
+        z = np.insert(z, z.shape[0], z[-4:], axis=0)
+        z, mask = cosmicray_lacosmic(z, **kwargs)
+        if update == 'new':
+            self.cr.mask = mask[4:-4]
+        if update == 'add':
+            self.cr.mask = np.logical_or(self.cr.mask, mask[4:-4])
+        print(update, np.sum(self.cr.mask.flatten()))
+
+    def expand_mask(self, exp_pixel=1):
+        m = np.copy(self.cr.mask)
+        for p in itertools.product(np.linspace(-exp_pixel, exp_pixel, 2*exp_pixel+1).astype(int), repeat=2):
+            m1 = np.copy(self.cr.mask)
+            if p[0] < 0:
+                m1 = np.insert(m1[:p[0],:], [0]*np.abs(p[0]), 0, axis=0)
+            if p[0] > 0:
+                m1 = np.insert(m1[p[0]:, :], [m1.shape[0]-p[0]]*p[0], 0, axis=0)
+            if p[1] < 0:
+                m1 = np.insert(m1[:,:p[1]], [0]*np.abs(p[1]), 0, axis=1)
+            if p[1] > 0:
+                m1 = np.insert(m1[:, p[1]:], [m1.shape[1]-p[1]]*p[1], 0, axis=1)
+            m = np.logical_or(m, m1)
+        self.cr.mask = m
+
+    def intelExpand(self, exp_factor=0.5):
+        z_saved, mask_saved = np.copy(self.raw.z), np.copy(self.cr.mask)
+        self.expand_mask()
+        self.extrapolate(inplace=True)
+        self.cr.mask = np.logical_or(mask_saved, np.logical_and(np.abs(self.raw.z / z_saved - 1) > exp_factor, self.cr.mask))
+        if 1:
+            self.parent.parent.s.append(Spectrum(self.parent.parent, 'delta'))
+            self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=self.raw.z / z_saved - 1)
+            self.parent.parent.s[-1].spec2d.raw.setLevels(-exp_factor, exp_factor)
+        self.raw.z = z_saved
+
+    def extrapolate(self, inplace=False, extr_width=1, extr_height=1):
+        z = np.copy(self.raw.z)
+        z[self.cr.mask] = np.nan
+        kernel = Gaussian2DKernel(x_stddev=extr_width, y_stddev=extr_height)
+        z = convolve(z, kernel)
+        z1 = np.copy(self.raw.z)
+        z1[self.cr.mask] = z[self.cr.mask]
+        if not inplace:
+            self.parent.parent.s.append(Spectrum(self.parent.parent, 'CR_removed'))
+            self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=z1)
+        else:
+            self.raw.z = z1
 
 class Spectrum():
     """
@@ -692,8 +748,10 @@ class Spectrum():
             cmap[-1] = [1,0.4,0]
             map = pg.ColorMap(np.linspace(0,1,cdict.N), cmap, mode='rgb')
             self.colormap = map.getLookupTable(0.0, 1.0, 256, alpha=False)
-            map = pg.ColorMap(np.linspace(0, 1, 2), [[1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.0]], mode='rgb')
+            map = pg.ColorMap(np.linspace(0, 1, 2), [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 0.0]], mode='rgb')
             self.maskcolormap = map.getLookupTable(1.0, 0.0, 2, alpha=True)
+            map = pg.ColorMap(np.linspace(0, 1, 2), [[1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.0]], mode='rgb')
+            self.cr_maskcolormap = map.getLookupTable(1.0, 0.0, 2, alpha=True)
         else:
             if self.parent.showinactive:
                 self.view = self.parent.specview.replace('err', '')
@@ -827,7 +885,16 @@ class Spectrum():
                     self.mask2d.translate(self.spec2d.raw.pos[0], self.spec2d.raw.pos[1])
                     self.mask2d.scale(self.spec2d.raw.scale[0], self.spec2d.raw.scale[1])
                     self.mask2d.setLookupTable(self.maskcolormap)
-                    self.parent.spec2dPanel.vb.addItem(self.mask2d)
+                    #self.parent.spec2dPanel.vb.addItem(self.mask2d)
+
+                if self.spec2d.cr is not None and self.spec2d.cr.mask is not None:
+                    print('init 2dmask', np.sum(self.spec2d.cr.mask.flatten()))
+                    self.cr_mask2d = pg.ImageItem()
+                    self.cr_mask2d.setImage(self.spec2d.cr.mask.T)
+                    self.cr_mask2d.translate(self.spec2d.cr.pos[0], self.spec2d.cr.pos[1])
+                    self.cr_mask2d.scale(self.spec2d.cr.scale[0], self.spec2d.cr.scale[1])
+                    self.cr_mask2d.setLookupTable(self.cr_maskcolormap)
+                    self.parent.spec2dPanel.vb.addItem(self.cr_mask2d)
 
                 #self.parent.spec2dPanel.vb.setAspectLocked(False)
                 #self.parent.spec2dPanel.vb.invertY(False)

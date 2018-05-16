@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import copy
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
@@ -51,7 +52,7 @@ class ExcitationTemp():
         return:
             None
         """
-        self.n = n
+        self.n = copy.deepcopy(n)
         self.num = len(self.n)
         self.plot = plot
         self.verbose = verbose
@@ -124,7 +125,7 @@ class ExcitationTemp():
         """
         set column densities minus stat weight
         """
-        self.y = self.n
+        self.y = self.n[:]
 
         for i in range(self.num):
             self.y[i].val -= np.log10(self.g[i])
@@ -300,7 +301,7 @@ class ExcitationTemp():
             self.regionplot.plot(self.slope, self.zero, marker='+', color='k', ms=10, mew=3)
             self.regionplot.plot(min(slope),max(zero), marker='+', color='k', ms=10, mew=3)    
             self.regionplot.plot(max(slope),min(zero), marker='+', color='k', ms=10, mew=3)
-            s = "T_{kin} = " + self.temp.dec().latex(f=2, base=2)
+            s = "$T_{kin} = $ " + self.temp.dec().latex(f=2, base=2)
             self.regionplot.text(0.1, 0.1, s, ha='left', va='top', transform = self.regionplot.transAxes)
             
             for l in p[0].vertices:
@@ -310,12 +311,13 @@ class ExcitationTemp():
             
     def calc(self):
 
+        self.slope = (self.y[-1].val - self.y[0].val) / self.E[-1]
+        self.zero = self.y[0].val
+
         if self.num == 2:
             self.calc_two_levels_err()
 
         elif self.num > 2:
-            self.slope = (self.y[-1].val - self.y[0].val) / self.E[-1]
-            self.zero = self.y[0].val
             popt, pcov = opt.curve_fit(self.linear_fit, self.E, column(self.y, 'val'),
                                        p0=[self.slope, self.zero], sigma=column(self.y, 'plus'))
             #self.dataplot.plot(self.E, popt[0]*self.E+popt[1], '--b', lw=2)

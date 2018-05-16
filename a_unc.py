@@ -216,10 +216,16 @@ class a:
             self.minus = abs(float(re.findall(r'_\{([^}]*)\}', text)[0]))
             self.type = 'm'
         #print(self.val, self.plus, self.minus)
-        
+
+    def check_type(self):
+        if self.type == 'm' and self.plus == 0 and self.minus == 0:
+            self.type = 'f'
+        if self.type == 'f' and (self.plus != 0 or self.minus != 0):
+            self.type = 'm'
+
     def dec(self):
         if self.repr == 'log':
-            if self.type == 'm':
+            if self.type in ['m', 'f']:
                 self.plus = 10**(self.val+self.plus) - 10**self.val
                 self.minus = 10**self.val - 10**(self.val-self.minus)
             self.val = 10**self.val
@@ -229,7 +235,7 @@ class a:
     def log(self):
         if self.repr == 'dec':
             #assert self.val > 0 and self.val-self.minus > 0, ('Argument of log is <= 0')
-            if self.type == 'm':
+            if self.type in ['m', 'f']:
                 self.plus = np.log10(self.val+self.plus) - np.log10(self.val)
                 if self.val < 0:
                     assert self.val > 0, ('Argument of log is <= 0')
@@ -246,6 +252,7 @@ class a:
         """
         Print (if fmt in not specified) or set (if fmt is specified) default format
         """
+        self.check_type()
         if fmt is None:
             if self.default_format == 'log':
                 return self.log()
@@ -261,13 +268,15 @@ class a:
         
         self.dec()
         #res = A_unc(0,0,0,typ='d')
-        res = copy.copy(self)
+        res = copy.deepcopy(self)
 
         if isinstance(other, a):
             other.dec()
             res.val = self.val + other.val
             d = max(self.plus, self.minus, other.plus, other.minus)/100
             res = self.mini(self.sum_lnL, other, d, res)
+            other.default()
+
         elif isinstance(other, (int, float)):
             res.val = self.val + other
             res.plus = self.plus
@@ -284,13 +293,15 @@ class a:
         
         self.dec()
         #res = A_unc(0,0,0,typ='d')
-        res = copy.copy(self)
+        res = copy.deepcopy(self)
 
         if isinstance(other, a):
             other.dec()
             res.val = self.val - other.val
             d = max(self.plus, self.minus, other.plus, other.minus)/100
             res = self.mini(self.sub_lnL, other, d, res)
+            other.default()
+
         elif isinstance(other, (int, float)):
             res.val = self.val - other
             res.plus = self.plus
@@ -300,7 +311,7 @@ class a:
     def __truediv__(self, other):
         
         self.dec()
-        res = copy.copy(self)
+        res = copy.deepcopy(self)
         #res = A_unc(0,0,0,typ='d')
         
         if isinstance(other, a):
@@ -327,7 +338,7 @@ class a:
                         res.type = 'u'
                 if res.type in ['u', 'l']:
                     res.plus, res.minus = 0, 0
-                        
+            other.default()
                 
         elif isinstance(other, (int, float)):
             res.val = self.val / other
@@ -338,7 +349,7 @@ class a:
     
     def __rtruediv__(self, other):
         self.dec()
-        res = copy.copy(self)
+        res = copy.deepcopy(self)
         #res = A_unc(0,0,0,typ='d')
         if isinstance(other, (int, float)):
             res.val = other / self.val
@@ -351,7 +362,7 @@ class a:
     def __mul__(self, other):
         
         self.dec()
-        res = copy.copy(self)
+        res = copy.deepcopy(self)
         #res = A_unc(0,0,0,typ='d')
         
         if isinstance(other, a):
@@ -369,7 +380,8 @@ class a:
                        res.type = other.type
                 if res.type in ['u', 'l']:
                     res.plus, res.minus = 0, 0
-            
+            other.default()
+
         elif isinstance(other, (int, float)):
             res.val = self.val * other
             res.plus = self.plus * other

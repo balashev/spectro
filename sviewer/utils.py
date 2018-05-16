@@ -313,7 +313,7 @@ class moffat_func(rv_continuous):
 
     def _pdf(self, x):
         # return 1.198436723 / gamma ** 2 * (1 + (x / gamma)**2) ** (-4.765)
-        return 1.198436723 * (1 + x ** 2) ** (-4.765)
+        return 1.131578879 * (1 + x ** 2) ** (-4.765)
 
 def moffat_fit(x, a, x_0, gamma, c):
     moffat = Moffat1D(a, x_0, gamma, 4.765)

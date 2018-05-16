@@ -52,6 +52,8 @@ class par:
                 setattr(self, attr, a(self.val, val, self.form))
             elif isinstance(val, str):
                 setattr(self, attr, a(val, self.form))
+            else:
+                setattr(self, attr, val)
         else:
             setattr(self, attr, val)
         if attr == 'val':

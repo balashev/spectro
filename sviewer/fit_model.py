@@ -370,7 +370,7 @@ class fitModelWidget(QWidget):
         self.tab.setCurrentIndex(len(self.parent.fit.sys)-1)
         self.parent.s.refreshFitComps()
         self.parent.s.reCalcFit(self.tab.currentIndex())
-        if hasattr(self.parent, 'chooseFit'):
+        if hasattr(self.parent, 'chooseFit') and self.parent.chooseFit is not None:
             self.parent.chooseFit.update()
         self.onTabChanged()
 
@@ -562,6 +562,7 @@ class fitModelWidget(QWidget):
     def addSpecies(self, s):
         if len(self.parent.fit.sys) == 0:
             self.addSystem()
+            self.tab.setCurrentIndex(0)
 
         if s not in self.parent.atomic.keys() and 'H2j' in s:
             try:

@@ -352,15 +352,20 @@ class Console(QTextEdit):
                 c = np.arange(len(self.parent.fit.sys))
             elif len(args) > 2:
                 c = [int(i) for i in args[2:]]
-            N = a(0,0,0)
+            N = a(0,0,0, 'd')
             for i in c:
                 if args[1] in self.parent.fit.sys[i].sp:
-                    N += a(self.parent.fit.sys[i].sp[args[1]].N.val, 0, 0)
+                    self.parent.fit.sys[i].sp[args[1]].N.unc.val = self.parent.fit.sys[i].sp[args[1]].N.val
+                    N += self.parent.fit.sys[i].sp[args[1]].N.unc
                 if args[1] in ['H2', 'HD', 'CO']:
                     for s, v in self.parent.fit.sys[i].sp.items():
                         if args[1] in s:
-                            print(s)
-                            N += a(v.N.val, 0, 0)
+                            v.N.unc.val = v.N.val
+                            print(v.N.unc)
+                            N += v.N.unc
+                            print(N)
+            N.log()
+            print(N)
             return N
 
         elif args[0] == 'rescale':
@@ -407,6 +412,18 @@ class Console(QTextEdit):
         elif args[0] == 'crosscorr':
             if len(args) == 3:
                 self.parent.crosscorrExposures(int(args[1]), int(args[2]))
+
+        elif args[0] == 'apply':
+            if len(args) > 1:
+                if args[1] == 'vac':
+                    self.parent.s[self.parent.s.ind].airvac()
+                if args[1] == 'helio':
+                    try:
+                        float(args[2])
+                        self.parent.s[self.parent.s.ind].apply_shift(float(args[2]))
+                    except:
+                        pass
+
 
         elif args[0] == 'lines':
 
@@ -529,6 +546,17 @@ class Console(QTextEdit):
                 s.raw.setLevels(float(args[2]), float(args[3]))
 
             self.parent.s.redraw()
+
+        elif args[0] == 'Tkin':
+            from ..excitation_temp import ExcitationTemp
+
+            for sys in self.parent.fit.sys:
+                if all([x in sys.sp.keys() for x in ['H2j0', 'H2j1']]):
+                    Temp = ExcitationTemp('H2')
+                    # print(Temp.col_dens(num=4, Temp=92, Ntot=21.3))
+                    n = [sys.sp['H2j0'].N.unc, sys.sp['H2j1'].N.unc]
+                    print(n)
+                    Temp.calcTemp(n, calc='boot', plot=1, verbose=1)
 
         else:
             return None
