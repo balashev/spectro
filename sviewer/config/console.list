@@ -1,21 +1,21 @@
+logN CI*
+logN CI**
+OIV
+CIV
+logN CI
+Show H2
+show H2j4
+show H2j5
 logN H2
-logN H2
-logN H2
-logN H2
-logN H2
-logN H2
-logN H2
-logN H2
-logN H2
+show HD
 Tkin
-Tkin
-logN H2
-show ClI
-logN H2
+stats
+stats
+stats
 2d levels 0 1
-show NaI
-NaI
-2d levels 0 1
-NaI
-2d levels 0 1
-2d levels 0 1
+rescale 30
+rescale 0.7
+rescale 0.95
+rescale 0.95
+rescale 0.95
+rescale err 0.3

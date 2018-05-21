@@ -185,7 +185,8 @@ class fitSystem:
     def addSpecies(self, name):
         if name not in self.sp.keys():
             self.sp[name] = fitSpecies(self, name)
-            self.parent.parent.console.exec_command('show ' + name)
+            if self.parent.parent is not None:
+                self.parent.parent.console.exec_command('show ' + name)
             return True
         else:
             return False
@@ -494,4 +495,83 @@ class fitPars:
 
     def __str__(self):
         return '\n'.join([str(s) for s in self.sys])
+
+
+class spectra(list):
+    def __init__(self):
+        super(spectra).__init__()
+
+    def set_lines(self):
+        for s in self:
+            s.set_lines()
+
+class spec:
+    def __init__(self, parent, x, y, err):
+        self.x = x
+        self.y = y
+        self.err = err
+        self.fit = None
+
+    def set_lines(self, tlim=0.01, all=True, debug=False):
+        """
+        Function to prepare lines to fit.
+          - ind         : specify component to fit
+          - all         : if all then look for all the lines located in the  normalized spectrum
+
+        Prepared lines where fit will be calculated are stored in self.fit_lines list.
+        """
+        self.fit_lines = []
+
+        if self.x.shape[0] > 0:
+            for sys in self.fit.sys:
+                for sp in sys.sp.keys():
+                    lin = self.parent.atomic.list(sp)
+                    for l in lin:
+                        l.b = sys.sp[sp].b.val
+                        l.logN = sys.sp[sp].N.val
+                        l.z = sys.z.val
+                        l.recalc = True
+                        l.sys = sys.ind
+                        l.range = tau(l, resolution=self.resolution).getrange(tlim=tlim)
+                        l.cf = -1
+                        if self.parent.fit.cf_fit:
+                            for i in range(self.parent.fit.cf_num):
+                                cf = getattr(self.parent.fit, 'cf_' + str(i))
+                                cf_sys = cf.addinfo.split('_')[0]
+                                cf_exp = cf.addinfo.split('_')[1] if len(cf.addinfo.split('_')) > 1 else 'all'
+                                if (cf_sys == 'all' or sys.ind == int(cf_sys[3:])) and (
+                                                cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l() * (
+                                            1 + l.z) > cf.min and l.l() * (1 + l.z) < cf.max:
+                                    l.cf = i
+                        if all:
+                            if any([x[0] < p < x[-1] for p in l.range]):
+                                self.fit_lines += [l]
+                        else:
+                            if np.sum(np.where(np.logical_and(x >= l.range[0], x <= l.range[1]))) > 0:
+                                self.fit_lines += [l]
+        if debug:
+            print('findFitLines', self.fit_lines, [l.cf for l in self.fit_lines])
+
+    def chi(self):
+        pass
+
+class calc_fit:
+    def __init__(self, parent):
+        self.parent = parent
+
+    def set_data(self, data):
+        self.s = spectra(self)
+        for d in data:
+            self.s.append(spec(self, d[0], d[1], d[2]))
+
+    def set_model(self, pars, fit=None):
+        if fit is None:
+            self.fit = fitPars(self.parent)
+            self.fit.readPars(pars)
+        else:
+            self.fit = fit
+
+    def set_lines(self, lines):
+        self.lines = lines
+
 

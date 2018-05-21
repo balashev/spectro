@@ -29,12 +29,13 @@ import subprocess
 import sys
 sys.path.append('C:/science/python')
 import threading
+from time import sleep
 
 #from H2_summary import load_P94
 
 from ..XQ100 import load_QSO
 from ..plot_spec import *
-from ..profiles import add_LyaForest, add_ext, add_ext_bump, add_LyaCutoff, convolveflux
+from ..profiles import add_LyaForest, add_ext, add_ext_bump, add_LyaCutoff, convolveflux, tau
 from ..a_unc import a
 from ..pyratio import distr1d
 from .console import *
@@ -48,13 +49,46 @@ from .tables import *
 from .obs_tool import *
 from .colorcolor import *
 from .utils import *
-class syn_abs():
-    def __init__(self, z):
-        self.z = z
-        self.s = []
-    
-    def add(self, species):
-        self.s.append(species)
+
+def lnprob(x, pars, prior, self):
+    return lnprior(x, pars, prior) + lnlike(x, pars, self)
+
+def lnprior(x, pars, prior):
+    lp = 0
+    for k, v in prior.items():
+        if k in pars:
+            lp += v.lnL(x[pars.index(k)])
+    return lp
+
+def lnlike(x, pars, self):
+    res = True
+    for xi, p in zip(x, pars):
+        res *= self.parent.fit.setValue(p, xi)
+    self.parent.fit.update()
+    self.parent.s.calcFit(recalc=True, redraw=False, timer=False)
+    chi = self.parent.s.chi2()
+    if res and not np.isnan(chi):
+        return -chi
+    else:
+        return -np.inf
+
+class A:
+    def __init__(self, i):
+        self.i = i
+
+    def upd(self):
+        self.i += 1
+        print(self.i)
+
+def dosome(i):
+    while True:
+        sleep(0.5)
+        print(i)
+        t = calc_fit(None)
+        t.set_data()
+        t.set_model('N_0_CI 13.00 10.0 20.0 0.05 1')
+        t.set_lines()
+        print(t.fit.pars())
 
 class plotSpectrum(pg.PlotWidget):
     """
@@ -790,6 +824,8 @@ class spec2dWidget(pg.PlotWidget):
         self.e_status = False
         self.r_status = False
         self.s_status = False
+        self.t_status = False
+        self.q_status = False
         self.x_status = False
         self.mouse_moved = False
 
@@ -836,12 +872,23 @@ class spec2dWidget(pg.PlotWidget):
                     self.parent.s.remove(self.parent.s.ind)
                 else:
                     self.e_status = True
+                    if self.parent.s[self.parent.s.ind].err2d is not None:
+                        self.vb.addItem(self.parent.s[self.parent.s.ind].err2d)
 
             if event.key() == Qt.Key_M:
-                self.vb.addItem(self.parent.s[self.parent.s.ind].mask2d)
+                if self.parent.s[self.parent.s.ind].mask2d is not None:
+                    self.vb.addItem(self.parent.s[self.parent.s.ind].mask2d)
 
             if event.key() == Qt.Key_R:
                 self.r_status = True
+                self.vb.setMouseMode(self.vb.RectMode)
+
+            if event.key() == Qt.Key_S:
+                self.s_status = True
+                self.vb.setMouseEnabled(x=False, y=False)
+
+            if event.key() == Qt.Key_T:
+                self.t_status = True
                 self.vb.setMouseMode(self.vb.RectMode)
                 if (QApplication.keyboardModifiers() == Qt.ControlModifier):
                     for s in self.slits:
@@ -849,9 +896,10 @@ class spec2dWidget(pg.PlotWidget):
                         self.vb.removeItem(s[1])
                     self.slits = []
 
-            if event.key() == Qt.Key_S:
-                self.s_status = True
-                self.vb.setMouseEnabled(x=False, y=False)
+            if event.key() == Qt.Key_Q:
+                self.q_status = True
+                if self.parent.s[self.parent.s.ind].sky2d is not None:
+                    self.vb.addItem(self.parent.s[self.parent.s.ind].sky2d)
 
             if event.key() == Qt.Key_X:
                 self.x_status = True
@@ -876,15 +924,27 @@ class spec2dWidget(pg.PlotWidget):
 
             if event.key() == Qt.Key_E:
                 self.e_status = False
+                print(self.parent.s[self.parent.s.ind].err2d)
+                if self.parent.s[self.parent.s.ind].err2d is not None:
+                    self.vb.removeItem(self.parent.s[self.parent.s.ind].err2d)
 
             if event.key() == Qt.Key_M:
-                self.vb.removeItem(self.parent.s[self.parent.s.ind].mask2d)
+                if self.parent.s[self.parent.s.ind].mask2d is not None:
+                    self.vb.removeItem(self.parent.s[self.parent.s.ind].mask2d)
 
             if event.key() == Qt.Key_R:
                 self.r_status = False
 
             if event.key() == Qt.Key_S:
                 self.s_status = False
+
+            if event.key() == Qt.Key_T:
+                self.t_status = False
+
+            if event.key() == Qt.Key_Q:
+                self.q_status = False
+                if self.parent.s[self.parent.s.ind].sky2d is not None:
+                    self.vb.removeItem(self.parent.s[self.parent.s.ind].sky2d)
 
             if event.key() == Qt.Key_X:
                 self.x_status = False
@@ -895,7 +955,7 @@ class spec2dWidget(pg.PlotWidget):
             if any([event.key() == getattr(Qt, 'Key_'+s) for s in ['S']]):
                 self.vb.setMouseEnabled(x=True, y=True)
 
-            if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'BRSX']):
+            if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'BRSTX']):
                 self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
 
@@ -908,8 +968,21 @@ class spec2dWidget(pg.PlotWidget):
         if self.s_status:
             self.s_status = 2
 
-        if any([getattr(self, s + '_status') for s in 'brsx']):
+        if any([getattr(self, s + '_status') for s in 'brtsx']):
             self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
+
+        if self.t_status:
+            self.t_status = 1
+
+        if self.q_status:
+            self.q_status = False
+            self.mousePoint = self.vb.mapSceneToView(event.pos())
+            s = self.parent.s[self.parent.s.ind].spec2d
+            x = s.raw.x[np.argmin(np.abs(self.mousePoint.x() - s.raw.x))]
+            s.sky_model(x, x, border=3, model='fit', plot=1)
+            self.parent.spec2dPanel.vb.removeItem(s.parent.sky2d)
+            s.parent.sky2d = s.set_image('sky', s.parent.colormap)
+            self.parent.spec2dPanel.vb.addItem(s.parent.sky2d)
 
         if self.x_status:
             self.parent.s[self.parent.s.ind].spec2d.raw.add_mask(
@@ -918,10 +991,12 @@ class spec2dWidget(pg.PlotWidget):
                       [np.min([self.mousePoint_saved.y(), self.mousePoint_saved.y()]),
                        np.max([self.mousePoint_saved.y(), self.mousePoint_saved.y()])]
                       ], add=(QApplication.keyboardModifiers() != Qt.ControlModifier))
-            self.parent.s.redraw()
+            self.parent.spec2dPanel.vb.removeItem(self.parent.s[self.parent.s.ind].cr_mask2d)
+            self.parent.s[self.parent.s.ind].cr_mask2d = self.parent.s[self.parent.s.ind].spec2d.set_image('cr', self.parent.s[self.parent.s.ind].cr_maskcolormap)
+            self.parent.spec2dPanel.vb.addItem(self.parent.s[self.parent.s.ind].cr_mask2d)
 
     def mouseReleaseEvent(self, event):
-        if any([getattr(self, s+'_status') for s in 'brx']):
+        if any([getattr(self, s+'_status') for s in 'brtx']):
             self.vb.setMouseMode(self.vb.PanMode)
             self.vb.rbScaleBox.hide()
 
@@ -941,87 +1016,25 @@ class spec2dWidget(pg.PlotWidget):
                 self.parent.s[self.parent.s.ind].del_spline(arg=ind, name='2d')
                 event.accept()
 
-        if self.r_status:
+        if self.t_status:
             self.mousePoint = self.vb.mapSceneToView(event.pos())
-            x, y = self.parent.s[self.parent.s.ind].spec2d.raw.collapse(rect=[[np.min([self.mousePoint_saved.x(), self.mousePoint.x()]),
-                                                                               np.max([self.mousePoint_saved.x(), self.mousePoint.x()])],
-                                                                              [np.min([self.mousePoint_saved.y(), self.mousePoint.y()]),
-                                                                               np.max([self.mousePoint_saved.y(), self.mousePoint.y()])]
-                                                                             ])
-            wave = (self.mousePoint_saved.x() + self.mousePoint.x()) / 2
-            if 1:
-                try:
-                    plt.close()
-                except:
-                    pass
-                fig, ax = plt.subplots()
-                ax.plot(x, y, '-r')
-                #xf = np.linspace(x[0], x[-1], 100)
-                n = len(x)
 
-                if 0:
-                    def gauss(x, a, x_0, sigma, c):
-                        return a * np.exp(-(x - x_0) ** 2 / (2 * sigma ** 2)) + c
+            if self.t_status == 1:
+                spec2d = self.parent.s[self.parent.s.ind].spec2d
+                if len(spec2d.slits) > 0:
+                    data = np.asarray([[s[0], s[1]] for s in spec2d.slits])
+                    print(data)
+                    ind = np.argmin(np.sum((data - np.array([self.mousePoint.x(), self.mousePoint.y()]))**2, axis=1))
+                    spec2d.slits.remove(spec2d.slits[ind])
+                self.parent.s[self.parent.s.ind].redraw()
 
-                    x_0 = x[np.argmax(y)]
-                    c = np.median(np.append(y[:int(n/4)], y[int(3*n/4)]))
-                    #sigma = np.sum((y-c) * (x - mean) ** 2) / np.sum((y-c))
-                    a = np.trapz(y-c, x)
-                    sigma = np.max(y) / np.sqrt(2*np.pi) / a
-
-                    print('init:', c, x_0, a, sigma)
-
-                    ax.plot(xf, gauss(xf, a, x_0, sigma, c), '--r')
-
-                    popt, pcov = curve_fit(gauss, x, y, p0=[a, x_0, sigma, c])
-
-                    ax.plot(xf, gauss(xf, popt[0], popt[1], popt[2], popt[3]), '-k')
-                    ax.set_title('FWHM = {0:.2f}, center={1:.2f}'.format(popt[2] * 2.35482, popt[1]))
-
-                if 1:
-                    def moffat_fit_integ(x, a, x_0, gamma, c):
-                        dx = np.median(np.diff(x)) / 2
-                        x = np.append(x - dx, x[-1] + dx)
-                        y = moffat.cdf(x, loc=x_0, scale=gamma) / norm
-
-                        return a * np.diff(y) + c
-
-                    x_0 = x[np.argmax(y)]
-                    c = np.median(np.append(y[:int(n / 4)], y[int(3 * n / 4)]))
-                    sigma = np.std((y - c) * x) / np.std(y - c)
-                    gamma = 2.35482 * sigma / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
-                    a = np.max(y) - c
-
-                    moffat = moffat_func()
-                    norm = moffat.cdf(20, loc=0, scale=gamma)
-
-                    #ax.plot(x, moffat_fit_integ(x, a, x_0, gamma, c), '--b')
-                    popt, pcov = curve_fit(moffat_fit, x, y, p0=[a, x_0, gamma, c])
-
-                    ax.plot(x, moffat_fit(x, popt[0], popt[1], popt[2], popt[3]), '-g')
-
-                    print(popt)
-
-                    popt, pcov = curve_fit(moffat_fit_integ, x, y, p0=[a, x_0, gamma, c])
-
-                    ax.plot(x, moffat_fit_integ(x, popt[0], popt[1], popt[2], popt[3]), '-b')
-
-                    print(popt)
-
-                    x_0 = popt[1]
-                    fwhm = Moffat1D(popt[0], popt[1], popt[2], 4.765).fwhm
-                    ax.set_title('FWHM = {0:.2f}, center={1:.2f}'.format(fwhm, x_0))
-                plt.show()
-            if 0:
-                d = distr1d(x, y - popt[1])
-                d.dopoint()
-                d.dointerval()
-                print(d.point, d.interval)
-                ax = d.plot(conf=0.683)
-
-
-            self.addSlits([wave], [x_0], [fwhm])
-            self.r_status = False
+            if self.t_status == 2:
+                self.t_status = False
+                self.parent.s[self.parent.s.ind].spec2d.profile(np.min([self.mousePoint_saved.x(), self.mousePoint.x()]),
+                                                                np.max([self.mousePoint_saved.x(), self.mousePoint.x()]),
+                                                                np.min([self.mousePoint_saved.y(), self.mousePoint.y()]),
+                                                                np.max([self.mousePoint_saved.y(), self.mousePoint.y()]),
+                                                                plot=True)
 
         if self.x_status:
             self.parent.s[self.parent.s.ind].spec2d.cr.add_mask(
@@ -1040,9 +1053,9 @@ class spec2dWidget(pg.PlotWidget):
         self.mousePoint = self.vb.mapSceneToView(event.pos())
         self.mouse_moved = True
         self.cursorpos.setText('x={0:.3f}, y={1:.2f}'.format(self.mousePoint.x(), self.mousePoint.y()))
-        if len(self.parent.s) > 0 and len(self.parent.s[self.parent.s.ind].spec2d.raw.z.shape) == 2:
+        if len(self.parent.s) > 0 and self.parent.s[self.parent.s.ind].spec2d.raw.z is not None and len(self.parent.s[self.parent.s.ind].spec2d.raw.z.shape) == 2:
             self.cursorpos.setText(self.cursorpos.textItem.toPlainText() + ', z={:.2e}'.format(self.parent.s[self.parent.s.ind].spec2d.raw.find_nearest(self.mousePoint.x(), self.mousePoint.y())))
-        #print(self.vb.state['mouseMode'])
+
         pos = self.vb.sceneBoundingRect()
         self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(pos.left() + 10, pos.bottom() - 10)))
         if self.s_status == 2 and event.type() == QEvent.MouseMove:
@@ -1056,6 +1069,9 @@ class spec2dWidget(pg.PlotWidget):
             d = self.parent.s[self.parent.s.ind].spec2d.raw.quantile[1] - self.parent.s[self.parent.s.ind].spec2d.raw.quantile[0]
             self.parent.s[self.parent.s.ind].spec2d.raw.setLevels(levels[0] + d*delta[0]*4, levels[1] + d*delta[1]/2)
             im.setLevels(self.parent.s[self.parent.s.ind].spec2d.raw.levels)
+
+        if self.t_status:
+            self.t_status = 2
 
         if self.s_status and event.type() == QEvent.MouseMove:
             self.vb.rbScaleBox.hide()
@@ -1087,15 +1103,6 @@ class spec2dWidget(pg.PlotWidget):
                 self.dataSelection(MouseRectCoords)
             else:
                 self.updateScaleBox(ev.buttonDownPos(), ev.pos())
-
-    def addSlits(self, wave, x_0, fwhm):
-        self.slits.append([pg.ErrorBarItem(x=np.asarray(wave), y=np.asarray(x_0),
-                                           top=np.asarray(fwhm) / 2, bottom=np.asarray(fwhm) / 2,
-                                           pen=pg.mkPen('c', width=2), beam=4),
-                           pg.ScatterPlotItem(x=np.asarray(wave), y=np.asarray(x_0),
-                                              pen=pg.mkPen('k', width=0.5), brush=pg.mkBrush('c'))])
-        self.vb.addItem(self.slits[-1][0])
-        self.vb.addItem(self.slits[-1][1])
 
 class preferencesWidget(QWidget):
     def __init__(self, parent):
@@ -1951,7 +1958,7 @@ class fitMCMCWidget(QWidget):
         grid.addWidget(self.priors, 3, 1)
 
         self.chooseFit = chooseFitParsWidget(self.parent, closebutton=False)
-        self.chooseFit.setFixedSize(200, 800)
+        self.chooseFit.setFixedSize(200, 700)
         v = QVBoxLayout()
         v.addLayout(grid)
         v.addStretch(1)
@@ -2020,7 +2027,7 @@ class fitMCMCWidget(QWidget):
         self.results.textChanged.connect(self.fitresChanged)
         grid.addWidget(self.results, 3, 1)
         self.chooseShow = chooseShowParsWidget(self)
-        self.chooseShow.setFixedSize(200, 800)
+        self.chooseShow.setFixedSize(200, 700)
         v = QVBoxLayout()
         v.addLayout(grid)
         v.addStretch(1)
@@ -2033,10 +2040,13 @@ class fitMCMCWidget(QWidget):
         self.show_button.clicked[bool].connect(self.showMC)
         self.stats_button = QPushButton("Stats")
         self.stats_button.setFixedSize(120, 30)
-        self.stats_button.clicked[bool].connect(self.stats)
+        self.stats_button.clicked[bool].connect(partial(self.stats, t='fit'))
         self.stats_all_button = QPushButton("Stats all")
         self.stats_all_button.setFixedSize(120, 30)
-        self.stats_all_button.clicked[bool].connect(self.stats_all)
+        self.stats_all_button.clicked[bool].connect(partial(self.stats, t='all'))
+        self.stats_cols_button = QPushButton("Stats cols")
+        self.stats_cols_button.setFixedSize(120, 30)
+        self.stats_cols_button.clicked[bool].connect(partial(self.stats, t='cols'))
         self.check_button = QPushButton("Check")
         self.check_button.setFixedSize(120, 30)
         self.check_button.clicked[bool].connect(self.check)
@@ -2048,6 +2058,7 @@ class fitMCMCWidget(QWidget):
         hbox.addWidget(self.show_button)
         hbox.addWidget(self.stats_button)
         hbox.addWidget(self.stats_all_button)
+        hbox.addWidget(self.stats_cols_button)
         hbox.addWidget(self.check_button)
         hbox.addStretch(1)
         hbox.addWidget(self.loadres_button)
@@ -2064,7 +2075,7 @@ class fitMCMCWidget(QWidget):
 
         self.setLayout(layout)
 
-        self.setGeometry(200, 200, 1450, 900)
+        self.setGeometry(200, 200, 1450, 800)
         self.setWindowTitle('Fit model')
         self.show()
 
@@ -2101,36 +2112,33 @@ class fitMCMCWidget(QWidget):
     def start(self, init=True):
         if self.thread is None:
             self.start_button.setChecked(True)
-            self.thread = StoppableThread(target=self.MCMC, args=(), kwargs={'init': init}, daemon=True)
-            #self.thread = threading.Thread(target=self.MCMC, args=(), kwargs={'init': init}, daemon=True)
+            if 0:
+                from multiprocessing import Process
+                self.thread = Process(target=dosome, args=(1,))
+                #self.thread = Process(target=self.MCMC, args=(self,), kwargs={'init': init})
+            else:
+                self.thread = StoppableThread(target=self.MCMC, args=(), kwargs={'init': init}, daemon=True)
+                print(self.thread.isDaemon())
+                self.thread.daemon = True
+                #self.thread = threading.Thread(target=self.MCMC, args=(), kwargs={'init': init}, daemon=True)
             self.thread.start()
+
+    def stop(self):
+        self.start_button.setChecked(False)
+        if 1:
+            self.thread.terminate()
+        else:
+            self.thread.stop()
+        self.thread = None
+
+    def continueMC(self):
+        self.start(init=False)
 
     def MCMC(self, init=True):
         self.parent.setFit(comp=-1)
-        def lnprior(x, pars, prior):
-            lp = 0
-            for k, v in prior.items():
-                if k in pars:
-                    lp += v.lnL(x[pars.index(k)])
-            return lp
-
-        def lnlike(x, pars):
-            res = True
-            for xi, p in zip(x, pars):
-                res *= self.parent.fit.setValue(p, xi)
-            self.parent.fit.update()
-            self.parent.s.calcFit(recalc=True, redraw=False, timer=False)
-            chi = self.parent.s.chi2()
-            if res and not np.isnan(chi):
-                return -chi
-            else:
-                return -np.inf
-
-        def lnprob(x, pars, prior):
-            return lnprior(x, pars, prior) + lnlike(x, pars)
-
         nwalkers = int(self.parent.options('MCMC_walkers'))
         nsteps = int(self.parent.options('MCMC_iters'))
+        threads = int(self.parent.options('MCMC_threads'))
 
         self.parent.s.prepareFit(-1, all=False)
 
@@ -2148,10 +2156,10 @@ class fitMCMCWidget(QWidget):
         if pars == [str(p) for p in self.parent.fit.list_fit()]:
             ndim = len(pars)
 
-            sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[pars, self.prior])
+            sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[pars, self.prior, self], threads=threads)
 
             samples = np.array([[self.parent.fit.getValue(p) for p in pars]])
-            lnprobs = np.array([lnprob(samples[0], pars, self.prior)])
+            lnprobs = np.array([lnprob(samples[0], pars, self.prior, self)])
 
             for i, result in enumerate(sampler.sample(pos, iterations=nsteps, storechain=False)):
                 print(i)
@@ -2171,112 +2179,131 @@ class fitMCMCWidget(QWidget):
             self.thread = None
             self.start_button.setChecked(False)
 
-    def stop(self):
-        self.start_button.setChecked(False)
-        self.thread.stop()
-        self.thread = None
-
-    def continueMC(self):
-        self.start(init=False)
-
-    def readChain(self):
+    def readChain(self, ):
         with open("output/chain.pkl", "rb") as f:
             return pickle.load(f), pickle.load(f), pickle.load(f), pickle.load(f)
 
     def showMC(self):
-        with open("output/chain.pkl", "rb") as f:
-            pars = pickle.load(f)
-            nwalkers = pickle.load(f)
-            samples = pickle.load(f)
-            lnprobs = pickle.load(f)
-            mask = np.array([p.show for p in self.parent.fit.list_fit()])
+        pars, nwalkers, samples, lnprobs = self.readChain()
 
-            imax = np.argmax(lnprobs)
-            truth = samples[imax][np.where(mask)[0]] if self.parent.options('MCMC_bestfit') else None
+        mask = np.array([p.show for p in self.parent.fit.list_fit()])
+        imax = np.argmax(lnprobs)
+        truth = samples[imax][np.where(mask)[0]] if self.parent.options('MCMC_bestfit') else None
+        print('best fit:', truth)
+        burnin = int(self.parent.options('MCMC_burnin'))
+        if nwalkers * burnin < samples.shape[0]:
+            c = ChainConsumer()
+            c.add_chain(samples[nwalkers * burnin + 1:, np.where(mask)[0]], walkers=nwalkers,
+                        parameters=[p.replace('_', ' ') for i, p in enumerate(pars) if mask[i]])
+            print(self.parent.options('MCMC_smooth'))
+            c.configure(smooth=self.parent.options('MCMC_smooth'),
+                        cloud=True,
+                        sigmas=[0, 1, 2, 3],
+                        )
+            c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
 
-            print('best fit:', truth)
-            burnin = int(self.parent.options('MCMC_burnin'))
-            if nwalkers * burnin < samples.shape[0]:
-                c = ChainConsumer()
-                c.add_chain(samples[nwalkers * burnin + 1:, np.where(mask)[0]], walkers=nwalkers,
-                            parameters=[p.replace('_', ' ') for i, p in enumerate(pars) if mask[i]])
-                print(self.parent.options('MCMC_smooth'))
-                c.configure(smooth=self.parent.options('MCMC_smooth'),
-                            cloud=True,
-                            sigmas=[0, 1, 2, 3],
-                            )
-                c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
+            fig = c.plotter.plot(figsize=(30, 30),
+                                    filename="output/fit.png",
+                                    display=True,
+                                    truth=truth
+                                    )
 
-                fig = c.plotter.plot(figsize=(30, 30),
-                                        filename="output/fit.png",
-                                        display=True,
-                                        truth=truth
-                                        )
-
-    def stats(self):
+    def stats(self, t='fit'):
         pars, nwalkers, samples, lnprobs = self.readChain()
 
         mask = np.array([p.show for p in self.parent.fit.list_fit()])
         burnin = int(self.parent.options('MCMC_burnin'))
-        k = samples.shape[1]
-        n_hor = int(k ** 0.5)
-        if n_hor <= 1:
-            n_hor = 2
-        n_vert = int(k / n_hor + 1)
+
         self.results.setText('')
 
-        fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
-        for i, p in enumerate(pars):
-            if mask[i]:
-                x = np.linspace(np.min(samples[nwalkers * burnin + 1:, i]), np.max(samples[nwalkers * burnin + 1:, i]), 50)
-                kde = gaussian_kde(samples[nwalkers * burnin + 1:, i])
-                d = distr1d(x, kde(x))
-                d.dopoint()
-                d.dointerval()
-                res = a(d.point, d.point - d.interval[0], d.interval[1] - d.point)
-                self.parent.fit.setValue(p, res, 'unc')
-                self.parent.fit.setValue(p, res.val)
-                f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
-                print(p, res.latex(f=f))
-                self.results.setText(self.results.toPlainText() + p + ': ' + res.latex(f=f) + '\n')
-                vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
-                d.plot(conf=0.683, ax=ax[vert, hor])
-                ax[vert, hor].set_title(pars[i])
+        if t == 'fit':
+            k = samples.shape[1]
+            n_hor = int(k ** 0.5)
+            if n_hor <= 1:
+                n_hor = 2
+            n_vert = int(k / n_hor + 1)
 
-        plt.show()
+            fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
+            for i, p in enumerate(pars):
+                if mask[i]:
+                    x = np.linspace(np.min(samples[nwalkers * burnin + 1:, i]), np.max(samples[nwalkers * burnin + 1:, i]), 50)
+                    kde = gaussian_kde(samples[nwalkers * burnin + 1:, i])
+                    d = distr1d(x, kde(x))
+                    d.dopoint()
+                    d.dointerval()
+                    res = a(d.point, d.point - d.interval[0], d.interval[1] - d.point)
+                    self.parent.fit.setValue(p, res, 'unc')
+                    self.parent.fit.setValue(p, res.val)
+                    f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
+                    print(p, res.latex(f=f))
+                    self.results.setText(self.results.toPlainText() + p + ': ' + res.latex(f=f) + '\n')
+                    vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
+                    d.plot(conf=0.683, ax=ax[vert, hor])
+                    ax[vert, hor].set_title(pars[i].replace('_', ' '))
 
-    def stats_all(self):
+        else:
+            values = []
+            for k in range(nwalkers * burnin + 1, samples.shape[0]):
+                for xi, p in zip(samples[k], pars):
+                    self.parent.fit.setValue(p, xi)
+                self.parent.fit.update()
+                values.append([p.val for p in self.parent.fit.list()])
 
-        pars, nwalkers, samples, lnprobs = self.readChain()
+            values = np.asarray(values)
 
-        mask = np.array([p.show for p in self.parent.fit.list_fit()])
-        burnin = int(self.parent.options('MCMC_burnin'))
-        k = len(self.parent.fit.list())# samples.shape[1]
-        n_hor = int(k ** 0.5)
-        if n_hor <= 1:
-            n_hor = 2
-        n_vert = int(k / n_hor + 1)
-        self.results.setText('')
-        values = []
-        for k in range(nwalkers * burnin + 1, samples.shape[0]):
-            for xi, p in zip(samples[k], pars):
-                self.parent.fit.setValue(p, xi)
-            self.parent.fit.update()
-            values.append([p.val for p in self.parent.fit.list()])
+            if t == 'all':
+                k = len(self.parent.fit.list())  # samples.shape[1]
+                n_hor = int(k ** 0.5)
+                if n_hor <= 1:
+                    n_hor = 2
+                n_vert = int(k / n_hor + 1)
 
-        values = np.asarray(values)
-        fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
-        for i, p in enumerate(self.parent.fit.list()):
-            if np.std(values[:,i]) > 0:
-                d = distr1d(values[:,i])
-                d.dopoint()
-                d.dointerval()
-                res = a(d.point, d.point - d.interval[0], d.interval[1] - d.point)
-                f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
-                self.results.setText(self.results.toPlainText() + str(p) + ': ' + res.latex(f=f) + '\n')
-                vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
-                d.plot(conf=0.683, ax=ax[vert, hor])
-                ax[vert, hor].set_title(str(p))
+                fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
+
+                for i, p in enumerate(self.parent.fit.list()):
+                    if np.std(values[:, i]) > 0:
+                        d = distr1d(values[:, i])
+                        d.dopoint()
+                        d.dointerval()
+                        res = a(d.point, d.point - d.interval[0], d.interval[1] - d.point)
+                        f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
+                        self.results.setText(self.results.toPlainText() + str(p) + ': ' + res.latex(f=f) + '\n')
+                        vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
+                        d.plot(conf=0.683, ax=ax[vert, hor])
+                        ax[vert, hor].set_title(str(p).replace('_', ' '))
+
+            elif t == 'cols':
+                sp = list()
+                for sys in self.parent.fit.sys:
+                    for s in sys.sp.keys():
+                        if s not in sp:
+                            sp.append(s)
+                for el in ['H2', 'HD', 'CO']:
+                    if any([el in s for s in sp]):
+                        sp.append(el)
+                for s in sp:
+                    if '*' in s:
+                        sp.append(s.split('_')[2].replace('*', ''))
+                print(sp)
+                n_hor = int(len(sp) ** 0.5)
+                if n_hor <= 1:
+                    n_hor = 2
+                n_vert = int(len(sp) / n_hor + 1)
+
+                fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
+                for i, sp in enumerate(sp):
+                    inds = np.where([sp in str(s) and str(s)[0] == 'N' for s in self.parent.fit.list()])[0]
+                    print(sp, inds)
+                    print(values[:, inds])
+                    d = distr1d(np.log10(np.sum(10 ** values[:, inds], axis=1)))
+                    d.dopoint()
+                    d.dointerval()
+                    res = a(d.point, d.point - d.interval[0], d.interval[1] - d.point)
+                    f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
+                    self.results.setText(self.results.toPlainText() + str(sp) + ': ' + res.latex(f=f) + '\n')
+                    vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
+                    d.plot(conf=0.683, ax=ax[vert, hor])
+                    ax[vert, hor].set_title(str(sp).replace('_', ' '))
 
         plt.show()
 
@@ -2284,11 +2311,8 @@ class fitMCMCWidget(QWidget):
         self.MCMCqc()
 
     def MCMCqc(self, qc='all'):
-        with open("output/chain.pkl", "rb") as f:
-            pars = pickle.load(f)
-            nwalkers = pickle.load(f)
-            samples = pickle.load(f)
-            lnprobs = pickle.load(f)
+        pars, nwalkers, samples, lnprobs = self.readChain()
+        print(pars, lnprobs)
 
         if any([s in qc for s in ['current', 'moments', 'all']]):
             k = samples.shape[1]
@@ -2302,19 +2326,19 @@ class fitMCMCWidget(QWidget):
                 if p.startswith('z'):
                     samples[:, i] = samples[:, i] * 1000
             fig, ax0 = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
-            print(np.sum(np.isinf(lnprobs[-nwalkers:])))
             ax0[0, 0].hist(-lnprobs[-nwalkers:], 20, normed=1, histtype='bar', color='crimson', label='$\chi^2$')
             ax0[0, 0].legend()
             ax0[0, 0].set_title('$\chi^2$ distribution')
             for i in range(k):
                 vert, hor = int((i + 1) / n_hor), i + 1 - n_hor * int((i + 1) / n_hor)
                 ax0[vert, hor].scatter(samples[-nwalkers:, i], -lnprobs[-nwalkers:], c='r')
-                ax0[vert, hor].set_title(pars[i])
+                ax0[vert, hor].set_title(pars[i].replace('_', ' '))
 
         if any([s in qc for s in ['moments', 'all']]):
             ind = np.random.randint(0,nwalkers)
             SomeChain = samples[1 + ind::nwalkers,:]
-            niters = int((samples.shape[0]-1)/nwalkers)
+            print((samples.shape[0])/nwalkers)
+            niters = int((samples.shape[0])/nwalkers)
             mean, std, chimin = np.empty([len(pars), niters]), np.empty([len(pars), niters]), np.empty([3, niters])
             for i in range(niters):
                 mean[:, i] = np.mean(samples[i*nwalkers+1:(i+1)*nwalkers+1, :], axis=0)
@@ -2324,7 +2348,7 @@ class fitMCMCWidget(QWidget):
                 chimin[2, i] = np.std(-lnprobs[i * nwalkers + 1:(i + 1) * nwalkers + 1])
             fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
             ax[0, 0].plot(np.arange(niters), np.log10(chimin[0]), label='$\chi^2_{min}$')
-            ax[0, 0].plot(np.arange(niters), np.log10(-lnprobs[1 + ind::nwalkers]), label='$\chi^2$ at chain')
+            ax[0, 0].plot(np.arange(niters), np.log10(-lnprobs[ind::nwalkers]), label='$\chi^2$ at chain')
             ax[0, 0].plot(np.arange(niters), np.log10(chimin[1]), label='$\chi^2$ mean')
             ax[0, 0].plot(np.arange(niters), np.log10(chimin[2]), label='$\chi^2$ disp')
             ax[0, 0].legend(loc=1)
@@ -2335,12 +2359,26 @@ class fitMCMCWidget(QWidget):
                 ax[vert, hor].fill_between(np.arange(niters), mean[i]-std[i], mean[i]+std[i],
                                            facecolor='green', interpolate=True, alpha=0.5)
                 ax[vert, hor].plot(np.arange(niters), SomeChain[:, i], color='b')
-                ax[vert, hor].set_title(pars[i])
+                ax[vert, hor].set_title(pars[i].replace('_', ' '))
 
         plt.show()
 
     def loadres(self):
-        pass
+        fname = QFileDialog.getOpenFileName(self, 'Load MCMC results', self.parent.work_folder)
+
+        if fname[0]:
+            self.parent.options('work_folder', os.path.dirname(fname[0]))
+            if fname[0].endswith('.dat'):
+                with open(fname[0]) as f:
+                    nwalkers = int(f.readline())
+                    pars = f.readline().split()
+                samples = np.genfromtxt(fname[0], skip_header=2)
+
+            with open("output/chain.pkl", "wb") as f:
+                pickle.dump(pars[1:-1], f)
+                pickle.dump(nwalkers, f)
+                pickle.dump(samples[:, 1:-1], f)
+                pickle.dump(samples[:, 0], f)
 
     def closeEvent(self, event):
         #for opt, func in self.opts.items():
@@ -2443,13 +2481,12 @@ class extract2dWidget(QWidget):
         self.exp_factor = 0.5
         self.extr_height = 1
         self.extr_width = 3
-        self.extr_slit = 1.0
+        self.extr_slit = 0.7
         self.extr_window = 0
-        self.extr_border = 7
+        self.extr_border = 3
         self.helio_corr = 0.0
         self.rescale_window = 50
         self.mask_type = 'moffat'
-        self.moffat = moffat_func()
         self.trace_pos = None
         self.trace_width = [None, None]
         self.init_GUI()
@@ -2760,87 +2797,22 @@ class extract2dWidget(QWidget):
         self.updateExpChoose()
         self.parent.s.redraw()
 
-    def moffat_fit_integ(self, x, a, x_0, gamma, c):
-        dx = np.median(np.diff(x)) / 2
-        x = np.append(x - dx, x[-1] + dx)
-        y = self.moffat.cdf(x, loc=x_0, scale=gamma)
-
-        return a * np.diff(y) + c
-
     def trace(self):
         self.trace_step = int(self.traceStep.text())
         self.extr_slit = float(self.extrSlit.text())
         s = self.parent.s[self.exp_ind]
 
-        pos, trace, width = [], [], []
-
-        fig, ax = plt.subplots()
-
         inds = np.where(s.cont_mask2d)[0]
         for k, i in zip(np.arange(len(inds))[:-self.trace_step:self.trace_step], inds[:-self.trace_step:self.trace_step]):
-            x, y = s.spec2d.raw.collapse(rect=[[s.spec2d.raw.x[i+int(self.trace_step/2)-4], s.spec2d.raw.x[i+int(self.trace_step/2)+4]], [s.spec2d.raw.y[self.extr_border], s.spec2d.raw.y[-self.extr_border]]])
+            s.spec2d.profile(s.spec2d.raw.x[i+int(self.trace_step/2)-4], s.spec2d.raw.x[i+int(self.trace_step/2)+4],
+                             s.spec2d.raw.y[self.extr_border], s.spec2d.raw.y[-self.extr_border],
+                             x_0=s.cont2d.y[k], slit=self.extr_slit)
 
-            x_0 = s.cont2d.y[k]
-            c = np.median(np.append(y[:int(len(y) / 4)], y[int(3 * len(y) / 4)]))
-            gamma = 2.35482 * self.extr_slit  / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
-            a = np.max(y) - c
-
-            try:
-                popt, pcov = curve_fit(self.moffat_fit_integ, x, y, p0=[a, x_0, gamma, c])
-
-                fwhm = Moffat1D(popt[0], popt[1], popt[2], 4.765).fwhm
-                if np.abs(popt[1] - s.cont2d.y[k]) < self.extr_slit / 3 and np.abs(fwhm/self.extr_slit - 1) < 0.3:
-                    pos.append(s.spec2d.raw.x[i+int(self.trace_step/2)])
-                    trace.append(popt[1])
-                    width.append(fwhm)
-                print(k, s.spec2d.raw.x[i+int(self.trace_step/2)], popt[1], fwhm)
-            except:
-                pass
-
-        print(pos, trace, width)
-        self.parent.spec2dPanel.addSlits(pos, trace, width)
+        self.parent.s[self.parent.s.ind].redraw()
 
     def trace_fit(self):
-        try:
-            self.parent.spec2dPanel.vb.removeItem(self.trace_pos)
-            self.parent.spec2dPanel.vb.removeItem(self.trace_width[0])
-            self.parent.spec2dPanel.vb.removeItem(self.trace_width[1])
-        except:
-            pass
-
-        pos, trace, width = np.array([]), np.array([]), np.array([])
-        for s in self.parent.spec2dPanel.slits:
-            pos = np.append(pos, s[0].opts['x'])
-            trace = np.append(trace, s[0].opts['y'])
-            width = np.append(width, s[0].opts['top']*2)
-        inds = np.argsort(pos)
-        pos, trace, width = pos[inds], trace[inds], width[inds]
-        if 1:
-            p = np.polyfit(pos, trace, 3)
-            print(np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x)[::100])
-            #self.parent.s[self.parent.s.ind].cont2d.y = np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x)
-            self.trace_pos = np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x)
-            p = np.polyfit(pos, width, 3)
-            self.trace_width = [self.trace_pos - np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x) / 2,
-                                self.trace_pos + np.polyval(p, self.parent.s[self.parent.s.ind].cont2d.x) / 2]
-        else:
-            x1, x2, y1, y2 = pos[0], pos[-1], trace[0], trace[-1]
-            powerlaw = lambda x, amp, index, c: amp * (x ** index) + c
-            popt, pcov = curve_fit(powerlaw, p0=(x2 * (y2 - y1) / (x1 - x2), -1, (y1*x1 - y2*x2)/(x1-x2)))
-            print(popt)
-            self.trace_pos = powerlaw(self.parent.s[self.parent.s.ind].cont2d.x, popt[0], popt[1], popt[2])
-        if 0:
-            self.parent.s.redraw()
-        else:
-            self.trace_pos = pg.PlotCurveItem(x=self.parent.s[self.parent.s.ind].cont2d.x, y=self.trace_pos, pen=pg.mkPen(255, 255, 255, width=3))
-            self.parent.spec2dPanel.vb.addItem(self.trace_pos)
-            for ind in [0,1]:
-                self.trace_width[ind] = pg.PlotCurveItem(x=self.parent.s[self.parent.s.ind].cont2d.x, y=self.trace_width[ind], pen=pg.mkPen(255, 255, 255, width=3, style=Qt.DashLine))
-                self.parent.spec2dPanel.vb.addItem(self.trace_width[ind])
-        #else:
-        #    self.trace_pos = None
-        #    self.trace_width = [None, None]
-        #plt.show()
+        self.parent.s[self.parent.s.ind].spec2d.fit_trace()
+        self.parent.s.redraw()
 
     def sky(self):
 
@@ -2849,105 +2821,23 @@ class extract2dWidget(QWidget):
         self.extr_window = int(self.extrWindow.text())
         self.extr_border = int(self.extrBorder.text())
 
-        yf, err, sk = [], [], []
+        s.spec2d.sky_model(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], border=self.extr_border, slit=self.extr_slit,
+                           model='fit', window=self.extr_window)
 
-        for k, i in enumerate(np.where(s.cont_mask2d)[0]):
-            if self.mask_type == 'moffat':
-                if self.trace_pos == None:
-                    x_0, gamma = s.cont2d.y[k], self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
-                else:
-                    x_0 = self.trace_pos.getData()[1][k]
-                    gamma = (self.trace_width[1].getData()[1][k] - x_0) * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
-                mask = self.moffat.ppf([0.01, 0.99], loc=x_0, scale=gamma)
-                mask_sky = np.logical_or(s.spec2d.raw.y < mask[0], s.spec2d.raw.y > mask[1])
-            else:
-                mask_sky = 1 / (np.exp(-40 * (np.abs(s.spec2d.raw.y - s.cont2d.y[k]) - self.extr_slit * 2)) + 1)
-            mask_sky[:self.extr_border] = 0
-            mask_sky[-self.extr_border:] = 0
-
-            if k == 10:
-                fig, ax = plt.subplots()
-                ax.plot(s.spec2d.raw.y[mask_sky], np.sum(
-                    np.multiply(np.transpose(s.spec2d.raw.z[:, i - self.extr_window:i + self.extr_window + 1]),
-                                mask_sky), axis=0)[mask_sky], 'ok')
-                plt.show()
-
-            if 0:
-                def fun(x, t, y):
-                    return x[0] * np.exp(-x[1] * t) * np.sin(x[2] * t) - y
-
-                p = np.polyfit(s.spec2d.raw.y[mask_sky], s.spec2d.raw.z[:, i][mask_sky], 3)
-                res_robust = least_squares(fun, x0, loss='soft_l1', f_scale=0.1, args=(t_train, y_train))
-            else:
-                sky = np.median(
-                    np.mean(s.spec2d.raw.z[mask_sky, i - self.extr_window:i + self.extr_window + 1], axis=0))
-            sk.append(sky)
-
-        sk = np.asarray(sk)
-        from scipy.signal import savgol_filter
-        fig, ax = plt.subplots()
-        ax.plot(s.spec2d.raw.x[s.cont_mask2d], sk)
-        mask = np.ones_like(sk, dtype=bool)
-        for i in range(3):
-            y = savgol_filter(sk[mask], 101, 5)
-            ax.plot(s.spec2d.raw.x[s.cont_mask2d][mask], y, '--r')
-
-            mask[mask] = np.logical_and((sk[mask] / y - 1) < 0.3, mask[mask])
-
-            # y, lmbd = smooth_data(data[0], data[1], d=4, stdev=1e-4)
-
-        sky = sk[:]
-        sky[mask] = savgol_filter(sk[mask], 21, 5)
-        ax.plot(s.spec2d.raw.x[s.cont_mask2d], sky, '-k')
-
-        plt.show()
+        self.parent.s.redraw()
 
     def extract(self):
 
-        s = self.parent.s[self.exp_ind]
         self.extr_slit = float(self.extrSlit.text())
+        self.helio_corr = float(self.helioCorr.text()) if self.helio.isChecked() else None
 
-        for k, i in enumerate(np.where(s.cont_mask2d)[0]):
-            if self.mask_type == 'moffat':
-                if self.trace_pos == None:
-                    x_0, gamma = s.cont2d.y[k], self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
-                else:
-                    x_0 = self.trace_pos.getData()[1][k]
-                    gamma = (self.trace_width[1].getData()[1][k] - x_0) * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
-                print(s.spec2d.raw.x[i], x_0, gamma)
-                mask = self.moffat_fit_integ(s.spec2d.raw.y, 1, x_0=x_0, gamma=gamma, c=0)
-            elif self.mask_type == 'rectangular':
-                mask = 1 / (np.exp(-40 * (np.abs(s.spec2d.raw.y - s.cont2d.y[k]) - self.extr_slit)) + 1)
-            elif self.mask_type == 'gaussian':
-                mask = np.exp(-(np.abs(s.spec2d.raw.y - s.cont2d.y[k]) / self.extr_slit / 2.35482) ** 2)
+        s = self.parent.s[self.exp_ind]
+        s.spec2d.extract(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], slit=self.extr_slit, airvac=self.airVac.isChecked(), helio=self.helio_corr)
 
-            mask_err = self.moffat.ppf([0.02, 0.98], loc=x_0, scale=gamma)
-            mask_err = np.logical_or(s.spec2d.raw.y < mask_err[0], s.spec2d.raw.y > mask_err[1])
-            mask_err[:self.extr_border] = 0
-            mask_err[-self.extr_border:] = 0
-            # print(np.sum(np.multiply(np.transpose(s.spec2d.raw.z[:, i-window:i+window+1]), mask), axis=0) / (2*window + 1))
-            flux = np.sum((s.spec2d.raw.z[:, i] - sky[k]) * mask) / np.sum(mask)
-            #print(mask, mask_err)
-            yf.append(flux)
-            err.append(np.std(s.spec2d.raw.z[:, i][mask_err]))
-
-        #np.savetxt('temp/sky.dat', (s.spec2d.raw.x[s.cont_mask2d], sk))
-
-
-        self.parent.s.append(Spectrum(self.parent, 'extracted', data=[s.spec2d.raw.x[s.cont_mask2d], np.asarray(yf),
-                                                        np.asarray(err)]))
-        if self.helio.isChecked():
-            self.helio_corr = float(self.helioCorr.text())
-            self.parent.s[-1].helio_vel = self.helio_corr
-            self.parent.s[-1].apply_shift(self.helio_corr)
-        if self.airVac.isChecked():
-            self.parent.s[-1].airvac()
-
-        self.parent.s[-1].spec2d.set(x=self.parent.s[-1].spec.x(), y=s.spec2d.raw.y,
-                              z=s.spec2d.raw.z[:, s.cont_mask2d] - np.asarray(sk))
         self.updateExpChoose()
 
         self.parent.s.redraw(len(self.parent.s)-1)
+
 
     def dispersion(self):
         s = self.parent.s[self.exp_ind]
@@ -3175,7 +3065,7 @@ class ExportDataWidget(QWidget):
         super().__init__()
         self.parent = parent
         self.type = type
-        if self.type == 'export':
+        if self.type in ['export', 'export2d']:
             try:
                 self.filename = self.parent.s[self.parent.s.ind].filename
             except:
@@ -3212,11 +3102,18 @@ class ExportDataWidget(QWidget):
                                       ('points', 'Selected points'), ('fit', 'Fit model'),
                                       ('others', 'Other data')])
             self.opt = self.parent.save_opt
+        elif self.type == 'export2d':
+            self.check = OrderedDict([('spectrum', 'Spectrum'), ('err', 'Error'),
+                                      ('mask', 'Masked values'), ('cr', 'Cosmic Ray mask'),
+                                      ('sky', 'Sky model'), ('trace', 'Trace')])
+            self.opt = self.parent.export2d_opt
+
         for k, v in self.check.items():
             setattr(self, k, QCheckBox(v))
             if k in self.opt:
                 getattr(self, k).setChecked(True)
             layout.addWidget(getattr(self, k))
+
         for k, v in self.check.items():
             getattr(self, k).stateChanged.connect(self.onChanged)
 
@@ -3248,7 +3145,7 @@ class ExportDataWidget(QWidget):
         layout.addLayout(hbox)
         self.setLayout(layout)
         
-        self.setGeometry(200, 200, 800, 300)
+        self.setGeometry(200, 200, 800, 350)
         self.setWindowTitle(self.type.title() + ' Data')
         self.setStyleSheet(open('config/styles.ini').read())
         self.show()
@@ -3300,8 +3197,12 @@ class ExportDataWidget(QWidget):
         self.parent.options('filename_saved', self.filename)
         self.close()
 
+    def export2d(self):
+        self.parent.export2dSpectrum(self.filename, self.opt)
+
     def closeEvent(self, event):
         self.parent.save_opt = self.opt
+
 
 class combineWidget(QWidget):
     def __init__(self, parent):
@@ -3990,6 +3891,7 @@ class sviewer(QMainWindow):
         self.show_2d = self.options('show_2d')
         self.save_opt = ['cont', 'points', 'fit', 'others']
         self.export_opt = ['cont', 'fit']
+        self.export2d_opt = ['spectrum', 'err', 'mask', 'cr', 'trace']
         self.num_between = int(self.options('num_between'))
         self.tau_limit = float(self.options('tau_limit'))
         self.comp_view = self.options('comp_view')
@@ -5175,36 +5077,54 @@ class sviewer(QMainWindow):
 
                 if filename.endswith('.fits'):
                     with fits.open(filename, memmap=False) as hdulist:
+                        x = np.linspace(hdulist[0].header['CRVAL1'],
+                                        hdulist[0].header['CRVAL1'] + hdulist[0].header['CDELT1'] *
+                                        (hdulist[0].header['NAXIS1']-1),
+                                        hdulist[0].header['NAXIS1'])
+                        y = np.linspace(hdulist[0].header['CRVAL2'],
+                                        hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] *
+                                        (hdulist[0].header['NAXIS2']-1),
+                                        hdulist[0].header['NAXIS2'])
                         if 'INSTRUME' in hdulist[0].header and 'XSHOOTER' in hdulist[0].header['INSTRUME']:
-                            x = np.linspace(hdulist[0].header['CRVAL1'] * 10,
-                                            hdulist[0].header['CRVAL1'] * 10 + hdulist[0].header['CDELT1'] * 10 *
-                                            hdulist[0].data.shape[1],
-                                            hdulist[0].data.shape[1])
-                            y = np.linspace(hdulist[0].header['CRVAL2'],
-                                            hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] *
-                                            hdulist[0].data.shape[0],
-                                            hdulist[0].data.shape[0])
                             err, mask = None, None
                             for h in hdulist[1:]:
                                 if h.header['EXTNAME'].strip() == 'ERRS':
                                     err = h.data
                                 if h.header['EXTNAME'].strip() == 'QUAL':
-                                    mask = h.data
-                            s.spec2d.set(x=x, y=y, z=hdulist[0].data, err=err, mask=mask)
+                                    mask = h.data.astype(bool)
+                            s.spec2d.set(x=x*10, y=y, z=hdulist[0].data*1e17, err=err*1e17, mask=mask)
 
                         if 'ORIGFILE' in hdulist[0].header and 'VANDELS' in hdulist[0].header['ORIGFILE']:
-                            x = np.linspace(hdulist[0].header['CRVAL1'],
-                                            hdulist[0].header['CRVAL1'] + hdulist[0].header['CDELT1'] * hdulist[0].data.shape[1],
-                                            hdulist[0].data.shape[1])
-                            y = np.linspace(hdulist[0].header['CRVAL2'],
-                                            hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] *
-                                            hdulist[0].data.shape[0],
-                                            hdulist[0].data.shape[0])
                             s.spec2d.set(x=x, y=y, z=hdulist[0].data)
+
                         if 'ORIGIN' in hdulist[0].header and 'sviewer' in hdulist[0].header['ORIGIN']:
-                            s.spec2d.set(x=hdulist[1].data, y=hdulist[2].data, z=hdulist[3].data)
-                            if len(hdulist) == 5:
-                                s.spec2d.raw.mask = np.copy(hdulist[4].data).astype(bool)
+                            err, mask, cr, sky, sky_mask, trace = None, None, None, None, None, None
+                            for h in hdulist[1:]:
+                                if h.header['EXTNAME'].strip() == 'err':
+                                    err = h.data
+                                if h.header['EXTNAME'].strip() == 'mask':
+                                    mask = h.data.astype(bool)
+                                if h.header['EXTNAME'].strip() == 'cr':
+                                    cr = h.data
+                                if h.header['EXTNAME'].strip() == 'sky':
+                                    sky = h.data
+                                if h.header['EXTNAME'].strip() == 'sky_mask':
+                                    sky_mask = h.data
+                                if h.header['EXTNAME'].strip() == 'trace':
+                                    trace = h.data
+                                    print(trace)
+                            s.spec2d.set(x=x, y=y, z=hdulist[0].data, err=err, mask=mask)
+                            if cr is not None:
+                                s.spec2d.cr = image(x=x, y=y, mask=cr)
+                            if sky is not None:
+                                if sky_mask is None:
+                                    if cr is not None:
+                                        sky_mask = cr
+                                    elif mask is not None:
+                                        sky_mask = mask
+                                s.spec2d.sky = image(x=x, y=y, z=sky, mask=sky_mask)
+                            if trace is not None:
+                                s.spec2d.trace = trace
 
                 elif filename.endswith('.dat'):
                     s.spec2d = None
@@ -5225,11 +5145,8 @@ class sviewer(QMainWindow):
 
     def show2dExportDialog(self):
 
-        fname = QFileDialog.getSaveFileName(self, 'Export 2d spectrum', self.work_folder)
-
-        if fname[0]:
-            self.export2dSpectrum(fname[0])
-            self.statusBar.setText('2d Spectrum is written to ' + fname[0])
+        self.exportData = ExportDataWidget(self, 'export2d')
+        self.exportData.show()
 
     def showExportDataDialog(self):
 
@@ -5243,15 +5160,38 @@ class sviewer(QMainWindow):
             data = np.c_[self.s[self.s.ind].spec.x(), self.s[self.s.ind].spec.y()]
         np.savetxt(filename, data, fmt='%10.5f')
 
-    def export2dSpectrum(self, filename):
-        r = self.s[self.s.ind].spec2d.raw
+    def export2dSpectrum(self, filename, opts=[]):
+        s = self.s[self.s.ind].spec2d
         hdul = fits.HDUList()
-        hdul.append(fits.PrimaryHDU(header=fits.Header(cards=[fits.Card('ORIGIN', 'sviewer')])))
-        hdul.append(fits.PrimaryHDU(r.x))
-        hdul.append(fits.PrimaryHDU(r.y))
-        hdul.append(fits.ImageHDU(data=r.z))
-        if r.mask is not None:
-            hdul.append(fits.ImageHDU(data=r.mask.astype(int)))
+        hdr = fits.Header()
+        hdr['ORIGIN'] = 'sviewer'
+        hdr['CRPIX1'] = 1.0
+        hdr['CRVAL1'] = s.raw.x[0]
+        hdr['CDELT1'] = s.raw.x[1] - s.raw.x[0]
+        hdr['CTYPE1'] = 'LINEAR'
+        hdr['CRPIX2'] = 1.0
+        hdr['CRVAL2'] = s.raw.y[0]
+        hdr['CDELT2'] = s.raw.y[1] - s.raw.y[0]
+        hdr['CTYPE2'] = 'LINEAR'
+        hdr_c = fits.Header()
+        for opt in opts:
+            hdr['EXTNAME'] = opt
+            hdr_c['EXTNAME'] = opt
+            if opt == 'spectrum':
+                hdul.append(fits.ImageHDU(data=s.raw.z, header=hdr))
+            if opt == 'err':
+                hdul.append(fits.ImageHDU(data=s.raw.err, header=hdr))
+            if opt == 'mask':
+                hdul.append(fits.ImageHDU(data=s.raw.mask.astype(int), header=hdr))
+            if opt == 'cr':
+                hdul.append(fits.ImageHDU(data=s.cr.mask.astype(int), header=hdr))
+            if opt == 'sky':
+                hdul.append(fits.ImageHDU(data=s.sky.z, header=hdr_c))
+                hdr_c['EXTNAME'] = 'sky_mask'
+                hdul.append(fits.ImageHDU(data=s.sky.mask, header=hdr_c))
+            if opt == 'trace':
+                print(s.trace)
+                hdul.append(fits.ImageHDU(data=s.trace, header=hdr_c))
         hdul.writeto(filename, overwrite=True)
 
     def showImportListDialog(self):
@@ -5593,57 +5533,6 @@ class sviewer(QMainWindow):
         else:
             self.MCMC.raise_()
 
-    def MCMC(self, comp=-1):
-        self.setFit(comp=comp)
-
-        self.MCMCprogress.setText('     MCMC is running: initializing')
-
-        def lnprob(x, pars):
-            res = True
-            for xi, p in zip(x, pars):
-                res *= self.fit.setValue(p, xi)
-            self.s.calcFit(recalc=True, redraw=False)
-            if res:
-                return -self.s.chi2()
-            else:
-                return -np.inf
-
-        save, run = 1, 1
-        if run:
-            nwalkers, nsteps = 300, 1000
-
-            pars, pos = [], []
-            for par in self.fit.list_fit():
-                pars.append(str(par))
-                pos.append(par.val * np.ones(nwalkers) + np.random.randn(nwalkers) * par.step)
-            pos = np.array(pos).transpose()
-
-            ndim = len(pars)
-
-            sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[pars])
-            if save:
-                samples = np.array([[self.fit.getValue(p) for p in pars]])
-
-                for i, result in enumerate(sampler.sample(pos, iterations=nsteps, storechain=False)):
-                    print(i)
-                    self.MCMCprogress.setText('     MCMC is running: {0:d} / {1:d}'.format(i,nsteps))
-                    samples = np.concatenate((samples, result[0]), axis=0)
-                    f = open("temp/chain.pkl", "wb")
-                    pickle.dump(pars, f)
-                    pickle.dump(samples, f)
-                    f.close()
-                samples = samples[((nsteps // 2) * nwalkers):, :]
-            else:
-                sampler.run_mcmc(pos, nsteps)
-                samples = sampler.chain[:, (nsteps // 2):, :].reshape((-1, ndim))
-            #samples = sampler.flatchain[:(nsteps // 2), :]
-            f = open("temp/chain.pkl", "wb")
-            pickle.dump(pars, f)
-            pickle.dump(samples, f)
-            f.close()
-
-        self.showMCMC()
-
     def stopFit(self):
         """
         stop executing fit process
@@ -5666,7 +5555,6 @@ class sviewer(QMainWindow):
     def calc_cont(self):
         x = self.plot.vb.getState()['viewRange'][0]
         self.s[self.s.ind].calc_cont(x[0], x[-1])
-        print(x)
 
     def fitCont(self, typ='GP'):
         """

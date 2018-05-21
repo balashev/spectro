@@ -789,13 +789,13 @@ class fitModelSysWidget(QFrame):
                 item.setText(5, 'v range: ')
                 item.setTextAlignment(5, Qt.AlignRight)
                 self.vrange = FLineEdit(self.parent)
-                self.vrange.returnPressed.connect(self.zrange)
+                self.vrange.textEdited[str].connect(self.zrange)
                 self.treeWidget.setItemWidget(item, 6, self.vrange)
 
                 item.setText(9, 'v step: ')
                 item.setTextAlignment(9, Qt.AlignRight)
                 self.vstep = FLineEdit(self.parent)
-                self.vstep.returnPressed.connect(self.zstep)
+                self.vstep.textEdited[str].connect(self.zstep)
                 self.treeWidget.setItemWidget(item, 10, self.vstep)
 
         for k in self.fit.sys[self.ind].sp.keys():
