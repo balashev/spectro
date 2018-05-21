@@ -548,15 +548,7 @@ class Console(QTextEdit):
             self.parent.s.redraw()
 
         elif args[0] == 'Tkin':
-            from ..excitation_temp import ExcitationTemp
-
-            for sys in self.parent.fit.sys:
-                if all([x in sys.sp.keys() for x in ['H2j0', 'H2j1']]):
-                    Temp = ExcitationTemp('H2')
-                    # print(Temp.col_dens(num=4, Temp=92, Ntot=21.3))
-                    n = [sys.sp['H2j0'].N.unc, sys.sp['H2j1'].N.unc]
-                    print(n)
-                    Temp.calcTemp(n, calc='boot', plot=1, verbose=1)
+            self.parent.H2ExcitationTemp()
 
         else:
             return None

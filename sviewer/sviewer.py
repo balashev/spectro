@@ -5716,8 +5716,12 @@ class sviewer(QMainWindow):
                 Temp = ExcitationTemp('H2')
                 # print(Temp.col_dens(num=4, Temp=92, Ntot=21.3))
                 n = [sys.sp['H2j0'].N.unc, sys.sp['H2j1'].N.unc]
+                if any([ni.val == 0 for ni in n]):
+                    n = [a(sys.sp['H2j0'].N.val, 0, 0), a(sys.sp['H2j1'].N.val, 0, 0)]
                 print(n)
-                Temp.calcTemp(n, calc='boot', plot=1, verbose=1)
+                Temp.calcTemp(n, calc='', plot=1, verbose=1)
+
+        plt.show()
 
     def showMetalAbundance(self):
         """

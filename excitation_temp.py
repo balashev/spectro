@@ -315,7 +315,10 @@ class ExcitationTemp():
         self.zero = self.y[0].val
 
         if self.num == 2:
-            self.calc_two_levels_err()
+            if any([y.plus == 0 or y.minus ==0 for y in self.y]):
+                self.calc_two_levels()
+            else:
+                self.calc_two_levels_err()
 
         elif self.num > 2:
             popt, pcov = opt.curve_fit(self.linear_fit, self.E, column(self.y, 'val'),
