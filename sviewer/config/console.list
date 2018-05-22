@@ -4,3 +4,15 @@ Tkin
 Tkin
 Tkin
 Tkin
+hide H2j5
+show CI
+logN CI
+logN CI*
+logN CI**
+logN CI
+2d levels 0 1
+2d levels err 0 1
+2d levels err 0 0.1
+2d levels err -1 0.1
+2d levels sky -1 0.1
+2d levels sky 0 100

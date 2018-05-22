@@ -5,10 +5,12 @@ from io import StringIO
 import numpy as np
 from PyQt5.QtCore import Qt, QSize, QLocale
 from PyQt5.QtGui import QIcon, QDoubleValidator
-from PyQt5.QtWidgets import (QWidget, QTreeWidget, QTabWidget, QHBoxLayout,
-                             QVBoxLayout, QTreeWidgetItem, QLineEdit, QFrame,
-                             QLabel, QPushButton, QCheckBox, QComboBox,
-                             QScrollArea, QApplication, QTextEdit)
+from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame,
+                             QHBoxLayout, QLabel, QLineEdit,  QPushButton,
+                             QTabBar, QTabWidget, QTextEdit, QTreeWidget,
+                             QTreeWidgetItem, QScrollArea, QVBoxLayout,
+                             QWidget,
+                             )
 from .utils import Timer
 from ..pyratio import pyratio
 
@@ -49,6 +51,42 @@ class FLineEdit(QLineEdit):
             self.parent.parent.s.prepareFit()
             self.parent.parent.s.calcFit()
 
+class fitTabBar(QTabBar):
+    def __init__(self, parent=None):
+        QTabBar.__init__(self, parent)
+        self.parent = parent
+        self.setStyleSheet(open('config/styles.ini').read())
+
+    def mouseReleaseEvent(self, ev):
+        super(fitTabBar, self).mouseReleaseEvent(ev)
+        cycles = self.swap([int(self.tabText(i)[4:])-1 for i in range(self.count())])
+        for inds in cycles:
+            for i in range(len(inds)-1):
+                self.parent.parent.fit.swapSys(inds[i], inds[i+1])
+                #self.moveTab(min(inds[i], inds[i + 1]), max(inds[i], inds[i + 1]))
+        for i in range(self.count()):
+            self.setTabText(i, 'sys ' + str(i + 1))
+            self.parent.tab.widget(i).ind = i
+        self.parent.refresh()
+
+
+    def swap(self, inds):
+        unvisited = set(inds)
+        cycle = []
+        while unvisited:
+            j = i = unvisited.pop()
+            c = [i]
+            while True:
+                j = inds[j]
+                if j == i:
+                    break
+                c.append(j)
+                unvisited.remove(j)
+            if len(c) > 1:
+                cycle.append(c)
+        return cycle
+
+
 class fitModelWidget(QWidget):
     def __init__(self, parent):
         self.refr = False
@@ -56,7 +94,11 @@ class fitModelWidget(QWidget):
         self.parent = parent
         self.setStyleSheet(open('config/styles.ini').read())
 
-        self.tab = QTabWidget()
+        self.tab = QTabWidget(movable=True)
+        self.tabBar = fitTabBar(self)
+        self.tab.setTabBar(self.tabBar)
+        self.tabBar.setMouseTracking(False)
+        self.tabBar.setMovable(True)
         self.tab.setGeometry(0, 0, 1050, 900)
         self.tab.setMinimumSize(1050, 300)
         self.tabIndex = 1
@@ -161,7 +203,6 @@ class fitModelWidget(QWidget):
         self.cont.setExpanded(self.parent.fit.cont_fit)
 
         for s, name in zip(['mu', 'me', 'dtoh'], ['mp/me', 'metallicity', 'D/H']):
-            print(s+'_p')
             setattr(self, s + '_p', self.addParent(self.treeWidget, name, expanded=hasattr(self.parent.fit, s)))
             getattr(self, s + '_p').name = s
             self.addChild(s + '_p', s)
@@ -574,6 +615,7 @@ class fitModelWidget(QWidget):
             if self.parent.fit.sys[self.tab.currentIndex()].addSpecies(s):
                 self.tab.currentWidget().addSpecies(s)
                 self.tab.currentWidget().refresh()
+                self.parent.fit.showLines([s])
 
     def upIndex(self):
         pass
@@ -590,128 +632,6 @@ class fitModelWidget(QWidget):
     def closeEvent(self, event):
         self.parent.fitModel = None
         self.onTabChanged()
-        event.accept()
-
-class fitResultsWidget(QWidget):
-    def __init__(self, parent):
-        super(fitResultsWidget, self).__init__()
-        self.parent = parent
-        self.init_GUI()
-        self.setStyleSheet(open('config/styles.ini').read())
-
-        self.setGeometry(200, 200, 750, 900)
-        self.setWindowTitle('Fit results')
-        self.refresh()
-
-    def init_GUI(self):
-        layout = QVBoxLayout()
-        self.output = QTextEdit()
-        #self.output.setSizeAdjustPolicy(QTextEdit.AdjustToContents)
-        #self.output.setSizeAdjustPolicy(QTextEdit.AdjustToContentsOnFirstShow)
-        hl = QHBoxLayout()
-        self.latexTable = QPushButton('Table view:')
-        self.latexTable.setCheckable(True)
-        self.latexTable.setChecked(False)
-        self.latexTable.setFixedSize(120, 30)
-        self.latexTable.clicked.connect(self.refresh)
-        self.vert = QCheckBox('vertical')
-        self.vert.setChecked(True)
-        self.vert.clicked.connect(self.refresh)
-        self.showb = QCheckBox('show tied b')
-        self.showb.setChecked(False)
-        self.showb.clicked.connect(self.refresh)
-        hl.addWidget(self.latexTable)
-        hl.addWidget(self.vert)
-        hl.addWidget(self.showb)
-        hl.addStretch(0)
-        layout.addWidget(self.output)
-        #layout.addStretch(1)
-        layout.addLayout(hl)
-        self.setLayout(layout)
-
-    def refresh(self):
-        if self.latexTable.isChecked():
-            self.latex()
-        else:
-            self.text()
-
-    def text(self):
-        s = ''
-        for p in self.parent.fit.list():
-            print(p, p.fitres())
-            s += p.fitres() + '\n'
-        self.output.setText(s)
-
-    def latex(self):
-        fit = self.parent.fit
-        sps = OrderedDict()
-        for sys in fit.sys:
-            for sp in sys.sp.keys():
-                sps[sp] = 1
-        if self.vert.isChecked():
-            names = ['par'] + ['comp '+str(i+1) for i in range(len(fit.sys))]
-            data = ['z']
-            if self.showb.isChecked():
-                data += ['b, km/s']
-            data += list([r'$\log N$(' + s + ')' for s in sps.keys()])
-            data = [data]
-            #d = ['$log N($'+sp+')']
-            for sys in fit.sys:
-                d = [sys.z.fitres(latex=True)]
-                if self.showb.isChecked():
-                    sp = sys.sp[list(sys.sp.keys())[0]]
-                    if sp.b.addinfo is not '':
-                        sp = sys.sp[sp.b.addinfo]
-                    d.append(sp.b.fitres(latex=True, dec=2))
-                for sp in sps.keys():
-                    if sp in sys.sp.keys():
-                        d.append(sys.sp[sp].N.fitres(latex=True, dec=2))
-                    else:
-                        d.append(' ')
-                data.append(d)
-        else:
-            names = ['comp', 'z']
-            if self.showb.isChecked():
-                names += ['b, km/s']
-            names += list([r'$\log N$(' + s + ')' for s in sps.keys()])
-            print(names)
-            data = [[str(i+1) for i in range(len(fit.sys))]]
-            data.append([sys.z.fitres(latex=True) for sys in fit.sys])
-            if self.showb.isChecked():
-                d = []
-                for sys in fit.sys:
-                    sp = sys.sp[list(sys.sp.keys())[0]]
-                    if sp.b.addinfo is not '':
-                        sp = sys.sp[sp.b.addinfo]
-                    d.append(sp.b.fitres(latex=True, dec=2))
-                data.append(d)
-            for sp in sps.keys():
-                d = []
-                for sys in fit.sys:
-                    if sp in sys.sp.keys():
-                        d.append(sys.sp[sp].N.fitres(latex=True, dec=2))
-                    else:
-                        d.append(' ')
-                data.append(d)
-        print(data)
-        output = StringIO()
-        ascii.write(data, output, names=names, format='latex')
-        table = output.getvalue()
-        print(table)
-        self.output.setText(table)
-        output.close()
-
-    def keyPressEvent(self, event):
-        super(fitResultsWidget, self).keyPressEvent(event)
-        key = event.key()
-
-        if not event.isAutoRepeat():
-            if event.key() == Qt.Key_T:
-                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
-                    self.parent.fitResults.close()
-
-    def closeEvent(self, event):
-        self.parent.fitResults = None
         event.accept()
 
 class fitModelSysWidget(QFrame):
@@ -907,7 +827,10 @@ class fitModelSysWidget(QFrame):
         root.removeChild(self.species[species])
         del self.species[species]
         del self.fit.sys[self.ind].sp[species]
-        self.parent.parent.chooseFit.update()
+        try:
+            self.parent.parent.chooseFit.update()
+        except:
+            pass
         self.updateTieds()
         #del self.species[species]
 
@@ -1040,6 +963,155 @@ class fitModelSysWidget(QFrame):
 
             if self.parent.parent.chooseFit is not None:
                 self.parent.parent.chooseFit.update()
+
+
+class fitResultsWidget(QWidget):
+    def __init__(self, parent):
+        super(fitResultsWidget, self).__init__()
+        self.parent = parent
+        self.init_GUI()
+        self.setStyleSheet(open('config/styles.ini').read())
+
+        self.setGeometry(200, 200, 750, 900)
+        self.setWindowTitle('Fit results')
+        self.refresh()
+
+    def init_GUI(self):
+        layout = QVBoxLayout()
+        self.output = QTextEdit()
+        #self.output.setSizeAdjustPolicy(QTextEdit.AdjustToContents)
+        #self.output.setSizeAdjustPolicy(QTextEdit.AdjustToContentsOnFirstShow)
+        hl = QHBoxLayout()
+        self.latexTable = QPushButton('Table view:')
+        self.latexTable.setCheckable(True)
+        self.latexTable.setChecked(False)
+        self.latexTable.setFixedSize(120, 30)
+        self.latexTable.clicked.connect(self.refresh)
+        self.vert = QCheckBox('vertical')
+        self.vert.setChecked(True)
+        self.vert.clicked.connect(self.refresh)
+        self.showb = QCheckBox('show tied b')
+        self.showb.setChecked(False)
+        self.showb.clicked.connect(self.refresh)
+        self.showv = QCheckBox('show v')
+        self.showv.setChecked(False)
+        self.showv.clicked.connect(self.refresh)
+        self.comp = 0
+        self.vcomp = QLineEdit(str(self.comp+1))
+        self.vcomp.setFixedSize(30,30)
+        self.vcomp.setEnabled(self.showv.isChecked())
+        self.vcomp.returnPressed.connect(self.refresh)
+        hl.addWidget(self.latexTable)
+        hl.addWidget(self.vert)
+        hl.addWidget(self.showb)
+        hl.addWidget(self.showv)
+        hl.addWidget(self.vcomp)
+        hl.addStretch(0)
+        layout.addWidget(self.output)
+        #layout.addStretch(1)
+        layout.addLayout(hl)
+        self.setLayout(layout)
+
+    def refresh(self):
+        self.vcomp.setEnabled(self.showv.isChecked())
+        self.comp = int(self.vcomp.text())-1
+        if self.latexTable.isChecked():
+            self.latex()
+        else:
+            self.text()
+
+    def text(self):
+        s = ''
+        for p in self.parent.fit.list():
+            print(p, p.fitres())
+            s += p.fitres() + '\n'
+        self.output.setText(s)
+
+    def latex(self):
+        fit = self.parent.fit
+        sps = OrderedDict()
+        for sys in fit.sys:
+            for sp in sys.sp.keys():
+                sps[sp] = 1
+        if self.vert.isChecked():
+            names = ['par'] + ['comp '+str(i+1) for i in range(len(fit.sys))]
+            data = ['z']
+            if self.showv.isChecked():
+                data += ['$\Delta$v, km/s']
+            if self.showb.isChecked():
+                data += ['b, km/s']
+            data += list([r'$\log N$(' + s + ')' for s in sps.keys()])
+            data = [data]
+            #d = ['$log N($'+sp+')']
+            for sys in fit.sys:
+                d = [sys.z.fitres(latex=True, showname=False)]
+                if self.showv.isChecked():
+                    d.append('{:.1f}'.format((sys.z.val - fit.sys[self.comp].z.val)/(1 + fit.sys[self.comp].z.val) * 299792.46))
+                if self.showb.isChecked():
+                    sp = sys.sp[list(sys.sp.keys())[0]]
+                    if sp.b.addinfo is not '':
+                        sp = sys.sp[sp.b.addinfo]
+                    d.append(sp.b.fitres(latex=True, dec=2, showname=False))
+                for sp in sps.keys():
+                    if sp in sys.sp.keys():
+                        d.append(sys.sp[sp].N.fitres(latex=True, dec=2, showname=False))
+                    else:
+                        d.append(' ')
+                data.append(d)
+        else:
+            names = ['comp', 'z']
+            if self.showv.isChecked():
+                names += ['$\Delta$v, km/s']
+            if self.showb.isChecked():
+                names += ['b, km/s']
+            names += list([r'$\log N$(' + s + ')' for s in sps.keys()])
+            print(names)
+            data = [[str(i+1) for i in range(len(fit.sys))]]
+            data.append([sys.z.fitres(latex=True, showname=False) for sys in fit.sys])
+            if self.showv.isChecked():
+                d = []
+                for sys in fit.sys:
+                    d.append('{:.1f}'.format((sys.z.val - fit.sys[self.comp].z.val)/(1 + fit.sys[self.comp].z.val) * 299792.46))
+                print(d)
+                data.append(d)
+            if self.showb.isChecked():
+                d = []
+                for sys in fit.sys:
+                    sp = sys.sp[list(sys.sp.keys())[0]]
+                    if sp.b.addinfo is not '':
+                        sp = sys.sp[sp.b.addinfo]
+                    d.append(sp.b.fitres(latex=True, dec=2, showname=False))
+                data.append(d)
+            for sp in sps.keys():
+                d = []
+                for sys in fit.sys:
+                    if sp in sys.sp.keys():
+                        d.append(sys.sp[sp].N.fitres(latex=True, dec=2, showname=False))
+                    else:
+                        d.append(' ')
+                data.append(d)
+        print(data)
+        output = StringIO()
+        ascii.write(data, output, names=names, format='latex')
+        table = output.getvalue()
+        print(table)
+        self.output.setText(table)
+        output.close()
+
+    def keyPressEvent(self, event):
+        super(fitResultsWidget, self).keyPressEvent(event)
+        key = event.key()
+
+        if not event.isAutoRepeat():
+            if event.key() == Qt.Key_T:
+                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+                    self.parent.fitResults.close()
+
+    def closeEvent(self, event):
+        self.parent.fitResults = None
+        event.accept()
+
+
 
 class chooseFitParsWidget(QWidget):
     """

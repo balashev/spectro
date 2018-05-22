@@ -98,7 +98,7 @@ class distr1d():
                 self.xmax = optimize.root(self.level, self.x[ind+3], args=(level), method='lm', disp=self.debug, options=o).x
         elif level > self.ymax:
             self.xmin, self.xmax = self.point, self.point
-        elif level < 0:
+        elif level <= 0:
             self.xmin, self.xmax = self.x[0], self.x[-1]
         return self.xmin, self.xmax
 

@@ -22,7 +22,8 @@ from PyQt5.QtGui import QFont, QColor, QBrush
 from PyQt5.QtWidgets import QApplication
 import re
 from scipy.interpolate import interp1d, splrep, splev
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, least_squares
+from scipy.signal import savgol_filter
 from scipy.stats import gaussian_kde
 
 from ..profiles import tau, convolveflux, makegrid
@@ -779,7 +780,7 @@ class spec2d():
                                             connect="finite", pen=pg.mkPen(255, 255, 255, width=3, style=Qt.DashLine))
         self.parent.parent.spec2dPanel.vb.addItem(self.trace_width)
 
-    def sky_model(self, xmin, xmax, border=0, slit=None, mask_type='moffat', model='median', window=0, smooth=0, inplace=True, plot=0):
+    def sky_model(self, xmin, xmax, border=0, slit=None, mask_type='moffat', model='median', window=0, degree=3, smooth=0, inplace=True, plot=0):
 
         if self.sky is None or not inplace:
             self.sky = image(x=self.raw.x, y=self.raw.y, z=np.zeros_like(self.raw.z), mask=np.zeros_like(self.raw.z))
@@ -789,6 +790,10 @@ class spec2d():
             inds = np.where(np.logical_and(self.parent.cont_mask2d, np.logical_and(self.raw.x >= xmin, self.raw.x <= xmax)))[0]
         else:
             inds = []
+
+        def fun(p, x, y):
+            return np.polyval(p, x) - y
+
         for k, i in enumerate(inds):
             print(i)
             if mask_type == 'moffat':
@@ -817,35 +822,42 @@ class spec2d():
             elif model == 'mean':
                 sky = np.mean(y) * np.ones_like(self.raw.y)
             elif model == 'fit':
-                p = np.polyfit(self.raw.y[mask[:,i]], y, 2)
+                p = np.polyfit(self.raw.y[mask[:,i]], y, degree)
                 sky = np.polyval(p, self.raw.y)
-                if plot:
-                    fig, ax = plt.subplots()
-                    ax.plot(self.raw.y[mask[:,i]], y, 'ok')
-                    ax.plot(self.raw.y, sky, '-r')
-                    plt.show()
-                #def fun(x, t, y):
-                #    return x[0] * np.exp(-x[1] * t) * np.sin(x[2] * t) - y
-                #res_robust = least_squares(fun, x0, loss='soft_l1', f_scale=0.1, args=(t_train, y_train))
+            elif model == 'fit_robust':
+                p = np.polyfit(self.raw.y[mask[:, i]], y, degree)
+                res_robust = least_squares(fun, p, loss='soft_l1', f_scale=0.02, args=(self.raw.y[mask[:,i]], y))
+                sky = np.polyval(res_robust.x, self.raw.y)
+            if plot:
+                fig, ax = plt.subplots()
+                ax.plot(self.raw.y[mask[:,i]], y, 'ok')
+                ax.plot(self.raw.y, np.polyval(p, self.raw.y), '--r')
+                ax.plot(self.raw.y, sky, '-r')
+                plt.show()
+
 
             self.sky.z[:,i] = sky
 
         if smooth > 0:
-            sk = np.asarray(sk)
-            from scipy.signal import savgol_filter
-            fig, ax = plt.subplots()
-            ax.plot(s.spec2d.raw.x[s.cont_mask2d], sk)
-            mask = np.ones_like(sk, dtype=bool)
-            for i in range(3):
-                y = savgol_filter(sk[mask], 101, 5)
-                ax.plot(s.spec2d.raw.x[s.cont_mask2d][mask], y, '--r')
+            for k in range(self.sky.z.shape[0]):
+                print(k)
+                sk = np.asarray(self.sky.z[k, inds])
 
-                mask[mask] = np.logical_and((sk[mask] / y - 1) < 0.3, mask[mask])
+                if k == 15:
+                    fig, ax = plt.subplots()
+                    ax.plot(self.raw.x[inds], sk)
+                mask = np.ones_like(sk, dtype=bool)
+                for i in range(3):
+                    y = savgol_filter(sk[mask], 101, 5)
+                    if k == 15:
+                        ax.plot(self.raw.x[inds][mask], y, '--r')
 
-                # y, lmbd = smooth_data(data[0], data[1], d=4, stdev=1e-4)
+                    mask[mask] = np.logical_and((sk[mask] / y - 1) < 0.3, mask[mask])
 
-            sky = sk[:]
-            sky[mask] = savgol_filter(sk[mask], 21, 5)
+                    # y, lmbd = smooth_data(data[0], data[1], d=4, stdev=1e-4)
+
+                self.sky.z[k, inds] = sk[:]
+                self.sky.z[k, inds][mask] = savgol_filter(sk[mask], 21, 5)
 
     def extract(self, xmin, xmax, slit=None, mask_type='moffat', helio=None, airvac=True, inplace=False):
 
@@ -870,11 +882,11 @@ class spec2d():
             elif mask_type == 'gaussian':
                 profile = np.exp(-(np.abs(self.raw.y - self.parent.cont2d.y[k]) / self.extr_slit / 2.35482) ** 2)
 
-            v = np.sum((1 - self.cr.mask[:, i]) * profile**2 / self.raw.err[:, i])
-            flux = np.sum((self.raw.z[:, i] - self.sky.z[:, i]) * profile / self.raw.err[:, i] * (1 - self.cr.mask[:, i]))
+            v = np.sum((1 - self.cr.mask[:, i]) * profile**2 / self.raw.err[:, i]**2)
+            flux = np.sum((self.raw.z[:, i] - self.sky.z[:, i]) * profile / self.raw.err[:, i]**2 * (1 - self.cr.mask[:, i]))
 
             y.append(flux / v)
-            err.append(np.sum((1 - self.cr.mask[:, i]) * profile) / v)
+            err.append(np.sqrt(np.sum((1 - self.cr.mask[:, i]) * profile) / v))
 
         print(y, err)
         if inplace:

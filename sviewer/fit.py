@@ -20,7 +20,7 @@ class par:
         elif 'disps' in self.name:
             self.dec = 8
         else:
-            d = {'z': 8, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3, 'me': 3,
+            d = {'z': 7, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3, 'me': 3,
                  'Ntot': 3, 'logn': 3, 'logT': 3, 'logf': 3}
             self.dec = d[self.name]
 
@@ -129,7 +129,7 @@ class par:
         else:
             return '{0:.{1}f}'.format(getattr(self, attr), self.dec)
 
-    def fitres(self, latex=False, dec=None):
+    def fitres(self, latex=False, dec=None, showname=True):
         if dec is None:
             dec = self.dec
         if self.unc is not None:
@@ -138,7 +138,10 @@ class par:
             else:
                 return '{0} = {1:.{4}f} + {2:.{4}f} - {3:.{4}f}'.format(str(self), self.val, self.unc.plus, self.unc.minus, dec)
         else:
-            return '{0} = {1:.{2}f}'.format(str(self), self.val, dec)
+            if showname:
+                return '{0} = {1:.{2}f}'.format(str(self), self.val, dec)
+            else:
+                return '{0:.{2}f}'.format(self.val, dec)
 
 class fitSpecies:
     def __init__(self, parent, name=None):
@@ -185,8 +188,8 @@ class fitSystem:
     def addSpecies(self, name):
         if name not in self.sp.keys():
             self.sp[name] = fitSpecies(self, name)
-            if self.parent.parent is not None:
-                self.parent.parent.console.exec_command('show ' + name)
+            #if self.parent.parent is not None:
+            #    self.parent.parent.console.exec_command('show ' + name)
             return True
         else:
             return False
@@ -306,6 +309,22 @@ class fitPars:
         del s
         gc.collect()
         self.refreshSys()
+
+    def swapSys(self, i1, i2):
+        if self.cf_fit:
+            for i in range(self.cf_num):
+                if hasattr(self, 'cf_' + str(i)):
+                    p = getattr(self, 'cf_' + str(i))
+                    if p.addinfo.find('sys') > -1:
+                        if int(p.addinfo[p.addinfo.find('sys')+3:p.addinfo.find('_')]) == i1:
+                            p.addinfo = p.addinfo[:p.addinfo.find('sys')+3]+str(i2)+p.addinfo[p.addinfo.find('_'):]
+                        elif int(p.addinfo[p.addinfo.find('sys')+3:p.addinfo.find('_')]) == i2:
+                            p.addinfo = p.addinfo[:p.addinfo.find('sys')+3]+str(i1)+p.addinfo[p.addinfo.find('_'):]
+        self.sys[i1], self.sys[i2] = self.sys[i2], self.sys[i1]
+        self.refreshSys()
+        print(i1, i2)
+        for i, s, in enumerate(self.sys):
+            print(i, s.z.val)
 
     def refreshSys(self):
         for i, s, in enumerate(self.sys):
@@ -476,6 +495,13 @@ class fitPars:
             self.parent.s[int(s[0][4:])].resolution = getattr(self, s[0]).val
         if 'cf' in s[0]:
             self.parent.plot.pcRegions[-1].updateFromFit()
+
+    def showLines(self, sp=None):
+        if sp is None:
+            sp = list(set([s for sys in self.sys for s in sys.sp.keys()]))
+        for s in sp:
+            self.parent.console.exec_command('show ' + s)
+            #self.parent.console.exec_command('')
 
     def fromLMfit(self, result):
         for p in result.params.keys():

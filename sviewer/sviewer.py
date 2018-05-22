@@ -979,7 +979,7 @@ class spec2dWidget(pg.PlotWidget):
             self.mousePoint = self.vb.mapSceneToView(event.pos())
             s = self.parent.s[self.parent.s.ind].spec2d
             x = s.raw.x[np.argmin(np.abs(self.mousePoint.x() - s.raw.x))]
-            s.sky_model(x, x, border=3, model='fit', plot=1)
+            s.sky_model(x, x, border=7, model='fit_robust', plot=1)
             self.parent.spec2dPanel.vb.removeItem(s.parent.sky2d)
             s.parent.sky2d = s.set_image('sky', s.parent.colormap)
             self.parent.spec2dPanel.vb.addItem(s.parent.sky2d)
@@ -1334,6 +1334,7 @@ class showLinesWidget(QWidget):
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
                     ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
                     ('plotfile', str), ('show_H2', str), ('pos_H2', float),
+                    ('show_cf', int),
                     ])
         for opt, func in self.opts.items():
             #print(opt, self.parent.options(opt), func(self.parent.options(opt)))
@@ -1395,9 +1396,10 @@ class showLinesWidget(QWidget):
                  'Y-ticks:', 'scale:', '', 'num', '',
                  'Line labels:', 'font:', '', '', '',
                  '', 'hor.:', '', 'vert.:', '',
-                 'H2:', '', '', 'pos:', '',]
+                 'H2:', '', '', 'pos:', '',
+                 'Covering factor:', '', '', '', '',]
 
-        positions = [(i, j) for i in range(17) for j in range(5)]
+        positions = [(i, j) for i in range(18) for j in range(5)]
 
         for position, name in zip(positions, names):
             if name == '':
@@ -1457,6 +1459,11 @@ class showLinesWidget(QWidget):
         self.refcomp.setCurrentIndex(self.sys_ind-1)
         self.refcomp.currentIndexChanged.connect(self.onIndChoose)
         grid.addWidget(self.refcomp, 9, 4)
+
+        self.showcf = QCheckBox('show')
+        self.showcf.setChecked(self.show_cf)
+        self.showcf.clicked[bool].connect(self.setCf)
+        grid.addWidget(self.showcf, 17, 1)
 
         layout.addStretch(1)
         l = QHBoxLayout()
@@ -1541,6 +1548,9 @@ class showLinesWidget(QWidget):
     def setPlotComps(self, b):
         self.show_comps = int(self.plotcomps.isChecked())
 
+    def setCf(self, b):
+        self.show_cf = int(self.showcf.isChecked())
+
     def setFilename(self):
         self.plotfile = self.file.text()
 
@@ -1616,6 +1626,8 @@ class showLinesWidget(QWidget):
                         p.wavelength = l.line.l()
                 print(p.wavelength)
                 p.show_comps = self.show_comps
+                if any([s in p.name for s in ['H2', 'HD', 'CO']]):
+                    p.name = ' '.join([p.name.split()[0][:-2], p.name.split()[1]])
                 p.name_pos = [self.name_x_pos, self.name_y_pos]
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 p.y_formatter = self.y_formatter
@@ -1675,7 +1687,7 @@ class showLinesWidget(QWidget):
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 p.y_formatter = self.y_formatter
                 ax = p.plot_line()
-                if self.parent.fit.cf_fit:
+                if self.show_cf and self.parent.fit.cf_fit:
                     for i in range(self.parent.fit.cf_num):
                         attr = 'cf_' + str(i)
                         if hasattr(self.parent.fit, attr):
@@ -2278,6 +2290,9 @@ class fitMCMCWidget(QWidget):
                     for s in sys.sp.keys():
                         if s not in sp:
                             sp.append(s)
+                    for el in ['H2', 'HD', 'CO']:
+                        if any([el in s for s in sys.sp.keys()]):
+                            sp.append(str(self.parent.fit.sys.index(sys))+'_'+el)
                 for el in ['H2', 'HD', 'CO']:
                     if any([el in s for s in sp]):
                         sp.append(el)
@@ -2293,8 +2308,6 @@ class fitMCMCWidget(QWidget):
                 fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
                 for i, sp in enumerate(sp):
                     inds = np.where([sp in str(s) and str(s)[0] == 'N' for s in self.parent.fit.list()])[0]
-                    print(sp, inds)
-                    print(values[:, inds])
                     d = distr1d(np.log10(np.sum(10 ** values[:, inds], axis=1)))
                     d.dopoint()
                     d.dointerval()
@@ -2379,6 +2392,15 @@ class fitMCMCWidget(QWidget):
                 pickle.dump(nwalkers, f)
                 pickle.dump(samples[:, 1:-1], f)
                 pickle.dump(samples[:, 0], f)
+
+    def keyPressEvent(self, event):
+        super(fitMCMCWidget, self).keyPressEvent(event)
+        key = event.key()
+
+        if not event.isAutoRepeat():
+            if event.key() == Qt.Key_M:
+                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+                    self.parent.MCMC.close()
 
     def closeEvent(self, event):
         #for opt, func in self.opts.items():
@@ -2822,7 +2844,7 @@ class extract2dWidget(QWidget):
         self.extr_border = int(self.extrBorder.text())
 
         s.spec2d.sky_model(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], border=self.extr_border, slit=self.extr_slit,
-                           model='fit', window=self.extr_window)
+                           model='fit_robust', window=self.extr_window, smooth=1)
 
         self.parent.s.redraw()
 
@@ -4777,6 +4799,7 @@ class sviewer(QMainWindow):
                     self.fit.readPars(d[i])
                 if num > 0:
                     self.setz_abs(self.fit.sys[0].z.val)
+                self.fit.showLines()
 
             if 'fit:' in d[i]:
                 ns = int(d[i].split()[1])

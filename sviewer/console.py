@@ -543,7 +543,14 @@ class Console(QTextEdit):
                 s.set(x=s.raw.x, y=s.raw.y, z=s.raw.z*float(args[2]))
 
             if args[1] == 'levels':
-                s.raw.setLevels(float(args[2]), float(args[3]))
+                if len(args) == 4:
+                    s.raw.setLevels(float(args[2]), float(args[3]))
+                elif len(args) == 5:
+                    if args[2] == 'err':
+                        self.parent.s[self.parent.s.ind].err2d.setLevels(float(args[3]), float(args[4]))
+                    if args[2] == 'sky':
+                        self.parent.s[self.parent.s.ind].sky2d.setLevels(float(args[3]), float(args[4]))
+
 
             self.parent.s.redraw()
 
