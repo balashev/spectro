@@ -448,12 +448,12 @@ class speci:
         ind = np.where(self.mask)[0]
         if n[ind[0]].val != 0:
             for i, k in enumerate(ind[1:]):
-                self.y[i] = (ind[0], k, self.n[k] / self.n[ind[0]])   #formatof y[i]: level_1, level_2, ratio of column densities
+                self.y[i] = (ind[0], k, self.n[k] / self.n[ind[0]])   #formatof y[i]: (level_1, level_2, ratio of column densities: level 2 / level 1)
         else:
             self.y = [(0, 0, a())]*(self.num-1)
 
         # >> calc total column density
-        self.n_tot = a(0,0,0)
+        self.n_tot = a(0, 0, 0)
         for ni in n:
             if ni is not None:
                 self.n_tot = ni + self.n_tot

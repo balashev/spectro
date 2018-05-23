@@ -414,7 +414,7 @@ class plotline():
         # >>> add residuals
         if self.add_residual and self.show_fit:
             color_res = col.tableau20[7]
-            color_linres = 'mediumpurple' #col.tableau20[5]
+            color_linres = 'slateblue' #'mediumpurple' #col.tableau20[5]
             null_res = self.y_max + (self.y_max-self.y_min) * 0.10
             delt_res = (self.y_max - self.y_min) * 0.08
             self.y_max = self.y_max + self.add_residual*(self.y_max-self.y_min)*0.28

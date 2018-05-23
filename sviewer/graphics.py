@@ -694,6 +694,7 @@ class spec2d():
 
     def extrapolate(self, inplace=False, extr_width=1, extr_height=1):
         z = np.copy(self.raw.z)
+        print(np.where(self.cr.mask))
         z[self.cr.mask] = np.nan
         kernel = Gaussian2DKernel(x_stddev=extr_width, y_stddev=extr_height)
         z = convolve(z, kernel)
@@ -702,7 +703,7 @@ class spec2d():
         z1[self.cr.mask] = z[self.cr.mask]
         if not inplace:
             self.parent.parent.s.append(Spectrum(self.parent.parent, 'CR_removed'))
-            self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=z1)
+            self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=z1, err=self.raw.err, mask=self.raw.mask)
         else:
             self.raw.z = z1
 
@@ -781,9 +782,12 @@ class spec2d():
         self.parent.parent.spec2dPanel.vb.addItem(self.trace_width)
 
     def sky_model(self, xmin, xmax, border=0, slit=None, mask_type='moffat', model='median', window=0, degree=3, smooth=0, inplace=True, plot=0):
+        if self.cr is None:
+            self.cr = image(x=self.raw.x, y=self.raw.y, mask=np.zeros_like(self.raw.z))
 
         if self.sky is None or not inplace:
             self.sky = image(x=self.raw.x, y=self.raw.y, z=np.zeros_like(self.raw.z), mask=np.zeros_like(self.raw.z))
+
         if self.trace is not None:
             inds = np.searchsorted(self.raw.x, self.trace[0][(self.trace[0] >= xmin) * (self.trace[0] <= xmax)])
         elif slit is not None:
@@ -835,29 +839,33 @@ class spec2d():
                 ax.plot(self.raw.y, sky, '-r')
                 plt.show()
 
-
             self.sky.z[:,i] = sky
 
-        if smooth > 0:
+        if smooth > 0 and len(inds) > 30:
             for k in range(self.sky.z.shape[0]):
                 print(k)
                 sk = np.asarray(self.sky.z[k, inds])
 
-                if k == 15:
+                if k == 30:
                     fig, ax = plt.subplots()
                     ax.plot(self.raw.x[inds], sk)
                 mask = np.ones_like(sk, dtype=bool)
-                for i in range(3):
+                for i in range(4):
                     y = savgol_filter(sk[mask], 101, 5)
-                    if k == 15:
+                    if k == 30:
                         ax.plot(self.raw.x[inds][mask], y, '--r')
 
                     mask[mask] = np.logical_and((sk[mask] / y - 1) < 0.3, mask[mask])
 
                     # y, lmbd = smooth_data(data[0], data[1], d=4, stdev=1e-4)
-
+                sk[mask] = savgol_filter(sk[mask], 21, 5)
                 self.sky.z[k, inds] = sk[:]
-                self.sky.z[k, inds][mask] = savgol_filter(sk[mask], 21, 5)
+                #self.sky.z[k, inds][mask] = savgol_filter(sk[mask], 21, 5)
+                if k == 30:
+                    #print(self.sky.z[k, inds][mask], savgol_filter(sk[mask], 21, 5))
+                    ax.plot(self.raw.x[inds][mask], savgol_filter(sk[mask], 21, 5), '-g')
+                    ax.plot(self.raw.x[inds], self.sky.z[k, inds], '-k')
+                    plt.show()
 
     def extract(self, xmin, xmax, slit=None, mask_type='moffat', helio=None, airvac=True, inplace=False):
 

@@ -979,7 +979,7 @@ class spec2dWidget(pg.PlotWidget):
             self.mousePoint = self.vb.mapSceneToView(event.pos())
             s = self.parent.s[self.parent.s.ind].spec2d
             x = s.raw.x[np.argmin(np.abs(self.mousePoint.x() - s.raw.x))]
-            s.sky_model(x, x, border=7, model='fit_robust', plot=1)
+            s.sky_model(x, x, border=5, model='fit_robust', plot=1)
             self.parent.spec2dPanel.vb.removeItem(s.parent.sky2d)
             s.parent.sky2d = s.set_image('sky', s.parent.colormap)
             self.parent.spec2dPanel.vb.addItem(s.parent.sky2d)
@@ -2243,7 +2243,7 @@ class fitMCMCWidget(QWidget):
                     d = distr1d(x, kde(x))
                     d.dopoint()
                     d.dointerval()
-                    res = a(d.point, d.point - d.interval[0], d.interval[1] - d.point)
+                    res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0])
                     self.parent.fit.setValue(p, res, 'unc')
                     self.parent.fit.setValue(p, res.val)
                     f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
@@ -2277,7 +2277,7 @@ class fitMCMCWidget(QWidget):
                         d = distr1d(values[:, i])
                         d.dopoint()
                         d.dointerval()
-                        res = a(d.point, d.point - d.interval[0], d.interval[1] - d.point)
+                        res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0])
                         f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
                         self.results.setText(self.results.toPlainText() + str(p) + ': ' + res.latex(f=f) + '\n')
                         vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
@@ -2311,7 +2311,7 @@ class fitMCMCWidget(QWidget):
                     d = distr1d(np.log10(np.sum(10 ** values[:, inds], axis=1)))
                     d.dopoint()
                     d.dointerval()
-                    res = a(d.point, d.point - d.interval[0], d.interval[1] - d.point)
+                    res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0])
                     f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
                     self.results.setText(self.results.toPlainText() + str(sp) + ': ' + res.latex(f=f) + '\n')
                     vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
@@ -2385,6 +2385,12 @@ class fitMCMCWidget(QWidget):
                 with open(fname[0]) as f:
                     nwalkers = int(f.readline())
                     pars = f.readline().split()
+                    for i, par in enumerate(pars):
+                        p = par.split('_')
+                        if len(p) > 1:
+                            p[1] = str(int(p[1])-1)
+                        pars[i] = '_'.join(p)
+                    print(pars)
                 samples = np.genfromtxt(fname[0], skip_header=2)
 
             with open("output/chain.pkl", "wb") as f:
