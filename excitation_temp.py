@@ -5,13 +5,13 @@ import copy
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
-import os, sys
 import scipy.optimize as opt
-sys.path.append('C:/science/python/spectro')
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 from scipy.optimize import minimize
-
+import os, sys
+sys.path.append('C:/science/python/')
 from .a_unc import a
+from .stats import distr1d, distr2d
 
 def column(matrix, attr):
     return [getattr(row,attr) for row in matrix]
@@ -97,12 +97,11 @@ class ExcitationTemp():
             
             self.g = np.array([(2 * i + 1) * ((i % 2) * 2 + 1) for i in range(self.num)])
 
-            f_in = open('C:\science\spectra_program\synthetic\synthetic\Data\energy.dat', 'r')
-            data = np.loadtxt(f_in, skiprows=2)
-            self.E = data[:self.num,1]
+            data = np.genfromtxt('data/H2/energy_X.dat', comments='#', unpack=True)
+            self.E = data[2][:self.num]
             # transform energy from cm^-1 to Kelvins
-            self.E = self.E/0.695
-            
+            self.E = self.E / 0.695
+
         if self.species == 'CI':
             self.g = np.array([2*i+1 for i in range(self.num)])
             data = [0, 16.42, 43.41]
@@ -140,7 +139,7 @@ class ExcitationTemp():
             if isinstance(self.temp, (int, float)):
                 return sum(self.g*np.exp(-self.E/self.temp))
         else:
-            return sum(self.g*np.exp(-self.E/temp))
+            return sum(self.g * np.exp(-self.E/temp))
     
     def slope_to_temp(self, slope=None, zero=None):
         """
@@ -180,6 +179,7 @@ class ExcitationTemp():
             x = slope * self.E + zero
        
         for i in range(self.num):
+            #print(self.temp, i, self.y[i].lnL(x[i]))
             lnL += self.y[i].lnL(x[i])
         
         return lnL
@@ -280,25 +280,20 @@ class ExcitationTemp():
             print('zeropoint range: ', min(zero), self.zero, max(zero))
         
         if max(slope) < 0:
-            s = a(self.slope, max(slope)-self.slope, self.slope-min(slope), 'd')
+            self.slope = a(self.slope, max(slope)-self.slope, self.slope-min(slope), 'd')
         else:
-            s = a('<{:.2f}'.format(min(slope)), 'd')
+            self.slope = a('<{:.2f}'.format(min(slope)), 'd')
+        self.zero = a(self.zero, max(zero) - self.zero, self.zero - min(zero), 'd')
         #z = a(self.zero, max(zero)-self.zero, self.zero-min(zero))
-        print(s.latex(f=4))
-        self.temp = -np.log10(np.exp(1))/s
+        #self.temp = -np.log10(np.exp(1))/self.slope
+        self.slope_to_temp()
         print(self.temp)
-#        T_0 = -1 / self.slope
-#        T_m = -1 / self.slope + 1 / min(slope)
-#        if max(slope) < 0:
-#            T_p = -1 / max(slope) + 1 / self.slope
-#        else:
-#            T_p = np.Inf
-#            
+
         if self.plot:
             #plt.plot(y1,z)
             cs = self.regionplot.contour(x1, y1, z, levels=[1])
             p = cs.collections[0].get_paths()
-            self.regionplot.plot(self.slope, self.zero, marker='+', color='k', ms=10, mew=3)
+            self.regionplot.plot(self.slope.val, self.zero.val, marker='+', color='k', ms=10, mew=3)
             self.regionplot.plot(min(slope),max(zero), marker='+', color='k', ms=10, mew=3)    
             self.regionplot.plot(max(slope),min(zero), marker='+', color='k', ms=10, mew=3)
             s = "$T_{kin} = $ " + self.temp.dec().latex(f=2, base=2)
@@ -321,17 +316,51 @@ class ExcitationTemp():
                 self.calc_two_levels_err()
 
         elif self.num > 2:
-            popt, pcov = opt.curve_fit(self.linear_fit, self.E, column(self.y, 'val'),
-                                       p0=[self.slope, self.zero], sigma=column(self.y, 'plus'))
-            #self.dataplot.plot(self.E, popt[0]*self.E+popt[1], '--b', lw=2)
-            self.slope = a(popt[0], np.sqrt(pcov[0,0]), np.sqrt(pcov[0,0]), 'd')
-            self.zero = a(popt[1], np.sqrt(pcov[1,1]), np.sqrt(pcov[1,1]), 'd')
-            print(self.slope, self.zero)
-            T_0 = -np.log10(np.exp(1))/self.slope
-            print(T_0.dec())
-            print(T_0.latex())
 
-            self.plot_region()
+            if 1:
+                self.curve_fit()
+                self.ongrid()
+            else:
+                self.curve_fit()
+            #self.temp = -np.log10(np.exp(1))/self.slope
+
+    def curve_fit(self):
+        popt, pcov = opt.curve_fit(self.linear_fit, self.E, column(self.y, 'val'),
+                                   p0=[self.slope, self.zero], sigma=column(self.y, 'plus'))
+        # self.dataplot.plot(self.E, popt[0]*self.E+popt[1], '--b', lw=2)
+        self.slope = a(popt[0], np.sqrt(pcov[0, 0]), np.sqrt(pcov[0, 0]), 'd')
+        self.zero = a(popt[1], np.sqrt(pcov[1, 1]), np.sqrt(pcov[1, 1]), 'd')
+        self.slope_to_temp()
+
+    def ongrid(self):
+        self.slope_to_temp()
+        x = np.linspace(self.temp.val - self.temp.minus, self.temp.val + self.temp.plus, 200)
+        y = np.linspace(self.Ntot.val - self.Ntot.minus, self.Ntot.val + self.Ntot.plus, 200)
+        X, Y = np.meshgrid(x, y)
+        z = np.zeros_like(X)
+        for i in range(len(x)):
+            for k in range(len(y)):
+                z[k, i] = self.lnL_temp(temp=x[i], Ntot=y[k])
+
+        d = distr2d(x, y, np.exp(z))
+        d.dopoint()
+        d.dointerval()
+        self.temp, self.Ntot = d.point[0], d.point[1]
+
+        if self.plot:
+            d.plot_contour(xlabel=r'T$_{\rm ex}$, K', ylabel=r'log N$_{\rm tot}$')
+        for axis, attr, label, form in zip(['y', 'x'], ['temp', 'Ntot'], [r'T$_{\rm ex}$, K', r'log N$_{\rm tot}$'], ['d', 'l']):
+            d1 = d.marginalize(axis)
+            d1.dopoint()
+            d1.dointerval()
+            setattr(self, attr, a(d1.point, d1.point-d1.interval[0], d1.interval[1]-d1.point, 'd'))
+            print(d1.latex(f=2))
+            if self.plot:
+                d1.plot(xlabel=label)
+        self.temp_to_slope()
+
+        if self.plot:
+            plt.show()
 
     def boot(self, iter=1000):
 
@@ -356,49 +385,32 @@ class ExcitationTemp():
         self.temp.dec()
         self.temp.plus, self.temp.minus = temp[int((1-0.157)*iter)] - self.temp.val, self.temp.val - temp[int(0.157*iter)]
 
-    def plot_data(self):
-        self.dataplot.errorbar(self.E, column(self.n,'val'), yerr=[column(self.n,'plus'), column(self.n,'minus')], 
-                               fmt='o', color='r' , ecolor='k', linewidth=0.5, markersize=8) 
-        #self.plot_temp()
-        self.dataplot.set_xlim(self.E[0]-10, self.E[-1]+20)
+    def plot_data(self, ax=None):
+        if self.plot or ax is not None:
+            ax = self.dataplot if ax is None else ax
+            ax.errorbar(self.E, column(self.n,'val'), yerr=[column(self.n,'plus'), column(self.n,'minus')],
+                                   fmt='o', color='r' , ecolor='k', linewidth=0.5, markersize=8)
+            #self.plot_temp()
+            ax.set_xlim(self.E[0]-10, self.E[-1]+20)
     
-    def plot_temp(self, temp=None, Ntot=None, color='r'):
-        if temp is None:
-            self.dataplot.plot(self.E, self.slope * self.E + self.zero, '--', color=color, lw=2) 
-        else:
-            slope, zero = self.temp_to_slope(temp=temp, Ntot=Ntot)           
-            self.dataplot.plot(self.E, slope * self.E + zero, '--', color=color, lw=2) 
+    def plot_temp(self, temp=None, Ntot=None, color='r', ax=None):
+        if self.plot or ax is not None:
+            ax = self.dataplot if ax is None else ax
+            if temp is None:
+                if isinstance(self.slope, a):
+                    ax.plot(self.E, self.slope.val * self.E + self.zero.val, '--', color=color, lw=2)
+                else:
+                    ax.plot(self.E, self.slope * self.E + self.zero, '--', color=color, lw=2)
+            else:
+                slope, zero = self.temp_to_slope(temp=temp, Ntot=Ntot)
+                ax.plot(self.E, slope * self.E + zero, '--', color=color, lw=2)
     
-    def plot_region(self):
-        self.slope_to_temp()
-        x = np.linspace(self.temp.val - self.temp.minus*2, self.temp.val + self.temp.plus*2, 100)
-        y = np.linspace(self.Ntot.val - self.Ntot.minus*2, self.Ntot.val + self.Ntot.plus*2, 100)
-        X, Y = np.meshgrid(x,y)        
-        z = np.zeros_like(X)
-        for i in range(len(x)):
-            for k in range(len(y)):
-                z[k,i] = self.lnL_temp(temp=x[i], Ntot=y[k])
-        print(np.amax(z))
-        ind_max = np.unravel_index(z.argmax(), z.shape)
-        z = z - np.amax(z)
-        cont = self.regionplot.contourf(X, Y, z, 300, cmap='plasma')
-        self.regionplot.contour(X, Y, z, levels=[-1.5, -1, -0.5], colors='k')
-        self.regionplot.scatter(X[ind_max], Y[ind_max], 40, marker='+')
-        plt.colorbar(cont, orientation='vertical', shrink=0.8)
-        self.regionplot.set_xlabel(r'T$_{\rm ex}$, K')        
-        self.regionplot.set_ylabel(r'log N$_{\rm tot}$')
-        for i in range(len(x)):
-            for k in range(len(y)):
-                if z[k,i] > -.5:
-                    slope, zero = self.temp_to_slope(temp=x[i], Ntot=y[k])           
-                    self.dataplot.plot(self.E, slope * self.E + zero, '-y', lw=0.5, alpha=0.1, zorder=1)
-        self.regionplot.xaxis.set_minor_locator(AutoMinorLocator(10))
-        self.regionplot.xaxis.set_major_locator(MultipleLocator(1))
-        self.regionplot.yaxis.set_minor_locator(AutoMinorLocator(10))
-        self.regionplot.yaxis.set_major_locator(MultipleLocator(0.1))
-
     def latex(self):
-        return self.temp.dec().latex()
+        if isinstance(self.temp, a):
+            return self.temp.dec().latex()
+        else:
+            return self.temp
+
 
     def col_dens(self, num=3, Temp=50, Ntot=None):
         """

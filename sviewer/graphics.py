@@ -575,30 +575,35 @@ class image():
 
         self.pos = [self.x[0] - (self.x[1] - self.x[0]) / 2, self.y[0] - (self.y[1] - self.y[0]) / 2]
         self.scale = [(self.x[-1] - self.x[0]) / (self.x.shape[0]-1), (self.y[-1] - self.y[0]) / (self.y.shape[0]-1)]
-        #self.mask = np.zeros_like(self.z)
-        self.getQuantile()
-        self.setLevels(self.quantile[0], self.quantile[1])
+        for attr in ['z', 'err']:
+            self.getQuantile(attr=attr)
+            self.setLevels(attr=attr)
 
-    def getQuantile(self, quantile=0.997):
-        if self.z is not None:
-            x = np.sort(self.z.flatten())
+
+    def getQuantile(self, quantile=0.997, attr='z'):
+        if getattr(self, attr) is not None:
+            x = np.sort(getattr(self, attr).flatten())
             x = x[~np.isnan(x)]
-            self.quantile = [x[int(len(x)*(1-quantile)/2)], x[int(len(x)*(1+quantile)/2)]]
+            setattr(self, attr+'_quantile', [x[int(len(x)*(1-quantile)/2)], x[int(len(x)*(1+quantile)/2)]])
         else:
-            self.quantile = [0, 1]
+            setattr(self, attr + '_quantile', [0, 1])
 
-    def setLevels(self, bottom, top):
+    def setLevels(self, bottom=None, top=None, attr='z'):
+        quantile = getattr(self, attr+'_quantile')
+        if bottom is None:
+            bottom = quantile[0]
+        if top is None:
+            top = quantile[1]
         top, bottom = np.max([top, bottom]), np.min([top, bottom])
-        if top - bottom < (self.quantile[1] - self.quantile[0]) / 100:
-            top += ((self.quantile[1] - self.quantile[0]) / 100 - (top - bottom)) /2
-            bottom -= ((self.quantile[1] - self.quantile[0]) / 100 - (top - bottom)) / 2
-        #top = np.max([np.min([top, self.quantile[1]]), self.quantile[0]])
-        #bottom = np.max([np.min([bottom, self.quantile[1]]), self.quantile[0]])
-        self.levels = [bottom, top]
+        if top - bottom < (quantile[1] - quantile[0]) / 100:
+            top += ((quantile[1] - quantile[0]) / 100 - (top - bottom)) /2
+            bottom -= ((quantile[1] - quantile[0]) / 100 - (top - bottom)) / 2
+        setattr(self, attr+'_levels', [bottom, top])
 
-    def find_nearest(self, x, y):
-        if len(self.z.shape) == 2:
-            return self.z[np.min([self.z.shape[0]-1, (np.abs(self.y - y)).argmin()]), np.min([self.z.shape[1]-1, (np.abs(self.x - x)).argmin()])]
+    def find_nearest(self, x, y, attr='z'):
+        z = getattr(self, attr)
+        if len(z.shape) == 2:
+            return z[np.min([z.shape[0]-1, (np.abs(self.y - y)).argmin()]), np.min([z.shape[1]-1, (np.abs(self.x - x)).argmin()])]
         else:
             return None
 
@@ -694,12 +699,12 @@ class spec2d():
 
     def extrapolate(self, inplace=False, extr_width=1, extr_height=1):
         z = np.copy(self.raw.z)
+        self.cr.mask = self.cr.mask.astype(bool)
         print(np.where(self.cr.mask))
         z[self.cr.mask] = np.nan
         kernel = Gaussian2DKernel(x_stddev=extr_width, y_stddev=extr_height)
         z = convolve(z, kernel)
         z1 = np.copy(self.raw.z)
-        self.cr.mask = self.cr.mask.astype(bool)
         z1[self.cr.mask] = z[self.cr.mask]
         if not inplace:
             self.parent.parent.s.append(Spectrum(self.parent.parent, 'CR_removed'))
@@ -707,7 +712,7 @@ class spec2d():
         else:
             self.raw.z = z1
 
-    def moffat_fit_integ(self, x, a, x_0, gamma, c):
+    def moffat_fit_integ(self, x, a=1, x_0=0, gamma=1.0, c=0.0):
         dx = np.median(np.diff(x)) / 2
         x = np.append(x - dx, x[-1] + dx)
         y = self.moffat.cdf(x, loc=x_0, scale=gamma)
@@ -781,7 +786,7 @@ class spec2d():
                                             connect="finite", pen=pg.mkPen(255, 255, 255, width=3, style=Qt.DashLine))
         self.parent.parent.spec2dPanel.vb.addItem(self.trace_width)
 
-    def sky_model(self, xmin, xmax, border=0, slit=None, mask_type='moffat', model='median', window=0, degree=3, smooth=0, inplace=True, plot=0):
+    def sky_model(self, xmin, xmax, border=0, slit=None, mask_type='moffat', model='median', window=0, poly=3, smooth=0, smooth_coef=0.3, inplace=True, plot=0):
         if self.cr is None:
             self.cr = image(x=self.raw.x, y=self.raw.y, mask=np.zeros_like(self.raw.z))
 
@@ -805,7 +810,7 @@ class spec2d():
                     x_0, gamma = self.parent.cont2d.y[k], self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
                 else:
                     x_0 = self.trace[1][k]
-                    gamma = (self.trace[2][k] - x_0) * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+                    gamma = self.trace[2][k] * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
                 m = self.moffat.ppf([0.05, 0.95], loc=x_0, scale=gamma)
                 mask_sky = np.logical_or(self.raw.y < m[0], self.raw.y > m[1])
             elif slit is not None:
@@ -814,6 +819,7 @@ class spec2d():
             mask_sky[-border:] = 0
             mask_reg = np.zeros_like(self.raw.mask, dtype=bool)
             mask_reg[:, i - window:i + window + 1] = True
+            #print(self.cr.mask,  mask_reg * mask_sky[:, np.newaxis])
             mask = np.logical_and(np.logical_not(self.cr.mask), mask_reg * mask_sky[:, np.newaxis])
             self.sky.mask[:, i] = mask[:, i]
             if window > 0:
@@ -826,10 +832,10 @@ class spec2d():
             elif model == 'mean':
                 sky = np.mean(y) * np.ones_like(self.raw.y)
             elif model == 'fit':
-                p = np.polyfit(self.raw.y[mask[:,i]], y, degree)
+                p = np.polyfit(self.raw.y[mask[:,i]], y, poly)
                 sky = np.polyval(p, self.raw.y)
             elif model == 'fit_robust':
-                p = np.polyfit(self.raw.y[mask[:, i]], y, degree)
+                p = np.polyfit(self.raw.y[mask[:, i]], y, poly)
                 res_robust = least_squares(fun, p, loss='soft_l1', f_scale=0.02, args=(self.raw.y[mask[:,i]], y))
                 sky = np.polyval(res_robust.x, self.raw.y)
             if plot:
@@ -842,6 +848,7 @@ class spec2d():
             self.sky.z[:,i] = sky
 
         if smooth > 0 and len(inds) > 30:
+            smooth = smooth + 1 if smooth % 2 == 0 else smooth
             for k in range(self.sky.z.shape[0]):
                 print(k)
                 sk = np.asarray(self.sky.z[k, inds])
@@ -851,11 +858,11 @@ class spec2d():
                     ax.plot(self.raw.x[inds], sk)
                 mask = np.ones_like(sk, dtype=bool)
                 for i in range(4):
-                    y = savgol_filter(sk[mask], 101, 5)
+                    y = savgol_filter(sk[mask], smooth*5, 5)
                     if k == 30:
                         ax.plot(self.raw.x[inds][mask], y, '--r')
 
-                    mask[mask] = np.logical_and((sk[mask] / y - 1) < 0.3, mask[mask])
+                    mask[mask] = np.logical_and(np.abs((sk[mask] / y - 1)) < smooth_coef, mask[mask])
 
                     # y, lmbd = smooth_data(data[0], data[1], d=4, stdev=1e-4)
                 sk[mask] = savgol_filter(sk[mask], 21, 5)
@@ -863,11 +870,16 @@ class spec2d():
                 #self.sky.z[k, inds][mask] = savgol_filter(sk[mask], 21, 5)
                 if k == 30:
                     #print(self.sky.z[k, inds][mask], savgol_filter(sk[mask], 21, 5))
-                    ax.plot(self.raw.x[inds][mask], savgol_filter(sk[mask], 21, 5), '-g')
+                    ax.plot(self.raw.x[inds][mask], savgol_filter(sk[mask], smooth, 5), '-g')
                     ax.plot(self.raw.x[inds], self.sky.z[k, inds], '-k')
                     plt.show()
 
+        self.sky.getQuantile(quantile=0.9995)
+        self.sky.setLevels()
+
     def extract(self, xmin, xmax, slit=None, mask_type='moffat', helio=None, airvac=True, inplace=False):
+        if self.cr is None:
+            self.cr = image(x=self.raw.x, y=self.raw.y, mask=np.zeros_like(self.raw.z))
 
         if self.trace is not None:
             inds = np.searchsorted(self.raw.x, self.trace[0][(self.trace[0] >= xmin) * (self.trace[0] <= xmax)])
@@ -883,20 +895,20 @@ class spec2d():
                     x_0, gamma = self.parent.cont2d.y[k], self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
                 else:
                     x_0 = self.trace[1][k]
-                    gamma = (self.trace[2][k] - x_0) * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
-                profile = self.moffat_fit_integ(self.raw.y, 1, x_0=x_0, gamma=gamma, c=0)
+                    gamma = self.trace[2][k] * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+                profile = self.moffat_fit_integ(self.raw.y, a=1, x_0=x_0, gamma=gamma, c=0)
             elif mask_type == 'rectangular':
                 profile = 1 / (np.exp(-40 * (np.abs(self.raw.y - self.parent.cont2d.y[k]) - self.extr_slit)) + 1)
             elif mask_type == 'gaussian':
                 profile = np.exp(-(np.abs(self.raw.y - self.parent.cont2d.y[k]) / self.extr_slit / 2.35482) ** 2)
 
-            v = np.sum((1 - self.cr.mask[:, i]) * profile**2 / self.raw.err[:, i]**2)
-            flux = np.sum((self.raw.z[:, i] - self.sky.z[:, i]) * profile / self.raw.err[:, i]**2 * (1 - self.cr.mask[:, i]))
+            #self.raw.err[:, i] = 1
+            v = np.sum((1 - self.cr.mask[:, i]) * profile**2) #/ self.raw.err[:, i]**2)
+            flux = np.sum((self.raw.z[:, i] - self.sky.z[:, i]) * profile * (1 - self.cr.mask[:, i])) # / self.raw.err[:, i]**2)
 
             y.append(flux / v)
-            err.append(np.sqrt(np.sum((1 - self.cr.mask[:, i]) * profile) / v))
+            err.append(np.sqrt(np.sum((1 - self.cr.mask[:, i]) * profile * self.raw.err[:, i]) / v))
 
-        print(y, err)
         if inplace:
             pass
         else:
@@ -1104,7 +1116,7 @@ class Spectrum():
         if self.parent.show_2d and (len(self.parent.s) == 0 or self.active()):
             if self.spec2d.raw.z is not None and self.spec2d.raw.z.shape[0] > 0 and self.spec2d.raw.z.shape[1] > 0:
                 self.image2d = self.spec2d.set_image('raw', self.colormap)
-                self.image2d.setLevels(self.spec2d.raw.levels)
+                self.image2d.setLevels(self.spec2d.raw.z_levels)
                 self.parent.spec2dPanel.vb.addItem(self.image2d)
                 self.parent.spec2dPanel.vb.removeItem(self.parent.spec2dPanel.cursorpos)
                 self.parent.spec2dPanel.vb.addItem(self.parent.spec2dPanel.cursorpos, ignoreBounds=True)

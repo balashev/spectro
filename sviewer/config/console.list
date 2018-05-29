@@ -1,21 +1,21 @@
-logN CI
-logN CI*
-logN CI**
-logN CI
-2d levels 0 1
-2d levels err 0 1
-2d levels err 0 0.1
-2d levels err -1 0.1
-2d levels sky -1 0.1
-2d levels sky 0 100
-2d levels 0 1
-2d levels 0 1
-2d levels 0 1
-2d levels 0 1
-2d levels 0 1
-2d levels 0 1
-2d levels 0 1
-2d levels 0 1
-2d levels 0 1
-2d levels 0 1
+show CI**
 stats
+stats
+stats
+rescale 20
+rescale 1.1
+stats
+stats
+stats
+stats
+rescale 1.2
+HD
+show H2 0 1
+stats
+rescale 1.2
+stats
+stats
+Tkin
+Tkin 0 1 2
+Tkin 0 1 2
+show HD

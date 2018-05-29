@@ -547,15 +547,18 @@ class Console(QTextEdit):
                     s.raw.setLevels(float(args[2]), float(args[3]))
                 elif len(args) == 5:
                     if args[2] == 'err':
-                        self.parent.s[self.parent.s.ind].err2d.setLevels(float(args[3]), float(args[4]))
+                        s.raw.setLevels(float(args[3]), float(args[4]), attr='err')
                     if args[2] == 'sky':
-                        self.parent.s[self.parent.s.ind].sky2d.setLevels(float(args[3]), float(args[4]))
+                        s.sky.setLevels(float(args[3]), float(args[4]))
 
 
             self.parent.s.redraw()
 
         elif args[0] == 'Tkin':
-            self.parent.H2ExcitationTemp()
+            levels = [0, 1]
+            if len(args) > 1:
+                levels = [int(a) for a in args[1:]]
+            self.parent.H2ExcitationTemp(levels=levels)
 
         else:
             return None

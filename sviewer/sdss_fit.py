@@ -19,7 +19,7 @@ from sklearn.decomposition import PCA, FastICA
 
 from ..excitation_temp import ExcitationTemp
 from ..profiles import convolveflux
-from ..pyratio import distr2d, distr1d
+from ..stats import distr2d, distr1d
 from .graphics import Spectrum, Speclist
 from .utils import Timer, labelLine
 

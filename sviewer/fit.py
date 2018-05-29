@@ -1,6 +1,7 @@
 from copy import copy
-import gc
 from collections import OrderedDict
+import gc
+import numpy as np
 from ..a_unc import a
 from ..atomic import abundance, doppler
 from ..pyratio import pyratio
@@ -130,14 +131,22 @@ class par:
             return '{0:.{1}f}'.format(getattr(self, attr), self.dec)
 
     def fitres(self, latex=False, dec=None, showname=True):
-        if dec is None:
-            dec = self.dec
         if self.unc is not None:
+            if dec is None:
+                d = np.asarray([self.unc.plus, self.unc.minus])
+                print(d)
+                if len(np.nonzero(d)[0]) > 0:
+                    dec = int(np.round(np.abs(np.log10(np.min(d[np.nonzero(d)])))) + 1)
+                else:
+                    dec = self.dec
+                print(dec)
             if latex:
                 return '${0:.{3}f}^{{+{1:.{3}f}}}_{{-{2:.{3}f}}}$'.format(self.val, self.unc.plus, self.unc.minus, dec)
             else:
                 return '{0} = {1:.{4}f} + {2:.{4}f} - {3:.{4}f}'.format(str(self), self.val, self.unc.plus, self.unc.minus, dec)
         else:
+            if dec is None:
+                dec = self.dec
             if showname:
                 return '{0} = {1:.{2}f}'.format(str(self), self.val, dec)
             else:
