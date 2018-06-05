@@ -59,13 +59,13 @@ class fitTabBar(QTabBar):
 
     def mouseReleaseEvent(self, ev):
         super(fitTabBar, self).mouseReleaseEvent(ev)
-        cycles = self.swap([int(self.tabText(i)[4:])-1 for i in range(self.count())])
+        cycles = self.swap([int(self.tabText(i)[4:]) for i in range(self.count())])
         for inds in cycles:
             for i in range(len(inds)-1):
                 self.parent.parent.fit.swapSys(inds[i], inds[i+1])
                 #self.moveTab(min(inds[i], inds[i + 1]), max(inds[i], inds[i + 1]))
         for i in range(self.count()):
-            self.setTabText(i, 'sys ' + str(i + 1))
+            self.setTabText(i, 'sys ' + str(i))
             self.parent.tab.widget(i).ind = i
         self.parent.refresh()
 
@@ -107,7 +107,7 @@ class fitModelWidget(QWidget):
         for i in range(self.tabNum):
             sys = fitModelSysWidget(self, i)
             t.time(i)
-            self.tab.addTab(sys, "sys {:}".format(i+1))
+            self.tab.addTab(sys, "sys {:}".format(i))
             t.time(i)
 
         self.tab.currentChanged.connect(self.onTabChanged)
@@ -407,7 +407,7 @@ class fitModelWidget(QWidget):
         z = self.parent.z_abs if self.tab.currentIndex() == -1 else None
         self.parent.fit.addSys(self.tab.currentIndex(), z=z)
         sys = fitModelSysWidget(self, len(self.parent.fit.sys)-1)
-        self.tab.addTab(sys, "sys {:}".format(self.tabNum))
+        self.tab.addTab(sys, "sys {:}".format(self.tabNum-1))
         self.tab.setCurrentIndex(len(self.parent.fit.sys)-1)
         self.parent.s.refreshFitComps()
         self.parent.s.reCalcFit(self.tab.currentIndex())
@@ -420,7 +420,7 @@ class fitModelWidget(QWidget):
         self.parent.fit.delSys(self.tab.currentIndex())
         self.tab.removeTab(self.tab.currentIndex())
         for i in range(self.tabNum):
-            self.tab.setTabText(i, "sys {:}".format(i + 1))
+            self.tab.setTabText(i, "sys {:}".format(i))
             self.tab.widget(i).ind = i
         self.parent.s.refreshFitComps()
         self.parent.showFit()

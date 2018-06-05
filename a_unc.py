@@ -210,6 +210,11 @@ class a:
             self.plus = 0
             self.minus = 0
             self.type = 'l'
+        elif text.find('(') > -1 and text.find(')') > -1:
+            text = text.replace('(', '').replace(')', '')
+            self.val = float(text.split('^')[0])
+            self.plus = abs(float(re.findall(r'\^\{([^}]*)\}', text)[0]))/10**(len(text.split('^')[0])-2)
+            self.minus = abs(float(re.findall(r'_\{([^}]*)\}', text)[0]))/10**(len(text.split('^')[0])-2)
         else:
             self.val = float(text.split('^')[0])
             self.plus = abs(float(re.findall(r'\^\{([^}]*)\}', text)[0]))

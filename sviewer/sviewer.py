@@ -969,6 +969,7 @@ class spec2dWidget(pg.PlotWidget):
                 poly = self.parent.extract2dwindow.sky_poly
             else:
                 border, poly = 5, 3
+            print(x, poly, border)
             s.sky_model(x, x, border=border, poly=poly, model='fit_robust', plot=1, smooth=0)
             self.parent.spec2dPanel.vb.removeItem(s.parent.sky2d)
             s.parent.sky2d = s.set_image('sky', s.parent.colormap)
@@ -2043,20 +2044,23 @@ class fitMCMCWidget(QWidget):
         h.addWidget(self.chooseShow)
 
         self.show_button = QPushButton("Show")
-        self.show_button.setFixedSize(120, 30)
+        self.show_button.setFixedSize(100, 30)
         self.show_button.clicked[bool].connect(self.showMC)
         self.stats_button = QPushButton("Stats")
-        self.stats_button.setFixedSize(120, 30)
+        self.stats_button.setFixedSize(100, 30)
         self.stats_button.clicked[bool].connect(partial(self.stats, t='fit'))
         self.stats_all_button = QPushButton("Stats all")
-        self.stats_all_button.setFixedSize(120, 30)
+        self.stats_all_button.setFixedSize(100, 30)
         self.stats_all_button.clicked[bool].connect(partial(self.stats, t='all'))
         self.stats_cols_button = QPushButton("Stats cols")
-        self.stats_cols_button.setFixedSize(120, 30)
+        self.stats_cols_button.setFixedSize(100, 30)
         self.stats_cols_button.clicked[bool].connect(partial(self.stats, t='cols'))
         self.check_button = QPushButton("Check")
-        self.check_button.setFixedSize(120, 30)
+        self.check_button.setFixedSize(100, 30)
         self.check_button.clicked[bool].connect(self.check)
+        self.bestfit_button = QPushButton("Best fit")
+        self.bestfit_button.setFixedSize(100, 30)
+        self.bestfit_button.clicked[bool].connect(self.show_bestfit)
 
         self.loadres_button = QPushButton("Load")
         self.loadres_button.setFixedSize(120, 30)
@@ -2067,6 +2071,7 @@ class fitMCMCWidget(QWidget):
         hbox.addWidget(self.stats_all_button)
         hbox.addWidget(self.stats_cols_button)
         hbox.addWidget(self.check_button)
+        hbox.addWidget(self.bestfit_button)
         hbox.addStretch(1)
         hbox.addWidget(self.loadres_button)
 
@@ -2193,15 +2198,16 @@ class fitMCMCWidget(QWidget):
     def showMC(self):
         pars, nwalkers, samples, lnprobs = self.readChain()
 
-        mask = np.array([p.show for p in self.parent.fit.list_fit()])
+        mask = np.array([self.parent.fit.list()[[str(i) for i in self.parent.fit.list()].index(p)].show for p in pars])
+        print(nwalkers, samples.shape, mask)
         imax = np.argmax(lnprobs)
         truth = samples[imax][np.where(mask)[0]] if self.parent.options('MCMC_bestfit') else None
         print('best fit:', truth)
         burnin = int(self.parent.options('MCMC_burnin'))
         if nwalkers * burnin < samples.shape[0]:
             c = ChainConsumer()
-            c.add_chain(samples[nwalkers * burnin + 1:, np.where(mask)[0]], walkers=nwalkers,
-                        parameters=[p.replace('_', ' ') for i, p in enumerate(pars) if mask[i]])
+            c.add_chain(samples[nwalkers * burnin:, np.where(mask)[0]], walkers=nwalkers,
+                        parameters=[str(p).replace('_', ' ') for i, p in enumerate(self.parent.fit.list_fit()) if mask[i]])
             print(self.parent.options('MCMC_smooth'))
             c.configure(smooth=self.parent.options('MCMC_smooth'),
                         cloud=True,
@@ -2218,21 +2224,24 @@ class fitMCMCWidget(QWidget):
     def stats(self, t='fit'):
         pars, nwalkers, samples, lnprobs = self.readChain()
 
-        mask = np.array([p.show for p in self.parent.fit.list_fit()])
         burnin = int(self.parent.options('MCMC_burnin'))
 
         self.results.setText('')
 
         if t == 'fit':
-            k = samples.shape[1]
+            mask = np.array([p.show for p in self.parent.fit.list_fit()])
+            names = [str(p) for p in self.parent.fit.list_fit() if p.show]
+
+            k = int(np.sum(mask)) #samples.shape[1]
             n_hor = int(k ** 0.5)
             if n_hor <= 1:
                 n_hor = 2
-            n_vert = int(k / n_hor + 1)
+            n_vert = k // n_hor + 1 if k % n_hor > 0 else k // n_hor
 
             fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
+            k = 0
             for i, p in enumerate(pars):
-                if mask[i]:
+                if p in names:
                     x = np.linspace(np.min(samples[nwalkers * burnin + 1:, i]), np.max(samples[nwalkers * burnin + 1:, i]), 50)
                     kde = gaussian_kde(samples[nwalkers * burnin + 1:, i])
                     d = distr1d(x, kde(x))
@@ -2246,9 +2255,13 @@ class fitMCMCWidget(QWidget):
                     f = int(np.round(np.abs(np.log10(np.min(f[np.nonzero(f)])))) + 1)
                     print(p, res.latex(f=f))
                     self.results.setText(self.results.toPlainText() + p + ': ' + res.latex(f=f) + '\n')
-                    vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
-                    d.plot(conf=0.683, ax=ax[vert, hor])
-                    ax[vert, hor].set_title(pars[i].replace('_', ' '))
+                    vert, hor = k // n_hor, k % n_hor
+                    k += 1
+                    d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
+                    ax[vert, hor].yaxis.set_ticklabels([])
+                    ax[vert, hor].yaxis.set_ticks([])
+                    ax[vert, hor].text(.1, .9, str(p).replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
+                    #ax[vert, hor].set_title(pars[i].replace('_', ' '))
 
         else:
             values = []
@@ -2265,10 +2278,11 @@ class fitMCMCWidget(QWidget):
                 n_hor = int(k ** 0.5)
                 if n_hor <= 1:
                     n_hor = 2
-                n_vert = int(k / n_hor + 1)
+                n_vert = k // n_hor + 1 if k % n_hor > 0 else k // n_hor
 
                 fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
 
+                k = 0
                 for i, p in enumerate(self.parent.fit.list()):
                     if np.std(values[:, i]) > 0:
                         d = distr1d(values[:, i])
@@ -2277,9 +2291,14 @@ class fitMCMCWidget(QWidget):
                         res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0])
                         f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
                         self.results.setText(self.results.toPlainText() + str(p) + ': ' + res.latex(f=f) + '\n')
-                        vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
-                        d.plot(conf=0.683, ax=ax[vert, hor])
-                        ax[vert, hor].set_title(str(p).replace('_', ' '))
+                        #vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
+                        vert, hor = k // n_hor, k % n_hor
+                        k += 1
+                        d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
+                        ax[vert, hor].yaxis.set_ticklabels([])
+                        ax[vert, hor].yaxis.set_ticks([])
+                        ax[vert, hor].text(.1, .9, str(p).replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
+                        #ax[vert, hor].set_title(str(p).replace('_', ' '))
 
             elif t == 'cols':
                 sp = list()
@@ -2301,9 +2320,11 @@ class fitMCMCWidget(QWidget):
                 n_hor = int(len(sp) ** 0.5)
                 if n_hor <= 1:
                     n_hor = 2
-                n_vert = int(len(sp) / n_hor + 1)
+                n_vert = len(sp) // n_hor + 1 if len(sp) % n_hor > 0 else len(sp) // n_hor
+
 
                 fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
+                k = 0
                 for i, sp in enumerate(sp):
                     if sp[1] == 'ends':
                         inds = np.where([str(s).endswith(sp[0]) and str(s)[0] == 'N' for s in self.parent.fit.list()])[0]
@@ -2315,10 +2336,20 @@ class fitMCMCWidget(QWidget):
                     res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0])
                     f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
                     self.results.setText(self.results.toPlainText() + str(sp) + ': ' + res.latex(f=f) + '\n')
-                    vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
-                    d.plot(conf=0.683, ax=ax[vert, hor])
-                    ax[vert, hor].set_title(str(sp).replace('_', ' '))
+                    #vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
+                    vert, hor = k // n_hor, k % n_hor
+                    k += 1
+                    d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
+                    ax[vert, hor].yaxis.set_ticklabels([])
+                    ax[vert, hor].yaxis.set_ticks([])
+                    ax[vert, hor].text(.1, .9, str(sp).replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
 
+        for i in range(k, n_hor * n_vert):
+            vert, hor = i // n_hor, i % n_hor
+            fig.delaxes(ax[vert, hor])
+
+        plt.tight_layout()
+        plt.subplots_adjust(wspace=0)
         plt.show()
 
     def check(self):
@@ -2346,7 +2377,11 @@ class fitMCMCWidget(QWidget):
             for i in range(k):
                 vert, hor = int((i + 1) / n_hor), i + 1 - n_hor * int((i + 1) / n_hor)
                 ax0[vert, hor].scatter(samples[-nwalkers:, i], -lnprobs[-nwalkers:], c='r')
-                ax0[vert, hor].set_title(pars[i].replace('_', ' '))
+                ax0[vert, hor].text(.1, .9, str(pars[i]).replace('_', ' '), ha='left', va='top',
+                                   transform=ax0[vert, hor].transAxes)
+
+        plt.subplots_adjust(wspace=0)
+        plt.tight_layout()
 
         if any([s in qc for s in ['moments', 'all']]):
             ind = np.random.randint(0,nwalkers)
@@ -2360,7 +2395,7 @@ class fitMCMCWidget(QWidget):
                 chimin[0, i] = np.min(-lnprobs[i*nwalkers+1:(i+1)*nwalkers+1])
                 chimin[1, i] = np.mean(-lnprobs[i * nwalkers + 1:(i + 1) * nwalkers + 1])
                 chimin[2, i] = np.std(-lnprobs[i * nwalkers + 1:(i + 1) * nwalkers + 1])
-            fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
+            fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor), sharex=True)
             ax[0, 0].plot(np.arange(niters), np.log10(chimin[0]), label='$\chi^2_{min}$')
             ax[0, 0].plot(np.arange(niters), np.log10(-lnprobs[ind::nwalkers]), label='$\chi^2$ at chain')
             ax[0, 0].plot(np.arange(niters), np.log10(chimin[1]), label='$\chi^2$ mean')
@@ -2373,9 +2408,19 @@ class fitMCMCWidget(QWidget):
                 ax[vert, hor].fill_between(np.arange(niters), mean[i]-std[i], mean[i]+std[i],
                                            facecolor='green', interpolate=True, alpha=0.5)
                 ax[vert, hor].plot(np.arange(niters), SomeChain[:, i], color='b')
-                ax[vert, hor].set_title(pars[i].replace('_', ' '))
+                ax[vert, hor].text(.1, .9, str(pars[i]).replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
+                #ax[vert, hor].set_title(pars[i].replace('_', ' '))
 
+        plt.tight_layout()
+        plt.subplots_adjust(hspace=0)
         plt.show()
+
+    def show_bestfit(self):
+        pars, nwalkers, samples, lnprobs = self.readChain()
+        truth = samples[np.argmax(lnprobs)]
+        for p, t in zip(pars, truth):
+            print(p, t)
+            self.parent.fit.setValue(p, t)
 
     def loadres(self):
         fname = QFileDialog.getOpenFileName(self, 'Load MCMC results', self.parent.work_folder)
@@ -2521,13 +2566,13 @@ class extract2dWidget(QWidget):
             ('exp_factor', ['expFactor', float, 0.5]),
             ('extr_height', ['extrHeight', float, 1]),
             ('extr_width', ['extrWidth', float, 3]),
-            ('extr_slit', ['extrSlit', float, 0.7]),
+            ('extr_slit', ['extrSlit', float, 0.9]),
             ('extr_window', ['extrWindow', int, 0]),
             ('extr_border', ['extrBorder', int, 3]),
             ('sky_poly', ['skyPoly', int, 1]),
             ('sky_smooth', ['skySmooth', int, 0]),
             ('sky_smooth_coef', ['skySmoothCoef', float, 0.3]),
-            ('helio_corr', ['helioCorr', float, -30.47]),
+            ('helio_corr', ['helioCorr', float, 20.682]),
             ('rescale_window', ['rescaleWindow', int, 50]),
         ])
         for opt in self.opts.keys():
@@ -2867,6 +2912,7 @@ class extract2dWidget(QWidget):
         s = self.parent.s[self.exp_ind]
         inds = np.where(s.cont_mask2d)[0]
 
+        s.spec2d.moffat_grid(2.35482 * self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1))
         for k, i in zip(np.arange(len(inds))[:-self.trace_step:self.trace_step], inds[:-self.trace_step:self.trace_step]):
             try:
                 print(k)
@@ -5075,6 +5121,12 @@ class sviewer(QMainWindow):
                         prihdr = hdulist[0].data
                         x = np.logspace(hdulist[0].header['CRVAL1'], hdulist[0].header['CRVAL1']+0.0001*hdulist[0].header['NAXIS1'], hdulist[0].header['NAXIS1'])
                         s.set_data([x, prihdr[0], prihdr[1]])
+                    elif 'HIERARCH ESO PRO CATG' in hdulist[0].header:
+                        print(hdulist[0].header['HIERARCH ESO PRO CATG'])
+                        if hdulist[0].header['HIERARCH ESO PRO CATG'] == 'MOS_SCIENCE_REDUCED':
+                            x = np.linspace(hdulist[0].header['CRVAL1'], hdulist[0].header['CRVAL1']+hdulist[0].header['CDELT1']*(hdulist[0].header['NAXIS1']-1), hdulist[0].header['NAXIS1'])
+                            print(x, hdulist[0].data[0]*1e20)
+                            s.set_data([x, hdulist[0].data[0]*1e20, np.ones_like(x)])
                     else:
                         prihdr = hdulist[1].data
                         if 1:
@@ -5781,10 +5833,10 @@ class sviewer(QMainWindow):
                 p = ax.plot(x, [v.val for v in y], 'o', markersize=1) #, label='sys_' + str(self.fit.sys.index(sys)))
                 ax.errorbar(x, [v.val for v in y], yerr=[[v.plus for v in y], [v.minus for v in y]],  fmt='o', color = p[0].get_color(), label=label)
                 #temp = self.H2ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax)
-                temp = self.H2ExcitationTemp(levels=[0, 1, 2], ind=self.fit.sys.index(sys), plot=False, ax=ax)
+                temp = self.H2ExcitationTemp(levels=[0, 1], E=500, ind=self.fit.sys.index(sys), plot=False, ax=ax)
 
         ax.set_xlabel(r'Energy, cm$^{-1}$')
-        ax.set_ylabel(r'$\log N$ / g')
+        ax.set_ylabel(r'$\log\, N$ / g')
         ax.xaxis.set_minor_locator(AutoMinorLocator(5))
         #ax.xaxis.set_major_locator(self.x_locator)
         ax.yaxis.set_minor_locator(AutoMinorLocator(5))
@@ -5798,7 +5850,7 @@ class sviewer(QMainWindow):
         plt.show()
         self.statusBar.setText('Excitation diagram for H2 rotational level for {:d} component is shown'.format(self.comp))
 
-    def H2ExcitationTemp(self, levels=[0, 1, 2], ind=None, plot=True, ax=None):
+    def H2ExcitationTemp(self, levels=[0, 1, 2], E=None, ind=None, plot=True, ax=None):
         from ..excitation_temp import ExcitationTemp
 
         for i, sys in enumerate(self.fit.sys):
@@ -5810,12 +5862,18 @@ class sviewer(QMainWindow):
                     n = [sys.sp['H2j'+str(x)].N.unc for x in levels]
                     if any([ni.val == 0 for ni in n]):
                         n = [a(sys.sp['H2j'+str(x)].N.val, 0, 0) for x in levels]
-                    print(n)
                     temp.calcTemp(n, calc='', plot=plot, verbose=1)
+                    if E == None:
+                        E = temp.E
+                    elif isinstance(E, (float, int)):
+                        E = np.asarray([0, E])
+                    elif isinstance(E, list):
+                        E = np.asarray(E)
                     if ax is not None:
-                        ax.plot(temp.E / 1.4388 * 1.4, temp.slope.val * temp.E * 1.4 + temp.zero.val, '--k', lw=1.5)
-
-                    print(temp.latex())
+                        ax.plot(E / 1.4388 * 1.5, temp.slope.val * E * 1.5 + temp.zero.val, '--k', lw=1.5)
+                        ax.text(E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
+                                'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + temp.latex(f=0, base=0)+'K',
+                                va='top', ha='right', fontsize=16)
 
         if plot:
             plt.show()

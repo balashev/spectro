@@ -139,9 +139,12 @@ class par:
                     dec = int(np.round(np.abs(np.log10(np.min(d[np.nonzero(d)])))) + 1)
                 else:
                     dec = self.dec
-                print(dec)
             if latex:
-                return '${0:.{3}f}^{{+{1:.{3}f}}}_{{-{2:.{3}f}}}$'.format(self.val, self.unc.plus, self.unc.minus, dec)
+                if self.name in ['z']:
+                    return '${0:.{3}f}(^{{+{1:d}}}_{{-{2:d}}})$'.format(self.val, int(self.unc.plus*10**dec), int(self.unc.minus*10**dec), dec)
+                else:
+                    return '${0:.{3}f}^{{+{1:.{3}f}}}_{{-{2:.{3}f}}}$'.format(self.val, self.unc.plus, self.unc.minus, dec)
+                endif
             else:
                 return '{0} = {1:.{4}f} + {2:.{4}f} - {3:.{4}f}'.format(str(self), self.val, self.unc.plus, self.unc.minus, dec)
         else:

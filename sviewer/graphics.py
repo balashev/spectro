@@ -10,6 +10,7 @@ from astropy.modeling.models import Moffat1D
 from bisect import bisect_left
 from ccdproc import cosmicray_lacosmic
 from copy import deepcopy
+import gc
 import itertools
 from matplotlib.cm import get_cmap
 import matplotlib.pyplot as plt
@@ -21,7 +22,7 @@ from PyQt5.QtCore import Qt, QRectF
 from PyQt5.QtGui import QFont, QColor, QBrush
 from PyQt5.QtWidgets import QApplication
 import re
-from scipy.interpolate import interp1d, splrep, splev
+from scipy.interpolate import interp1d, interp2d, splrep, splev
 from scipy.optimize import curve_fit, least_squares
 from scipy.signal import savgol_filter
 from scipy.stats import gaussian_kde
@@ -636,6 +637,7 @@ class spec2d():
         self.trace = None
         self.trace_width = [None, None]
         self.moffat = moffat_func()
+        self.moffat_inter = None
 
     def set(self, x=None, y=None, z=None, err=None, mask=None):
         self.raw.set_data(x=x, y=y, z=z, err=err, mask=mask)
@@ -697,8 +699,10 @@ class spec2d():
             self.parent.parent.s[-1].spec2d.raw.setLevels(-exp_factor, exp_factor)
         self.raw.z = z_saved
 
-    def extrapolate(self, inplace=False, extr_width=1, extr_height=1):
+    def extrapolate(self, inplace=False, extr_width=1, extr_height=1, sky=1):
         z = np.copy(self.raw.z)
+        if sky and self.sky is not None:
+            z -= self.sky.z
         self.cr.mask = self.cr.mask.astype(bool)
         print(np.where(self.cr.mask))
         z[self.cr.mask] = np.nan
@@ -706,20 +710,52 @@ class spec2d():
         z = convolve(z, kernel)
         z1 = np.copy(self.raw.z)
         z1[self.cr.mask] = z[self.cr.mask]
+        if sky and self.sky is not None:
+            z1[self.cr.mask] += self.sky.z[self.cr.mask]
         if not inplace:
             self.parent.parent.s.append(Spectrum(self.parent.parent, 'CR_removed'))
             self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=z1, err=self.raw.err, mask=self.raw.mask)
+            if sky and self.sky is not None:
+                self.parent.parent.s[-1].spec2d.sky = image(x=self.raw.x[:], y=self.raw.y[:], z=np.copy(self.sky.z), mask=np.copy(self.sky.mask))
+            if self.trace is not None:
+                self.parent.parent.s[-1].spec2d.trace = np.copy(self.trace)
         else:
             self.raw.z = z1
+
+    def moffat_grid(self, gamma=1.0):
+        g = np.linspace(gamma*0.5, gamma*2, 100)
+        x = np.linspace(-7, 7, 100)
+        grid = np.zeros([g.shape[0], x.shape[0]])
+        for i, gi in enumerate(g):
+            grid[i,:] = self.moffat.cdf(x, loc=0, scale=gi)
+        self.moffat_inter = interp2d(x, g, grid)
+        if 0:
+            from mpl_toolkits.mplot3d import Axes3D
+
+            X, Y = np.meshgrid(x, g)
+            fig = plt.figure()
+            ax = fig.gca(projection='3d')
+            surf = ax.plot_surface(X, Y, grid, linewidth=0, antialiased=False)
+            plt.show()
 
     def moffat_fit_integ(self, x, a=1, x_0=0, gamma=1.0, c=0.0):
         dx = np.median(np.diff(x)) / 2
         x = np.append(x - dx, x[-1] + dx)
-        y = self.moffat.cdf(x, loc=x_0, scale=gamma)
+        if self.moffat_kind == 'cdf':
+            y = self.moffat.cdf(x, loc=x_0, scale=gamma)
+            return a * np.diff(y) + c
+        elif self.moffat_kind == 'pdf':
+            y = self.moffat.pdf(x, loc=x_0, scale=gamma)
+            return a * (y[:-1] + np.diff(y)/2) + c
+        elif self.moffat_kind == 'inter' and self.moffat_inter is not None:
+            if gamma > self.moffat_inter.y[0] and gamma < self.moffat_inter.y[-1]:
+                y = self.moffat_inter(x - x_0, np.ones_like(x)*gamma)
+            else:
+                y = self.moffat.cdf(x, loc=x_0, scale=gamma)
+            return a * np.diff(y[0,:]) + c
 
-        return a * np.diff(y) + c
-
-    def profile(self, xmin, xmax, ymin, ymax, x_0=None, slit=None, plot=False):
+    def profile(self, xmin, xmax, ymin, ymax, x_0=None, slit=None, plot=False, kind='pdf'):
+        self.moffat_kind = kind
         x, y = self.raw.collapse(rect=[[xmin, xmax], [ymin, ymax]])
         if x_0 is None:
             x_0 = x[np.argmax(y)]
@@ -730,7 +766,6 @@ class spec2d():
             gamma = 2.35482 * slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
         a = np.max(y) - c
 
-
         if plot:
             try:
                 plt.close()
@@ -739,8 +774,10 @@ class spec2d():
             fig, ax = plt.subplots()
             ax.plot(x, y, '-r')
 
+        print(a, x_0, gamma, c)
         popt, pcov = curve_fit(self.moffat_fit_integ, x, y, p0=[a, x_0, gamma, c])
 
+        print('popt', popt)
         pos, fwhm = self.raw.x[np.searchsorted(self.raw.x, (xmin+xmax)/2)], Moffat1D(popt[0], popt[1], popt[2], 4.765).fwhm
         if slit is None or (np.abs(popt[1] - x_0) < slit / 3 and np.abs(fwhm / slit - 1) < 0.3):
             self.slits.append([pos, np.min([np.max([popt[1], x[0]]), x[-1]]), fwhm])
@@ -794,11 +831,15 @@ class spec2d():
             self.sky = image(x=self.raw.x, y=self.raw.y, z=np.zeros_like(self.raw.z), mask=np.zeros_like(self.raw.z))
 
         if self.trace is not None:
-            inds = np.searchsorted(self.raw.x, self.trace[0][(self.trace[0] >= xmin) * (self.trace[0] <= xmax)])
+            if xmin == xmax:
+                inds = np.searchsorted(self.raw.x, [xmin])
+            else:
+                inds = np.searchsorted(self.raw.x, self.trace[0][(self.trace[0] >= xmin) * (self.trace[0] <= xmax)])
         elif slit is not None:
             inds = np.where(np.logical_and(self.parent.cont_mask2d, np.logical_and(self.raw.x >= xmin, self.raw.x <= xmax)))[0]
         else:
             inds = []
+        print(inds)
 
         def fun(p, x, y):
             return np.polyval(p, x) - y
@@ -827,23 +868,27 @@ class spec2d():
             else:
                 y = self.raw.z[mask]
 
-            if model == 'median':
-                sky = np.median(y) * np.ones_like(self.raw.y)
-            elif model == 'mean':
-                sky = np.mean(y) * np.ones_like(self.raw.y)
-            elif model == 'fit':
-                p = np.polyfit(self.raw.y[mask[:,i]], y, poly)
-                sky = np.polyval(p, self.raw.y)
-            elif model == 'fit_robust':
-                p = np.polyfit(self.raw.y[mask[:, i]], y, poly)
-                res_robust = least_squares(fun, p, loss='soft_l1', f_scale=0.02, args=(self.raw.y[mask[:,i]], y))
-                sky = np.polyval(res_robust.x, self.raw.y)
-            if plot:
-                fig, ax = plt.subplots()
-                ax.plot(self.raw.y[mask[:,i]], y, 'ok')
-                ax.plot(self.raw.y, np.polyval(p, self.raw.y), '--r')
-                ax.plot(self.raw.y, sky, '-r')
-                plt.show()
+            if len(y) > poly + 2:
+                if model == 'median':
+                    sky = np.median(y) * np.ones_like(self.raw.y)
+                elif model == 'mean':
+                    sky = np.mean(y) * np.ones_like(self.raw.y)
+                elif model == 'fit':
+                    p = np.polyfit(self.raw.y[mask[:,i]], y, poly)
+                    sky = np.polyval(p, self.raw.y)
+                elif model == 'fit_robust':
+                    p = np.polyfit(self.raw.y[mask[:, i]], y, poly)
+                    res_robust = least_squares(fun, p, loss='soft_l1', f_scale=0.02, args=(self.raw.y[mask[:,i]], y))
+                    sky = np.polyval(res_robust.x, self.raw.y)
+                if plot:
+                    fig, ax = plt.subplots()
+                    ax.plot(self.raw.y[mask[:,i]], y, 'ok')
+                    ax.plot(self.raw.y, np.polyval(p, self.raw.y), '--r')
+                    ax.plot(self.raw.y, sky, '-r')
+                    plt.show()
+
+            else:
+                sky = 0
 
             self.sky.z[:,i] = sky
 
@@ -877,7 +922,8 @@ class spec2d():
         self.sky.getQuantile(quantile=0.9995)
         self.sky.setLevels()
 
-    def extract(self, xmin, xmax, slit=None, mask_type='moffat', helio=None, airvac=True, inplace=False):
+    def extract(self, xmin, xmax, slit=None, mask_type='moffat', helio=None, airvac=True, inplace=False, kind='pdf'):
+        self.moffat_kind = 'pdf'
         if self.cr is None:
             self.cr = image(x=self.raw.x, y=self.raw.y, mask=np.zeros_like(self.raw.z))
 
@@ -887,9 +933,9 @@ class spec2d():
             inds = np.where(np.logical_and(self.parent.cont_mask2d, np.logical_and(self.raw.x >= xmin, self.raw.x <= xmax)))[0]
         else:
             inds = []
-        y, err = [], []
+        y, err = np.zeros(len(inds)), np.zeros(len(inds))
         for k, i in enumerate(inds):
-            print(k,i)
+            print(k, self.raw.x[i])
             if mask_type == 'moffat':
                 if self.trace is None and slit is not None:
                     x_0, gamma = self.parent.cont2d.y[k], self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
@@ -906,8 +952,11 @@ class spec2d():
             v = np.sum((1 - self.cr.mask[:, i]) * profile**2) #/ self.raw.err[:, i]**2)
             flux = np.sum((self.raw.z[:, i] - self.sky.z[:, i]) * profile * (1 - self.cr.mask[:, i])) # / self.raw.err[:, i]**2)
 
-            y.append(flux / v)
-            err.append(np.sqrt(np.sum((1 - self.cr.mask[:, i]) * profile * self.raw.err[:, i]) / v))
+            if v is not np.nan:
+                y[k] = flux / v
+                err[k] = np.sqrt(np.sum((1 - self.cr.mask[:, i]) * profile * self.raw.err[:, i]) / v)
+            if k % 100 == 0:
+                gc.collect()
 
         if inplace:
             pass

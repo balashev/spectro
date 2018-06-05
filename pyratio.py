@@ -49,7 +49,6 @@ class speci:
         self.B = np.zeros([self.num,self.num])
         self.n = n
         self.mask = [n is not None for n in self.n]
-        print(self.mask)
         self.const2 = (ac.h.cgs**2/(2*ac.m_e.cgs*np.pi)**(1.5)/(ac.k_B.cgs)**0.5).value
         
         # >> set population ratios
@@ -81,7 +80,6 @@ class speci:
             self.read_popratio()
 
         self.fullnum = self.E.shape[0] # full number of levels
-        print(self.num, self.fullnum)
 
         self.setEij()
         self.setBij()
@@ -1054,7 +1052,6 @@ class pyratio():
                 if Texc:
                     lab  = 'T_{0}0'
                     fg = np.log10(- (s.E[k+1] - s.E[0]) / 0.685 / np.log(10**(f[:, k] - np.log10(s.g[k+1] / s.g[0]))))
-                    print(fg, f[:, k], np.log10(s.g[k+1] / s.g[0]))
                 else:
                     lab = 'log (n{0}/g{0})/(n0/g0)' if stats else 'log n{0}/n0'
                     fg = f[:, k] - int(stats)*np.log10(s.g[k+1]/s.g[0])
@@ -1155,7 +1152,6 @@ class pyratio():
             d.dopoint()
             for c in self.conf_levels:
                 d.dointerval(c)
-                print(c, d.interval)
                 #ax.axhline(d.inter(interval[0]))
 
             if title != '':
@@ -1224,8 +1220,6 @@ class pyratio():
         if verbose == 1:
             print(max(Z.flatten()))
 
-        print(X1, X2, np.exp(Z))
-
         if output is not None:
             with open(output, "wb") as f:
                 pickle.dump(X1, f)
@@ -1270,7 +1264,7 @@ class pyratio():
 
                 if 1:
                     #d.plot(conf_levels=conf_levels)
-                    d.plot_contour(conf_levels=self.conf_levels, ax=ax)
+                    d.plot_contour(conf_levels=self.conf_levels, ax=ax, alpha=alpha)
                 else:
                     conf_levels = np.asarray([d.level(c) for c in self.conf_levels])
                     print(conf_levels, self.conf_levels)

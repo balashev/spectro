@@ -405,9 +405,9 @@ class ExcitationTemp():
                 slope, zero = self.temp_to_slope(temp=temp, Ntot=Ntot)
                 ax.plot(self.E, slope * self.E + zero, '--', color=color, lw=2)
     
-    def latex(self):
+    def latex(self, f=2, base=None):
         if isinstance(self.temp, a):
-            return self.temp.dec().latex()
+            return self.temp.dec().latex(f=f, base=base)
         else:
             return self.temp
 
