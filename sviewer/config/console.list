@@ -1,21 +1,21 @@
 stats
 stats
-show H2 0 1
-show HD
-show CI*
-show CI**
-show H2 0 1
-show CI**
-2d levels 0 0.5
+2d levels 0 1
+2d level 0 1
+2d levels 0 1
+2d level 0 1
+2d levels 0 1
+2d level 0 1
+2d levels 0 1
+2d levels 0 1
+2d levels sky 0 1
 rescale err 0.1
-rescale 4
-rescale 1.2
-rescale 1.05
-stats
-stats
-show HD
-show Hd 
-show HD
-stats
+rescale err 0.1
+rescale err 0.1
+rescale err 0.1
+2d levels 0 1
+rescale err 0.1
+rescale 5
+shift 2
 stats
 stats

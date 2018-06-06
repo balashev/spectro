@@ -24,7 +24,7 @@ from PyQt5.QtWidgets import QApplication
 import re
 from scipy.interpolate import interp1d, interp2d, splrep, splev
 from scipy.optimize import curve_fit, least_squares
-from scipy.signal import savgol_filter
+from scipy.signal import savgol_filter, lombscargle
 from scipy.stats import gaussian_kde
 
 from ..profiles import tau, convolveflux, makegrid
@@ -844,8 +844,11 @@ class spec2d():
         def fun(p, x, y):
             return np.polyval(p, x) - y
 
+        def fun_wavy(p, x, y):
+            return np.polyval(p[:-3], x) + (p[-1] * np.sin(p[-3] * x + p[-2])) - y
+
         for k, i in enumerate(inds):
-            print(i)
+            print(self.raw.x[i])
             if mask_type == 'moffat':
                 if self.trace is None and slit is not None:
                     x_0, gamma = self.parent.cont2d.y[k], self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
@@ -880,12 +883,30 @@ class spec2d():
                     p = np.polyfit(self.raw.y[mask[:, i]], y, poly)
                     res_robust = least_squares(fun, p, loss='soft_l1', f_scale=0.02, args=(self.raw.y[mask[:,i]], y))
                     sky = np.polyval(res_robust.x, self.raw.y)
-                if plot:
-                    fig, ax = plt.subplots()
-                    ax.plot(self.raw.y[mask[:,i]], y, 'ok')
-                    ax.plot(self.raw.y, np.polyval(p, self.raw.y), '--r')
-                    ax.plot(self.raw.y, sky, '-r')
-                    plt.show()
+                    if plot:
+                        fig, ax = plt.subplots()
+                        ax.plot(self.raw.y[mask[:, i]], y, 'ok')
+                        ax.plot(self.raw.y, np.polyval(p, self.raw.y), '--r')
+                        ax.plot(self.raw.y, sky, '-r')
+                        plt.show()
+                elif model == 'wavy':
+                    p = np.polyfit(self.raw.y[mask[:, i]], y, poly)
+                    periods = np.linspace(0.5, 4, 100)
+                    angular_freqs = 2 * np.pi / periods
+                    pgram = lombscargle(self.raw.y[mask[:, i]], y - np.polyval(p, self.raw.y[mask[:, i]]), angular_freqs)
+                    guess_period = periods[np.argmax(pgram)]
+                    guess_amp = np.std(y - np.polyval(p, self.raw.y[mask[:, i]])) * 2. ** 0.5
+                    print('guess:', guess_period, guess_amp)
+                    p = np.append(p, [2 *np.pi / guess_period, 0, guess_amp])
+                    res_robust = least_squares(fun_wavy, p, loss='linear', f_scale=0.001, args=(self.raw.y[mask[:, i]], y))
+                    print('fit:', 2 * np.pi / res_robust.x[-3], res_robust.x[-1])
+                    sky = np.polyval(res_robust.x[:-3], self.raw.y) + (res_robust.x[-1] * np.sin(res_robust.x[-3] * self.raw.y + res_robust.x[-2]))
+                    if plot:
+                        fig, ax = plt.subplots()
+                        ax.plot(self.raw.y[mask[:, i]], y, 'ok')
+                        ax.plot(self.raw.y, np.polyval(res_robust.x[:-3], self.raw.y), '--r')
+                        ax.plot(self.raw.y, sky, '-r')
+                        plt.show()
 
             else:
                 sky = 0

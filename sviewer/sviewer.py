@@ -970,7 +970,7 @@ class spec2dWidget(pg.PlotWidget):
             else:
                 border, poly = 5, 3
             print(x, poly, border)
-            s.sky_model(x, x, border=border, poly=poly, model='fit_robust', plot=1, smooth=0)
+            s.sky_model(x, x, border=border, poly=poly, model='wavy', plot=1, smooth=0)
             self.parent.spec2dPanel.vb.removeItem(s.parent.sky2d)
             s.parent.sky2d = s.set_image('sky', s.parent.colormap)
             self.parent.spec2dPanel.vb.addItem(s.parent.sky2d)
@@ -2933,7 +2933,7 @@ class extract2dWidget(QWidget):
         s = self.parent.s[self.exp_ind]
 
         s.spec2d.sky_model(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], border=self.extr_border, slit=self.extr_slit,
-                           model='fit_robust', window=self.extr_window, poly=self.sky_poly, smooth=self.sky_smooth,
+                           model='wavy', window=self.extr_window, poly=self.sky_poly, smooth=self.sky_smooth,
                            smooth_coef=self.sky_smooth_coef)
 
         self.parent.s.redraw()
@@ -5218,10 +5218,10 @@ class sviewer(QMainWindow):
                             err, mask = None, None
                             for h in hdulist[1:]:
                                 if h.header['EXTNAME'].strip() == 'ERRS':
-                                    err = h.data
+                                    err = h.data * 1e17
                                 if h.header['EXTNAME'].strip() == 'QUAL':
                                     mask = h.data.astype(bool)
-                            s.spec2d.set(x=x*10, y=y, z=hdulist[0].data*1e17, err=err*1e17, mask=mask)
+                            s.spec2d.set(x=x*10, y=y, z=hdulist[0].data*1e17, err=err, mask=mask)
 
                         if 'ORIGFILE' in hdulist[0].header and 'VANDELS' in hdulist[0].header['ORIGFILE']:
                             s.spec2d.set(x=x, y=y, z=hdulist[0].data)
