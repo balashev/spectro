@@ -1368,7 +1368,7 @@ class Spectrum():
     def set_cheb(self, x=None, y=None):
         if self.active():
             if x is None and y is None:
-                self.cheb.norm.set_data(x=self.spec.norm.x, y=self.correctContinuum(self.spec.norm.x))
+                self.cheb.norm.set_data(x=self.spec.raw.x[self.cont_mask], y=self.correctContinuum(self.spec.raw.x[self.cont_mask]))
                 self.cheb.normalize(norm=False, cont_mask=False)
             else:
                 self.cheb.set(x=x, y=y)
@@ -1555,6 +1555,8 @@ class Spectrum():
 
         Prepared lines where fit will be calculated are stored in self.fit_lines list.
         """
+        #debug = True
+
         if ind == -1:
             self.fit_lines = MaskableList([])
         elif hasattr(self, 'fit_lines') and len(self.fit_lines) > 0:
@@ -1588,10 +1590,10 @@ class Spectrum():
                                     if (cf_sys == 'all' or sys.ind == int(cf_sys[3:])) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l()*(1+l.z) > cf.min and l.l()*(1+l.z) < cf.max:
                                         l.cf = i
                             if all:
-                                if any([x[0] < p < x[-1] for p in l.range]):
+                                if l.range[0] < x[-1] and l.range[1] > x[0]:
                                     self.fit_lines += [l]
                             else:
-                                if np.sum(np.where(np.logical_and(x >= l.range[0], x <= l.range[1]))) > 0:
+                                if np.sum(np.logical_and(x >= l.range[0], x <= l.range[1])) > 0:
                                     self.fit_lines += [l]
         if debug:
             print('findFitLines', self.fit_lines, [l.cf for l in self.fit_lines])
@@ -1924,7 +1926,7 @@ class Spectrum():
         """
         print('correctCont:', self.parent.fit.cont_num, self.parent.fit.cont_left, self.parent.fit.cont_right)
         if len(x) > 0:
-            cheb = np.array([getattr(self.parent.fit, 'cont'+str(i)).val for i in range(self.parent.fit.cont_num)])
+            cheb = np.array([getattr(self.parent.fit, 'cont_'+str(i)).val for i in range(self.parent.fit.cont_num)])
             base = (x - x[0]) * 2 / (x[-1] - x[0]) - 1
             if 1:
                 return np.polynomial.chebyshev.chebval(base, cheb)

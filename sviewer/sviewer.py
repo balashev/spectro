@@ -1326,7 +1326,7 @@ class showLinesWidget(QWidget):
                     ('font', int), ('xlabel', str), ('ylabel', str),
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
                     ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
-                    ('plotfile', str), ('show_H2', str), ('pos_H2', float),
+                    ('plotfile', str), ('show_cont', int), ('show_H2', str), ('pos_H2', float),
                     ('show_cf', int),
                     ])
         for opt, func in self.opts.items():
@@ -1389,10 +1389,11 @@ class showLinesWidget(QWidget):
                  'Y-ticks:', 'scale:', '', 'num', '',
                  'Line labels:', 'font:', '', '', '',
                  '', 'hor.:', '', 'vert.:', '',
+                 'Continuum', '', '', '', '',
                  'H2:', '', '', 'pos:', '',
                  'Covering factor:', '', '', '', '',]
 
-        positions = [(i, j) for i in range(18) for j in range(5)]
+        positions = [(i, j) for i in range(19) for j in range(5)]
 
         for position, name in zip(positions, names):
             if name == '':
@@ -1406,7 +1407,7 @@ class showLinesWidget(QWidget):
                                     ('xlabel', [11, 2]), ('ylabel', [11, 4]),
                                     ('x_ticks', [12, 2]), ('xnum', [12, 4]), ('y_ticks', [13, 2]), ('ynum', [13, 4]),
                                     ('font_labels', [14, 2]), ('name_x_pos', [15, 2]), ('name_y_pos', [15, 4]),
-                                    ('show_H2', [16, 2]), ('pos_H2', [16, 4])])
+                                    ('show_H2', [17, 2]), ('pos_H2', [17, 4])])
         for opt, v in self.opt_but.items():
             b = QLineEdit(str(getattr(self, opt)))
             b.setFixedSize(80, 30)
@@ -1453,10 +1454,15 @@ class showLinesWidget(QWidget):
         self.refcomp.currentIndexChanged.connect(self.onIndChoose)
         grid.addWidget(self.refcomp, 9, 4)
 
+        self.showcont = QCheckBox('show')
+        self.showcont.setChecked(self.show_cont)
+        self.showcont.clicked[bool].connect(self.setCont)
+        grid.addWidget(self.showcont, 16, 1)
+
         self.showcf = QCheckBox('show')
         self.showcf.setChecked(self.show_cf)
         self.showcf.clicked[bool].connect(self.setCf)
-        grid.addWidget(self.showcf, 17, 1)
+        grid.addWidget(self.showcf, 18, 1)
 
         layout.addStretch(1)
         l = QHBoxLayout()
@@ -1544,6 +1550,9 @@ class showLinesWidget(QWidget):
     def setCf(self, b):
         self.show_cf = int(self.showcf.isChecked())
 
+    def setCont(self, b):
+        self.show_cont = int(self.showcont.isChecked())
+
     def setFilename(self):
         self.plotfile = self.file.text()
 
@@ -1570,13 +1579,13 @@ class showLinesWidget(QWidget):
         self.sys_ind = self.refcomp.currentIndex() + 1
 
     def showPlot(self, savefig=True, showH2=[]):
-        if not self.parent.normview:
-            self.parent.normalize()
         fig = plt.figure(figsize=(self.width, self.height), dpi=300)
         #self.subplot = self.mw.getFigure().add_subplot(self.rows, self.cols, 1)
 
         if not self.regions:
-            print(self.parent.lines, type(self.parent.lines[0]))
+            if not self.parent.normview:
+                self.parent.normalize()
+
             self.ps = plot_spec(len(self.parent.lines), font=self.font, font_labels=self.font_labels,
                            vel_scale=(self.units=='l'), gray_out=self.gray_out, figure=fig)
             rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order,
@@ -1693,8 +1702,11 @@ class showLinesWidget(QWidget):
 
                 if self.show_H2.strip() != '':
                     p.showH2(ax, levels=[int(s) for s in self.show_H2.split()], pos=self.pos_H2)
-                if 0:
-                    self.showContCorr(ax=ax)
+                if self.show_cont:
+                    print(self.show_cont)
+                    ax.plot(s.cheb.x(), s.cheb.y(), '--k', lw=1)
+                    if 0:
+                        self.showContCorr(ax=ax)
 
         if savefig:
             plotfile = self.plotfile
@@ -4282,7 +4294,7 @@ class sviewer(QMainWindow):
 
         fitCont = QAction('&Fit Cont', self)
         fitCont.setStatusTip('Adjust continuum by Chebyshev polynomials')
-        fitCont.triggered.connect(partial(self.fitCont, 'GP'))
+        fitCont.triggered.connect(partial(self.fitCont, 'cheb'))
 
         fitExt = QAction('&Fit Extinction...', self)
         fitExt.setStatusTip('Fit extinction')
@@ -5689,15 +5701,15 @@ class sviewer(QMainWindow):
         x = self.plot.vb.getState()['viewRange'][0]
         self.s[self.s.ind].calc_cont(x[0], x[-1])
 
-    def fitCont(self, typ='GP'):
+    def fitCont(self, typ='cheb'):
         """
         fit Continuum using specified model.
             - kind        : can be 'cheb', 'GP',
         """
         s = self.s[0]
-        mask = (self.s[0].spec.norm.x() > self.fit.cont_left) * (self.s[0].spec.norm.x() < self.fit.cont_right)
-        fit = s.fit.f(s.spec.norm.x())
-        mask = np.logical_and(fit > 0.05, s.fit_mask.x())
+        mask = (self.s[0].spec.x() > self.fit.cont_left) * (self.s[0].spec.x() < self.fit.cont_right)
+        fit = s.fit.f(s.spec.x())
+        mask = np.logical_and(fit > 0.05, s.fit_mask.x)
         x = s.norm.x[mask]
         y = s.norm.y[mask] / fit[mask]
         w = s.norm.err[mask] / fit[mask]
@@ -5708,7 +5720,7 @@ class sviewer(QMainWindow):
             cheb = np.polynomial.chebyshev.Chebyshev.fit(x, y, self.fit.cont_num - 1, w=1.0/w)
             poly = np.polynomial.chebyshev.cheb2poly([c for c in cheb])
             for i, c in enumerate(cheb):
-                self.fit.setValue('cont' + str(i), c)
+                self.fit.setValue('cont_' + str(i), c)
             ax.plot(x, self.s[0].correctContinuum(x), '-r')
 
         elif typ == 'GP':
@@ -5881,66 +5893,76 @@ class sviewer(QMainWindow):
         #if ind is not None:
         #    return temp.temp
 
-    def showMetalAbundance(self):
+    def showMetalAbundance(self, component=1, dep_ref='ZnII', HI=a(21,0,0)):
         """
         Show metal abundances, metallicity and depletions based on the fit
         """
         colors = ['royalblue', 'orangered', 'seagreen', 'darkmagenta', 'skyblue', 'paleviotelred', 'chocolate']
+
         names = set()
         for sys in self.fit.sys:
             for sp in sys.sp.keys():
                 names.add(sp)
-
         refs = set(names)
         for sys in self.fit.sys:
             refs = refs & sys.sp.keys()
-
         names = list(names)
         inds = np.argsort([condens_temperature(name) for name in names])
         names = [names[i] for i in inds]
 
         ref = list(refs)[0]
 
-        print(names, refs)
+        print(names, refs, ref)
 
-        fig, ax = plt.subplots()
         for sys in self.fit.sys:
-            color = colors[self.fit.sys.index(sys)]
-            m = metallicity(ref, sys.sp[ref].N.unc, 22.0)
-            for i, sp in enumerate(names):
-                if sp in sys.sp.keys():
-                    y = metallicity(sp, sys.sp[sp].N.unc, 22.0) / m
-                    ax.scatter(i, y.val, c=color)
-                    ax.errorbar([i], [y.val], yerr=[[y.minus], [y.plus]], c=color)
-        ax.set_xticks(np.arange(len(names)))
-        ax.set_xticklabels(names)
-        plt.draw()
+            for sp in sys.sp.keys():
+                if sys.sp[sp].N.unc is None or sys.sp[sp].N.unc.val == 0:
+                    sys.sp[sp].N.unc = a(sys.sp[sp].N.val, 0, 0)
+
+        if component:
+            fig, ax = plt.subplots()
+
+            for sys in self.fit.sys:
+                color = colors[self.fit.sys.index(sys)]
+                m = metallicity(ref, sys.sp[ref].N.unc, 22.0)
+                for i, sp in enumerate(names):
+                    if sp in sys.sp.keys():
+                        y = metallicity(sp, sys.sp[ref].N.unc, 22.0) / m
+                        ax.scatter(i, y.val, c=color)
+                        ax.errorbar([i], [y.val], yerr=[[y.minus], [y.plus]], c=color)
+            ax.set_xticks(np.arange(len(names)))
+            ax.set_xticklabels(names)
+            plt.draw()
+
+            fig, ax = plt.subplots()
+
+            for sys in self.fit.sys:
+                color = colors[self.fit.sys.index(sys)]
+                if dep_ref in sys.sp.keys():
+                    for k, v in sys.sp.items():
+                        y = depletion(k, v.N.unc, sys.sp[dep_ref].N.unc, ref=dep_ref)
+                        ax.scatter(names.index(k), y.val, c=color)
+                        ax.errorbar([names.index(k)], [y.val], yerr=[[y.minus], [y.plus]], c=color)
+
+            ax.set_xticks(np.arange(len(names)))
+            ax.set_xticklabels(names)
+            plt.show()
 
         sp = {}
         for name in names:
             sp[name] = a(0, 0, 'd')
             for sys in self.fit.sys:
                 if name in sys.sp.keys():
+                    print(name, sys.sp[name].N.unc)
                     sp[name] += sys.sp[name].N.unc
+            sp[name].log()
 
-        dep_ref = 'ZnII'
-        fig, ax = plt.subplots()
-        if 1:
-            for k, v in sp.items():
-                print(k, v.log().val, metallicity(k, v, 22.0).val, depletion(k, v, sp[dep_ref], ref=dep_ref).val)
-                #ax.scatter(names.index(k), depletion(k, v, sp[dep_ref], ref=dep_ref).val, c='k')
+        res = {}
+        for k, v in sp.items():
+            res[k] = [v, metallicity(k, v, HI), depletion(k, v, sp[dep_ref], ref=dep_ref)]
+            print(k, res[k])
 
-        for sys in self.fit.sys:
-            color = colors[self.fit.sys.index(sys)]
-            if dep_ref in sys.sp.keys():
-                for k, v in sys.sp.items():
-                    y = depletion(k, v.N.unc, sys.sp[dep_ref].N.unc, ref=dep_ref)
-                    ax.scatter(names.index(k), y.val, c=color)
-                    ax.errorbar([names.index(k)], [y.val], yerr=[[y.minus], [y.plus]], c=color)
-
-        ax.set_xticks(np.arange(len(names)))
-        ax.set_xticklabels(names)
-        plt.show()
+        return res
 
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

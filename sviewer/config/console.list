@@ -1,21 +1,21 @@
-stats
-stats
+show MnII
+show MgI
+PII
+show PII
+NII
+HI
+HI
+show HI
 2d levels 0 1
-2d level 0 1
+SI
+show SI
+show MgI
+MgI
+MnII
+show MnII
+ZnII
+SII
+MnII
+CrII
+MnII
 2d levels 0 1
-2d level 0 1
-2d levels 0 1
-2d level 0 1
-2d levels 0 1
-2d levels 0 1
-2d levels sky 0 1
-rescale err 0.1
-rescale err 0.1
-rescale err 0.1
-rescale err 0.1
-2d levels 0 1
-rescale err 0.1
-rescale 5
-shift 2
-stats
-stats

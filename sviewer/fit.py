@@ -134,7 +134,6 @@ class par:
         if self.unc is not None:
             if dec is None:
                 d = np.asarray([self.unc.plus, self.unc.minus])
-                print(d)
                 if len(np.nonzero(d)[0]) > 0:
                     dec = int(np.round(np.abs(np.log10(np.min(d[np.nonzero(d)])))) + 1)
                 else:
@@ -281,6 +280,7 @@ class fitPars:
         #self.setSpecific()
 
     def add(self, name):
+        print('add', name)
         if name in 'mu':
             self.mu = par(self, 'mu', 1e-6, 1e-7, 5e-6, 1e-8)
         if name in 'me':
@@ -445,7 +445,7 @@ class fitPars:
                 pars[str(p)] = p
         if self.cont_fit and self.cont_num > 0:
             for i in range(self.cont_num):
-                attr = 'cont' + str(i)
+                attr = 'cont_' + str(i)
                 if hasattr(self, attr):
                     p = getattr(self, attr)
                     pars[str(p)] = p

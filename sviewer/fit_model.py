@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame,
                              QWidget,
                              )
 from .utils import Timer
+from ..a_unc import a
 from ..pyratio import pyratio
 
 class FLineEdit(QLineEdit):
@@ -199,7 +200,7 @@ class fitModelWidget(QWidget):
         self.cont_m.setText(7, '...')
         self.treeWidget.setItemWidget(self.cont_m, 8, self.cont_right)
         for i in range(self.parent.fit.cont_num):
-            self.addChild('cont', 'cont' + str(i))
+            self.addChild('cont', 'cont_' + str(i))
         self.cont.setExpanded(self.parent.fit.cont_fit)
 
         for s, name in zip(['mu', 'me', 'dtoh'], ['mp/me', 'metallicity', 'D/H']):
@@ -220,7 +221,7 @@ class fitModelWidget(QWidget):
         self.treeWidget.setItemWidget(self.res_m, 4, self.res_num)
         for i in range(self.parent.fit.res_num):
             self.addChild('res', 'res_' + str(i))
-        self.res.setExpanded(self.parent.fit.res_fit)
+        #self.res.setExpanded(self.parent.fit.res_fit)
 
         self.cf = self.addParent(self.treeWidget, 'Covering factors', expanded=self.parent.fit.cf_fit)
         self.cf.name = 'cf'
@@ -249,7 +250,7 @@ class fitModelWidget(QWidget):
         for i in range(self.parent.fit.disp_num):
             self.addChild('disp', 'dispz_' + str(i))
             self.addChild('disp', 'disps_' + str(i))
-        self.disp.setExpanded(self.parent.fit.disp_fit)
+        #self.disp.setExpanded(self.parent.fit.disp_fit)
 
         self.treeWidget.itemExpanded.connect(self.stateChanged)
         self.treeWidget.itemCollapsed.connect(self.stateChanged)
@@ -258,7 +259,6 @@ class fitModelWidget(QWidget):
         item = QTreeWidgetItem(parent, [text])
         item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
         item.setExpanded(expanded)
-
         return item
 
     def addChild(self, parent, name):
@@ -291,7 +291,7 @@ class fitModelWidget(QWidget):
                 self.treeWidget.setItemWidget(getattr(self, name), 11, combo)
         setattr(self, name + '_vary', QCheckBox(self))
         getattr(self, name + '_vary').stateChanged.connect(partial(self.varyChanged, name))
-        getattr(self, name + '_vary').setChecked(True)
+        getattr(self, name + '_vary').setChecked(self.parent.fit.getValue(name, 'vary'))
         self.treeWidget.setItemWidget(getattr(self, name), 2, getattr(self, name + '_vary'))
         if not getattr(self, parent).isExpanded():
             self.parent.fit.remove(name)
@@ -452,9 +452,9 @@ class fitModelWidget(QWidget):
             self.parent.fit.cont_num = int(self.cont_num.text())
             for i in range(self.parent.fit.cont_num):
                 if self.cont.isExpanded():
-                    self.parent.fit.add('cont'+str(i))
+                    self.parent.fit.add('cont_'+str(i))
                 else:
-                    self.parent.fit.remove('cont'+str(i))
+                    self.parent.fit.remove('cont_'+str(i))
 
         if item.name == 'res':
             self.parent.fit.res_fit = self.res.isExpanded()
@@ -494,11 +494,11 @@ class fitModelWidget(QWidget):
             rang = range(self.parent.fit.cont_num, k) if sign == 1 else range(self.fit.cont_num-1, k-1, -1)
             for i in list(rang):
                 if k > self.parent.fit.cont_num:
-                    self.parent.fit.add('cont'+str(i))
-                    self.addChild('cont', 'cont'+str(i))
+                    self.parent.fit.add('cont_'+str(i))
+                    self.addChild('cont', 'cont_'+str(i))
                 else:
-                    self.parent.fit.remove('cont' + str(i))
-                    getattr(self, 'cont').removeChild(getattr(self, 'cont' + str(i)))
+                    self.parent.fit.remove('cont_' + str(i))
+                    getattr(self, 'cont').removeChild(getattr(self, 'cont_' + str(i)))
             self.parent.fit.cont_num = k
             if self.refr:
                 self.refresh()
@@ -969,6 +969,7 @@ class fitResultsWidget(QWidget):
     def __init__(self, parent):
         super(fitResultsWidget, self).__init__()
         self.parent = parent
+        self.res = None
         self.init_GUI()
         self.setStyleSheet(open('config/styles.ini').read())
 
@@ -985,27 +986,51 @@ class fitResultsWidget(QWidget):
         self.latexTable = QPushButton('Table view:')
         self.latexTable.setCheckable(True)
         self.latexTable.setChecked(False)
-        self.latexTable.setFixedSize(120, 30)
+        self.latexTable.setFixedSize(100, 30)
         self.latexTable.clicked.connect(self.refresh)
         self.vert = QCheckBox('vertical')
         self.vert.setChecked(True)
         self.vert.clicked.connect(self.refresh)
-        self.showb = QCheckBox('show tied b')
+        self.showb = QCheckBox('Tied b')
         self.showb.setChecked(False)
         self.showb.clicked.connect(self.refresh)
-        self.showv = QCheckBox('show v')
+        self.showv = QCheckBox('Delta v')
         self.showv.setChecked(False)
         self.showv.clicked.connect(self.refresh)
         self.comp = 0
         self.vcomp = QLineEdit(str(self.comp+1))
-        self.vcomp.setFixedSize(30,30)
+        self.vcomp.setFixedSize(20, 30)
         self.vcomp.setEnabled(self.showv.isChecked())
         self.vcomp.returnPressed.connect(self.refresh)
+        self.showtotal = QCheckBox('Total')
+        self.showtotal.setChecked(False)
+        self.showtotal.clicked.connect(self.refresh)
+        self.showme = QCheckBox('Metallicity')
+        self.showme.setChecked(False)
+        self.showme.clicked.connect(self.refresh)
+        self.HI = a(20.47, 0.01, 0.01)
+        self.HIvalue = QLineEdit(self.HI.latex(eqs=0))
+        self.HIvalue.setFixedSize(150, 30)
+        self.HIvalue.setEnabled(self.showme.isChecked())
+        self.HIvalue.returnPressed.connect(self.refresh)
+        self.showdep = QCheckBox('Depletion')
+        self.showdep.setChecked(False)
+        self.showdep.clicked.connect(self.refresh)
+        self.depref = 'ZnII'
+        self.depRef = QLineEdit(self.depref)
+        self.depRef.setFixedSize(30, 30)
+        self.depRef.setEnabled(self.showdep.isChecked())
+        self.depRef.returnPressed.connect(self.refresh)
         hl.addWidget(self.latexTable)
         hl.addWidget(self.vert)
         hl.addWidget(self.showb)
         hl.addWidget(self.showv)
         hl.addWidget(self.vcomp)
+        hl.addWidget(self.showtotal)
+        hl.addWidget(self.showme)
+        hl.addWidget(self.HIvalue)
+        hl.addWidget(self.showdep)
+        hl.addWidget(self.depRef)
         hl.addStretch(0)
         layout.addWidget(self.output)
         #layout.addStretch(1)
@@ -1015,6 +1040,10 @@ class fitResultsWidget(QWidget):
     def refresh(self):
         self.vcomp.setEnabled(self.showv.isChecked())
         self.comp = int(self.vcomp.text())-1
+        self.HIvalue.setEnabled(self.showme.isChecked())
+        self.HI = a(self.HIvalue.text())
+        self.depRef.setEnabled(self.showdep.isChecked())
+        self.depref = self.depRef.text()
         if self.latexTable.isChecked():
             self.latex()
         else:
@@ -1023,42 +1052,63 @@ class fitResultsWidget(QWidget):
     def text(self):
         s = ''
         for p in self.parent.fit.list():
-            print(p, p.fitres())
             s += p.fitres() + '\n'
         self.output.setText(s)
 
     def latex(self):
         fit = self.parent.fit
+        if self.res is None and (self.showtotal.isChecked() or self.showme.isChecked() or self.showdep.isChecked()):
+            self.res = self.parent.showMetalAbundance(component=0, dep_ref=self.depref, HI=self.HI)
+        print(self.res)
         sps = OrderedDict()
         for sys in fit.sys:
             for sp in sys.sp.keys():
                 sps[sp] = 1
-        if self.vert.isChecked():
-            names = ['par'] + ['comp '+str(i+1) for i in range(len(fit.sys))]
-            data = ['z']
+        #names = ['par'] + ['comp '+str(i+1) for i in range(len(fit.sys))]
+        d = ['comp', 'z']
+        if self.showv.isChecked():
+            d += ['$\Delta$v, km/s']
+        if self.showb.isChecked():
+            d += ['b, km/s']
+        d += list([r'$\log N$(' + s + ')' for s in sps.keys()])
+        #if self.showtotal.isChecked():
+        #    d += [r'$\log N_{\rm tot}$']
+        #if self.showme.isChecked():
+        #    d += ['[X/H]']
+        #if self.showdep.isChecked():
+        #    d += ['[X/H]/[' + self.depref + '/H]']
+        data = [d]
+        #d = ['$log N($'+sp+')']
+        for sys in fit.sys:
+            d = [str(fit.sys.index(sys)+1)]
+            d.append(sys.z.fitres(latex=True, showname=False))
             if self.showv.isChecked():
-                data += ['$\Delta$v, km/s']
+                d.append('{:.1f}'.format((sys.z.val - fit.sys[self.comp].z.val)/(1 + fit.sys[self.comp].z.val) * 299792.46))
             if self.showb.isChecked():
-                data += ['b, km/s']
-            data += list([r'$\log N$(' + s + ')' for s in sps.keys()])
-            data = [data]
-            #d = ['$log N($'+sp+')']
-            for sys in fit.sys:
-                d = [sys.z.fitres(latex=True, showname=False)]
-                if self.showv.isChecked():
-                    d.append('{:.1f}'.format((sys.z.val - fit.sys[self.comp].z.val)/(1 + fit.sys[self.comp].z.val) * 299792.46))
-                if self.showb.isChecked():
-                    sp = sys.sp[list(sys.sp.keys())[0]]
-                    if sp.b.addinfo is not '':
-                        sp = sys.sp[sp.b.addinfo]
-                    d.append(sp.b.fitres(latex=True, dec=2, showname=False))
+                sp = sys.sp[list(sys.sp.keys())[0]]
+                if sp.b.addinfo is not '':
+                    sp = sys.sp[sp.b.addinfo]
+                d.append(sp.b.fitres(latex=True, dec=2, showname=False))
+            for sp in sps.keys():
+                if sp in sys.sp.keys():
+                    d.append(sys.sp[sp].N.fitres(latex=True, dec=2, showname=False))
+                else:
+                    d.append(' ')
+            data.append(d)
+        for show, ind, name in zip(['showtotal', 'showme', 'showdep'], [0, 1, 2], [r'$\log N_{\rm tot}$', '[X/H]', '[X/H]/[' + self.depref + '/H]']):
+            if getattr(self, show).isChecked():
+                d = [name, '']
+                for show in ['showv', 'showb']:
+                    if getattr(self, show).isChecked():
+                        d += ['']
                 for sp in sps.keys():
-                    if sp in sys.sp.keys():
-                        d.append(sys.sp[sp].N.fitres(latex=True, dec=2, showname=False))
-                    else:
-                        d.append(' ')
+                    d.append(self.res[sp][ind].log().latex())
                 data.append(d)
-        else:
+        print(data)
+        if self.vert.isChecked():
+            data = [list(i) for i in zip(*data)]
+
+        if 0:
             names = ['comp', 'z']
             if self.showv.isChecked():
                 names += ['$\Delta$v, km/s']
@@ -1072,7 +1122,6 @@ class fitResultsWidget(QWidget):
                 d = []
                 for sys in fit.sys:
                     d.append('{:.1f}'.format((sys.z.val - fit.sys[self.comp].z.val)/(1 + fit.sys[self.comp].z.val) * 299792.46))
-                print(d)
                 data.append(d)
             if self.showb.isChecked():
                 d = []
@@ -1090,9 +1139,20 @@ class fitResultsWidget(QWidget):
                     else:
                         d.append(' ')
                 data.append(d)
-        print(data)
+            for show, ind, name in zip(['showtotal', 'showme', 'showdep'], [0, 1, 2], [r'$\log N_{\rm tot}$', '[X/H]', '[X/H]/[' + self.depref + '/H]']):
+                if getattr(self, show).isChecked():
+                    d = ['']
+                    for show in ['showv', 'showb']:
+                        if getattr(self, show).isChecked():
+                            d += ['']
+                    for sp in sps.keys():
+                        d.append(self.res[sp][ind].latex())
+                    data.append(d)
+
+        print('data:', data[0], data[1:])
         output = StringIO()
-        ascii.write(data, output, names=names, format='latex')
+        ascii.write([list(i) for i in zip(*data[1:])], output, names=data[0], format='latex')
+        #ascii.write(data, output, names=names, format='latex')
         table = output.getvalue()
         print(table)
         self.output.setText(table)
