@@ -839,7 +839,6 @@ class spec2d():
             inds = np.where(np.logical_and(self.parent.cont_mask2d, np.logical_and(self.raw.x >= xmin, self.raw.x <= xmax)))[0]
         else:
             inds = []
-        print(inds)
 
         def fun(p, x, y):
             return np.polyval(p, x) - y
@@ -876,10 +875,10 @@ class spec2d():
                     sky = np.median(y) * np.ones_like(self.raw.y)
                 elif model == 'mean':
                     sky = np.mean(y) * np.ones_like(self.raw.y)
-                elif model == 'fit':
+                elif model == 'polynomial':
                     p = np.polyfit(self.raw.y[mask[:,i]], y, poly)
                     sky = np.polyval(p, self.raw.y)
-                elif model == 'fit_robust':
+                elif model == 'robust':
                     p = np.polyfit(self.raw.y[mask[:, i]], y, poly)
                     res_robust = least_squares(fun, p, loss='soft_l1', f_scale=0.02, args=(self.raw.y[mask[:,i]], y))
                     sky = np.polyval(res_robust.x, self.raw.y)
@@ -896,10 +895,10 @@ class spec2d():
                     pgram = lombscargle(self.raw.y[mask[:, i]], y - np.polyval(p, self.raw.y[mask[:, i]]), angular_freqs)
                     guess_period = periods[np.argmax(pgram)]
                     guess_amp = np.std(y - np.polyval(p, self.raw.y[mask[:, i]])) * 2. ** 0.5
-                    print('guess:', guess_period, guess_amp)
+                    #print('guess:', guess_period, guess_amp)
                     p = np.append(p, [2 *np.pi / guess_period, 0, guess_amp])
-                    res_robust = least_squares(fun_wavy, p, loss='linear', f_scale=0.001, args=(self.raw.y[mask[:, i]], y))
-                    print('fit:', 2 * np.pi / res_robust.x[-3], res_robust.x[-1])
+                    res_robust = least_squares(fun_wavy, p, loss='linear', f_scale=0.003, args=(self.raw.y[mask[:, i]], y))
+                    #print('fit:', 2 * np.pi / res_robust.x[-3], res_robust.x[-1])
                     sky = np.polyval(res_robust.x[:-3], self.raw.y) + (res_robust.x[-1] * np.sin(res_robust.x[-3] * self.raw.y + res_robust.x[-2]))
                     if plot:
                         fig, ax = plt.subplots()

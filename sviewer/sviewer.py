@@ -967,10 +967,11 @@ class spec2dWidget(pg.PlotWidget):
             if self.parent.extract2dwindow is not None:
                 border = self.parent.extract2dwindow.extr_border
                 poly = self.parent.extract2dwindow.sky_poly
+                model = self.parent.extract2dwindow.skymodeltype
             else:
-                border, poly = 5, 3
+                border, poly, model = 5, 3, 'median'
             print(x, poly, border)
-            s.sky_model(x, x, border=border, poly=poly, model='wavy', plot=1, smooth=0)
+            s.sky_model(x, x, border=border, poly=poly, model=model, plot=1, smooth=0)
             self.parent.spec2dPanel.vb.removeItem(s.parent.sky2d)
             s.parent.sky2d = s.set_image('sky', s.parent.colormap)
             self.parent.spec2dPanel.vb.addItem(s.parent.sky2d)
@@ -1641,14 +1642,7 @@ class showLinesWidget(QWidget):
                                v_indent=self.v_indent, h_indent=self.h_indent,
                                col_offset=self.col_offset, row_offset=self.row_offset)
             self.ps.specify_rects(rects)
-            if self.ylabel.strip() != '':
-                self.ps.set_ticklabels(ylabel=self.ylabel)
-            else:
-                self.ps.set_ticklabels(ylabel=None)
-            if self.xlabel.strip() != '':
-                self.ps.set_ticklabels(xlabel=self.xlabel)
-            else:
-                self.ps.set_ticklabels(xlabel=None)
+            self.ps.set_ticklabels(xlabel=self.xlabel if self.xlabel.strip() != '' else None,  ylabel=self.ylabel if self.ylabel.strip() != '' else None)
             self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
@@ -2581,7 +2575,7 @@ class extract2dWidget(QWidget):
             ('extr_slit', ['extrSlit', float, 0.9]),
             ('extr_window', ['extrWindow', int, 0]),
             ('extr_border', ['extrBorder', int, 3]),
-            ('sky_poly', ['skyPoly', int, 1]),
+            ('sky_poly', ['skyPoly', int, 3]),
             ('sky_smooth', ['skySmooth', int, 0]),
             ('sky_smooth_coef', ['skySmoothCoef', float, 0.3]),
             ('helio_corr', ['helioCorr', float, 20.682]),
@@ -2611,9 +2605,10 @@ class extract2dWidget(QWidget):
         self.expchoose.setFixedSize(400, 30)
         for s in self.parent.s:
             self.expchoose.addItem(s.filename)
-        self.exp_ind = self.parent.s.ind
-        self.expchoose.currentIndexChanged.connect(self.onExpChoose)
-        self.expchoose.setCurrentIndex(self.exp_ind)
+        if len(self.parent.s) > 0:
+            self.exp_ind = self.parent.s.ind
+            self.expchoose.currentIndexChanged.connect(self.onExpChoose)
+            self.expchoose.setCurrentIndex(self.exp_ind)
         hl.addWidget(exposure)
         hl.addWidget(self.expchoose)
         hl.addStretch(0)
@@ -2781,6 +2776,18 @@ class extract2dWidget(QWidget):
         layout.addLayout(hl)
 
         hl = QHBoxLayout()
+        hl.addWidget(QLabel('Model:'))
+        self.skymodel = QComboBox()
+        self.skymodel.setFixedSize(80, 30)
+        self.skymodel.addItems(['median', 'polynomial', 'robust', 'wavy'])
+        self.skymodeltype = 'wavy'
+        self.skymodel.setCurrentText(self.skymodeltype)
+        self.skymodel.activated[str].connect(self.skyModel)
+        hl.addWidget(self.skymodel)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
         hl.addWidget(QLabel('Poly order:'))
         self.skyPoly = QLineEdit()
         self.skyPoly.setFixedSize(60, 30)
@@ -2844,8 +2851,9 @@ class extract2dWidget(QWidget):
         self.expResChoose.setFixedSize(250, 30)
         for s in self.parent.s:
             self.expResChoose.addItem(s.filename)
-        self.exp_res_ind = self.parent.s.ind
-        self.expResChoose.setCurrentIndex(self.exp_res_ind)
+        if len(self.parent.s) > 0:
+            self.exp_res_ind = self.parent.s.ind
+            self.expResChoose.setCurrentIndex(self.exp_res_ind)
         hl.addWidget(rescale)
         hl.addWidget(self.expResChoose)
         hl.addStretch(0)
@@ -2860,6 +2868,10 @@ class extract2dWidget(QWidget):
             setattr(self, attr, self.opts[attr][1](getattr(self, self.opts[attr][0]).text()))
         except:
             pass
+
+    def skyModel(self):
+        self.skymodeltype = self.skymodel.currentText()
+        print(self.skymodeltype)
 
     def changeExp(self):
         self.exp_ind += 1
@@ -2943,9 +2955,8 @@ class extract2dWidget(QWidget):
     def sky(self):
 
         s = self.parent.s[self.exp_ind]
-
         s.spec2d.sky_model(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], border=self.extr_border, slit=self.extr_slit,
-                           model='wavy', window=self.extr_window, poly=self.sky_poly, smooth=self.sky_smooth,
+                           model=self.skymodeltype, window=self.extr_window, poly=self.sky_poly, smooth=self.sky_smooth,
                            smooth_coef=self.sky_smooth_coef)
 
         self.parent.s.redraw()
