@@ -774,7 +774,6 @@ class spec2d():
             fig, ax = plt.subplots()
             ax.plot(x, y, '-r')
 
-        print(a, x_0, gamma, c)
         popt, pcov = curve_fit(self.moffat_fit_integ, x, y, p0=[a, x_0, gamma, c])
 
         print('popt', popt)
@@ -784,7 +783,7 @@ class spec2d():
 
         if plot:
             ax.plot(x, self.moffat_fit_integ(x, popt[0], popt[1], popt[2], popt[3]), '-b')
-            ax.set_title('FWHM = {0:.2f}, center={1:.2f}'.format(fwhm, x_0))
+            ax.set_title('FWHM = {0:.2f}, center={1:.2f}'.format(fwhm, popt[1]))
             plt.show()
             self.parent.parent.s.redraw()
 
@@ -852,9 +851,10 @@ class spec2d():
                 if self.trace is None and slit is not None:
                     x_0, gamma = self.parent.cont2d.y[k], self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
                 else:
-                    x_0 = self.trace[1][k]
-                    gamma = self.trace[2][k] * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
-                m = self.moffat.ppf([0.05, 0.95], loc=x_0, scale=gamma)
+                    ind = np.searchsorted(self.trace[0], self.raw.x[i])
+                    x_0 = self.trace[1][ind]
+                    gamma = self.trace[2][ind] * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+                m = self.moffat.ppf([0.02, 0.98], loc=x_0, scale=gamma)
                 mask_sky = np.logical_or(self.raw.y < m[0], self.raw.y > m[1])
             elif slit is not None:
                 mask_sky = 1 / (np.exp(-40 * (np.abs(self.raw.y - self.parent.cont2d.y[k]) - slit * 2)) + 1)
@@ -960,8 +960,9 @@ class spec2d():
                 if self.trace is None and slit is not None:
                     x_0, gamma = self.parent.cont2d.y[k], self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
                 else:
-                    x_0 = self.trace[1][k]
-                    gamma = self.trace[2][k] * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+                    ind = np.searchsorted(self.trace[0], self.raw.x[i])
+                    x_0 = self.trace[1][ind]
+                    gamma = self.trace[2][ind] * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
                 profile = self.moffat_fit_integ(self.raw.y, a=1, x_0=x_0, gamma=gamma, c=0)
             elif mask_type == 'rectangular':
                 profile = 1 / (np.exp(-40 * (np.abs(self.raw.y - self.parent.cont2d.y[k]) - self.extr_slit)) + 1)

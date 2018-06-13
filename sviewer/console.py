@@ -384,6 +384,10 @@ class Console(QTextEdit):
                 self.parent.s[self.parent.s.ind].spec.raw.x += float(args[1])
                 self.parent.s[self.parent.s.ind].spec.norm.x += float(args[1])
                 self.parent.s.redraw()
+            if len(args) == 3 and args[1] == 'v':
+                self.parent.s[self.parent.s.ind].spec.raw.x *= (1 + float(args[2])/299792.458)
+                self.parent.s[self.parent.s.ind].spec.norm.x *= (1 + float(args[2])/299792.458)
+                self.parent.s.redraw()
 
         elif args[0] == 'set':
             if len(args) == 3:

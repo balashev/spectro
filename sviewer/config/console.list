@@ -1,21 +1,21 @@
 2d levels 0 1
-2d levels 0 20
-2d levels 0 1
+2d levels sky0 1
+2d levels sky 0 1
+2d levels sky 0 1
 2d levels 0 30
-2d levels 0 20
-2d levels 0 1
-2d levels 0 20
-rescale 3
-rescale 1.3
-rescale 1.2
-rescale 4.68
-rescale 0.95
+rescale y 5
+rescale 4
+rescale y 4
+rescale y 1.2
 show H2 0 1
+show HD
+logN H2
+show HD
+CI*
 show CI*
 show CI**
-show H2 0 1
+MgI
+show MgI
+PII
+NI
 NII
-show CII*
-show H2 0 1
-2d levels 0 1
-CrII

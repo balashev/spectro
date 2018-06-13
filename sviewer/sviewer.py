@@ -970,7 +970,6 @@ class spec2dWidget(pg.PlotWidget):
                 model = self.parent.extract2dwindow.skymodeltype
             else:
                 border, poly, model = 5, 3, 'median'
-            print(x, poly, border)
             s.sky_model(x, x, border=border, poly=poly, model=model, plot=1, smooth=0)
             self.parent.spec2dPanel.vb.removeItem(s.parent.sky2d)
             s.parent.sky2d = s.set_image('sky', s.parent.colormap)
@@ -2574,7 +2573,7 @@ class extract2dWidget(QWidget):
             ('extr_width', ['extrWidth', float, 3]),
             ('extr_slit', ['extrSlit', float, 0.9]),
             ('extr_window', ['extrWindow', int, 0]),
-            ('extr_border', ['extrBorder', int, 3]),
+            ('extr_border', ['extrBorder', int, 1]),
             ('sky_poly', ['skyPoly', int, 3]),
             ('sky_smooth', ['skySmooth', int, 0]),
             ('sky_smooth_coef', ['skySmoothCoef', float, 0.3]),
@@ -4025,7 +4024,7 @@ class sviewer(QMainWindow):
         self.show_2d = self.options('show_2d')
         self.save_opt = ['cont', 'points', 'fit', 'others', 'fit_results']
         self.export_opt = ['cont', 'fit']
-        self.export2d_opt = ['spectrum', 'err', 'mask', 'cr', 'trace']
+        self.export2d_opt = ['spectrum', 'err', 'mask', 'cr', 'sky', 'trace']
         self.num_between = int(self.options('num_between'))
         self.tau_limit = float(self.options('tau_limit'))
         self.comp_view = self.options('comp_view')
