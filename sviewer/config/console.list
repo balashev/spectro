@@ -1,21 +1,21 @@
-2d levels 0 1
-2d levels sky0 1
-2d levels sky 0 1
-2d levels sky 0 1
-2d levels 0 30
-rescale y 5
-rescale 4
-rescale y 4
-rescale y 1.2
-show H2 0 1
-show HD
+stats
+stats
+stats
+stats
 logN H2
 show HD
-CI*
+2.606
 show CI*
 show CI**
-MgI
-show MgI
-PII
-NI
-NII
+SHOW ci
+show CI
+2d levels 0 1
+2d levels 0 1
+show H2 0 1
+show H2 0 2
+show H2 3 4
+
+show CI*
+SII
+CII*
+show CII*

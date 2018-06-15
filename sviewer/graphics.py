@@ -67,10 +67,11 @@ class Speclist(list):
         if ind > -1:
             self[ind].remove()
             del self[ind]
-            if self.ind > 0:
-                self.ind -= 1
-            else:
+            if ind == len(self):
+                ind -= 1
+            if len(self) == 0:
                 self.ind = None
+            self.ind = ind
             self.redraw()
             try:
                 self.parent.exp.update()
@@ -822,7 +823,7 @@ class spec2d():
                                             connect="finite", pen=pg.mkPen(255, 255, 255, width=3, style=Qt.DashLine))
         self.parent.parent.spec2dPanel.vb.addItem(self.trace_width)
 
-    def sky_model(self, xmin, xmax, border=0, slit=None, mask_type='moffat', model='median', window=0, poly=3, smooth=0, smooth_coef=0.3, inplace=True, plot=0):
+    def sky_model(self, xmin, xmax, border=0, slit=None, mask_type='moffat', model='median', window=0, poly=3, conf=0.03, smooth=0, smooth_coef=0.3, inplace=True, plot=0):
         if self.cr is None:
             self.cr = image(x=self.raw.x, y=self.raw.y, mask=np.zeros_like(self.raw.z))
 
@@ -854,7 +855,7 @@ class spec2d():
                     ind = np.searchsorted(self.trace[0], self.raw.x[i])
                     x_0 = self.trace[1][ind]
                     gamma = self.trace[2][ind] * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
-                m = self.moffat.ppf([0.02, 0.98], loc=x_0, scale=gamma)
+                m = self.moffat.ppf([conf, 1-conf], loc=x_0, scale=gamma)
                 mask_sky = np.logical_or(self.raw.y < m[0], self.raw.y > m[1])
             elif slit is not None:
                 mask_sky = 1 / (np.exp(-40 * (np.abs(self.raw.y - self.parent.cont2d.y[k]) - slit * 2)) + 1)

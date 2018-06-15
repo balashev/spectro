@@ -152,7 +152,7 @@ class par:
             if showname:
                 return '{0} = {1:.{2}f}'.format(str(self), self.val, dec)
             else:
-                return '{0:.{2}f}'.format(self.val, dec)
+                return '{0:.{1}f}'.format(self.val, dec)
 
 class fitSpecies:
     def __init__(self, parent, name=None):

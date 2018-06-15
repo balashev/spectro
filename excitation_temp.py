@@ -278,15 +278,17 @@ class ExcitationTemp():
             print('slope range: ', min(slope), self.slope, max(slope))
         if self.verbose: 
             print('zeropoint range: ', min(zero), self.zero, max(zero))
-        
+
+        print(max(slope), min(slope))
         if max(slope) < 0:
             self.slope = a(self.slope, max(slope)-self.slope, self.slope-min(slope), 'd')
         else:
-            self.slope = a('<{:.2f}'.format(min(slope)), 'd')
+            self.slope = a('<{:.4f}'.format(min(slope)), 'd')
         self.zero = a(self.zero, max(zero) - self.zero, self.zero - min(zero), 'd')
-        #z = a(self.zero, max(zero)-self.zero, self.zero-min(zero))
-        #self.temp = -np.log10(np.exp(1))/self.slope
-        self.slope_to_temp()
+        try:
+            self.slope_to_temp()
+        except:
+            pass
         print(self.temp)
 
         if self.plot:

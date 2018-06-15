@@ -968,9 +968,10 @@ class spec2dWidget(pg.PlotWidget):
                 border = self.parent.extract2dwindow.extr_border
                 poly = self.parent.extract2dwindow.sky_poly
                 model = self.parent.extract2dwindow.skymodeltype
+                conf = self.parent.extract2dwindow.extr_conf
             else:
-                border, poly, model = 5, 3, 'median'
-            s.sky_model(x, x, border=border, poly=poly, model=model, plot=1, smooth=0)
+                border, poly, model, conf = 5, 3, 'median', 0.03
+            s.sky_model(x, x, border=border, poly=poly, model=model, conf=conf, plot=1, smooth=0)
             self.parent.spec2dPanel.vb.removeItem(s.parent.sky2d)
             s.parent.sky2d = s.set_image('sky', s.parent.colormap)
             self.parent.spec2dPanel.vb.addItem(s.parent.sky2d)
@@ -2574,6 +2575,7 @@ class extract2dWidget(QWidget):
             ('extr_slit', ['extrSlit', float, 0.9]),
             ('extr_window', ['extrWindow', int, 0]),
             ('extr_border', ['extrBorder', int, 1]),
+            ('extr_conf', ['extrConf', float, 0.03]),
             ('sky_poly', ['skyPoly', int, 3]),
             ('sky_smooth', ['skySmooth', int, 0]),
             ('sky_smooth_coef', ['skySmoothCoef', float, 0.3]),
@@ -2702,7 +2704,11 @@ class extract2dWidget(QWidget):
         traceFit = QPushButton('Fit trace')
         traceFit.setFixedSize(120, 30)
         traceFit.clicked.connect(partial(self.trace_fit))
+        traceStat = QPushButton('Trace stats')
+        traceStat.setFixedSize(120, 30)
+        traceStat.clicked.connect(partial(self.trace_stat))
         hl.addWidget(traceFit)
+        hl.addWidget(traceStat)
         hl.addStretch(0)
         layout.addLayout(hl)
 
@@ -2771,6 +2777,15 @@ class extract2dWidget(QWidget):
         self.extrBorder.setFixedSize(60, 30)
         self.extrBorder.textChanged.connect(partial(self.edited, 'extr_border'))
         hl.addWidget(self.extrBorder)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        hl.addWidget(QLabel('Profile confidence:'))
+        self.extrConf = QLineEdit()
+        self.extrConf.setFixedSize(60, 30)
+        self.extrConf.textChanged.connect(partial(self.edited, 'extr_conf'))
+        hl.addWidget(self.extrConf)
         hl.addStretch(0)
         layout.addLayout(hl)
 
@@ -2951,12 +2966,21 @@ class extract2dWidget(QWidget):
         self.parent.s[self.parent.s.ind].spec2d.fit_trace()
         self.parent.s.redraw()
 
+    def trace_stat(self):
+        trace = self.parent.s[self.parent.s.ind].spec2d.trace
+        if trace is not None:
+            fig, ax = plt.subplots(1, 2)
+            ax[0].plot(trace[0], trace[1])
+            ax[1].plot(trace[0], trace[2])
+            plt.show()
+
     def sky(self):
 
         s = self.parent.s[self.exp_ind]
+        print(self.extr_conf)
         s.spec2d.sky_model(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], border=self.extr_border, slit=self.extr_slit,
-                           model=self.skymodeltype, window=self.extr_window, poly=self.sky_poly, smooth=self.sky_smooth,
-                           smooth_coef=self.sky_smooth_coef)
+                           model=self.skymodeltype, window=self.extr_window, poly=self.sky_poly, conf=self.extr_conf,
+                           smooth=self.sky_smooth, smooth_coef=self.sky_smooth_coef)
 
         self.parent.s.redraw()
 
@@ -5892,11 +5916,17 @@ class sviewer(QMainWindow):
                     elif isinstance(E, list):
                         E = np.asarray(E)
                     if ax is not None:
-                        ax.plot(E / 1.4388 * 1.5, temp.slope.val * E * 1.5 + temp.zero.val, '--k', lw=1.5)
-                        ax.text(E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
-                                'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + temp.latex(f=0, base=0)+'K',
-                                va='top', ha='right', fontsize=16)
-
+                        if temp.slope.type == 'm':
+                            ax.plot(E / 1.4388 * 1.5, temp.slope.val * E * 1.5 + temp.zero.val, '--k', lw=1.5)
+                            ax.text(E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
+                                    'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + temp.latex(f=0, base=0)+'K',
+                                    va='top', ha='right', fontsize=16)
+                        elif temp.slope.type == 'u':
+                            E = np.linspace(E[0], E[1], 5)
+                            ax.errorbar(E / 1.4388 * 1.5, (temp.slope.val - temp.slope.minus) * E * 1.5 + temp.zero.val, fmt='--k', yerr=0.1, lolims=E>0, lw=1.5, capsize=0, zorder=0 )
+                            ax.text(E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
+                                    'T$_{' + ''.join([str(l) for l in levels]) + '}$>' + '{:.0f}'.format(temp.temp.dec().val) + 'K',
+                                    va='top', ha='right', fontsize=16)
         if plot:
             plt.show()
 
@@ -5917,8 +5947,10 @@ class sviewer(QMainWindow):
         for sys in self.fit.sys:
             refs = refs & sys.sp.keys()
         names = list(names)
-        inds = np.argsort([condens_temperature(name) for name in names])
-        names = [names[i] for i in inds]
+
+        if 0:
+            inds = np.argsort([condens_temperature(name) for name in names])
+            names = [names[i] for i in inds]
 
         ref = list(refs)[0]
 
@@ -5969,7 +6001,10 @@ class sviewer(QMainWindow):
 
         res = {}
         for k, v in sp.items():
-            res[k] = [v, metallicity(k, v, HI), depletion(k, v, sp[dep_ref], ref=dep_ref)]
+            if dep_ref is '':
+                res[k] = [v]
+            else:
+                res[k] = [v, metallicity(k, v, HI), depletion(k, v, sp[dep_ref], ref=dep_ref)]
             print(k, res[k])
 
         return res

@@ -1043,7 +1043,7 @@ class fitResultsWidget(QWidget):
         self.HIvalue.setEnabled(self.showme.isChecked())
         self.HI = a(self.HIvalue.text())
         self.depRef.setEnabled(self.showdep.isChecked())
-        self.depref = self.depRef.text()
+        self.depref = self.depRef.text() if self.showdep.isChecked() else ''
         if self.latexTable.isChecked():
             self.latex()
         else:

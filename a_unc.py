@@ -80,6 +80,7 @@ class a:
     def __init__(self, *args, **kwargs):
 
         self.likelihood_approx = 2
+        self.method = 'Nelder-Mead'
 
         # if the input is empty       
         if len(args) in [0]:
@@ -277,9 +278,8 @@ class a:
 
         if isinstance(other, a):
             other.dec()
-            res.val = self.val + other.val
-            d = max(self.plus, self.minus, other.plus, other.minus)/100
-            res = self.mini(self.sum_lnL, other, d, res)
+            res.val, res.plus, res_minus = self.val + other.val, self.plus + other.plus, self.minus + other.minus
+            res = self.mini(self.sum_lnL, other, res)
             other.default()
 
         elif isinstance(other, (int, float)):
@@ -302,9 +302,8 @@ class a:
 
         if isinstance(other, a):
             other.dec()
-            res.val = self.val - other.val
-            d = max(self.plus, self.minus, other.plus, other.minus)/100
-            res = self.mini(self.sub_lnL, other, d, res)
+            res.val, res.plus, res_minus = self.val - other.val, self.plus + other.plus, self.minus + other.minus
+            res = self.mini(self.sub_lnL, other, res)
             other.default()
 
         elif isinstance(other, (int, float)):
@@ -323,8 +322,8 @@ class a:
             other.dec()
             if self.type == 'm' and other.type == 'm':
                 res.val = self.val / other.val
-                d = max(self.plus/other.val, self.minus/other.val, self.val/(other.val+other.plus), self.val/(other.val-other.minus))/100   
-                res = self.mini(self.div_lnL, other, d, res)
+                res.val, res.plus, res.minus = self.val / other.val, np.sqrt((self.plus / other.val)**2 + (self.val / other.val**2 * other.plus)**2), np.sqrt((self.minus / other.val)**2 + (self.val / other.val**2 * other.minus)**2)
+                res = self.mini(self.div_lnL, other, res)
             else: 
                 res.val = self.val/other.val
                 
@@ -373,9 +372,8 @@ class a:
         if isinstance(other, a):
             other.dec()
             if self.type == 'm' and other.type == 'm':
-                res.val = self.val*other.val
-                d = max(self.plus*other.val, self.minus*other.val, self.val*other.plus, self.val*other.minus)/100   
-                res = self.mini(self.mul_lnL, other, d, res)
+                res.val, res.plus, res.minus = self.val * other.val,  np.sqrt(self.val**2 * other.plus**2 + self.plus**2 * other.val**2), np.sqrt(self.val**2 * other.minus**2 + self.minus**2 * other.val**2)
+                res = self.mini(self.mul_lnL, other, res)
             else: 
                 res.val = self.val*other.val
                 if (self.type == 'l' and other.type == 'u') or (self.type == 'u' and other.type == 'l'):
@@ -393,26 +391,36 @@ class a:
             res.minus = self.minus * other
         
         return res.default()
-            
-    def mini(self, func, other, d, res):
+
+    def minim(self, delta, func, other):
+        return np.abs(minimize(func, other.val, args=(other, delta), method=self.method).fun - 0.5)
+
+    def mini(self, func, other, res):
+
+        res.plus = minimize(self.minim, res.val + res.plus, args=(func, other), method=self.method).x[0] - res.val # method='L-BFGS-B', bounds=(res.val, res.val + self.plus + other.plus)).x
+        res.minus = res.val - minimize(self.minim, res.val - res.minus, args=(func, other), method=self.method).x[0] #method='L-BFGS-B', bounds=(res.val - self.minus + other.minus, res.val)).x
+
+        return res
+
+    def mini_old(self, func, other, d, res):
         
         ln = 0
         delta = res.val
         while 0.5 > ln:
             delta = delta + d
-            mini = minimize(func, other.val, args=(other,delta), method='Nelder-Mead')
+            mini = minimize(func, other.val, args=(other, delta), method=self.method)
             ln = mini.fun
             #print(delta, ln, res.x)
-        res.plus = delta-res.val
+        res.plus = delta - res.val
         
         ln = 0
         delta = res.val
         while 0.5 > ln:
             delta = delta - d
-            mini = minimize(func, other.val, args=(other,delta), method='Nelder-Mead')
+            mini = minimize(func, other.val, args=(other, delta), method=self.method)
             ln = mini.fun
             #print(delta, ln, res.x)
-        res.minus =  res.val-delta
+        res.minus = res.val - delta
         
         return res
         
@@ -492,7 +500,13 @@ if __name__ == '__main__':
     
     print("Running tests ...")
 
-    print(a(2,4,4, 'd').log())
+    #print(a(2,4,4, 'd').log())
+
+    if 1:
+        x = a("$19.6\pm0.12", 'l')
+        y = a("$19.3\pm0.12", 'l')
+        y = a('$2\pm0.3$', 'd')
+        print(x * y)
     if 0:
         x = a("$19\pm0.2", 'l')
         x = a(19, 0.2, 0.1)
