@@ -1,21 +1,21 @@
+2d levels sky 0 1
+rescale y 5
+rescale 5
 stats
 stats
-stats
-stats
+rescale 1.05
+rescale 1.05
+rescale 1.05
+rescale 1.05
+rescale 1.05
 logN H2
-show HD
-2.606
-show CI*
-show CI**
-SHOW ci
+rescale 1.05
+rescale 1.1
+rescale 1.05
+rescale 1.1
+rescale 1.1
+rescale spline 1.1
+rescale spline 1.05
+rescale 0.9
+rescale 0.9
 show CI
-2d levels 0 1
-2d levels 0 1
-show H2 0 1
-show H2 0 2
-show H2 3 4
-
-show CI*
-SII
-CII*
-show CII*

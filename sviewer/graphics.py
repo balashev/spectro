@@ -689,23 +689,66 @@ class spec2d():
             m = np.logical_or(m, m1)
         self.cr.mask = m
 
-    def intelExpand(self, exp_factor=0.5):
+    def neighbour_count(self):
+        m = np.copy(self.cr.mask)
+        c = np.zeros_like(self.cr.mask, dtype=int)
+        for p in itertools.product(np.linspace(-1, 1, 3).astype(int), repeat=2):
+            m1 = np.copy(self.cr.mask)
+            if p[0] < 0:
+                m1 = np.insert(m1[:p[0], :], [0] * np.abs(p[0]), 0, axis=0)
+            if p[0] > 0:
+                m1 = np.insert(m1[p[0]:, :], [m1.shape[0] - p[0]] * p[0], 0, axis=0)
+            if p[1] < 0:
+                m1 = np.insert(m1[:, :p[1]], [0] * np.abs(p[1]), 0, axis=1)
+            if p[1] > 0:
+                m1 = np.insert(m1[:, p[1]:], [m1.shape[1] - p[1]] * p[1], 0, axis=1)
+            c = np.add(c, m1)
+        return c
+
+    def intelExpand(self, exp_factor=3, exp_pixel=1):
         z_saved, mask_saved = np.copy(self.raw.z), np.copy(self.cr.mask)
-        self.expand_mask()
+        self.expand_mask(exp_pixel=exp_pixel)
         self.extrapolate(inplace=True)
-        self.cr.mask = np.logical_or(mask_saved, np.logical_and(np.abs(self.raw.z / z_saved - 1) > exp_factor, self.cr.mask))
+        self.cr.mask = np.logical_or(mask_saved, np.logical_and(np.abs((self.raw.z - z_saved) / self.raw.err) > exp_factor, self.cr.mask))
+        neighbour = self.neighbour_count()
+        self.cr.mask = np.logical_or(np.logical_and(self.cr.mask, neighbour>2), neighbour>6)
         if 1:
             self.parent.parent.s.append(Spectrum(self.parent.parent, 'delta'))
-            self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=self.raw.z / z_saved - 1)
+            self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=(self.raw.z - z_saved) / self.raw.err)
             self.parent.parent.s[-1].spec2d.raw.setLevels(-exp_factor, exp_factor)
+        if 1:
+            self.parent.parent.s.append(Spectrum(self.parent.parent, 'neighbours'))
+            self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=neighbour)
+            self.parent.parent.s[-1].spec2d.raw.setLevels(0, np.max(neighbour.flatten()))
         self.raw.z = z_saved
+
+    def clean(self):
+        mask_saved = np.copy(self.cr.mask)
+        self.expand_mask(exp_pixel=2)
+        z = (self.raw.z - self.sky.z)
+        self.moffat_kind = 'pdf'
+        inds = np.searchsorted(self.raw.x, self.trace[0][(self.trace[0] >= self.raw.x[0]) * (self.trace[0] <= self.raw.x[-1])])
+        y, err = np.zeros(len(inds)), np.zeros(len(inds))
+        for k, i in enumerate(inds):
+            print(k, self.raw.x[i])
+            ind = np.searchsorted(self.trace[0], self.raw.x[i])
+            x_0 = self.trace[1][ind]
+            gamma = self.trace[2][ind] / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+            profile = self.moffat_fit_integ(self.raw.y, a=1, x_0=x_0, gamma=gamma, c=0)
+
+            #v = np.sum((1 - self.cr.mask[:, i]) * profile ** 2)  # / self.raw.err[:, i]**2)
+            flux = np.sum(z[:, i] * profile * (1 - self.cr.mask[:, i])) / np.sum((1 - self.cr.mask[:, i]) * profile ** 2)  # / self.raw.err[:, i]**2)
+            z[:, i] = z[:, i] - profile * flux
+
+        self.cr.mask = mask_saved
+        self.parent.parent.s.append(Spectrum(self.parent.parent, 'clean'))
+        self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=z, err=self.raw.err, mask=self.cr.mask)
 
     def extrapolate(self, inplace=False, extr_width=1, extr_height=1, sky=1):
         z = np.copy(self.raw.z)
         if sky and self.sky is not None:
             z -= self.sky.z
         self.cr.mask = self.cr.mask.astype(bool)
-        print(np.where(self.cr.mask))
         z[self.cr.mask] = np.nan
         kernel = Gaussian2DKernel(x_stddev=extr_width, y_stddev=extr_height)
         z = convolve(z, kernel)
@@ -778,6 +821,7 @@ class spec2d():
         popt, pcov = curve_fit(self.moffat_fit_integ, x, y, p0=[a, x_0, gamma, c])
 
         print('popt', popt)
+        print(Moffat1D(popt[0], popt[1], popt[2], 4.765).fwhm, popt[2] * 2 * np.sqrt(2 ** (1 / 4.765) - 1))
         pos, fwhm = self.raw.x[np.searchsorted(self.raw.x, (xmin+xmax)/2)], Moffat1D(popt[0], popt[1], popt[2], 4.765).fwhm
         if slit is None or (np.abs(popt[1] - x_0) < slit / 3 and np.abs(fwhm / slit - 1) < 0.3):
             self.slits.append([pos, np.min([np.max([popt[1], x[0]]), x[-1]]), fwhm])
@@ -891,7 +935,7 @@ class spec2d():
                         plt.show()
                 elif model == 'wavy':
                     p = np.polyfit(self.raw.y[mask[:, i]], y, poly)
-                    periods = np.linspace(0.5, 4, 100)
+                    periods = np.linspace(0.5, 8, 100)
                     angular_freqs = 2 * np.pi / periods
                     pgram = lombscargle(self.raw.y[mask[:, i]], y - np.polyval(p, self.raw.y[mask[:, i]]), angular_freqs)
                     guess_period = periods[np.argmax(pgram)]
@@ -943,6 +987,30 @@ class spec2d():
         self.sky.getQuantile(quantile=0.9995)
         self.sky.setLevels()
 
+    def sky_model_simple(self, xmin, xmax, border=0, conf=0.03, inplace=True):
+        if self.cr is None:
+            self.cr = image(x=self.raw.x, y=self.raw.y, mask=np.zeros_like(self.raw.z))
+
+        if self.sky is None or not inplace:
+            self.sky = image(x=self.raw.x, y=self.raw.y, z=np.zeros_like(self.raw.z), mask=np.zeros_like(self.raw.z))
+
+        if self.trace is not None:
+            if xmin == xmax:
+                inds = np.searchsorted(self.raw.x, [xmin])
+            else:
+                inds = np.searchsorted(self.raw.x, self.trace[0][(self.trace[0] >= xmin) * (self.trace[0] <= xmax)])
+
+        imin, imax = np.argmin(self.trace[0]), np.argmax(self.trace[0])
+        tmin, tmax = self.trace[0][imin] - self.trace[1][imin], self.trace[0][imax] + self.trace[1][imax]
+
+        mask_sky = np.logical_or(self.raw.y < tmin, self.raw.y > tmax)
+        mask_sky[:border] = 0
+        mask_sky[-border:] = 0
+        mask = np.zeros_like(self.cr.mask, dtype=bool)
+        mask[:,:] = mask_sky[:,np.newaxis] #np.repeat(mask_sky, self.cr.mask.shape[1], axis=1)
+
+        self.sky.z[:,:] = np.ma.median(np.ma.array(self.raw.z, mask=np.logical_and(mask, self.cr.mask)), axis=0)[np.newaxis, :]
+
     def extract(self, xmin, xmax, slit=None, mask_type='moffat', helio=None, airvac=True, inplace=False, kind='pdf'):
         self.moffat_kind = 'pdf'
         if self.cr is None:
@@ -963,7 +1031,7 @@ class spec2d():
                 else:
                     ind = np.searchsorted(self.trace[0], self.raw.x[i])
                     x_0 = self.trace[1][ind]
-                    gamma = self.trace[2][ind] * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+                    gamma = self.trace[2][ind] / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
                 profile = self.moffat_fit_integ(self.raw.y, a=1, x_0=x_0, gamma=gamma, c=0)
             elif mask_type == 'rectangular':
                 profile = 1 / (np.exp(-40 * (np.abs(self.raw.y - self.parent.cont2d.y[k]) - self.extr_slit)) + 1)

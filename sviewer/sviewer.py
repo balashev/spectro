@@ -1,3 +1,4 @@
+from adjustText import adjust_text
 from astropy.io import fits
 from chainconsumer import ChainConsumer
 from collections import OrderedDict
@@ -2569,7 +2570,7 @@ class extract2dWidget(QWidget):
         self.opts = OrderedDict([
             ('trace_step', ['traceStep', int, 200]),
             ('exp_pixel', ['expPixel', int, 1]),
-            ('exp_factor', ['expFactor', float, 0.5]),
+            ('exp_factor', ['expFactor', float, 3]),
             ('extr_height', ['extrHeight', float, 1]),
             ('extr_width', ['extrWidth', float, 3]),
             ('extr_slit', ['extrSlit', float, 0.9]),
@@ -2644,6 +2645,25 @@ class extract2dWidget(QWidget):
         hl.addStretch(0)
         hl.addWidget(clear)
         layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        fromexp = QPushButton('From exposure:')
+        fromexp.setFixedSize(120, 30)
+        fromexp.clicked.connect(partial(self.crfromexp))
+        hl.addWidget(fromexp)
+        self.expCrChoose = QComboBox()
+        self.expCrChoose.setFixedSize(250, 30)
+        for s in self.parent.s:
+            self.expCrChoose.addItem(s.filename)
+        if len(self.parent.s) > 0:
+            self.exp_cr_ind = self.parent.s.ind
+            self.expCrChoose.setCurrentIndex(self.exp_cr_ind)
+        self.expCrChoose.currentIndexChanged.connect(partial(self.onExpChoose, name='exp_cr_ind'))
+        hl.addWidget(fromexp)
+        hl.addWidget(self.expCrChoose)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
         hl = QHBoxLayout()
         expand = QPushButton('Expand:')
         expand.setFixedSize(120, 30)
@@ -2662,6 +2682,13 @@ class extract2dWidget(QWidget):
         hl.addStretch(0)
         hl.addWidget(self.expFactor)
         hl.addWidget(intelExpand)
+        layout.addLayout(hl)
+        hl = QHBoxLayout()
+        clean = QPushButton('Clean')
+        clean.setFixedSize(120, 30)
+        clean.clicked.connect(self.clean)
+        hl.addWidget(clean)
+        hl.addStretch(0)
         layout.addLayout(hl)
         hl = QHBoxLayout()
         extrapolate = QPushButton('Extrapolate')
@@ -2825,10 +2852,14 @@ class extract2dWidget(QWidget):
         layout.addLayout(hl)
 
         hl = QHBoxLayout()
-        extract = QPushButton('Calc Sky')
-        extract.setFixedSize(120, 30)
-        extract.clicked.connect(partial(self.sky))
-        hl.addWidget(extract)
+        calcsky = QPushButton('Calc Sky')
+        calcsky.setFixedSize(120, 30)
+        calcsky.clicked.connect(partial(self.sky))
+        calcsky_simple = QPushButton('Calc Sky simple')
+        calcsky_simple.setFixedSize(120, 30)
+        calcsky_simple.clicked.connect(partial(self.sky_simple))
+        hl.addWidget(calcsky)
+        hl.addWidget(calcsky_simple)
         hl.addStretch(0)
         layout.addLayout(hl)
         layout.addStretch(0)
@@ -2868,6 +2899,7 @@ class extract2dWidget(QWidget):
         if len(self.parent.s) > 0:
             self.exp_res_ind = self.parent.s.ind
             self.expResChoose.setCurrentIndex(self.exp_res_ind)
+        self.expCrChoose.currentIndexChanged.connect(partial(self.onExpChoose, name='exp_res_ind'))
         hl.addWidget(rescale)
         hl.addWidget(self.expResChoose)
         hl.addStretch(0)
@@ -2893,8 +2925,8 @@ class extract2dWidget(QWidget):
             self.exp_ind = 0
         self.expchoose.setCurrentIndex(self.exp_ind)
 
-    def onExpChoose(self, index):
-        self.exp_ind = index
+    def onExpChoose(self, index, name='exp_ind'):
+        setattr(self, name, index)
 
     def updateExpChoose(self):
         self.expchoose.clear()
@@ -2905,6 +2937,10 @@ class extract2dWidget(QWidget):
         for s in self.parent.s:
             self.expResChoose.addItem(s.filename)
         self.expResChoose.setCurrentIndex(self.exp_res_ind)
+        self.expCrChoose.clear()
+        for s in self.parent.s:
+            self.expCrChoose.addItem(s.filename)
+        self.expCrChoose.setCurrentIndex(self.exp_cr_ind)
 
     def cr(self, update='new'):
 
@@ -2931,20 +2967,27 @@ class extract2dWidget(QWidget):
         self.parent.s[self.exp_ind].spec2d.cr.mask = np.zeros_like(self.parent.s[self.exp_ind].spec2d.raw.z)
         self.parent.s.redraw()
 
-    def expand(self):
-        self.exp_pixel = int(self.expPixel.text())
+    def crfromexp(self):
+        self.parent.s[self.exp_ind].spec2d.cr.mask = np.copy(self.parent.s[self.exp_cr_ind].spec2d.cr.mask)
+        self.parent.s.redraw()
 
+    def expand(self):
         self.parent.s[self.exp_ind].spec2d.expand_mask(self.exp_pixel)
         self.parent.s.redraw()
 
     def intelExpand(self):
-        self.parent.s[self.exp_ind].spec2d.intelExpand(self.exp_factor)
+        self.parent.s[self.exp_ind].spec2d.intelExpand(self.exp_factor, self.exp_pixel)
         self.parent.s.redraw()
+
+    def clean(self):
+        self.parent.s[self.exp_ind].spec2d.clean()
+        self.parent.s.redraw()
+        self.updateExpChoose()
 
     def extrapolate(self, inplace=False):
         self.parent.s[self.exp_ind].spec2d.extrapolate(inplace, self.extr_width, self.extr_height)
-        self.updateExpChoose()
         self.parent.s.redraw()
+        self.updateExpChoose()
 
     def trace(self):
         s = self.parent.s[self.exp_ind]
@@ -2977,10 +3020,16 @@ class extract2dWidget(QWidget):
     def sky(self):
 
         s = self.parent.s[self.exp_ind]
-        print(self.extr_conf)
         s.spec2d.sky_model(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], border=self.extr_border, slit=self.extr_slit,
                            model=self.skymodeltype, window=self.extr_window, poly=self.sky_poly, conf=self.extr_conf,
                            smooth=self.sky_smooth, smooth_coef=self.sky_smooth_coef)
+
+        self.parent.s.redraw()
+
+    def sky_simple(self):
+
+        s = self.parent.s[self.exp_ind]
+        s.spec2d.sky_model_simple(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], border=self.extr_border, conf=self.extr_conf)
 
         self.parent.s.redraw()
 
@@ -2992,7 +3041,6 @@ class extract2dWidget(QWidget):
         s.spec2d.extract(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], slit=self.extr_slit, airvac=self.airVac.isChecked(), helio=self.helio_corr)
 
         self.updateExpChoose()
-
         self.parent.s.redraw(len(self.parent.s)-1)
 
 
@@ -5858,6 +5906,7 @@ class sviewer(QMainWindow):
         data = np.genfromtxt('data/H2/energy_X.dat', comments='#', unpack=True)
         fig, ax = plt.subplots(figsize=(6,7))
         num_sys = 0
+        text = []
         for sys in self.fit.sys:
             label = 'sys_'+str(self.fit.sys.index(sys)+1)
             label = 'z = '+str(sys.z.str(attr='val')[:8])
@@ -5879,8 +5928,9 @@ class sviewer(QMainWindow):
                 p = ax.plot(x, [v.val for v in y], 'o', markersize=1) #, label='sys_' + str(self.fit.sys.index(sys)))
                 ax.errorbar(x, [v.val for v in y], yerr=[[v.plus for v in y], [v.minus for v in y]],  fmt='o', color = p[0].get_color(), label=label)
                 #temp = self.H2ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax)
-                temp = self.H2ExcitationTemp(levels=[0, 1], E=500, ind=self.fit.sys.index(sys), plot=False, ax=ax)
+                text.append(self.H2ExcitationTemp(levels=[0, 1], E=500, ind=self.fit.sys.index(sys), plot=False, ax=ax))
 
+        adjust_text([t[2] for t in text], [t[0] for t in text], [t[1] for t in text], ax=ax)
         ax.set_xlabel(r'Energy, cm$^{-1}$')
         ax.set_ylabel(r'$\log\, N$ / g')
         ax.xaxis.set_minor_locator(AutoMinorLocator(5))
@@ -5918,18 +5968,18 @@ class sviewer(QMainWindow):
                     if ax is not None:
                         if temp.slope.type == 'm':
                             ax.plot(E / 1.4388 * 1.5, temp.slope.val * E * 1.5 + temp.zero.val, '--k', lw=1.5)
-                            ax.text(E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
-                                    'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + temp.latex(f=0, base=0)+'K',
-                                    va='top', ha='right', fontsize=16)
+                            text = [E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
+                                    'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + temp.latex(f=0, base=0)+'K']
                         elif temp.slope.type == 'u':
                             E = np.linspace(E[0], E[1], 5)
                             ax.errorbar(E / 1.4388 * 1.5, (temp.slope.val - temp.slope.minus) * E * 1.5 + temp.zero.val, fmt='--k', yerr=0.1, lolims=E>0, lw=1.5, capsize=0, zorder=0 )
-                            ax.text(E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
-                                    'T$_{' + ''.join([str(l) for l in levels]) + '}$>' + '{:.0f}'.format(temp.temp.dec().val) + 'K',
-                                    va='top', ha='right', fontsize=16)
+                            text = [E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
+                                    'T$_{' + ''.join([str(l) for l in levels]) + '}$>' + '{:.0f}'.format(temp.temp.dec().val) + 'K']
+                        text[2] = ax.text(text[0], text[1], text[2], va='top', ha='right', fontsize=16)
         if plot:
             plt.show()
 
+        return text
         #if ind is not None:
         #    return temp.temp
 

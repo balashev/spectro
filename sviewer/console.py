@@ -375,9 +375,17 @@ class Console(QTextEdit):
                 if args[1] == 'y' or len(args) == 2:
                     self.parent.s[self.parent.s.ind].spec.raw.y[mask] *= float(args[-1])
                     self.parent.s.redraw()
+                    if self.parent.s[self.parent.s.ind].spline.n > 0:
+                        self.parent.s[self.parent.s.ind].spline.y *= float(args[-1])
+                        self.parent.s[self.parent.s.ind].calc_spline()
                 if args[1] == 'err' or len(args) == 2:
                     self.parent.s[self.parent.s.ind].spec.raw.err[mask] *= float(args[-1])
                     self.parent.s.redraw()
+                if args[1] == 'spline':
+                    if self.parent.s[self.parent.s.ind].spline.n > 0:
+                        self.parent.s[self.parent.s.ind].spline.y *= float(args[-1])
+                        self.parent.s[self.parent.s.ind].calc_spline()
+
 
         elif args[0] == 'shift':
             if len(args) == 2:
