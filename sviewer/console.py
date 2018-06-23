@@ -375,9 +375,9 @@ class Console(QTextEdit):
                 if args[1] == 'y' or len(args) == 2:
                     self.parent.s[self.parent.s.ind].spec.raw.y[mask] *= float(args[-1])
                     self.parent.s.redraw()
-                    if self.parent.s[self.parent.s.ind].spline.n > 0:
-                        self.parent.s[self.parent.s.ind].spline.y *= float(args[-1])
-                        self.parent.s[self.parent.s.ind].calc_spline()
+                    #if self.parent.s[self.parent.s.ind].spline.n > 0:
+                    #    self.parent.s[self.parent.s.ind].spline.y *= float(args[-1])
+                    #    self.parent.s[self.parent.s.ind].calc_spline()
                 if args[1] == 'err' or len(args) == 2:
                     self.parent.s[self.parent.s.ind].spec.raw.err[mask] *= float(args[-1])
                     self.parent.s.redraw()
@@ -385,7 +385,6 @@ class Console(QTextEdit):
                     if self.parent.s[self.parent.s.ind].spline.n > 0:
                         self.parent.s[self.parent.s.ind].spline.y *= float(args[-1])
                         self.parent.s[self.parent.s.ind].calc_spline()
-
 
         elif args[0] == 'shift':
             if len(args) == 2:
@@ -421,9 +420,23 @@ class Console(QTextEdit):
                 self.parent.importSpectrum('{:}_subtracted_from_{:}'.format(i2, i1), spec=[x, y], append=True)
                 #self.parent.s[-1].normalize()
 
-        elif args[0] == 'crosscorr':
+        elif args[0] == 'coscale':
+            if len(args) == 2 and args[1] == 'cont':
+                print(self.parent.s[self.parent.s.ind].cont.y, len(self.parent.s[self.parent.s.ind].spec.raw.y),
+                      len(self.parent.s[self.parent.s.ind].cont.y))
+
+                self.parent.s[self.parent.s.ind].spec.raw.y *= self.parent.s[self.parent.s.ind].cont.y
+                self.parent.s[self.parent.s.ind].spec.raw.err *= self.parent.s[self.parent.s.ind].cont.y
+
             if len(args) == 3:
-                self.parent.crosscorrExposures(int(args[1]), int(args[2]))
+                self.parent.coscaleExposures(int(args[1]), int(args[2]))
+
+        elif args[0] == 'crosscorr':
+            if len(args) > 2:
+                if len(args) == 3:
+                    self.parent.crosscorrExposures(int(args[1]), int(args[2]))
+                else:
+                    self.parent.crosscorrExposures(int(args[1]), int(args[2]), dv=float(args[3]))
 
         elif args[0] == 'apply':
             if len(args) > 1:

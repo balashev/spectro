@@ -81,6 +81,10 @@ class a:
 
         self.likelihood_approx = 2
         self.method = 'Nelder-Mead'
+        self.method = 'L-BFGS-B'
+        #self.method = 'SLSQP'
+        #self.method = 'TNC'
+        self.tol = 1e-3
 
         # if the input is empty       
         if len(args) in [0]:
@@ -278,8 +282,11 @@ class a:
 
         if isinstance(other, a):
             other.dec()
-            res.val, res.plus, res_minus = self.val + other.val, self.plus + other.plus, self.minus + other.minus
-            res = self.mini(self.sum_lnL, other, res)
+            res.val, res.plus, res.minus = self.val + other.val, np.sqrt(self.plus ** 2 + other.plus ** 2), np.sqrt(self.minus ** 2 + other.minus ** 2)
+            if self.type == 'f' or other.type == 'f':
+                pass
+            if self.type == 'm' and other.type == 'm':
+                res = self.mini(self.sum_lnL, other, res)
             other.default()
 
         elif isinstance(other, (int, float)):
@@ -302,7 +309,9 @@ class a:
 
         if isinstance(other, a):
             other.dec()
-            res.val, res.plus, res_minus = self.val - other.val, self.plus + other.plus, self.minus + other.minus
+            print(self.plus, other.plus, self.minus, other.minus, np.sqrt(self.plus ** 2 + other.plus ** 2), np.sqrt(self.minus ** 2 + other.minus ** 2))
+            res.val, res.plus, res_minus = self.val - other.val, np.sqrt(self.plus ** 2 + other.plus ** 2), np.sqrt(self.minus ** 2 + other.minus ** 2)
+            print(res.val, res.plus, res_minus)
             res = self.mini(self.sub_lnL, other, res)
             other.default()
 
@@ -393,51 +402,26 @@ class a:
         return res.default()
 
     def minim(self, delta, func, other):
-        return np.abs(minimize(func, other.val, args=(other, delta), method=self.method).fun - 0.5)
+        m = minimize(func, 1, args=(other, delta), method=self.method, bounds=[(self.tol, None)], options={'ftol':self.tol, 'eps':0.001})
+        return np.abs(m.fun - 0.5)
 
     def mini(self, func, other, res):
-
-        res.plus = minimize(self.minim, res.val + res.plus, args=(func, other), method=self.method).x[0] - res.val # method='L-BFGS-B', bounds=(res.val, res.val + self.plus + other.plus)).x
-        res.minus = res.val - minimize(self.minim, res.val - res.minus, args=(func, other), method=self.method).x[0] #method='L-BFGS-B', bounds=(res.val - self.minus + other.minus, res.val)).x
+        res.plus = res.val * (minimize(self.minim, 1 + res.plus / res.val, args=(func, other), method=self.method, bounds=[(1, None)], options={'ftol':self.tol, 'eps':0.001}).x[0] - 1)
+        res.minus = res.val * (1 - minimize(self.minim, 1 - res.minus / res.val, args=(func, other), method=self.method, bounds=[(None, 1)], options={'scale':res.val, 'ftol':self.tol, 'eps':0.001}).x[0])
 
         return res
 
-    def mini_old(self, func, other, d, res):
-        
-        ln = 0
-        delta = res.val
-        while 0.5 > ln:
-            delta = delta + d
-            mini = minimize(func, other.val, args=(other, delta), method=self.method)
-            ln = mini.fun
-            #print(delta, ln, res.x)
-        res.plus = delta - res.val
-        
-        ln = 0
-        delta = res.val
-        while 0.5 > ln:
-            delta = delta - d
-            mini = minimize(func, other.val, args=(other, delta), method=self.method)
-            ln = mini.fun
-            #print(delta, ln, res.x)
-        res.minus = res.val - delta
-        
-        return res
-        
     def sum_lnL(self, x, other, delta):
-        return (-1)*self.lnL(delta-x) - other.lnL(x)
+        return (-1)*self.lnL(delta * (self.val + other.val) - x * other.val) - other.lnL(x * other.val)
     
     def sub_lnL(self, x, other, delta):
-        return (-1)*self.lnL(delta+x) - other.lnL(x)
+        return (-1)*self.lnL(delta * (self.val - other.val) + x * other.val) - other.lnL(x * other.val)
     
     def mul_lnL(self, x, other, delta):
-        return (-1)*self.lnL(delta/x) - other.lnL(x)    
+        return (-1)*self.lnL(delta * self.val / x) - other.lnL(x * other.val)
     
     def div_lnL(self, x, other, delta):
-        return (-1)*self.lnL(delta*x) - other.lnL(x)
-    
-    def div_lnL(self, x, other, delta):
-        return (-1)*self.lnL(delta*x) - other.lnL(x)
+        return (-1)*self.lnL(delta * self.val * x) - other.lnL(x * other.val)
         
     def lnL(self, x, ind=2):
         alpha = x - self.val
@@ -503,10 +487,16 @@ if __name__ == '__main__':
     #print(a(2,4,4, 'd').log())
 
     if 1:
-        x = a("$19.6\pm0.12", 'l')
-        y = a("$19.3\pm0.12", 'l')
-        y = a('$2\pm0.3$', 'd')
-        print(x * y)
+        y = a("$18.77\pm0.3", 'l')
+        #x = a(0, 0, 0, 'd')
+        x = a("$18.30\pm0.2", 'l')
+        #x = a("$1\pm0.1", 'd')
+        #y = a("$10\pm3", 'd')
+        #y = a('$2\pm0.3$', 'd')
+        print(x.dec(), y.dec())
+        z = y - x
+        print(x.dec(), y.dec())
+        print(z.dec())
     if 0:
         x = a("$19\pm0.2", 'l')
         x = a(19, 0.2, 0.1)

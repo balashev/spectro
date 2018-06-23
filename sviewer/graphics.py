@@ -2067,6 +2067,23 @@ class Spectrum():
             #y, err = spectres(self.spec.raw.x, self.spec.raw.y, x1, spec_errs=self.spec.raw.err)
             self.rebin.setData(x=x, y=y)
 
+    def crosscorrExposures(self, ind, dv=50):
+        fig, ax = plt.subplots()
+        vgrid = np.linspace(-dv, dv, 100)
+        c = np.zeros_like(vgrid)
+        if len(self.parent.plot.regions) > 0:
+            mask = np.zeros_like(self.spec.y(), dtype=bool)
+            for r in self.parent.plot.regions:
+                print(r.getRegion())
+                mask = np.logical_or(mask, np.logical_and(self.spec.x() > r.getRegion()[0], self.spec.x() < r.getRegion()[1]))
+        else:
+            mask = np.ones_like(self.spec.y(), dtype=bool)
+        for i, v in enumerate(vgrid):
+            inter = interp1d(self.parent.s[ind].spec.x() * (1 + v/299792.458), self.parent.s[ind].spec.y(), bounds_error=False, fill_value=1)
+            c[i] = np.sum(self.spec.y()[mask] * inter(self.spec.x()[mask]))
+        ax.plot(vgrid, c)
+        plt.show()
+
     def auto_select(self, x):
         ind = self.spec.index(x)
         i = ind

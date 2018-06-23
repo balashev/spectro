@@ -178,13 +178,11 @@ class plot_spec(list):
                 if i in xlabels:
                     p.xlabel = xlabel
         else:
+            print('ticks', self.rect.order)
             if self.rect.order == 'h':
                 inds = list(range(len(self)-self.rect.n_cols, len(self)))
             if self.rect.order == 'v':
-                k = len(self) // self.rect.n_cols
-                print(len(self), k)
-                inds = np.append(k * np.arange(1, k+1) - 1, len(self)-1)
-            print(inds)
+                inds = np.append(self.rect.n_rows * np.arange(1, len(self) // self.rect.n_rows+1) - 1, len(self)-1)
             for i, p in enumerate(self):
                 if i in inds:
                     p.xlabel = xlabel
@@ -406,7 +404,14 @@ class plotline():
                     if not self.vel_scale:
                         self.fit_comp[k].x = (self.fit_comp[k].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
                     self.fit_comp[k].mask(self.x_min, self.x_max)
-                    ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k])
+                    if 0:
+                        inds = np.where(self.fit_comp[k].y > 0.995)[0]
+                        ins = np.where(np.diff(inds) > 1)[0]
+                        for i in ins:
+                            print(i, inds[i], self.fit.x[inds[i]], self.fit.x[inds[i + 1]])
+                            ax.plot(self.fit_comp[k].x[inds[i]:inds[i + 1]], self.fit_comp[k].y[inds[i]:inds[i + 1]], color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k])
+                    else:
+                        ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k])
 
             # >>> plot joint fit
             ax.plot(self.fit.x, self.fit.y, color=col.tableau10[3], ls='-', lw=1.5)

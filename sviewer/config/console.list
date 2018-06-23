@@ -1,21 +1,21 @@
-2d levels sky 0 1
-rescale y 5
-rescale 5
-stats
-stats
-rescale 1.05
-rescale 1.05
-rescale 1.05
-rescale 1.05
-rescale 1.05
+rescale y 2
+rescale y 2
+rescale spline 2
+rescale spline 2
+rescale 2
+rescale 2
+rescale spline 2
+rescale spline 2
+show HD
 logN H2
-rescale 1.05
-rescale 1.1
-rescale 1.05
-rescale 1.1
-rescale 1.1
-rescale spline 1.1
-rescale spline 1.05
-rescale 0.9
-rescale 0.9
-show CI
+rescale spline 2
+rescale spline 2
+rescale spline 2
+rescale spline 2
+show CI*
+show CI**
+rescale err 2
+logN H2
+2d levels 0 1
+logN H2
+logN H2 

@@ -490,8 +490,10 @@ class fitModelWidget(QWidget):
     def numContChanged(self):
         k = int(self.cont_num.text())
         sign = 1 if k > self.parent.fit.cont_num else -1
+        print(k, self.parent.fit.cont_num, sign)
         if k != self.parent.fit.cont_num:
-            rang = range(self.parent.fit.cont_num, k) if sign == 1 else range(self.fit.cont_num-1, k-1, -1)
+            rang = range(self.parent.fit.cont_num, k) if sign == 1 else range(self.parent.fit.cont_num-1, k-1, -1)
+            print(list(rang))
             for i in list(rang):
                 if k > self.parent.fit.cont_num:
                     self.parent.fit.add('cont_'+str(i))
@@ -1057,9 +1059,8 @@ class fitResultsWidget(QWidget):
 
     def latex(self):
         fit = self.parent.fit
-        if self.res is None and (self.showtotal.isChecked() or self.showme.isChecked() or self.showdep.isChecked()):
+        if (self.showtotal.isChecked() or self.showme.isChecked() or self.showdep.isChecked()): #and self.res is None:
             self.res = self.parent.showMetalAbundance(component=0, dep_ref=self.depref, HI=self.HI)
-        print(self.res)
         sps = OrderedDict()
         for sys in fit.sys:
             for sp in sys.sp.keys():
@@ -1071,14 +1072,7 @@ class fitResultsWidget(QWidget):
         if self.showb.isChecked():
             d += ['b, km/s']
         d += list([r'$\log N$(' + s + ')' for s in sps.keys()])
-        #if self.showtotal.isChecked():
-        #    d += [r'$\log N_{\rm tot}$']
-        #if self.showme.isChecked():
-        #    d += ['[X/H]']
-        #if self.showdep.isChecked():
-        #    d += ['[X/H]/[' + self.depref + '/H]']
         data = [d]
-        #d = ['$log N($'+sp+')']
         for sys in fit.sys:
             d = [str(fit.sys.index(sys)+1)]
             d.append(sys.z.fitres(latex=True, showname=False))
@@ -1095,7 +1089,7 @@ class fitResultsWidget(QWidget):
                 else:
                     d.append(' ')
             data.append(d)
-        for show, ind, name in zip(['showtotal', 'showme', 'showdep'], [0, 1, 2], [r'$\log N_{\rm tot}$', '[X/H]', '[X/H]/[' + self.depref + '/H]']):
+        for show, ind, name in zip(['showtotal', 'showme', 'showdep'], [0, 1, 2], [r'$\log N_{\rm tot}$', r'$\rm [X/H]$', r'$\rm [X/' + self.depref + ']$']):
             if getattr(self, show).isChecked():
                 d = [name, '']
                 for show in ['showv', 'showb']:
@@ -1107,47 +1101,6 @@ class fitResultsWidget(QWidget):
         print(data)
         if self.vert.isChecked():
             data = [list(i) for i in zip(*data)]
-
-        if 0:
-            names = ['comp', 'z']
-            if self.showv.isChecked():
-                names += ['$\Delta$v, km/s']
-            if self.showb.isChecked():
-                names += ['b, km/s']
-            names += list([r'$\log N$(' + s + ')' for s in sps.keys()])
-            print(names)
-            data = [[str(i+1) for i in range(len(fit.sys))]]
-            data.append([sys.z.fitres(latex=True, showname=False) for sys in fit.sys])
-            if self.showv.isChecked():
-                d = []
-                for sys in fit.sys:
-                    d.append('{:.1f}'.format((sys.z.val - fit.sys[self.comp].z.val)/(1 + fit.sys[self.comp].z.val) * 299792.46))
-                data.append(d)
-            if self.showb.isChecked():
-                d = []
-                for sys in fit.sys:
-                    sp = sys.sp[list(sys.sp.keys())[0]]
-                    if sp.b.addinfo is not '':
-                        sp = sys.sp[sp.b.addinfo]
-                    d.append(sp.b.fitres(latex=True, dec=2, showname=False))
-                data.append(d)
-            for sp in sps.keys():
-                d = []
-                for sys in fit.sys:
-                    if sp in sys.sp.keys():
-                        d.append(sys.sp[sp].N.fitres(latex=True, dec=2, showname=False))
-                    else:
-                        d.append(' ')
-                data.append(d)
-            for show, ind, name in zip(['showtotal', 'showme', 'showdep'], [0, 1, 2], [r'$\log N_{\rm tot}$', '[X/H]', '[X/H]/[' + self.depref + '/H]']):
-                if getattr(self, show).isChecked():
-                    d = ['']
-                    for show in ['showv', 'showb']:
-                        if getattr(self, show).isChecked():
-                            d += ['']
-                    for sp in sps.keys():
-                        d.append(self.res[sp][ind].latex())
-                    data.append(d)
 
         print('data:', data[0], data[1:])
         output = StringIO()

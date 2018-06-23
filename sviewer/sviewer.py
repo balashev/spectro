@@ -6168,8 +6168,8 @@ class sviewer(QMainWindow):
         self.s[self.s.ind].spec.raw.err *= popt[2]
         plt.show()
 
-    def crosscorrExporsures(self, i1, i2):
-        self.s.coscaleExposures()
+    def crosscorrExposures(self, i1, i2, dv=50):
+        self.s[i1].crosscorrExposures(i2, dv=dv)
 
     def combine(self, typ='mean'):
         """
