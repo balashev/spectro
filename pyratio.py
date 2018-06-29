@@ -964,8 +964,7 @@ class pyratio():
                 return pri
             if p.prior is not None:
                 if p.prior.plus != 0 and p.prior.minus != 0:
-                    x = p.value - p.prior.val
-                    pri += (-0.5 * (x / p.prior.plus)**2 if x > 0 else -0.5 * (x / p.prior.minus)**2)
+                    pri += p.prior.lnL(p.value)
         return pri
     
     def predict(self, name=None, level=0, logN=None):
@@ -1079,7 +1078,8 @@ class pyratio():
         #plt.show()
 
     def calc_grid(self, grid_num=50, plot=1, verbose=1, output=None,
-                  title='', ax=None, alpha=1, color=None, zorder=1, ):
+                  title='', ax=None, alpha=1, color=None, cmap='PuBu', color_point=None,
+                  zorder=1):
         """
         calculate ranges for two parameters using given populations of levels
         parameters:
@@ -1090,6 +1090,8 @@ class pyratio():
             - ax           :  axes object where to plot data, of not present make it if plot==1.
             - alpha        :  alpha value for the contour plots
             - color        :  color of the regions in the plot
+            - cmap         :  color map for contour fill
+            - color_point  :  show indicator for best fit
             - zorder       :  zorder of the graph object 
         """
         self.get_vary()
@@ -1097,10 +1099,10 @@ class pyratio():
         out = None
 
         if len(self.vary) == 1:
-            out = self.calc_1d(self.vary, grid_num=grid_num, plot=plot, verbose=verbose, title=title, ax=ax, alpha=alpha, color=color, zorder=zorder)
+            out = self.calc_1d(self.vary, grid_num=grid_num, plot=plot, verbose=verbose, title=title, ax=ax, alpha=alpha,color=color, zorder=zorder)
 
         if len(self.vary) == 2:
-            out = self.calc_2d(self.vary, grid_num=grid_num, plot=plot, verbose=verbose, output=output, title=title, ax=ax, alpha=alpha, color=color, zorder=zorder)
+            out = self.calc_2d(self.vary, grid_num=grid_num, plot=plot, verbose=verbose, output=output, title=title, ax=ax, alpha=alpha, color=color, cmap=cmap, color_point=color_point, zorder=zorder)
 
         return out
 
@@ -1169,7 +1171,7 @@ class pyratio():
         return out
 
     def calc_2d(self, vary, grid_num=50, plot=1, verbose=1, marginalize=True, output=None,
-                title='', ax=None, alpha=1, color=None, zorder=1):
+                title='', ax=None, alpha=1, color=None, cmap='PuBu', color_point='gold', zorder=1):
         """
         calculate ranges for two parameters using given populations of levels
         parameters:
@@ -1182,6 +1184,8 @@ class pyratio():
             - ax           :  axes object where to plot data, of not present make it if plot==1.
             - alpha        :  alpha value for the contour plots
             - color        :  color of the regions in the plot
+            - cmap         :  color map for the countour fill
+            - color_point  :  color for indicator for best fit
             - zorder       :  zorder of the graph object 
         """
 
@@ -1264,7 +1268,7 @@ class pyratio():
 
                 if 1:
                     #d.plot(conf_levels=conf_levels)
-                    d.plot_contour(conf_levels=self.conf_levels, ax=ax, alpha=alpha)
+                    d.plot_contour(conf_levels=self.conf_levels, ax=ax, cmap=cmap, color=color, color_point=color_point, alpha=alpha)
                 else:
                     conf_levels = np.asarray([d.level(c) for c in self.conf_levels])
                     print(conf_levels, self.conf_levels)

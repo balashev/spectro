@@ -5,11 +5,11 @@ from io import StringIO
 import numpy as np
 from PyQt5.QtCore import Qt, QSize, QLocale
 from PyQt5.QtGui import QIcon, QDoubleValidator
-from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame,
-                             QHBoxLayout, QLabel, QLineEdit,  QPushButton,
+from PyQt5.QtWidgets import (QApplication, QAction, QCheckBox, QComboBox, QFrame,
+                             QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton,
                              QTabBar, QTabWidget, QTextEdit, QTreeWidget,
                              QTreeWidgetItem, QScrollArea, QVBoxLayout,
-                             QWidget,
+                             QWidget
                              )
 from .utils import Timer
 from ..a_unc import a
@@ -577,7 +577,7 @@ class fitModelWidget(QWidget):
         if self.refr:
             self.refresh(s + '_' + attr)
 
-    def refresh(self, excl='', refresh=None):
+    def refresh(self, excl='', refresh=None, ):
         print('refresh:', self.refr)
         names = ['val', 'max', 'min', 'step']
         for s in ['mu', 'me', 'dtoh']:
@@ -985,9 +985,21 @@ class fitResultsWidget(QWidget):
         #self.output.setSizeAdjustPolicy(QTextEdit.AdjustToContents)
         #self.output.setSizeAdjustPolicy(QTextEdit.AdjustToContentsOnFirstShow)
         hl = QHBoxLayout()
-        self.latexTable = QPushButton('Table view:')
-        self.latexTable.setCheckable(True)
-        self.latexTable.setChecked(False)
+        self.latexTable = QPushButton('View:')
+        #self.latexTable.setCheckable(True)
+        #self.latexTable.setChecked(False)
+        menu = QMenu()
+        menu.setStyleSheet(open('config/styles.ini').read())
+        plainView = QAction("Plain", menu)
+        plainView.triggered.connect(partial(self.refresh, 'plain'))
+        menu.addAction(plainView)
+        tableView = QAction("Table", menu)
+        tableView.triggered.connect(partial(self.refresh, 'table'))
+        menu.addAction(tableView)
+        classView = QAction("Class", menu)
+        classView.triggered.connect(partial(self.refresh, 'class'))
+        menu.addAction(classView)
+        self.latexTable.setMenu(menu)
         self.latexTable.setFixedSize(100, 30)
         self.latexTable.clicked.connect(self.refresh)
         self.vert = QCheckBox('vertical')
@@ -1039,17 +1051,19 @@ class fitResultsWidget(QWidget):
         layout.addLayout(hl)
         self.setLayout(layout)
 
-    def refresh(self):
+    def refresh(self, view='plain'):
         self.vcomp.setEnabled(self.showv.isChecked())
         self.comp = int(self.vcomp.text())-1
         self.HIvalue.setEnabled(self.showme.isChecked())
         self.HI = a(self.HIvalue.text())
         self.depRef.setEnabled(self.showdep.isChecked())
         self.depref = self.depRef.text() if self.showdep.isChecked() else ''
-        if self.latexTable.isChecked():
-            self.latex()
-        else:
+        if view == 'plain':
             self.text()
+        if view == 'table':
+            self.latex()
+        if view == 'class':
+            self.classView()
 
     def text(self):
         s = ''
@@ -1072,6 +1086,8 @@ class fitResultsWidget(QWidget):
         if self.showb.isChecked():
             d += ['b, km/s']
         d += list([r'$\log N$(' + s + ')' for s in sps.keys()])
+        if self.showtotal.isChecked() and any([all([el in sp for sp in sys.sp.keys()]) for el in ['H2', 'CO', 'HD', 'CI']]):
+            d += list([r'$\log N_{\rm tot}$'])
         data = [d]
         for sys in fit.sys:
             d = [str(fit.sys.index(sys)+1)]
@@ -1088,16 +1104,37 @@ class fitResultsWidget(QWidget):
                     d.append(sys.sp[sp].N.fitres(latex=True, dec=2, showname=False))
                 else:
                     d.append(' ')
+            t = False
+            if self.showtotal.isChecked():
+                for el in ['H2', 'CO', 'HD', 'CI']:
+                    if all([el in sp for sp in sys.sp.keys()]):
+                        n = a(0, 0, 0)
+                        for v in sys.sp.values():
+                            n += v.N.unc
+                        sys.addSpecies(el + 't')
+                        sys.sp[el + 't'].N.set(n.val)
+                        sys.sp[el + 't'].N.set(n, attr='unc')
+                        d.append(sys.sp[el + 't'].N.fitres(latex=True, dec=2, showname=False))
+                        print(sys.sp[el + 't'].N.fitres(latex=True, dec=2, showname=False))
+                        del sys.sp[el + 't']
+                        t = True
             data.append(d)
         for show, ind, name in zip(['showtotal', 'showme', 'showdep'], [0, 1, 2], [r'$\log N_{\rm tot}$', r'$\rm [X/H]$', r'$\rm [X/' + self.depref + ']$']):
             if getattr(self, show).isChecked():
-                d = [name, '']
-                for show in ['showv', 'showb']:
-                    if getattr(self, show).isChecked():
-                        d += ['']
-                for sp in sps.keys():
-                    d.append(self.res[sp][ind].log().latex())
-                data.append(d)
+                if ind > 0 or (ind == 0 and len(self.parent.fit.sys) > 1):
+                    d = [name, '']
+                    for show in ['showv', 'showb']:
+                        if getattr(self, show).isChecked():
+                            d += ['']
+                    for sp in sps.keys():
+                        d.append(self.res[sp][ind].log().latex())
+                    if t:
+                        n = a(0, 0, 0, 'd')
+                        for sp in sps.keys():
+                            n += self.res[sp][0].log()
+                        d += [n.log().latex()]
+                    data.append(d)
+
         print(data)
         if self.vert.isChecked():
             data = [list(i) for i in zip(*data)]
@@ -1110,6 +1147,28 @@ class fitResultsWidget(QWidget):
         print(table)
         self.output.setText(table)
         output.close()
+
+    def classView(self):
+        s = 'q.comp = []\n'
+        for sys in self.parent.fit.sys:
+            s += sys.z.fitres(classview=True) + '\n'
+            for el in ['H2', 'CO', 'HD', 'CI']:
+                if any([el in sp for sp in sys.sp.keys()]):
+                    n = a(0,0,0)
+                    for k, v in sys.sp.items():
+                        if k.startswith(el):
+                            n += v.N.unc
+                    sys.addSpecies(el+'t')
+                    sys.sp[el + 't'].N.set(n.val)
+                    sys.sp[el + 't'].N.set(n, attr='unc')
+                    s += sys.sp[el + 't'].N.fitres(classview=True).replace('t', '') + '\n'
+                    del sys.sp[el + 't']
+            for k, v in sys.sp.items():
+                n = k if v.b.addinfo == '' else v.b.addinfo
+                b = ", b=" + sys.sp[n].b.fitres(aview=True) + ")"
+                s += v.N.fitres(classview=True).replace(')', '') + b + '\n'
+            s += 'q.comp.append(co)\n'
+        self.output.setText(s)
 
     def keyPressEvent(self, event):
         super(fitResultsWidget, self).keyPressEvent(event)

@@ -130,7 +130,7 @@ class par:
         else:
             return '{0:.{1}f}'.format(getattr(self, attr), self.dec)
 
-    def fitres(self, latex=False, dec=None, showname=True):
+    def fitres(self, latex=False, dec=None, showname=True, classview=False, aview=False):
         if self.unc is not None:
             if dec is None:
                 d = np.asarray([self.unc.plus, self.unc.minus])
@@ -143,7 +143,13 @@ class par:
                     return '${0:.{3}f}(^{{+{1:d}}}_{{-{2:d}}})$'.format(self.val, int(self.unc.plus*10**dec), int(self.unc.minus*10**dec), dec)
                 else:
                     return '${0:.{3}f}^{{+{1:.{3}f}}}_{{-{2:.{3}f}}}$'.format(self.val, self.unc.plus, self.unc.minus, dec)
-                endif
+            elif classview:
+                if self.name in ['z']:
+                    return 'co = sy({0:.{2}f}, {1:d})'.format(self.val, int(np.sqrt(self.unc.plus**2 + self.unc.minus**2) * 10 ** dec), dec)
+                elif self.name in ['N']:
+                    return "co.el('{0}', {1:.{4}f}, {2:.{4}f}, {3:.{4}f})".format(self.parent.name, self.val, self.unc.plus, self.unc.minus, dec)
+            elif aview:
+                return '({0:.{3}f}, {1:.{3}f}, {2:.{3}f})'.format(self.val, self.unc.plus, self.unc.minus, dec)
             else:
                 return '{0} = {1:.{4}f} + {2:.{4}f} - {3:.{4}f}'.format(str(self), self.val, self.unc.plus, self.unc.minus, dec)
         else:
@@ -153,6 +159,7 @@ class par:
                 return '{0} = {1:.{2}f}'.format(str(self), self.val, dec)
             else:
                 return '{0:.{1}f}'.format(self.val, dec)
+
 
 class fitSpecies:
     def __init__(self, parent, name=None):
@@ -400,7 +407,7 @@ class fitPars:
                 except:
                     pass
 
-    def getValue(self, name, attr='val'):
+    def getPar(self, name):
         s = name.split('_')
         par = None
         if s[0] in ['mu', 'me', 'dtoh']:
@@ -418,6 +425,14 @@ class fitPars:
         if s[0] in ['b', 'N']:
             if len(self.sys) > int(s[1]) and s[2] in self.sys[int(s[1])].sp and hasattr(self.sys[int(s[1])].sp[s[2]], s[0]):
                 par = getattr(self.sys[int(s[1])].sp[s[2]], s[0])
+
+        if par is None:
+            raise ValueError('Fit model has no {:} parameter'.format(name))
+        else:
+            return par
+
+    def getValue(self, name, attr='val'):
+        par = self.getPar(name)
 
         if par is None:
             raise ValueError('Fit model has no {:} parameter'.format(name))

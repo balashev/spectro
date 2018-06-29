@@ -1,12 +1,3 @@
-rescale y 2
-rescale y 2
-rescale spline 2
-rescale spline 2
-rescale 2
-rescale 2
-rescale spline 2
-rescale spline 2
-show HD
 logN H2
 rescale spline 2
 rescale spline 2
@@ -19,3 +10,12 @@ logN H2
 2d levels 0 1
 logN H2
 logN H2 
+logN 1
+logN H2 1
+logN H2 0
+show CI
+show CI*
+show CI**
+show ZnII
+stats
+show CII*

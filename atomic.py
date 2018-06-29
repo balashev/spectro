@@ -69,11 +69,15 @@ class e():
             elif isinstance(args[1], (int, float)):
                 self.col = a(args[1], 0, 0)
         elif len(args) == 4:
-            if 'f' in kwargs.keys():
-                self.col = a(args[1], args[2], args[3], kwargs['f'])
-            else:
-                self.col = a(args[1], args[2], args[3], )
-        
+            self.col = a(args[1], args[2], args[3])
+        else:
+            self.col = a(args[1], args[2], args[3], )
+        if 'f' in kwargs.keys():
+            if kwargs['f'] in ['d', 'dec']:
+                self.col.repr = 'dec'
+            if kwargs['f'] in ['l', 'log']:
+                self.col.repr = 'log'
+
         self.nu = None
         self.J = None
         if 'j' in self.name:

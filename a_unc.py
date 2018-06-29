@@ -133,11 +133,11 @@ class a:
         
         if 't' in kwargs.keys():
             self.type = kwargs['t']
-        
+
         if any(x in args for x in ['d', 'dec']):
             self.repr = 'dec'
             self.default_format = self.repr
-        elif any(x in args for x in ['l', 'dlog']):
+        elif any(x in args for x in ['l', 'log']):
             self.repr = 'log'
         else:
             if self.plus < 1. and self.minus < 1.:
@@ -487,16 +487,14 @@ if __name__ == '__main__':
     #print(a(2,4,4, 'd').log())
 
     if 1:
-        y = a("$18.77\pm0.3", 'l')
+        x = a("$20.73\pm0.01", 'l')
         #x = a(0, 0, 0, 'd')
-        x = a("$18.30\pm0.2", 'l')
+        y = a("$19.03\pm0.03", 'l')
         #x = a("$1\pm0.1", 'd')
         #y = a("$10\pm3", 'd')
         #y = a('$2\pm0.3$', 'd')
-        print(x.dec(), y.dec())
-        z = y - x
-        print(x.dec(), y.dec())
-        print(z.dec())
+        z = y * 2 / (x + y * 2)
+        print(z.log())
     if 0:
         x = a("$19\pm0.2", 'l')
         x = a(19, 0.2, 0.1)

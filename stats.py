@@ -314,7 +314,8 @@ class distr2d():
             my_cmap = ListedColormap(my_cmap)
             cs = ax.contourf(self.X, self.Y, self.z / self.zmax, 100, cmap=my_cmap)
 
-        c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5)
+        if color is not None:
+            c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5)
         if ls is not None:
             for c, s in zip(c.collections[:len(ls)], ls[::-1]):
                 c.set_dashes(s)

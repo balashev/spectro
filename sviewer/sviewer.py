@@ -2233,6 +2233,8 @@ class fitMCMCWidget(QWidget):
 
         burnin = int(self.parent.options('MCMC_burnin'))
 
+        truth = samples[np.argmin(lnprobs)] if bool(self.parent.options('MCMC_bestfit')) else None
+
         self.results.setText('')
 
         if t == 'fit':
@@ -2265,9 +2267,12 @@ class fitMCMCWidget(QWidget):
                     vert, hor = k // n_hor, k % n_hor
                     k += 1
                     d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
+                    if truth is not None:
+                        ax[vert, hor].axvline(truth[i], c='navy', ls='--', lw=1)
                     ax[vert, hor].yaxis.set_ticklabels([])
                     ax[vert, hor].yaxis.set_ticks([])
-                    ax[vert, hor].text(.1, .9, str(p).replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
+                    ax[vert, hor].text(.05, .9, str(p).replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
+                    ax[vert, hor].text(.95, .9, self.parent.fit.getPar(p).fitres(latex=True, showname=False), ha='right', va='top', transform=ax[vert, hor].transAxes)
                     #ax[vert, hor].set_title(pars[i].replace('_', ' '))
 
         else:
@@ -2424,7 +2429,7 @@ class fitMCMCWidget(QWidget):
 
     def show_bestfit(self):
         pars, nwalkers, samples, lnprobs = self.readChain()
-        truth = samples[np.argmax(lnprobs)]
+        truth = samples[np.argmin(lnprobs)]
         for p, t in zip(pars, truth):
             print(p, t)
             self.parent.fit.setValue(p, t)
