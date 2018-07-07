@@ -319,3 +319,5 @@ def moffat_fit(x, a, x_0, gamma, c):
     moffat = Moffat1D(a, x_0, gamma, 4.765)
     return moffat(x) + c
 
+# ---------------------------------------------------------
+# fitting functions

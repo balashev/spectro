@@ -151,9 +151,9 @@ class tau:
         if vel:
             u = x / self.b  # dimensionless
         else:
-            u = (x / (1 + self.z) / self.l - 1) * c / (self.b * 1e5)
+            u = (x / (1 + self.z) / self.l - 1) * const.c.to('km/s').value / self.b
 
-        xlim = self.xrange(tlim=tlim) * const.c.to('km/s').value
+        xlim = self.xrange(tlim=tlim) * const.c.to('km/s').value / self.b
 
         mask = np.logical_and(u > -xlim, u < xlim)
 
@@ -170,21 +170,20 @@ class tau:
         return additional characteristic offset for calculation convolution with instrument function in dimensionless
         """
         if self.resolution not in [None, 0]:
-            return 1.0 / self.resolution / 1.66511
+            return 1.0 / self.resolution / 2.355
         else:
             return 0
 
     def voigt_range(self, tlim=0.001, debug=False):
         """
-        Returns an estimate of the offset from line center at specified optical depth level for Voigt profile.
+        Returns an estimate of the offset from line center at specified optical depth level
 
         parameters:
             - tlim      : optical depth level
 
-        returns:
-            velocity offset in km/s
+        return:
+            offset from line center in units of \Delta\lambda_{D}
         """
-        # print(logN, f, g, l, tlim)
         if self.tau0 < tlim:
             self.dx = 0
         else:
@@ -203,20 +202,33 @@ class tau:
 
     def xrange(self, tlim=0.001, instr=3):
         """
-        calculate range of absorption line in dimiensionless units
+        Returns an estimate of the offset from line center at specified optical depth level in
+
+        parameters:
+            - tlim      :  optical depth level
+
+        return:
+            offset from line center in units of lambda_{ik}
         """
-        return self.voigt_range(tlim=tlim) * self.b / const.c.to('km/s').value + instr * self.x_instr()
+        return self.voigt_range(tlim=tlim) * self.b / const.c.to('km/s').value + instr * self.x_instr() # * (1 + self.z)
 
     def getrange(self, instr=3, tlim=0.001, vel=False):
         """
         calculate range of absorption line in wavelengths
+
+        parameters:
+            - instr     :  number of instrument function offset
+            - tlim      :  optical depth level
+
+        return:
+            range in wavelengths
         """
         dx = self.xrange(tlim=tlim, instr=instr)
 
         if vel:
-            self.range =  [ -dx * const.c.to('km/s').value, dx * const.c.to('km/s').value]
+            self.range = [-dx * const.c.to('km/s').value, dx * const.c.to('km/s').value]
         else:
-            self.range = [ self.l * (1 - dx) * (1 + self.z), self.l * (1 + dx) * (1 + self.z)]
+            self.range = [self.l * (1 - dx) * (1 + self.z), self.l * (1 + dx) * (1 + self.z)]
 
         return self.range
 
@@ -224,7 +236,7 @@ class tau:
         if vel:
             delt = self.b / num
         else:
-            delt = self.l * self.b / const.c.to('km/s').value / num
+            delt = self.l * (1 + self.z) * self.b / const.c.to('km/s').value / num
 
         if self.resolution not in [None, 0]:
             delt *= np.min([self.x_instr() / self.b * const.c.to('km/s').value, 1])
@@ -248,23 +260,23 @@ class tau:
             self.grid = np.linspace(ran[0], ran[1], 2 * int((ran[1] - ran[0]) / 2 / self.delta(vel=vel)) + 1)
             return self.grid
 
-    def grid_spec(self, x=None, nb=None):
+    def grid_spec(self, x=None, nb=None, tlim=0.001):
         """
         another version of grid for line profiles
         """
-        r = self.getrange()
-        mask = np.logical_and(x > r[0], x < r[1])
-        inds = np.where(mask == True)
-        mask[inds[0]-1], mask[inds[-1]+1] = True, True
-        if sum(mask) < 2:
-            ind = np.argmin(np.abs(x-(r[0]+r[1])/2))
-            mask[ind], mask[ind+1], mask[ind-1] = True, True, True
-        if nb is None:
-            num = np.round(np.diff(x[mask])/self.delta()) + 1
-        else:
-            num = np.ones_like(x[mask][:-1], dtype=int) * nb
         n = np.zeros_like(x)
-        n[mask] = np.append(num, num[-1])
+
+        if self.x_instr() > 0:
+            r = self.getrange(instr=3, tlim=tlim)
+            ind_s, ind_e = np.max([0, np.searchsorted(x, r[0])-1]), np.min([x.shape[0], np.searchsorted(x, r[1]) + 1])
+            n[ind_s:ind_e] = 3
+        r = self.getrange(instr=0, tlim=tlim)
+        ind_s, ind_e = np.max([0, np.searchsorted(x, r[0])-1]), np.min([x.shape[0], np.searchsorted(x, r[1]) + 1])
+        if nb is None:
+            num = np.round(np.diff(x[ind_s:ind_e])/self.delta()) + 1
+        else:
+            num = np.ones(ind_e-ind_s+1, dtype=int) * nb
+        n[ind_s:ind_e-1] = num
         return n
 
 def convolveflux(l, f, res, vel=False, kind='astropy', verbose=False, debug=False):

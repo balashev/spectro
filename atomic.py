@@ -661,6 +661,7 @@ class atomicData(OrderedDict):
         self.readCO()
         self.readHF()
         self.read_Molecular()
+        self.read_EmissionSF()
         for el in self.keys():
             grp = f.create_group(el)
             dt = h5py.special_dtype(vlen=str)
@@ -709,6 +710,17 @@ class atomicData(OrderedDict):
 
     def read_Molecular(self):
         with open(os.path.dirname(os.path.realpath(__file__))+r'/data/Molecular_data.dat', newline='') as f:
+            for i in range(3):
+                f.readline()
+            data = f.readlines()
+        for d in data:
+            words = d.split()
+            if words[0] not in self:
+                self[words[0]] = e(words[0])
+            self[words[0]].lines.append(line(words[0], words[1], words[2], words[3], descr=' '.join(words[4:])))
+
+    def read_EmissionSF(self):
+        with open(os.path.dirname(os.path.realpath(__file__))+r'/data/EmissionSFLines.dat', newline='') as f:
             for i in range(3):
                 f.readline()
             data = f.readlines()
@@ -880,6 +892,7 @@ class atomicData(OrderedDict):
                     'FeII 1260.53',
                     'OI 1302',
                     'SiII 1304',
+                    'CII 1334',
                     'SiIV 1393',
                     'SiIV 1402',
                     'SiII 1526',
@@ -910,6 +923,25 @@ class atomicData(OrderedDict):
                     'FeII 2344',
                     'ZnII 2026',
                     'CIV 1548',
+                    ]
+        if lines:
+            return self.list(linelist=linelist)
+        else:
+            return linelist
+
+    def EmissionSF_list(self, lines=True):
+        linelist = ['HI 6562',
+                    'HI 4861',
+                    'HI 4340',
+                    'HI 4101',
+                    'HI 3970',
+                    'HI 3889',
+                    'OIII 5006',
+                    'OIII 4958',
+                    'OII 3726',
+                    'OII 3728',
+                    'NII 6548',
+                    'NII 6583',
                     ]
         if lines:
             return self.list(linelist=linelist)
@@ -959,7 +991,7 @@ class atomicData(OrderedDict):
         elif isinstance(n, (list, tuple)):
             return s.list(['H2j' + str(i) for i in n])
 
-    
+
 
 def condens_temperature(name):
     """

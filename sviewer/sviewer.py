@@ -1,6 +1,5 @@
 from adjustText import adjust_text
 from astropy.io import fits
-from chainconsumer import ChainConsumer
 from collections import OrderedDict
 from copy import deepcopy
 import emcee
@@ -2010,16 +2009,19 @@ class fitMCMCWidget(QWidget):
         grid = QGridLayout()
         names = ['Burn-in:     ', '',
                  '', '',
+                 '', '',
+                 '', '',
+                 '', '',
                  'Results:', '',
                  ]
-        positions = [(i, j) for i in range(3) for j in range(2)]
+        positions = [(i, j) for i in range(6) for j in range(2)]
 
         for position, name in zip(positions, names):
             if name == '':
                 continue
             grid.addWidget(QLabel(name), *position)
 
-        self.opt_but = OrderedDict([('MCMC_burnin', [0, 1]),
+        self.opt_but = OrderedDict([('MCMC_burnin', [1, 1]),
                                     ])
         for opt, v in self.opt_but.items():
             b = QLineEdit(str(getattr(self, opt)))
@@ -2028,19 +2030,30 @@ class fitMCMCWidget(QWidget):
             b.textChanged[str].connect(partial(self.onChanged, attr=opt))
             grid.addWidget(b, v[0], v[1])
 
+        grid.addWidget(QLabel('Plot in:'), 0, 0)
+        self.graph = QComboBox()
+        self.graph.addItems(['chainConsumer', 'corner'])
+        self.graph.setFixedSize(120, 30)
+        self.graph.setCurrentIndex(['chainConsumer', 'corner'].index(self.parent.options('MCMC_graph')))
+        self.graph.activated[str].connect(self.selectGraph)
+        grid.addWidget(self.graph, 0, 1)
         self.smooth = QCheckBox('smooth')
         self.smooth.setChecked(bool(self.parent.options('MCMC_smooth')))
         self.smooth.clicked[bool].connect(partial(self.setOpts, 'smooth'))
-        grid.addWidget(self.smooth, 1, 0)
+        grid.addWidget(self.smooth, 2, 0)
         self.bestfit = QCheckBox('bestfit')
         self.bestfit.setChecked(bool(self.parent.options('MCMC_bestfit')))
         self.bestfit.clicked[bool].connect(partial(self.setOpts, 'bestfit'))
-        grid.addWidget(self.bestfit, 2, 0)
+        grid.addWidget(self.bestfit, 3, 0)
+        self.likelihood = QCheckBox('show likelihood')
+        self.likelihood.setChecked(bool(self.parent.options('MCMC_likelihood')))
+        self.likelihood.clicked[bool].connect(partial(self.setOpts, 'likelihood'))
+        grid.addWidget(self.likelihood, 4, 0)
         self.results = QTextEdit('')
         self.results.setFixedSize(500, 400)
         self.results.setText('# fit results are here')
         self.results.textChanged.connect(self.fitresChanged)
-        grid.addWidget(self.results, 3, 1)
+        grid.addWidget(self.results, 5, 1)
         self.chooseShow = chooseShowParsWidget(self)
         self.chooseShow.setFixedSize(200, 700)
         v = QVBoxLayout()
@@ -2128,6 +2141,10 @@ class fitMCMCWidget(QWidget):
         print(arg, getattr(self, arg).isChecked(), getattr(self, 'MCMC_'+arg))
         self.parent.options('MCMC_'+arg, getattr(self, 'MCMC_'+arg))
 
+    def selectGraph(self, text):
+        self.parent.options('MCMC_graph', text)
+        self.graph.setCurrentIndex(['chainConsumer', 'corner'].index(self.parent.options('MCMC_graph')))
+
     def start(self, init=True):
         if self.thread is None:
             self.start_button.setChecked(True)
@@ -2206,27 +2223,41 @@ class fitMCMCWidget(QWidget):
         pars, nwalkers, samples, lnprobs = self.readChain()
 
         mask = np.array([self.parent.fit.list()[[str(i) for i in self.parent.fit.list()].index(p)].show for p in pars])
-        print(nwalkers, samples.shape, mask)
-        imax = np.argmax(lnprobs)
+        names = [str(p).replace('_', ' ') for p in self.parent.fit.list_fit() if p.show]
+        if self.parent.options('MCMC_likelihood'):
+            names = [r'$\chi^2$'] + names
+            samples = np.insert(samples, 0, lnprobs, axis=1)
+            mask = np.insert(mask, 0, True)
+        imax = np.argmin(lnprobs)
         truth = samples[imax][np.where(mask)[0]] if self.parent.options('MCMC_bestfit') else None
         print('best fit:', truth)
         burnin = int(self.parent.options('MCMC_burnin'))
         if nwalkers * burnin < samples.shape[0]:
-            c = ChainConsumer()
-            c.add_chain(samples[nwalkers * burnin:, np.where(mask)[0]], walkers=nwalkers,
-                        parameters=[str(p).replace('_', ' ') for i, p in enumerate(self.parent.fit.list_fit()) if mask[i]])
-            print(self.parent.options('MCMC_smooth'))
-            c.configure(smooth=self.parent.options('MCMC_smooth'),
-                        cloud=True,
-                        sigmas=[0, 1, 2, 3],
-                        )
-            c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
+            if self.parent.options('MCMC_graph') == 'chainConsumer':
+                from chainconsumer import ChainConsumer
+                c = ChainConsumer()
+                c.add_chain(samples[nwalkers * burnin:, np.where(mask)[0]], walkers=nwalkers,
+                            parameters=names)
+                c.configure(smooth=self.parent.options('MCMC_smooth'),
+                            cloud=True,
+                            sigmas=[0, 1, 2, 3],
+                            )
+                c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
 
-            fig = c.plotter.plot(figsize=(30, 30),
-                                    filename="output/fit.png",
-                                    display=True,
-                                    truth=truth
-                                    )
+                fig = c.plotter.plot(figsize=(30, 30),
+                                        #filename="output/fit.png",
+                                        display=True,
+                                        truth=truth
+                                        )
+            if self.parent.options('MCMC_graph') == 'corner':
+                import corner
+                figure = corner.corner(samples[nwalkers * burnin:, np.where(mask)[0]],
+                                       labels=names,
+                                       show_titles=True,
+                                       plot_contours=self.parent.options('MCMC_smooth'),
+                                       truths=truth,
+                                       )
+                plt.show()
 
     def stats(self, t='fit'):
         pars, nwalkers, samples, lnprobs = self.readChain()
@@ -2586,7 +2617,7 @@ class extract2dWidget(QWidget):
             ('sky_smooth', ['skySmooth', int, 0]),
             ('sky_smooth_coef', ['skySmoothCoef', float, 0.3]),
             ('helio_corr', ['helioCorr', float, 20.682]),
-            ('rescale_window', ['rescaleWindow', int, 50]),
+            ('rescale_window', ['rescaleWindow', int, 30]),
         ])
         for opt in self.opts.keys():
             setattr(self, opt, self.opts[opt][1](self.opts[opt][2]))
@@ -3051,8 +3082,6 @@ class extract2dWidget(QWidget):
 
     def dispersion(self):
         s = self.parent.s[self.exp_ind]
-        self.rescale_window = int(self.rescaleWindow.text()) / 2
-        #s.calc_cont(window=self.rescale_window*4 + 1)
         x = s.spec.x()[s.cont_mask]
         y = s.spec.y()[s.cont_mask]
         err = s.spec.err()[s.cont_mask]
@@ -3060,7 +3089,7 @@ class extract2dWidget(QWidget):
         std = []
         ref = np.arange(np.sum(s.cont_mask))
         for k, i in enumerate(np.where(s.cont_mask)[0]):
-            mask = np.logical_and(ref > i-self.rescale_window, ref < i+self.rescale_window)
+            mask = np.logical_and(ref > i-self.rescale_window / 2, ref < i+self.rescale_window / 2)
             std.append(np.std(y[mask] - s.cont.y[mask]) / np.mean(err[mask]))
 
         self.parent.s.append(Spectrum(self.parent, 'error_dispersion', data=[s.cont.x, np.asarray(std)]))
@@ -3833,10 +3862,13 @@ class rebinWidget(QWidget):
         elif self.convolve_item.isExpanded():
             x = self.parent.s[self.exp_ind].spec.x()
             print(float(self.resol.text()))
+            self.parent.s.append(Spectrum(self.parent, name='convolved ' + str(self.exp_ind + 1)))
             y = convolveflux(x, self.parent.s[self.exp_ind].spec.y(), res=float(self.resol.text()), kind='direct')
-            err = convolveflux(x, self.parent.s[self.exp_ind].spec.err(), res=float(self.resol.text()), kind='direct')
-            self.parent.s.append(Spectrum(self.parent, name='convolved '+str(self.exp_ind+1)))
-            self.parent.s[-1].set_data([x, y, err])
+            if self.parent.s[self.exp_ind].spec.raw.err is not None and self.parent.s[self.exp_ind].spec.raw.err.shape[0] == x.shape[0]:
+                err = convolveflux(x, self.parent.s[self.exp_ind].spec.err(), res=float(self.resol.text()), kind='direct')
+                self.parent.s[-1].set_data([x, y, err])
+            else:
+                self.parent.s[-1].set_data([x, y])
             if self.parent.s[self.exp_ind].resolution not in [0, None]:
                 self.parent.s[-1].resolution = 1 / np.sqrt(1 / float(self.resol.text())**2 + 1 / self.parent.s[self.exp_ind].resolution**2)
             else:
@@ -4072,9 +4104,10 @@ class sviewer(QMainWindow):
         self.t = Timer()
         self.setAcceptDrops(True)
         self.abs_H2_status = 0
-        self.abs_DLA_status = 1
-        self.abs_DLAmajor_status = 0
+        self.abs_DLA_status = 0
+        self.abs_DLAmajor_status = 1
         self.abs_Molec_status = 0
+        self.abs_SF_status = 1
         self.normview = False
         if platform.system() == 'Windows':
             self.config = 'config/options.ini'
@@ -4323,6 +4356,11 @@ class sviewer(QMainWindow):
         self.linesMolec.triggered.connect(partial(self.absLines, 'abs_Molec_status'))
         self.linesMolec.setChecked(self.abs_Molec_status)
 
+        self.linesSF = QAction('&Emission lines', self, checkable=True)
+        self.linesSF.setStatusTip('Star-formation emission lines')
+        self.linesSF.triggered.connect(partial(self.absLines, 'abs_SF_status'))
+        self.linesSF.setChecked(self.abs_SF_status)
+
         linesChoice = QAction('&Choose lines', self)
         linesChoice.setStatusTip('Choose lines to indicate')
         linesChoice.triggered.connect(self.absChoicelines)
@@ -4335,6 +4373,7 @@ class sviewer(QMainWindow):
         linesMenu.addAction(self.linesDLAmajor)
         linesMenu.addAction(self.linesH2)
         linesMenu.addAction(self.linesMolec)
+        linesMenu.addAction(self.linesSF)
         linesMenu.addSeparator()
         linesMenu.addAction(linesChoice)
         linesMenu.addAction(hideAll)
@@ -4399,6 +4438,10 @@ class sviewer(QMainWindow):
         fitPoly.setStatusTip('Fit by polynomial function')
         fitPoly.triggered.connect(partial(self.fitPoly, None))
 
+        fitMinEnvelope = QAction('&Envelope fit', self)
+        fitMinEnvelope.setStatusTip('Find bottom envelope')
+        fitMinEnvelope.triggered.connect(partial(self.fitMinEnvelope, res=200))
+
         AncMenu = QMenu('&Diagnostic plots', self)
         AncMenu.setStatusTip('Some ancillary for fit procedures')
 
@@ -4430,6 +4473,7 @@ class sviewer(QMainWindow):
         fitMenu.addAction(fitGauss)
         fitMenu.addAction(fitPower)
         fitMenu.addAction(fitPoly)
+        fitMenu.addAction(fitMinEnvelope)
         fitMenu.addSeparator()
         fitMenu.addMenu(AncMenu)
         AncMenu.addAction(H2Exc)
@@ -4695,7 +4739,7 @@ class sviewer(QMainWindow):
         self.atomic = atomicData()
         self.atomic.readdatabase()
         self.abs = absSystemIndicator(self)
-        for s in ['H2', 'DLAmajor', 'DLA', 'Molec']:
+        for s in ['H2', 'DLAmajor', 'DLA', 'Molec', 'SF']:
             self.absLines('abs_'+s+'_status', value=getattr(self, 'abs_'+s+'_status'))
 
         filename = self.options('loadfile', config=self.config)
@@ -4804,19 +4848,21 @@ class sviewer(QMainWindow):
             setattr(self, status, 1 - getattr(self, status))
         if value is not 0:
             if status == 'abs_H2_status' and value is not 0:
-                lines, color = self.atomic.list(['H2j'+str(i) for i in range(3)]), (255, 95, 32)
+                lines, color, va = self.atomic.list(['H2j'+str(i) for i in range(3)]), (255, 95, 32), 'down'
             if status == 'abs_DLA_status' and value is not 0:
-                lines, color = self.atomic.DLA_list(), (105, 213, 105)
+                lines, color, va = self.atomic.DLA_list(), (105, 213, 105), 'down'
             if status == 'abs_DLAmajor_status' and value is not 0:
-                lines, color = self.atomic.DLA_major_list(), (105, 213, 105)
+                lines, color, va = self.atomic.DLA_major_list(), (105, 213, 105), 'down'
             if status == 'abs_Molec_status' and value is not 0:
-                lines, color = self.atomic.Molecular_list(), (255, 111, 63)
+                lines, color, va = self.atomic.Molecular_list(), (255, 111, 63), 'down'
+            if status == 'abs_SF_status' and value is not 0:
+                lines, color, va = self.atomic.EmissionSF_list(), (0, 204, 255), 'up'
 
             if verbose:
                 print('linelist:', lines)
 
             if getattr(self, status):
-                self.abs.add(lines, color=color)
+                self.abs.add(lines, color=color, va=va)
             else:
                 self.abs.remove(lines)
 
@@ -5204,7 +5250,6 @@ class sviewer(QMainWindow):
                                     fl = data.field('flux')
                                     sig = (data.field('ivar'))**(-0.5)
                                     cont = data.field('model')
-                                print(l, fl, sig)
                                 s.set_data([l, fl, sig])
                                 s.cont.set_data(l, cont)
                                 s.resolution = 2000
@@ -5214,22 +5259,20 @@ class sviewer(QMainWindow):
                     elif 'ORIGIN' in hdulist[0].header:
                         if hdulist[0].header['ORIGIN'] == 'ESO-MIDAS':
                             prihdr = hdulist[1].data
-                            print(type(prihdr), prihdr.field('LAMBDA'))
                             s.set_data([prihdr['LAMBDA']*10, prihdr['FLUX'], prihdr['ERR']])
                     elif 'DLA_PASQ' in hdulist[0].header:
                         prihdr = hdulist[0].data
                         x = np.logspace(hdulist[0].header['CRVAL1'], hdulist[0].header['CRVAL1']+0.0001*hdulist[0].header['NAXIS1'], hdulist[0].header['NAXIS1'])
                         s.set_data([x, prihdr[0], prihdr[1]])
                     elif 'HIERARCH ESO PRO CATG' in hdulist[0].header:
-                        print(hdulist[0].header['HIERARCH ESO PRO CATG'])
+                        #print(hdulist[0].header['HIERARCH ESO PRO CATG'])
                         if hdulist[0].header['HIERARCH ESO PRO CATG'] == 'MOS_SCIENCE_REDUCED':
                             x = np.linspace(hdulist[0].header['CRVAL1'], hdulist[0].header['CRVAL1']+hdulist[0].header['CDELT1']*(hdulist[0].header['NAXIS1']-1), hdulist[0].header['NAXIS1'])
-                            print(x, hdulist[0].data[0]*1e20)
                             s.set_data([x, hdulist[0].data[0]*1e20, np.ones_like(x)])
                     else:
                         prihdr = hdulist[1].data
                         if 1:
-                            print(prihdr.dtype)
+                            #print(prihdr.dtype)
                             s.set_data([prihdr['lam'] * 10000, prihdr['trans']])
                         else:
                             print(type(prihdr), prihdr.field('LAMBDA'))
@@ -5244,7 +5287,6 @@ class sviewer(QMainWindow):
                 else:
                     try:
                         args = line.split()
-                        print(args[0])
                         f, header = open(args[0], 'r'), 0
                         while f.readline().startswith('#'):
                             header += 1
@@ -5323,7 +5365,7 @@ class sviewer(QMainWindow):
                             s.spec2d.set(x=x*10, y=y, z=hdulist[0].data*1e17, err=err, mask=mask)
 
                         if 'ORIGFILE' in hdulist[0].header and 'VANDELS' in hdulist[0].header['ORIGFILE']:
-                            s.spec2d.set(x=x, y=y, z=hdulist[0].data)
+                            s.spec2d.set(x=x, y=y[:-1], z=hdulist[0].data[:-1,:])
 
                         if 'ORIGIN' in hdulist[0].header and 'sviewer' in hdulist[0].header['ORIGIN']:
                             err, mask, cr, sky, sky_mask, trace = None, None, None, None, None, None
@@ -5903,6 +5945,37 @@ class sviewer(QMainWindow):
             s.cont.interpolate()
             s.cont.set_data(x=s.spec.raw.x[s.cont_mask], y=s.cont.inter(s.spec.raw.x[s.cont_mask]))
             s.g_cont.setData(x=s.cont.x, y=s.cont.y)
+
+    def fitMinEnvelope(self, res=200):
+
+        s = self.s[self.s.ind]
+        x, y = s.spec.x(), s.spec.y()
+        if 1:
+            mask = np.ones_like(x, dtype=bool)
+            for r in self.regions:
+                mask *= 1 - (x > r[0]) * (x < r[1])
+            x, y = x[mask], y[mask]
+        #w = s.spec.err()[s.fit_mask.x()]
+
+        fig, ax = plt.subplots()
+        ax.plot(x, y, '-b')
+
+        # >>> convolve flux
+        y = convolveflux(x, y, res=res, kind='direct')
+        ax.plot(x, y, '--g')
+
+        # >>> find local minima
+        inds = np.where(np.r_[True, y[1:] < y[:-1]] & np.r_[y[:-1] < y[1:], True])[0]
+        for i, c in zip(range(3), ['gold', 'magenta', 'red']):
+            ax.plot(x[inds], y[inds], 'o', c=c)
+
+            ys = sg.savitzky_golay(y[inds], window_size=5, order=3)
+            inter = interp1d(x[inds], ys, bounds_error=False, fill_value=(ys[0], ys[-1]))
+            ax.plot(x, inter(x), '-', c=c)
+
+            inds = np.delete(inds, np.where((ys - y[inds]) / np.std(ys - y[inds]) < -1)[0])
+
+        plt.show()
 
     def H2ExcDiag(self):
         """
@@ -6617,7 +6690,7 @@ class sviewer(QMainWindow):
 
     def showVandels(self):
         data = np.genfromtxt(self.VandelsFile, delimiter=',', names=True,
-                             dtype=('U19', '<f8', '<f8', '<f8', 'U12', '<f8', 'U10', '<f8', 'U9', '<i4', '<f8', '<f8', '<f8', '<f8', 'U24'))
+                             dtype=('U19', '<f8', '<f8', '<f8', 'U12', '<f8', 'U10', '<f8', 'U9', '<i4', '<f8', '<f8', '<f8', '<f8', 'U24', 'U9', 'U9', 'U9', 'U50'))
         self.VandelsTable = QSOlistTable(self, 'Vandels', folder=os.path.dirname(self.VandelsFile))
         self.VandelsTable.setdata(data)
 

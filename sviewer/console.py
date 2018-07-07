@@ -9,6 +9,7 @@ import pyqtgraph as pg
 from statsmodels.stats.weightstats import DescrStatsW
 
 from ..a_unc import a
+from ..atomic import metallicity, depletion, abundance
 from .utils import Timer, roman
 
 
@@ -367,6 +368,37 @@ class Console(QTextEdit):
             N.log()
             print(N)
             return N
+
+        elif args[0] == 'Me':
+            c = np.arange(len(self.parent.fit.sys))
+            N = a(0,0,0, 'd')
+            for i in c:
+                if args[1] in self.parent.fit.sys[i].sp:
+                    self.parent.fit.sys[i].sp[args[1]].N.unc.val = self.parent.fit.sys[i].sp[args[1]].N.val
+                    N += self.parent.fit.sys[i].sp[args[1]].N.unc
+            N.log()
+            print(args[1], N.log())
+            return metallicity(args[1], N.log(), a(float(args[2]), 0, 0))
+
+        elif args[0] == 'depletion':
+            if len(args) == 3:
+                c = np.arange(len(self.parent.fit.sys))
+            elif len(args) > 3:
+                c = [int(i) for i in args[3:]]
+            N = [a(0, 0, 0, 'd'), a(0, 0, 0, 'd')]
+            for i in c:
+                for k in range(2):
+                    if args[k+1] in self.parent.fit.sys[i].sp:
+                        self.parent.fit.sys[i].sp[args[k+1]].N.unc.val = self.parent.fit.sys[i].sp[args[k+1]].N.val
+                        N[k] += self.parent.fit.sys[i].sp[args[k+1]].N.unc
+            print(N)
+            return depletion(args[1], N[0], N[1], ref=args[2])
+
+        elif args[0] == 'abundance':
+            N, me = float(args[2]), float(args[3])
+            N, me = np.max([N, me]), np.min([N, me])
+            print(N, me)
+            return abundance(args[1], N, me)
 
         elif args[0] == 'rescale':
             if len(args) == 3 or len(args) == 2:

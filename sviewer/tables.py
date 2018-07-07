@@ -211,6 +211,10 @@ class QSOlistTable(pg.TableWidget):
             self.filename_saved = ''
         if self.cat == 'Vandels':
             self.setWindowTitle('Vandels catalog')
+            if 0:
+                self.parent.console.exec_command('hide all')
+                for sp in ['HI', 'CIV', 'SiIV', 'CII']:
+                    self.parent.console.exec_command('show '+sp)
         if self.cat == 'Kodiaq':
             self.setWindowTitle('KODIAQ DR2 catalog')
         if self.cat is None:
@@ -218,6 +222,7 @@ class QSOlistTable(pg.TableWidget):
         self.cellDoubleClicked.connect(self.row_clicked)
         self.cellPressed.connect(self.editCell)
         self.edit_item = [-1, -1]
+        self.previous_item = None
         self.verticalHeader().setDefaultAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
 
         if 'SDSS' in self.cat:
@@ -236,7 +241,9 @@ class QSOlistTable(pg.TableWidget):
             self.cellChanged.connect(self.saveLines)
         if self.cat == 'Vandels':
             self.contextMenu.addSeparator()
+            self.contextMenu.addAction('Save continuum').triggered.connect(self.saveCont)
             self.contextMenu.addAction('Stack').triggered.connect(self.makeStack)
+            self.cellChanged.connect(self.saveVandels)
 
     def setdata(self, data):
         self.data = data
@@ -316,9 +323,13 @@ class QSOlistTable(pg.TableWidget):
                     line = '\t'.join([f.format(d) for f, d in zip(fmt.split(), d)])
                     f.write(line+'\n')
 
-    def saveCont(self):
-        if self.cell_value('name').strip() in self.parent.s[-1].filename:
-            filename = self.folder+'/cont/'+self.cell_value('name').strip()
+    def saveCont(self, name=None):
+        if name is None or isinstance(name, bool):
+            name = 'name' if self.cat != 'Vandels' else 'id'
+            if self.cell_value(name).strip() in self.parent.s[-1].filename:
+                name = self.cell_value(name).strip()
+        else:
+            filename = self.folder + '/cont/' + name
             self.parent.save_opt = ['cont', 'others']
             self.parent.saveFile(filename, save_name=False)
 
@@ -394,30 +405,58 @@ class QSOlistTable(pg.TableWidget):
             except:
                 pass
 
+    def saveVandels(self, row, col):
+
+        if row == self.edit_item[0] and col == self.edit_item[1]:
+            if self.horizontalHeaderItem(col).text() in ['type', 'lya', 'break', 'comment']:
+                print(row, col)
+                for line in fileinput.input(self.folder + '/VANDELS.csv', inplace=True):
+                #for line in open(self.folder + '/VANDELS.csv'):
+                    s = line.split(',')
+                    if s[0] == self.item(row, 0).text():
+                        print(','.join(s[:col] + [self.item(row, col).text()] + s[col+1:]).replace('\n', ''))
+                    else:
+                        print(line.replace('\n', ''))
+
     def makeStack(self):
-        z_low, z_up = 4, 10
         l = np.linspace(900, 2000, 2500)
         s, serr, sw = np.zeros_like(l), np.zeros_like(l), np.zeros_like(l)
-        for d in self.data:
-            if d['zspec'] > z_low and d['zspec'] < z_up and d['zflg'] in [2, 3, 4, 14]:
+        print(np.where(self.data['lya'] == 'n')[0])
+        for i, d in enumerate(self.data):
+            if (d['lya'] == 'n' and d['break'] == 'n') and d['zflg'] in [2, 3, 4, 14]:
                 print(d['zspec'])
-                hdulist = fits.open(self.folder + '/' + d['FILENAME'])
-                prihdr = hdulist[1].data
-                x, f, err = prihdr[0][0] / (1+float(d['zspec'])), prihdr[0][1]*1e17, prihdr[0][2]*1e17
-                mask = (x > 1410) * (x < 1510)
-                n = np.mean(f[mask])
-                ston = n / np.sqrt(np.mean(err[mask]**2))
-                w = 1 / (ston**(-2) + 0.1**2)
-                print(n, ston, w)
-                #print(x, f, err)
-                mask = (l > x[2]) * (l < x[-3])
-                f, err = spectres.spectres(x, f, l[mask], spec_errs=err)
-                m = np.logical_not(err == 0)
-                s[mask] += m * (f / n) * w
-                err = (err / n)**(-2)
-                err[np.isinf(err)] = 0
-                serr[mask] += err * w
-                sw[mask] += m * w
+                if 0:
+                    hdulist = fits.open(self.folder + '/' + d['FILENAME'])
+                    prihdr = hdulist[1].data
+                    x, f, err = prihdr[0][0] / (1+float(d['zspec'])), prihdr[0][1]*1e17, prihdr[0][2]*1e17
+                else:
+                    self.parent.importSpectrum(self.folder + '/' + d['FILENAME'])
+                    if os.path.isfile(self.folder + '/cont/' + d['FILENAME'].replace('.fits', '.spv')):
+                        self.parent.openFile(self.folder + '/cont/' + d['FILENAME'].replace('.fits', '.spv'), remove_regions=True, remove_doublets=True)
+                        self.parent.normalize()
+                    x, f, err = self.parent.s[self.parent.s.ind].spec.x() / (1 + float(d['zspec'])), self.parent.s[self.parent.s.ind].spec.y(), self.parent.s[self.parent.s.ind].spec.err()
+                    if 1:
+                        mask = np.ones_like(x, dtype=bool)
+                        for r in self.parent.regions:
+                            print('regions', r)
+                            mask *= 1 - (x > r[0]) * (x < r[1])
+                        x, f, err = x[mask], f[mask], err[mask]
+                    print(x, f, err)
+                    if 1:
+                        m = (x > 1410) * (x < 1510)
+                        n = np.mean(f[m])
+                        ston = n / np.sqrt(np.mean(err[m]**2))
+                        w = 1 / (ston**(-2) + 0.1**2)
+                    print(n, ston, w)
+                    #print(x, f, err)
+                    mask = (l > x[2]) * (l < x[-3])
+                    f, err = spectres.spectres(x, f, l[mask], spec_errs=err)
+                    m = np.logical_not(err == 0)
+                    s[mask] += m * (f / n) * w
+                    err = (err / n)**(-2)
+                    err[np.isinf(err)] = 0
+                    serr[mask] += err * w
+                    sw[mask] += m * w
         print(l, s, serr)
         self.parent.importSpectrum('stack', spec=[l, s / sw, (serr / sw)**(-.5)])
 
@@ -613,11 +652,20 @@ class QSOlistTable(pg.TableWidget):
 
         if self.cat == 'Vandels':
             if colInd in [0]:
+                if self.previous_item is not None:
+                    self.saveCont(name=self.item(self.previous_item[0], self.columnIndex('id')).text())
                 filename = self.folder + '/' + self.cell_value('FILENAME')
                 self.parent.importSpectrum(filename)
                 self.parent.vb.enableAutoRange()
-                self.parent.import2dSpectrum(filename.replace('.fits', '_2D.fits'))
+                self.parent.import2dSpectrum(filename.replace('.fits', '_2D.fits'), ind=0)
                 self.parent.setz_abs(self.cell_value('zspec'))
+                self.parent.s[self.parent.s.ind].spec2d.raw.getQuantile(quantile=0.95)
+                self.parent.console.exec_command('2d levels -0.01 0.01')
+
+                if os.path.isfile(self.folder + '/cont/' + self.cell_value('id').strip() + '.spv'):
+                    self.parent.openFile(self.folder + '/cont/' + self.cell_value('id').strip() + '.spv', remove_regions=True, remove_doublets=True)
+
+                self.parent.s[self.parent.s.ind].rebinning(32)
 
         if self.cat == 'Kodiaq':
             if colInd in [0]:
@@ -671,6 +719,8 @@ class QSOlistTable(pg.TableWidget):
                 self.parent.statusBar.setText('Spectrum is imported: ' + filename)
             elif isinstance(filename, list):
                 self.parent.statusBar.setText('Spectra are imported from list: ' + str(filename))
+
+        self.previous_item = [self.currentItem().row(), self.currentItem().column()]
 
     def columnIndex(self, columnname):
         return [self.horizontalHeaderItem(x).text() for x in range(self.columnCount())].index(columnname)

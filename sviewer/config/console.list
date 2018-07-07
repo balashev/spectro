@@ -1,21 +1,21 @@
-logN H2
-rescale spline 2
-rescale spline 2
-rescale spline 2
-rescale spline 2
-show CI*
-show CI**
-rescale err 2
-logN H2
-2d levels 0 1
-logN H2
-logN H2 
-logN 1
-logN H2 1
-logN H2 0
-show CI
-show CI*
-show CI**
+show SiII*
+abundance SiII 21.54
+abundance SiII 21.54 -0.9
+abundance SiII -0.9 21.54
+abundance SiII 21.54 -0.9
+abundance SiII 21.54 -1.3
 show ZnII
+show CrII
+show MgI
+MgI
+show HD
+show HD 1
 stats
-show CII*
+OI
+show OI*
+OI*
+OI**
+show OI**
+CoII
+abundance CoII 21.0 -1
+abundance CoII 21.0 -2

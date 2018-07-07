@@ -164,7 +164,7 @@ class Speclist(list):
                 for sys in self.parent.fit.sys:
                     #print('calcFitComps', sys.ind)
                     if self.parent.fitType == 'regular':
-                        s.calcFit(ind=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit)
+                        s.calcFit(ind=sys.ind, x=s.fit.x(), recalc=recalc, tau_limit=self.parent.tau_limit)
 
                     elif self.parent.fitType == 'fft':
                         s.calcFit_fft(ind=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit)
@@ -193,6 +193,7 @@ class Speclist(list):
         for s in self:
             if hasattr(s, 'fit_mask') and s.fit_mask is not None:
                 n += np.sum(s.fit_mask.x())
+
         self.parent.chiSquare.setText('  chi2 / dof = {0:.2f} / {1:d}'.format(chi2, int(n - len(self.parent.fit.list_fit()))))
         return chi2
 
@@ -1022,6 +1023,10 @@ class spec2d():
             inds = np.where(np.logical_and(self.parent.cont_mask2d, np.logical_and(self.raw.x >= xmin, self.raw.x <= xmax)))[0]
         else:
             inds = []
+        if self.sky is not None:
+            sky = self.sky.raw.z
+        else:
+            sky = np.zeros_like(self.raw.z)
         y, err = np.zeros(len(inds)), np.zeros(len(inds))
         for k, i in enumerate(inds):
             print(k, self.raw.x[i])
@@ -1040,20 +1045,21 @@ class spec2d():
 
             #self.raw.err[:, i] = 1
             v = np.sum((1 - self.cr.mask[:, i]) * profile**2) #/ self.raw.err[:, i]**2)
-            flux = np.sum((self.raw.z[:, i] - self.sky.z[:, i]) * profile * (1 - self.cr.mask[:, i])) # / self.raw.err[:, i]**2)
+            flux = np.sum((self.raw.z[:, i] - sky[:, i]) * profile * (1 - self.cr.mask[:, i])) # / self.raw.err[:, i]**2)
 
             if v is not np.nan:
                 y[k] = flux / v
-                err[k] = np.sqrt(np.sum((1 - self.cr.mask[:, i]) * profile * self.raw.err[:, i]) / v)
-            if k % 100 == 0:
-                gc.collect()
+                if self.raw.err is not None:
+                    err[k] = np.sqrt(np.sum((1 - self.cr.mask[:, i]) * profile * self.raw.err[:, i]) / v)
 
         if inplace:
             pass
         else:
-            print(self.raw.x[inds], np.asarray(y), np.asarray(err))
-            self.parent.parent.s.append(Spectrum(self.parent.parent, 'extracted', data=[self.raw.x[inds], np.asarray(y),
-                                                                          np.asarray(err)]))
+            if self.raw.err is not None:
+                data = self.raw.x[inds], np.asarray(y), np.asarray(err)
+            else:
+                data = self.raw.x[inds], np.asarray(y)
+            self.parent.parent.s.append(Spectrum(self.parent.parent, 'extracted', data=data))
             if helio is not None:
                 self.parent.parent.s[-1].helio_vel = helio
                 self.parent.parent.s[-1].apply_shift(helio)
@@ -1061,7 +1067,7 @@ class spec2d():
             if airvac:
                 self.parent.parent.s[-1].airvac()
             self.parent.parent.s[-1].spec2d.set(x=self.parent.parent.s[-1].spec.x(), y=self.raw.y,
-                                         z=self.raw.z[:, inds] - self.sky.z[:, inds])
+                                         z=self.raw.z[:, inds] - sky[:, inds])
 
 class Spectrum():
     """
@@ -1350,9 +1356,7 @@ class Spectrum():
     def set_data(self, data=None):
         if data is not None:
             if len(data) >= 3:
-                print(data[1], data[2])
                 mask = np.logical_and(data[1] != 0, data[2] != 0)
-                print(len(data[0]), np.sum(mask))
                 self.spec.add(data[0][mask], data[1][mask], err=data[2][mask])
                 if len(data) == 4:
                     self.cont.set_data(data[0][mask], data[3][mask])
@@ -1362,7 +1366,6 @@ class Spectrum():
                 self.spec.add(data[0][mask], data[1][mask])
             else:
                 mask = data[1] != np.NaN
-        print(len(self.spec.raw.x), len(self.spec.raw.y))
         self.spec.raw.interpolate()
         self.wavelmin, self.wavelmax = self.spec.raw.x[0], self.spec.raw.x[-1]
         self.mask.set(x=np.zeros_like(self.spec.raw.x, dtype=bool))
@@ -1594,7 +1597,7 @@ class Spectrum():
         #self.set_fit_mask()
         #self.rewrite_mask()
 
-    def calc_cont(self, xl=None, xr=None, iter=5, window=301):
+    def calc_cont(self, xl=None, xr=None, iter=5, window=101):
         if self.spec.raw.n > 0:
             if xl is None:
                 xl = self.spec.raw.x[0]
@@ -1608,7 +1611,7 @@ class Spectrum():
             for i in range(iter):
                 print(np.sum(mask), len(ys), len(self.spec.raw.y[mask]))
                 mask[mask] *= (ys - self.spec.raw.y[mask]) / self.spec.raw.err[mask] < 2.5
-                ys = sg.savitzky_golay(self.spec.raw.y[mask], window_size=window, order=7)
+                ys = sg.savitzky_golay(self.spec.raw.y[mask], window_size=window, order=5)
 
             inter = interp1d(self.spec.raw.x[mask], ys, fill_value=(ys[0], ys[-1]))
 
@@ -1667,7 +1670,7 @@ class Spectrum():
         if debug:
             print('findFitLines', self.fit_lines, [l.cf for l in self.fit_lines])
 
-    def calcFit(self, ind=-1, recalc=False, redraw=True, timer=False, tau_limit=0.01):
+    def calcFit(self, ind=-1, x=None, recalc=False, redraw=True, timer=False, tau_limit=0.01):
         """
 
            - ind             : specify the exposure for which fit is calculated
@@ -1692,27 +1695,15 @@ class Spectrum():
                 t.time('update')
 
             # >>> create lambda grid:
-            x_spec = self.spec.norm.x
-            mask_glob = np.zeros_like(x_spec)
-            if 0:
-                x = np.asarray([self.spec.norm.x[0], self.spec.norm.x[-1]])
+            if x is None:
+                x_spec = self.spec.norm.x
+                mask_glob = self.mask.norm.x
+                #mask_glob = np.zeros_like(x_spec)
                 for line in self.fit_lines:
-                    if ind == -1 or ind == line.sys:
-                        line.tau.getrange(tlim=tau_limit)
-                        mask = np.logical_and(x_spec > line.range[0], x_spec < line.range[1])
-                        mask_glob = np.logical_or(mask_glob, mask)
-                        #x_grid = line.tau.x_grid(x_spec[mask], num=)
-                        x_grid = line.tau.x_grid(ran=line.range)
-                        x = np.insert(x, np.searchsorted(x, x_grid), x_grid)
-                x = np.insert(x, np.searchsorted(x, x_spec[mask_glob]), x_spec[mask_glob])
-            else:
-                for line in self.fit_lines:
-                    if ind == -1 or ind == line.sys:
-                        mask_glob = np.maximum(mask_glob, line.tau.grid_spec(x_spec))
+                    mask_glob = np.maximum(mask_glob, line.tau.grid_spec(x_spec, tlim=tau_limit))
                 x = makegrid(x_spec, mask_glob)
-                #print(mask_glob[mask_glob != 0])
-            if timer:
-                t.time('create x')
+                if timer:
+                    t.time('create x')
 
             # >>> calculate the intrinsic absorption line spectrum
             flux = np.zeros_like(x)
@@ -1726,16 +1717,20 @@ class Spectrum():
 
             # >>> include partial covering:
             if self.parent.fit.cf_fit:
-                cfs = []
-                for line in self.fit_lines:
+                cfs, inds = [], []
+                for i, line in enumerate(self.fit_lines):
                     if ind == -1 or ind == line.sys:
                         cfs.append(line.cf)
+                        inds.append(i)
                 cfs = np.array(cfs)
-                for i in np.unique(cfs[cfs > -1]):
-                    cf = getattr(self.parent.fit, 'cf_' + str(i)).val
+                for i in np.unique(cfs):
+                    if i > -1:
+                        cf = getattr(self.parent.fit, 'cf_' + str(i)).val
+                    else:
+                        cf = 0
                     profile = np.zeros_like(x)
                     for k in np.where(cfs == i)[0]:
-                        profile += self.fit_lines[k].profile
+                        profile += self.fit_lines[inds[k]].profile
                     flux += - np.log(np.exp(-profile) * (1 - cf) + cf)
 
             flux = np.exp(-flux)
@@ -1746,13 +1741,7 @@ class Spectrum():
             # >>> convolve the spectrum with instrument function
             #self.resolution = None
             if self.resolution not in [None, 0]:
-                if 0:
-                    kernel = (self.spec.x()[-1] + self.spec.x()[0]) / 2 / np.median(np.diff(self.spec.x())) / self.resolution / 2 / np.sqrt(2 * np.log(2))
-                    kernel = Gaussian1DKernel(kernel)
-                    flux = convolve(flux, kernel, boundary='extend')
-                else:
-                    #debug(self.resolution, 'res')
-                    flux = convolveflux(x, flux, self.resolution, kind='direct')
+                flux = convolveflux(x, flux, self.resolution, kind='direct')
             if timer:
                 t.time('convolve')
 
@@ -1955,13 +1944,7 @@ class Spectrum():
             # >>> convolve the spectrum with instrument function
             #self.resolution = None
             if self.resolution not in [None, 0]:
-                if 0:
-                    kernel = (self.spec.x()[-1] + self.spec.x()[0]) / 2 / np.median(np.diff(self.spec.x())) / self.resolution / 2 / np.sqrt(2 * np.log(2))
-                    kernel = Gaussian1DKernel(kernel)
-                    flux = convolve(flux, kernel, boundary='extend')
-                else:
-                    #debug(self.resolution, 'res')
-                    flux = convolveflux(x, flux, self.resolution, kind='direct')
+                flux = convolveflux(x, flux, self.resolution, kind='direct')
             if timer:
                 t.time('convolve')
 
@@ -2005,8 +1988,7 @@ class Spectrum():
 
     def chi(self):
         mask = self.fit_mask.x()
-        spec = self.spec
-        if len(spec.x()) > 0 and np.sum(mask) > 0 and self.fit.n() > 0:
+        if len(self.spec.x()) > 0 and np.sum(mask) > 0 and self.fit.n() > 0:
             return ((self.spec.y()[mask] - self.fit.f(self.spec.x()[mask])) / self.spec.err()[mask])
         else:
             return np.asarray([])
@@ -2205,9 +2187,9 @@ class regionItem(pg.LinearRegionItem):
     def __init__(self, parent, brush=pg.mkBrush(173, 173, 173, 100), xmin=None, xmax=None, addinfo=''):
         self.parent = parent
         if xmin is None:
-            xmin = self.parent.parent.mousePoint_saved.x()
+            xmin = self.parent.parent.plot.mousePoint_saved.x()
         if xmax is None:
-            xmax = self.parent.parent.mousePoint_saved.x()
+            xmax = self.parent.parent.plot.mousePoint_saved.x()
         super().__init__(values=[xmin, xmax],
                          orientation=pg.LinearRegionItem.Vertical,
                          brush=brush)

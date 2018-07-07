@@ -296,7 +296,8 @@ class distr2d():
                     w.addItem(line)
         app.instance().exec_()
 
-    def plot_contour(self, conf_levels=None, ax=None, xlabel='', ylabel='', color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False, ls=None, font=18):
+    def plot_contour(self, conf_levels=None, ax=None, xlabel='', ylabel='', limits=None, ls=None,
+                     color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False, font=18, zorder=1):
         if ax == None:
             fig, ax = plt.subplots()
         self.dopoint()
@@ -306,16 +307,28 @@ class distr2d():
             conf_levels = [conf_levels]
         conf_levels = np.sort(conf_levels)[::-1]
         levels = [self.level(c) for c in conf_levels]
-        print(self.zmax, levels)
         if cmap is not None:
-            cmap = getattr(cm, cmap)
+            if isinstance(cmap, str):
+                cmap = getattr(cm, cmap)
             my_cmap = cmap(np.arange(cmap.N))
             my_cmap[:,-1] = np.linspace(alpha, 1, cmap.N)
             my_cmap = ListedColormap(my_cmap)
-            cs = ax.contourf(self.X, self.Y, self.z / self.zmax, 100, cmap=my_cmap)
-
+            cs = ax.contourf(self.X, self.Y, self.z / self.zmax, 100, cmap=my_cmap, zorder=zorder)
         if color is not None:
-            c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5)
+            if limits == 0:
+                c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, zorder=zorder)
+            else:
+                c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, alpha=0)
+                x, y = c.collections[0].get_segments()[0][:,0], c.collections[0].get_segments()[0][:,1]
+                inter = interpolate.interp1d(x, y)
+                x = np.linspace(x[0], x[-1], 30)
+                ax.plot(x, inter(x), '-', c=color)
+                if limits < 0:
+                    lolims, uplims = False, True
+                if limits > 0:
+                    lolims, uplims = True, False
+                x = np.linspace(x[0], x[-1], 10)
+                ax.errorbar(x, inter(x), yerr=np.abs(limits), lolims=lolims, fmt='o', color=color, uplims=uplims, markersize=0, capsize=0, zorder=zorder)
         if ls is not None:
             for c, s in zip(c.collections[:len(ls)], ls[::-1]):
                 c.set_dashes(s)

@@ -217,10 +217,10 @@ class absSystemIndicator():
         self.lines = []
         self.update()
 
-    def add(self, lines, color=(0, 0, 0)):
+    def add(self, lines, color=(0, 0, 0), va='down'):
         for line in lines:
             if line not in self.linelist:
-                l = LineLabel(self, line, self.parent.linelabels, color=color)
+                l = LineLabel(self, line, self.parent.linelabels, color=color, va=va)
                 self.parent.vb.addItem(l)
                 self.lines.append(l)
         self.redraw()
@@ -279,11 +279,18 @@ class LineLabel(pg.TextItem):
     def __init__(self, parent, line, graphicType, **kwrds):
         self.parent = parent
         self.saved_color = kwrds['color']
-        pg.TextItem.__init__(self, text='', anchor=(0.5, -1), fill=pg.mkBrush(0, 0, 0, 0), **kwrds)
+        self.va = kwrds['va']
+        del kwrds['va']
+        if self.va == 'down':
+            anchor, angle, tailLen, pos = [0.5, -2], 90, 30, (0, 5)
+        elif self.va == 'up':
+            anchor, angle, tailLen, pos = [0.5, 2], -90, 30, (0, -10)
+        pg.TextItem.__init__(self, text='', anchor=anchor, fill=pg.mkBrush(0, 0, 0, 0), **kwrds)
         self.graphicType = graphicType
         if self.graphicType == 'short':
-            self.arrow = pg.ArrowItem(angle=90, headWidth=0.5, headLen=0, tailLen=30, brush=pg.mkBrush(255, 0, 0, 255),
-                                  pen=pg.mkPen(0, 0, 0, 0), anchor=(0.5, -0.5))
+            anchor[0] = anchor[1] - 1 if self.va == 'down' else anchor[1] + 1
+            self.arrow = pg.ArrowItem(angle=angle, headWidth=0, headLen=0, tailLen=tailLen, tailWidth=2,
+                                      brush=pg.mkBrush(kwrds['color']), pen=pg.mkPen(0, 0, 0, 0), pos=pos)
         elif self.graphicType == 'infinite':
             self.arrow = pg.InfiniteLine(angle=90, pen=pg.mkPen(color=kwrds['color'], width=.5, style=Qt.SolidLine), label='') #style=Qt.DashLine
         self.arrow.setParentItem(self)

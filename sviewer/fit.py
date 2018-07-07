@@ -94,14 +94,24 @@ class par:
         # special function for lmfit to translate redshift to velocity space
         if self.name.startswith('z'):
             c = 299792.458
-            if val is None:
-                self.saved = self.val
-                return c * (self.val - self.saved), c * (self.min - self.saved), c * (self.max - self.saved)
+            if 1:
+                if val is None:
+                    self.saved = self.val
+                    return c * (self.val - self.saved), c * (self.min - self.saved), c * (self.max - self.saved)
+                else:
+                    if attr in ['val', 'min', 'max']:
+                        return self.saved + val / c
+                    elif attr in ['step', 'unc']:
+                        return val / c
             else:
-                if attr in ['val', 'min', 'max']:
-                    return self.saved + val / c
-                elif attr in ['step', 'unc']:
-                    return val / c
+                if val is None:
+                    self.saved = self.val
+                    return self.val / self.saved, self.min / self.saved, self.max / self.saved
+                else:
+                    if attr in ['val', 'min', 'max']:
+                        return val * self.saved
+                    elif attr in ['step', 'unc']:
+                        return val * self.saved
         else:
             if val is None:
                 return self.val, self.min, self.max

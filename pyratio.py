@@ -1075,9 +1075,8 @@ class pyratio():
             axi.set_ylabel(ylabel)
             axi.set_xlabel(self.pars[par].label)
             axi.legend(loc=4)
-        #plt.show()
 
-    def calc_grid(self, grid_num=50, plot=1, verbose=1, output=None,
+    def calc_grid(self, grid_num=50, plot=1, verbose=1, output=None, marginalize=True, limits=0,
                   title='', ax=None, alpha=1, color=None, cmap='PuBu', color_point=None,
                   zorder=1):
         """
@@ -1086,6 +1085,8 @@ class pyratio():
             - grid_num     :  number of points in the grid for each parameter
             - plot         :  specify graphs to plot: 1 is for contour, 2 is for filled contours
             - output       :  name of output file for probalbility
+            - marginalize  :  provide 1d estimates of parameters by marginalization
+            - limits       :  show upper of lower limits: 0 for not limits, >0 for lower, <0 for upper
             - title        :  title name for the plot
             - ax           :  axes object where to plot data, of not present make it if plot==1.
             - alpha        :  alpha value for the contour plots
@@ -1094,15 +1095,18 @@ class pyratio():
             - color_point  :  show indicator for best fit
             - zorder       :  zorder of the graph object 
         """
+
         self.get_vary()
 
         out = None
 
         if len(self.vary) == 1:
-            out = self.calc_1d(self.vary, grid_num=grid_num, plot=plot, verbose=verbose, title=title, ax=ax, alpha=alpha,color=color, zorder=zorder)
+            out = self.calc_1d(self.vary, grid_num=grid_num, plot=plot, verbose=verbose, title=title, ax=ax, alpha=alpha,
+                               color=color, zorder=zorder)
 
         if len(self.vary) == 2:
-            out = self.calc_2d(self.vary, grid_num=grid_num, plot=plot, verbose=verbose, output=output, title=title, ax=ax, alpha=alpha, color=color, cmap=cmap, color_point=color_point, zorder=zorder)
+            out = self.calc_2d(self.vary, grid_num=grid_num, plot=plot, verbose=verbose, output=output, marginalize=marginalize, limits=limits,
+                               title=title, ax=ax, alpha=alpha, color=color, cmap=cmap, color_point=color_point, zorder=zorder)
 
         return out
 
@@ -1170,7 +1174,7 @@ class pyratio():
 
         return out
 
-    def calc_2d(self, vary, grid_num=50, plot=1, verbose=1, marginalize=True, output=None,
+    def calc_2d(self, vary, grid_num=50, plot=1, verbose=1, marginalize=True, limits=0, output=None,
                 title='', ax=None, alpha=1, color=None, cmap='PuBu', color_point='gold', zorder=1):
         """
         calculate ranges for two parameters using given populations of levels
@@ -1180,6 +1184,7 @@ class pyratio():
             - plot         :  specify graphs to plot: 1 is for contour, 2 is for filled contours
             - verbose      :  print details of calculations
             - marginalize  :  print and plot marginalized estimates
+            - limits       :  show upper of lower limits: 0 for not limits, >0 for lower, <0 for upper
             - title        :  title name for the plot
             - ax           :  axes object where to plot data, of not present make it if plot==1.
             - alpha        :  alpha value for the contour plots
@@ -1194,11 +1199,6 @@ class pyratio():
              fig, ax = plt.subplots()
         if color is None:
             color = (1, 0, 0)
-        if plot == 1:
-            theCM = cm.get_cmap('Purples')
-            theCM._init()
-            #alphas = np.abs(np.linspace(-3.0, 1.0, theCM.N))
-            #theCM._lut[:-3,-1] = alphas
         print(self.pars)
 
         #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1265,21 +1265,8 @@ class pyratio():
                 cs = ax.contour(d.X, d.Y, chi-m, levels=[1], lw=1, ls='--', origin='lower', zorder=zorder)
 
             if typ == 'l':
-
-                if 1:
-                    #d.plot(conf_levels=conf_levels)
-                    d.plot_contour(conf_levels=self.conf_levels, ax=ax, cmap=cmap, color=color, color_point=color_point, alpha=alpha)
-                else:
-                    conf_levels = np.asarray([d.level(c) for c in self.conf_levels])
-                    print(conf_levels, self.conf_levels)
-                    conf_levels = np.sort(conf_levels)
-                    levels = np.linspace(np.min(d.z.flatten()), np.max(d.z.flatten()), 100)
-                    col = '#%02x%02x%02x' % tuple(int(c*255) for c in color)
-                    if plot == 1:
-                        ax.contourf(d.X, d.Y, d.z, levels=levels, cmap=theCM, alpha=alpha, zorder=zorder)
-                    elif plot == 2:
-                        csf = ax.contourf(d.X, d.Y, d.z, levels=[conf_levels[0], d.zmax[0]], colors=col, alpha=alpha, zorder=zorder)
-                    cs = ax.contour(d.X, d.Y, d.z, levels=conf_levels, linewidths=1, ls='--', colors=col, origin='lower', zorder=zorder)
+                if plot:
+                    d.plot_contour(conf_levels=self.conf_levels, limits=limits, ax=ax, cmap=cmap, color=color, color_point=color_point, alpha=alpha, zorder=zorder)
 
             if typ == 'i':
                 print('interpolate region...')
