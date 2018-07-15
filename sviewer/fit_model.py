@@ -972,22 +972,20 @@ class fitResultsWidget(QWidget):
         super(fitResultsWidget, self).__init__()
         self.parent = parent
         self.res = None
+        self.view = 'plain'
         self.init_GUI()
         self.setStyleSheet(open('config/styles.ini').read())
 
-        self.setGeometry(200, 200, 750, 900)
+        self.setGeometry(200, 100, 750, 900)
         self.setWindowTitle('Fit results')
         self.refresh()
 
     def init_GUI(self):
         layout = QVBoxLayout()
         self.output = QTextEdit()
-        #self.output.setSizeAdjustPolicy(QTextEdit.AdjustToContents)
-        #self.output.setSizeAdjustPolicy(QTextEdit.AdjustToContentsOnFirstShow)
+        layout.addWidget(self.output)
         hl = QHBoxLayout()
         self.latexTable = QPushButton('View:')
-        #self.latexTable.setCheckable(True)
-        #self.latexTable.setChecked(False)
         menu = QMenu()
         menu.setStyleSheet(open('config/styles.ini').read())
         plainView = QAction("Plain", menu)
@@ -1016,6 +1014,18 @@ class fitResultsWidget(QWidget):
         self.vcomp.setFixedSize(20, 30)
         self.vcomp.setEnabled(self.showv.isChecked())
         self.vcomp.returnPressed.connect(self.refresh)
+        self.showLFR = QCheckBox('LFR')
+        self.showLFR.setChecked(True)
+        self.showLFR.clicked.connect(self.refresh)
+        hl.addWidget(self.latexTable)
+        hl.addWidget(self.vert)
+        hl.addWidget(self.showb)
+        hl.addWidget(self.showv)
+        hl.addWidget(self.vcomp)
+        hl.addWidget(self.showLFR)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+        hl = QHBoxLayout()
         self.showtotal = QCheckBox('Total')
         self.showtotal.setChecked(False)
         self.showtotal.clicked.connect(self.refresh)
@@ -1035,34 +1045,29 @@ class fitResultsWidget(QWidget):
         self.depRef.setFixedSize(30, 30)
         self.depRef.setEnabled(self.showdep.isChecked())
         self.depRef.returnPressed.connect(self.refresh)
-        hl.addWidget(self.latexTable)
-        hl.addWidget(self.vert)
-        hl.addWidget(self.showb)
-        hl.addWidget(self.showv)
-        hl.addWidget(self.vcomp)
         hl.addWidget(self.showtotal)
         hl.addWidget(self.showme)
         hl.addWidget(self.HIvalue)
         hl.addWidget(self.showdep)
         hl.addWidget(self.depRef)
         hl.addStretch(0)
-        layout.addWidget(self.output)
-        #layout.addStretch(1)
         layout.addLayout(hl)
         self.setLayout(layout)
 
-    def refresh(self, view='plain'):
+    def refresh(self, view=None):
         self.vcomp.setEnabled(self.showv.isChecked())
         self.comp = int(self.vcomp.text())-1
         self.HIvalue.setEnabled(self.showme.isChecked())
         self.HI = a(self.HIvalue.text())
         self.depRef.setEnabled(self.showdep.isChecked())
         self.depref = self.depRef.text() if self.showdep.isChecked() else ''
-        if view == 'plain':
+        if isinstance(view, str):
+            self.view = view
+        if self.view == 'plain':
             self.text()
-        if view == 'table':
+        if self.view == 'table':
             self.latex()
-        if view == 'class':
+        if self.view == 'class':
             self.classView()
 
     def text(self):
@@ -1087,7 +1092,9 @@ class fitResultsWidget(QWidget):
             d += ['b, km/s']
         d += list([r'$\log N$(' + s + ')' for s in sps.keys()])
         if self.showtotal.isChecked() and any([all([el in sp for sp in sys.sp.keys()]) for el in ['H2', 'CO', 'HD', 'CI']]):
-            d += list([r'$\log N_{\rm tot}$'])
+            d += [r'$\log N_{\rm tot}$']
+        if self.showLFR.isChecked() and self.parent.fit.cf_fit:
+            d += [r'LFR']
         data = [d]
         for sys in fit.sys:
             d = [str(fit.sys.index(sys)+1)]
@@ -1118,6 +1125,14 @@ class fitResultsWidget(QWidget):
                         print(sys.sp[el + 't'].N.fitres(latex=True, dec=2, showname=False))
                         del sys.sp[el + 't']
                         t = True
+            if self.showLFR.isChecked() and fit.cf_fit:
+                for i in range(fit.cf_num):
+                    if 'sys'+str(fit.sys.index(sys)) in fit.getPar('cf_'+str(i)).addinfo:
+                        d.append(fit.getPar('cf_'+str(i)).fitres(latex=True, showname=False))
+                        break
+                else:
+                    d += ['']
+
             data.append(d)
         for show, ind, name in zip(['showtotal', 'showme', 'showdep'], [0, 1, 2], [r'$\log N_{\rm tot}$', r'$\rm [X/H]$', r'$\rm [X/' + self.depref + ']$']):
             if getattr(self, show).isChecked():

@@ -1,4 +1,3 @@
-show SiII*
 abundance SiII 21.54
 abundance SiII 21.54 -0.9
 abundance SiII -0.9 21.54
@@ -19,3 +18,4 @@ show OI**
 CoII
 abundance CoII 21.0 -1
 abundance CoII 21.0 -2
+show H2 0 1

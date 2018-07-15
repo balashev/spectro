@@ -419,13 +419,13 @@ class plotline():
         # >>> add residuals
         if self.add_residual and self.show_fit:
             color_res = col.tableau20[7]
-            color_linres = 'slateblue' #'mediumpurple' #col.tableau20[5]
+            color_linres = 'mediumaquamarine' #'mediumpurple' #col.tableau20[5]
             null_res = self.y_max + (self.y_max-self.y_min) * 0.10
             delt_res = (self.y_max - self.y_min) * 0.08
             self.y_max = self.y_max + self.add_residual*(self.y_max-self.y_min)*0.28
-            ax.axhline(null_res, color=color_linres, ls='--', zorder=0)
-            ax.axhline(null_res+delt_res, color=color_linres, ls='--', zorder=0)
-            ax.axhline(null_res-delt_res, color=color_linres, ls='--', zorder=0)
+            ax.axhline(null_res, color=color_linres, ls='-', lw=0.5, zorder=0)
+            ax.axhline(null_res+delt_res, color=color_linres, ls='--', lw=0.5, zorder=0)
+            ax.axhline(null_res-delt_res, color=color_linres, ls='--', lw=0.5, zorder=0)
             #ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res-1.1*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
             #ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res+0.9*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
             x_pos = self.x_max - 0.01*(self.x_max - self.x_min)

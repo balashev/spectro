@@ -1708,6 +1708,7 @@ class showLinesWidget(QWidget):
             plotfile = os.path.dirname(os.path.realpath(__file__)) + '/output/lines.pdf'
 
         fig.savefig(plotfile, dpi=fig.dpi)
+        plt.close(fig)
 
         if sys.platform.startswith('darwin'):
             subprocess.call(('open', plotfile))
@@ -5730,6 +5731,9 @@ class sviewer(QMainWindow):
     def fitLM(self, comp=-1):
         QApplication.setOverrideCursor(Qt.WaitCursor)
         self.panel.fitbutton.setChecked(True)
+        if self.chiSquare.text().strip() == '':
+            print('showFit')
+            self.showFit()
 
         if self.animateFit:
             if 1:
