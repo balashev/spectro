@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import (QApplication, QAction, QCheckBox, QComboBox, QFrame
                              QTreeWidgetItem, QScrollArea, QVBoxLayout,
                              QWidget
                              )
+import pyqtgraph as pg
 from .utils import Timer
 from ..a_unc import a
 from ..pyratio import pyratio
@@ -991,6 +992,9 @@ class fitResultsWidget(QWidget):
         plainView = QAction("Plain", menu)
         plainView.triggered.connect(partial(self.refresh, 'plain'))
         menu.addAction(plainView)
+        latexView = QAction("Latex", menu)
+        latexView.triggered.connect(partial(self.refresh, 'latex'))
+        menu.addAction(latexView)
         tableView = QAction("Table", menu)
         tableView.triggered.connect(partial(self.refresh, 'table'))
         menu.addAction(tableView)
@@ -1065,8 +1069,10 @@ class fitResultsWidget(QWidget):
             self.view = view
         if self.view == 'plain':
             self.text()
-        if self.view == 'table':
+        if self.view == 'latex':
             self.latex()
+        if self.view == 'table':
+            self.latex(view='widget')
         if self.view == 'class':
             self.classView()
 
@@ -1076,7 +1082,7 @@ class fitResultsWidget(QWidget):
             s += p.fitres() + '\n'
         self.output.setText(s)
 
-    def latex(self):
+    def latex(self, view=''):
         fit = self.parent.fit
         if (self.showtotal.isChecked() or self.showme.isChecked() or self.showdep.isChecked()): #and self.res is None:
             self.res = self.parent.showMetalAbundance(component=0, dep_ref=self.depref, HI=self.HI)
@@ -1151,6 +1157,16 @@ class fitResultsWidget(QWidget):
                     data.append(d)
 
         print(data)
+        if view == 'widget':
+            if hasattr(self, 'table') and self.table is not None:
+                self.table.close()
+            self.table = pg.TableWidget(sortable=False)
+            self.table.show()
+            self.table.resize(1000, 1000)
+            self.table.setStyleSheet(open('config/styles.ini').read())
+            self.table.setWindowTitle('Fit results')
+            self.table.setData(data)
+
         if self.vert.isChecked():
             data = [list(i) for i in zip(*data)]
 

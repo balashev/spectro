@@ -655,7 +655,7 @@ class atomicData(OrderedDict):
     def makedatabase(self):
         f = h5py.File('data/atomic.hdf5', 'w')
         self.readMorton()
-        self.readCashman()
+        #self.readCashman()
         self.readH2(j=[0,1,2,3,4,5,6])
         self.readHD()
         self.readCO()

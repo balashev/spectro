@@ -1,21 +1,21 @@
-abundance SiII 21.54
-abundance SiII 21.54 -0.9
-abundance SiII -0.9 21.54
-abundance SiII 21.54 -0.9
-abundance SiII 21.54 -1.3
-show ZnII
-show CrII
-show MgI
+CrII
 MgI
-show HD
-show HD 1
-stats
-OI
-show OI*
-OI*
-OI**
-show OI**
-CoII
-abundance CoII 21.0 -1
-abundance CoII 21.0 -2
-show H2 0 1
+show MgI
+CrII
+logN ZnII
+logN CrII
+Me CrII 21.35
+Me ZnII 21.35
+FeII
+show FeII
+SiIV
+FeII
+CrII
+ZnII
+show FeII
+FeII
+CaII
+FeII
+FeII
+logN FeII
+Me FeII 21.36

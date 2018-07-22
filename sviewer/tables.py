@@ -603,7 +603,7 @@ class QSOlistTable(pg.TableWidget):
                 #    r.remove()
                 #self.parent.regions = []
                 self.parent.importSpectrum(self.folder + '/spectra/' + filename + '.dat')
-                self.parent.s[-1].spec.raw.clean(min=-1, max=2)
+                #self.parent.s[-1].spec.raw.clean(min=-1, max=2)
                 self.parent.s[-1].set_data()
                 self.parent.s[-1].resolution = float(self.cell_value('resolution'))
                 self.parent.s.redraw()

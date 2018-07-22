@@ -2187,9 +2187,9 @@ class regionItem(pg.LinearRegionItem):
     def __init__(self, parent, brush=pg.mkBrush(173, 173, 173, 100), xmin=None, xmax=None, addinfo=''):
         self.parent = parent
         if xmin is None:
-            xmin = self.parent.parent.plot.mousePoint_saved.x()
+            xmin = self.parent.parent.mousePoint_saved.x()
         if xmax is None:
-            xmax = self.parent.parent.plot.mousePoint_saved.x()
+            xmax = self.parent.parent.mousePoint_saved.x()
         super().__init__(values=[xmin, xmax],
                          orientation=pg.LinearRegionItem.Vertical,
                          brush=brush)

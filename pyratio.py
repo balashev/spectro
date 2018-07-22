@@ -563,7 +563,7 @@ class pyratio():
 
             
     """
-    def __init__(self, z=0, f_He=0.085, UVB=True, conf_levels=[0.68269], logs=1, calctype='popratios'):
+    def __init__(self, z=0, f_He=0.085, UVB=True, pars=None, conf_levels=[0.68269], logs=1, calctype='popratios'):
         self.species = collections.OrderedDict()
         self.pars = collections.OrderedDict()
         self.Planck1 = 8*np.pi*ac.h.cgs.value
@@ -579,6 +579,8 @@ class pyratio():
             self.set_UVB()
         if self.calctype == 'numbdens':
             self.set_pars(['Ntot'])
+        elif pars is not None:
+            self.set_pars(pars)
         self.conf_levels = conf_levels
         self.timer = Timer()
 
@@ -1097,6 +1099,8 @@ class pyratio():
         """
 
         self.get_vary()
+
+        print(self.vary)
 
         out = None
 
