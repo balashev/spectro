@@ -1,9 +1,3 @@
-CrII
-MgI
-show MgI
-CrII
-logN ZnII
-logN CrII
 Me CrII 21.35
 Me ZnII 21.35
 FeII
@@ -19,3 +13,9 @@ FeII
 FeII
 logN FeII
 Me FeII 21.36
+stats
+stats
+stats
+stats
+NaI
+CI

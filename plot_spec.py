@@ -135,7 +135,7 @@ class plot_spec(list):
                 
     def specify_styles(self, color=None, ls=None, lw=None):
         if color is None:
-            index = [0, 2, 4, 8, 7, 6, 5, 4, 9]
+            index = [0, 1, 2, 4, 5, 6, 7, 8, 9]
             color = [col.tableau10[i] for i in index]
         self.color = color[:len(self.comps+1)]
         
@@ -226,7 +226,7 @@ class data():
 
     def mask(self, xmin, xmax):
         imin = max(0, bisect_left(self.x, xmin)-1)
-        imax = min(len(self.x)-1, bisect_left(self.x, xmax)+1)
+        imax = min(len(self.x), bisect_left(self.x, xmax)+1)
         mask = np.zeros_like(self.x, dtype=bool)
         mask[imin:imax] = True
         #mask = np.logical_and(self.x > xmin, self.x < xmax)
@@ -308,8 +308,10 @@ class plotline():
             self.points = d[3, :]
 
         if f is not None:
-            self.fit.x = f[0, :]
-            self.fit.y = f[1, :]
+            self.fit.x = np.insert(np.append(f[0, :], self.spec.x[-1]), 0, self.spec.x[0])
+            self.fit.y = np.insert(np.append(f[1, :], 1), 0, 1)
+            print(self.fit.x)
+
         if fit_comp is not None:
             self.fit_comp = []
             for c in fit_comp:
@@ -393,7 +395,7 @@ class plotline():
 
             # >>> recalculate to velocity offset if necessary
             if not self.vel_scale:
-                self.fit.x = (self.fit.x/self.wavelength/(1+self.parent.z_ref)-1)*299794.26
+                self.fit.x = (self.fit.x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
 
             # >>> mask only selected wavelength range
             self.fit.mask(self.x_min, self.x_max)

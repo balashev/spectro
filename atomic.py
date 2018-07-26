@@ -124,9 +124,9 @@ class e():
         st = self.name
         if self.name in ['H2', 'HD', 'CO']:
             if self.J is not None:
-                st +=  '_' + str(self.J)
+                st +=  'j' + str(self.J)
             if self.nu is not None:
-                st += '_' + str(self.nu)
+                st += 'v' + str(self.nu)
         return st
         
     def __str__(self):

@@ -1635,6 +1635,14 @@ class showLinesWidget(QWidget):
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 p.y_formatter = self.y_formatter
                 ax = p.plot_line()
+                if self.show_cf and self.parent.fit.cf_fit:
+                    for i in range(self.parent.fit.cf_num):
+                        attr = 'cf_' + str(i)
+                        if hasattr(self.parent.fit, attr):
+                            cf = getattr(self.parent.fit, attr)
+                            if (len(cf.addinfo.split('_'))>1 and cf.addinfo.split('_')[1]=='all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
+                                ax.plot([np.max([(cf.min / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_min]), np.min([(cf.max / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_max])], [cf.val, cf.val], '--', color='orangered')
+
         else:
             self.ps = plot_spec(len(self.parent.plot.regions), font=self.font, font_labels=self.font_labels,
                            vel_scale=True, gray_out=self.gray_out, figure=fig)
@@ -1691,7 +1699,7 @@ class showLinesWidget(QWidget):
                         attr = 'cf_' + str(i)
                         if hasattr(self.parent.fit, attr):
                             cf = getattr(self.parent.fit, attr)
-                            if (len(cf.addinfo.split('_'))>1 and cf.addinfo.split('_')[1]=='all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+4:]) == ind):
+                            if (len(cf.addinfo.split('_'))>1 and cf.addinfo.split('_')[1]=='all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
                                 ax.plot([np.max([cf.min, p.x_min]), np.min([cf.max, p.x_max])], [cf.val, cf.val], '--', color='orangered')
 
                 if self.show_H2.strip() != '':
@@ -3430,6 +3438,8 @@ class ExportDataWidget(QWidget):
             np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x / unit, s.cont.y], **kwargs)
         if self.fit.isChecked():
             np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x() / unit, s.fit.y()], **kwargs)
+        if self.lines.isChecked():
+            np.savetxt('_fit_comps.'.join(self.filename.rsplit('.', 1)), np.column_stack([s.fit.x() / unit] + [c.y() for c in s.fit_comp]), **kwargs)
 
     def save(self):
         self.parent.save_opt = self.opt
