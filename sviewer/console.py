@@ -397,6 +397,7 @@ class Console(QTextEdit):
         elif args[0] == 'abundance':
             N, me = float(args[2]), float(args[3])
             N, me = np.max([N, me]), np.min([N, me])
+            N, me = np.max([N, me]), np.min([N, me])
             print(N, me)
             return abundance(args[1], N, me)
 
@@ -433,6 +434,8 @@ class Console(QTextEdit):
                 mask = np.logical_and(self.parent.s[self.parent.s.ind].spec.raw.x > self.parent.plot.vb.viewRange()[0][0],
                                       self.parent.s[self.parent.s.ind].spec.raw.x < self.parent.plot.vb.viewRange()[0][1])
                 if args[1] == 'err':
+                    if len(self.parent.s[self.parent.s.ind].spec.raw.err) == 0:
+                        self.parent.s[self.parent.s.ind].spec.raw.err = np.ones_like(self.parent.s[self.parent.s.ind].spec.raw.x) * float(args[2])
                     self.parent.s[self.parent.s.ind].spec.raw.err[mask] = float(args[2])
                     self.parent.s.redraw()
 

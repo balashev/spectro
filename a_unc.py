@@ -326,7 +326,7 @@ class a:
         self.dec()
         res = copy.deepcopy(self)
         #res = A_unc(0,0,0,typ='d')
-        
+
         if isinstance(other, a):
             other.dec()
             if self.type == 'm' and other.type == 'm':
@@ -373,12 +373,13 @@ class a:
         return res.default()
         
     def __mul__(self, other):
-        
+
         self.dec()
         res = copy.deepcopy(self)
         #res = A_unc(0,0,0,typ='d')
-        
+
         if isinstance(other, a):
+
             other.dec()
             if self.type == 'm' and other.type == 'm':
                 res.val, res.plus, res.minus = self.val * other.val,  np.sqrt(self.val**2 * other.plus**2 + self.plus**2 * other.val**2), np.sqrt(self.val**2 * other.minus**2 + self.minus**2 * other.val**2)

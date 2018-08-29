@@ -217,6 +217,8 @@ class QSOlistTable(pg.TableWidget):
                     self.parent.console.exec_command('show '+sp)
         if self.cat == 'Kodiaq':
             self.setWindowTitle('KODIAQ DR2 catalog')
+        if self.cat == 'UVES':
+            self.setWindowTitle('UVES ADP QSO catalog')
         if self.cat is None:
             self.setWindowTitle('QSO list of files')
         self.cellDoubleClicked.connect(self.row_clicked)
@@ -244,7 +246,10 @@ class QSOlistTable(pg.TableWidget):
             self.contextMenu.addAction('Save continuum').triggered.connect(self.saveCont)
             self.contextMenu.addAction('Stack').triggered.connect(self.makeStack)
             self.cellChanged.connect(self.saveVandels)
-
+        if self.cat == 'UVES':
+            self.contextMenu.addSeparator()
+            self.contextMenu.addAction('Show header').triggered.connect(self.showHeader)
+            self.cellChanged.connect(self.saveUVES)
     def setdata(self, data):
         self.data = data
         #print(self.data.dtype)
@@ -459,6 +464,27 @@ class QSOlistTable(pg.TableWidget):
                     sw[mask] += m * w
         print(l, s, serr)
         self.parent.importSpectrum('stack', spec=[l, s / sw, (serr / sw)**(-.5)])
+
+    def showHeader(self, row):
+        hdul = fits.open(self.folder + self.cell_value('filename', row=row).strip())
+        print(repr(hdul[0].header))
+        from .sviewer import infoWidget
+        self.header = infoWidget(self.parent, 'Header of '+self.cell_value('name', row=row).strip(), text=repr(hdul[0].header))
+        self.header.show()
+
+    def saveUVES(self, row, col):
+        if row == self.edit_item[0] and col == self.edit_item[1]:
+            if self.horizontalHeaderItem(col).text() in ['z', 'z_DLA', 'Lyaf', 'comment']:
+                for line in fileinput.input(self.folder + '/list.dat', inplace=True):
+                    # for line in open(self.folder + '/VANDELS.csv'):
+                    s = line[:-1].split('\t')
+
+                    if s[0].strip() == self.item(row, 0).text():
+                        lst = s[:col] + [self.item(row, col).text()] + s[col + 1:]
+                        print('{:>20}\t{:>10}\t{:>10}\t{:>12}\t{:>12}\t{:>5}\t{:>20}\t{:5}'.format(*lst))
+                    else:
+                        print(line.replace('\n', ''))
+
 
     def row_clicked(self, row=None):
 
@@ -677,6 +703,16 @@ class QSOlistTable(pg.TableWidget):
                 err = hdulist[0].data
                 mask = np.logical_and(y > -5, y < 5)
                 self.parent.importSpectrum(self.cell_value('spec_prefix'), spec=[x[mask], y[mask], err[mask]])
+                self.parent.vb.enableAutoRange()
+
+        if self.cat == 'UVES':
+            if colInd in [0, 6]:
+                filename = self.folder + self.cell_value('filename').strip()
+                hdul = fits.open(filename)
+                y = hdul[0].data
+                x = hdul[0].header['CRVAL1'] + np.arange(hdul[0].header['NAXIS1']) * hdul[0].header['CDELT1']
+                mask = y != np.nan
+                self.parent.importSpectrum(self.cell_value('name'), spec=[x[mask], y[mask]])
                 self.parent.vb.enableAutoRange()
 
         if load_spectrum:

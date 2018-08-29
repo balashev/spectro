@@ -137,6 +137,7 @@ class plotSpectrum(pg.PlotWidget):
         self.instr_widget = None
         self.instr_plot = None
         self.showfullfit = False
+        self.restframe = True
     
     def set_range(self, x1, x2):
         self.vb.disableAutoRange()
@@ -148,8 +149,11 @@ class plotSpectrum(pg.PlotWidget):
         self.v_axis.setGeometry(self.getPlotItem().sceneBoundingRect())
         self.v_axis.linkedViewChanged(self.getViewBox(), self.v_axis.YAxis)
         MainPlotXMin, MainPlotXMax = self.viewRange()[0]
-        AuxPlotXMin = (MainPlotXMin/(self.parent.z_abs + 1)/self.parent.line_reper.l() - 1)*ac.c.to('km/s').value
-        AuxPlotXMax = (MainPlotXMax/(self.parent.z_abs + 1)/self.parent.line_reper.l() - 1)*ac.c.to('km/s').value
+        if self.restframe:
+            AuxPlotXMin, AuxPlotXMax = MainPlotXMin / (self.parent.z_abs + 1), MainPlotXMax / (self.parent.z_abs + 1)
+        else:
+            AuxPlotXMin = (MainPlotXMin/(self.parent.z_abs + 1)/self.parent.line_reper.l() - 1)*ac.c.to('km/s').value
+            AuxPlotXMax = (MainPlotXMax/(self.parent.z_abs + 1)/self.parent.line_reper.l() - 1)*ac.c.to('km/s').value
         self.v_axis.setXRange(AuxPlotXMin, AuxPlotXMax, padding=0)
 
     def raiseContextMenu(self, ev):
@@ -233,7 +237,7 @@ class plotSpectrum(pg.PlotWidget):
             
             if event.key() == Qt.Key_C:
 
-                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+                if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
                     l = ['all', 'one', 'none']
                     ind = l.index(self.parent.comp_view)
                     ind += 1
@@ -307,6 +311,9 @@ class plotSpectrum(pg.PlotWidget):
                     pass
                     #self.parent.showResiduals.toggle()
                     #self.parent.showResidualsPanel()
+                elif (QApplication.keyboardModifiers() == Qt.ShiftModifier):
+                    self.restframe = 1 - self.restframe
+                    self.updateVelocityAxis()
                 else:
                     self.vb.setMouseMode(self.vb.RectMode)
                     self.r_status = True
@@ -388,7 +395,7 @@ class plotSpectrum(pg.PlotWidget):
                     self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y())
 
             if event.key() == Qt.Key_C:
-                if (QApplication.keyboardModifiers() != Qt.ControlModifier):
+                if (QApplication.keyboardModifiers() != Qt.ShiftModifier):
                     if self.c_status == 1:
                         self.parent.comp += 1
                         if self.parent.comp > len(self.parent.fit.sys) - 1:
@@ -3127,6 +3134,277 @@ class extract2dWidget(QWidget):
         self.parent.extract2dwindow = None
         event.accept()
 
+
+class fitContWidget(QWidget):
+    def __init__(self, parent):
+        super(fitContWidget, self).__init__()
+        self.parent = parent
+        self.init_GUI()
+        self.init_Parameters()
+        self.setStyleSheet(open('config/styles.ini').read())
+        self.setGeometry(200, 200, 550, 500)
+        self.setWindowTitle('Continuum construction')
+
+    def init_Parameters(self):
+        self.opts = OrderedDict([
+            ('cont_iter', ['contIter', int, 3]),
+            ('cont_smooth', ['contSmooth', int, 201]),
+            ('cont_clip', ['contClip', float, 3.0]),
+            ('x_min', ['xmin', float, 3500]),
+            ('x_max', ['xmax', float, 4500]),
+            ('sg_order', ['sgOrder', int, 5])
+        ])
+        for opt in self.opts.keys():
+            setattr(self, opt, self.opts[opt][1](self.opts[opt][2]))
+            getattr(self, self.opts[opt][0]).setText(str(getattr(self, opt)))
+
+    def init_GUI(self):
+        layout = QVBoxLayout()
+
+        self.tab = QTabWidget()
+        self.tab.setGeometry(0, 0, 550, 200)
+        self.tab.setMinimumSize(550, 200)
+        self.tab.setCurrentIndex(0)
+        self.init_GUI_Bsplain()
+        self.init_GUI_SG()
+        self.init_GUI_Smooth()
+        self.init_GUI_Cheb()
+        layout.addWidget(self.tab)
+
+        hl = QHBoxLayout()
+        hl.addWidget(QLabel('Iterations:'))
+        self.contIter = QLineEdit()
+        self.contIter.setFixedSize(50, 30)
+        self.contIter.textChanged.connect(partial(self.edited, 'cont_iter'))
+        hl.addWidget(self.contIter)
+        hl.addStretch(1)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        hl.addWidget(QLabel('Smooth:'))
+        self.contSmooth = QLineEdit()
+        self.contSmooth.setFixedSize(50, 30)
+        self.contSmooth.textChanged.connect(partial(self.edited, 'cont_smooth'))
+        hl.addWidget(self.contSmooth)
+        hl.addStretch(1)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        hl.addWidget(QLabel('Clipping:'))
+        self.contClip = QLineEdit()
+        self.contClip.setFixedSize(50, 30)
+        self.contClip.textChanged.connect(partial(self.edited, 'cont_clip'))
+        hl.addWidget(self.contClip)
+        clip_group = QButtonGroup(self)
+        self.positive = QRadioButton('posit.')
+        self.positive.setChecked(True)
+        clip_group.addButton(self.positive)
+        hl.addWidget(self.positive)
+        self.negative = QRadioButton('negat.')
+        clip_group.addButton(self.negative)
+        hl.addWidget(self.negative)
+        self.absolute = QRadioButton('absol.')
+        clip_group.addButton(self.absolute)
+        hl.addWidget(self.absolute)
+        hl.addStretch(1)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        data_group = QButtonGroup(self)
+        self.spectrum = QRadioButton('spectrum')
+        self.spectrum.setChecked(True)
+        data_group.addButton(self.spectrum)
+        hl.addWidget(self.spectrum)
+        self.cont = QRadioButton('continuum')
+        data_group.addButton(self.cont)
+        hl.addWidget(self.cont)
+        hl.addStretch(1)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        type_group = QButtonGroup(self)
+        self.fullRange = QRadioButton('full')
+        self.fullRange.setChecked(True)
+        type_group.addButton(self.fullRange)
+        hl.addWidget(self.fullRange)
+        self.shownRange = QRadioButton('shown')
+        type_group.addButton(self.shownRange)
+        hl.addWidget(self.shownRange)
+        self.windowRange = QRadioButton('window:')
+        type_group.addButton(self.windowRange)
+        hl.addWidget(self.windowRange)
+        self.xmin = QLineEdit()
+        self.xmin.setFixedSize(50, 30)
+        self.xmin.textChanged.connect(partial(self.edited, 'x_min'))
+        hl.addWidget(self.xmin)
+        hl.addWidget(QLabel('..'))
+        self.xmax = QLineEdit()
+        self.xmax.setFixedSize(50, 30)
+        self.xmax.textChanged.connect(partial(self.edited, 'x_max'))
+        hl.addWidget(self.xmax)
+        hl.addStretch(1)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        write_group = QButtonGroup(self)
+        self.new = QRadioButton('new')
+        self.new.setChecked(True)
+        write_group.addButton(self.new)
+        hl.addWidget(self.new)
+        self.add = QRadioButton('add/overwrite')
+        write_group.addButton(self.add)
+        hl.addWidget(self.add)
+        hl.addStretch(1)
+        layout.addLayout(hl)
+        hl = QHBoxLayout()
+        exposure = QPushButton('Exposure:')
+        exposure.setFixedSize(100, 30)
+        exposure.clicked.connect(self.changeExp)
+        self.expchoose = QComboBox()
+        self.expchoose.setFixedSize(400, 30)
+        for s in self.parent.s:
+            self.expchoose.addItem(s.filename)
+        if len(self.parent.s) > 0:
+            self.exp_ind = self.parent.s.ind
+            self.expchoose.currentIndexChanged.connect(self.onExpChoose)
+            self.expchoose.setCurrentIndex(self.exp_ind)
+        hl.addWidget(exposure)
+        hl.addWidget(self.expchoose)
+        hl.addStretch(0)
+        layout.addStretch(1)
+        layout.addLayout(hl)
+        hl = QHBoxLayout()
+        fit = QPushButton('Make it')
+        fit.setFixedSize(100, 30)
+        fit.clicked.connect(self.fit)
+        hl.addWidget(fit)
+        layout.addStretch(1)
+        layout.addLayout(hl)
+        self.setLayout(layout)
+
+    def init_GUI_Bsplain(self):
+
+        frame = QFrame(self)
+        layout = QVBoxLayout()
+
+        frame.setLayout(layout)
+        self.tab.addTab(frame, 'Bspline')
+
+    def init_GUI_SG(self):
+
+        frame = QFrame(self)
+        layout = QVBoxLayout()
+
+        hl = QHBoxLayout()
+        hl.addWidget(QLabel('Order:'))
+        self.sgOrder = QLineEdit()
+        self.sgOrder.setFixedSize(50, 30)
+        self.sgOrder.textChanged.connect(partial(self.edited, 'sg_order'))
+        hl.addWidget(self.sgOrder)
+        hl.addStretch(1)
+        layout.addLayout(hl)
+
+        layout.addStretch(0)
+        frame.setLayout(layout)
+        self.tab.addTab(frame, 'SG')
+
+    def init_GUI_Smooth(self):
+
+        frame = QFrame(self)
+        layout = QVBoxLayout()
+
+        hl = QHBoxLayout()
+        filter = QPushButton('Filter:')
+        filter.setFixedSize(100, 30)
+        filter.clicked.connect(self.changeFilter)
+        self.filterchoose = QComboBox()
+        self.filterchoose.setFixedSize(400, 30)
+        self.filternames = ['flat', 'hanning', 'hamming', 'bartlett', 'blackman']
+        self.filterchoose.addItems(self.filternames)
+        self.filterchoose.setCurrentIndex(0)
+        hl.addWidget(filter)
+        hl.addWidget(self.filterchoose)
+        hl.addStretch(0)
+        layout.addStretch(1)
+        layout.addLayout(hl)
+
+        frame.setLayout(layout)
+        self.tab.addTab(frame, 'Smooth')
+
+    def init_GUI_Cheb(self):
+
+        frame = QFrame(self)
+        layout = QVBoxLayout()
+
+        frame.setLayout(layout)
+        self.tab.addTab(frame, 'Chebyshev')
+
+    def edited(self, attr):
+        try:
+            setattr(self, attr, self.opts[attr][1](getattr(self, self.opts[attr][0]).text()))
+        except:
+            pass
+
+    def changeExp(self):
+        self.exp_ind += 1
+        if self.exp_ind >= len(self.parent.s):
+            self.exp_ind = 0
+        self.expchoose.setCurrentIndex(self.exp_ind)
+
+    def changeFilter(self):
+        ind = self.filterchoose.currentIndex() + 1 if self.filterchoose.currentIndex() < len(self.filternames)-1 else 0
+        self.filterchoose.setCurrentIndex(ind)
+
+    def onExpChoose(self, index, name='exp_ind'):
+        setattr(self, name, index)
+
+    def updateExpChoose(self):
+        self.expchoose.clear()
+        for s in self.parent.s:
+            self.expchoose.addItem(s.filename)
+        self.expchoose.setCurrentIndex(self.exp_ind)
+
+    def fit(self):
+        getattr(self, 'fit' + self.tab.tabText(self.tab.currentIndex()))()
+
+    def fitBspline(self):
+        x = self.getRange()
+        self.parent.s[self.exp_ind].calcCont(method='Bspline', xl=x[0], xr=x[-1], iter=self.cont_iter, window=self.cont_smooth,
+                                             clip=self.cont_clip, new=self.new.isChecked(), cont=self.cont.isChecked(), sign=self.sign())
+
+    def fitSmooth(self):
+        x = self.getRange()
+        self.parent.s[self.exp_ind].calcCont(method='Smooth', xl=x[0], xr=x[-1], iter=self.cont_iter, window=self.cont_smooth,
+                                             clip=self.cont_clip, filter=self.filternames[self.filterchoose.currentIndex()],
+                                             new=self.new.isChecked(), cont=self.cont.isChecked(), sign=self.sign())
+
+    def fitSG(self):
+        x = self.getRange()
+        self.parent.s[self.exp_ind].calcCont(method='SG', xl=x[0], xr=x[-1], iter=self.cont_iter, window=self.cont_smooth,
+                                             clip=self.cont_clip, sg_order=self.sg_order, new=self.new.isChecked(),
+                                             cont=self.cont.isChecked(), sign=self.sign())
+
+    def sign(self):
+        if self.positive.isChecked():
+            return 1
+        if self.negative.isChecked():
+            return -1
+        if self.absolute.isChecked():
+            return 0
+
+    def getRange(self):
+        if self.fullRange.isChecked():
+            x = [self.parent.s[self.exp_ind].spec.x()[0], self.parent.s[self.exp_ind].spec.x()[-1]]
+        if self.shownRange.isChecked():
+            x = self.parent.plot.vb.getState()['viewRange'][0]
+        if self.windowRange.isChecked():
+            x = [float(self.xmin.text()), float(self.xmax.text())]
+        return x
+
+    def closeEvent(self, event):
+        self.parent.fitContWindow = None
+        event.accept()
+
 class SDSSentry():
     def __init__(self, name):
         self.name = name
@@ -3136,10 +3414,8 @@ class SDSSentry():
         self.attr.append(attr)
     
     def __repr__(self):
-        print(self.attr)
         st = ''
         for a in self.attr:
-            print(st)
             st += a + '=' + str(getattr(self, a)) + '\n'
         return st
         
@@ -3991,7 +4267,7 @@ class GenerateAbsWidget(QWidget):
         ev.accept()
 
 class infoWidget(QWidget):
-    def __init__(self, parent, title, file=None):
+    def __init__(self, parent, title, file=None, text=None):
         super().__init__()
         self.parent = parent
         self.title = title
@@ -4003,7 +4279,7 @@ class infoWidget(QWidget):
         layout = QVBoxLayout()
         self.text = QTextEdit()
 
-        self.loadtxt()
+        self.loadtxt(text=text)
         #self.text.setUpdatesEnabled(False)
         #self.text.setFixedSize(400, 300)
 
@@ -4018,12 +4294,12 @@ class infoWidget(QWidget):
         self.setLayout(layout)
         self.setStyleSheet(open('config/styles.ini').read())
 
-    def loadtxt(self):
-        with open(self.file) as f:
-            data = f.read()
+    def loadtxt(self, text=None):
+        if text is None:
+            with open(self.file) as f:
+                text = f.read()
 
-        print(data)
-        self.text.setText(data)
+        self.text.setText(text)
 
 class buttonpanel(QFrame):
     def __init__(self, parent):
@@ -4081,8 +4357,10 @@ class buttonpanel(QFrame):
         self.z_panel.setText(str(self.parent.z_abs))
     
     def zChanged(self, text):
+        self.parent.z_abs = float(text)
         try:
-            self.parent.z_abs = float(text)
+            if self.parent.plot.restframe:
+                self.parent.plot.updateVelocityAxis()
             self.parent.abs.redraw()
         except:
             pass
@@ -4124,6 +4402,7 @@ class sviewer(QMainWindow):
             self.config = 'config/options.ini'
         elif platform.system() == 'Linux':
             self.config = 'config/options_linux.ini'
+        self.develope = self.options('developerMode', config=self.config)
         self.SDSSfolder = self.options('SDSSfolder', config=self.config)
         self.SDSSLeefolder = self.options('SDSSLeefolder', config=self.config)
         self.SDSSdata = []
@@ -4136,6 +4415,7 @@ class sviewer(QMainWindow):
         self.plot_set_folder = self.options('plot_set_folder', config=self.config)
         self.VandelsFile = self.options('VandelsFile', config=self.config)
         self.KodiaqFile = self.options('KodiaqFile', config=self.config)
+        self.UVESfolder = self.options('UVESfolder', config=self.config)
         self.IGMspecfile = self.options('IGMspecfile', config=self.config)
         self.z_abs = 0
         self.lines = lineList(self)
@@ -4161,6 +4441,8 @@ class sviewer(QMainWindow):
         self.fitres = None
         self.MCMC = None
         self.extract2dwindow = None
+        self.fitContWindow = None
+        self.rescale_ind = 0
 
     def initUI(self):
         
@@ -4226,6 +4508,7 @@ class sviewer(QMainWindow):
         viewMenu = menubar.addMenu('&View')
         linesMenu = menubar.addMenu('&Lines')
         fitMenu = menubar.addMenu('&Fit')
+        spec1dMenu = menubar.addMenu('&1d spec')
         spec2dMenu = menubar.addMenu('&2d spec')
         combineMenu = menubar.addMenu('&Combine')
         SDSSMenu = menubar.addMenu('&SDSS')
@@ -4278,11 +4561,7 @@ class sviewer(QMainWindow):
         importFolder.setStatusTip('Import list of spectra from folder')
         importFolder.triggered.connect(self.showImportFolderDialog)
 
-        exportList = QAction('&Export List...', self)
-        exportList.setStatusTip('Export list of spectra')
-        exportList.triggered.connect(self.showExportListDialog)
-                
-        exitAction = QAction('&Exit', self)        
+        exitAction = QAction('&Exit', self)
         #exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(qApp.quit)
@@ -4292,15 +4571,13 @@ class sviewer(QMainWindow):
         fileMenu.addAction(saveAsAction)
         fileMenu.addSeparator()
         fileMenu.addAction(importAction)
-        fileMenu.addAction(exportAction)
         fileMenu.addAction(import2dAction)
-        fileMenu.addAction(export2dAction)
-        fileMenu.addSeparator()
-        fileMenu.addAction(exportDataAction)
-        fileMenu.addSeparator()
         fileMenu.addAction(importList)
         fileMenu.addAction(importFolder)
-        fileMenu.addAction(exportList)
+        fileMenu.addSeparator()
+        fileMenu.addAction(exportAction)
+        fileMenu.addAction(export2dAction)
+        fileMenu.addAction(exportDataAction)
         fileMenu.addSeparator()
         fileMenu.addAction(exitAction)
         
@@ -4323,6 +4600,11 @@ class sviewer(QMainWindow):
         self.show2d.triggered.connect(partial(self.show2dPanel, show=None))
         self.show2dPanel(self.show_2d)
 
+        preferences = QAction('&Preferences...', self)
+        preferences.setStatusTip('Show preferences')
+        preferences.setShortcut('F11')
+        preferences.triggered.connect(self.showPreferences)
+
         showLines = QAction('&Plot lines', self)
         showLines.setShortcut('Ctrl+L')
         showLines.setStatusTip('Plot lines using matplotlib')
@@ -4332,19 +4614,13 @@ class sviewer(QMainWindow):
         snapShot.setStatusTip('Snapshop of view using matplotlib')
         snapShot.triggered.connect(self.takeSnapShot)
 
-        appear = QAction('&Preferences...', self)
-        appear.setStatusTip('Show preferences')
-        appear.setShortcut('F11')
-        appear.triggered.connect(self.showPreferences)
-
         viewMenu.addAction(exp)
         viewMenu.addAction(self.showResiduals)
         viewMenu.addAction(self.show2d)
+        viewMenu.addAction(preferences)
         viewMenu.addSeparator()
         viewMenu.addAction(showLines)
         viewMenu.addAction(snapShot)
-        viewMenu.addSeparator()
-        viewMenu.addAction(appear)
 
         # >>> create Line Menu items
         self.linesH2 = QAction('&H2 lines', self, checkable=True)
@@ -4429,9 +4705,9 @@ class sviewer(QMainWindow):
         fitResults.setShortcut('F8')
         fitResults.triggered.connect(self.showFitResults)
 
-        fitCont = QAction('&Fit Cont', self)
-        fitCont.setStatusTip('Adjust continuum by Chebyshev polynomials')
-        fitCont.triggered.connect(partial(self.fitCont, 'cheb'))
+        fitCheb = QAction('&Fit Cheb', self)
+        fitCheb.setStatusTip('Adjust continuum by Chebyshev polynomials')
+        fitCheb.triggered.connect(partial(self.fitCheb, typ='cheb'))
 
         fitExt = QAction('&Fit Extinction...', self)
         fitExt.setStatusTip('Fit extinction')
@@ -4468,7 +4744,6 @@ class sviewer(QMainWindow):
         MetalAbundance.setStatusTip('Show Metal abundances')
         MetalAbundance.triggered.connect(self.showMetalAbundance)
 
-
         fitMenu.addAction(setFit)
         fitMenu.addAction(chooseFitPars)
         fitMenu.addAction(showFit)
@@ -4479,7 +4754,7 @@ class sviewer(QMainWindow):
         fitMenu.addAction(stopFit)
         fitMenu.addAction(fitResults)
         fitMenu.addSeparator()
-        fitMenu.addAction(fitCont)
+        fitMenu.addAction(fitCheb)
         fitMenu.addAction(fitExt)
         fitMenu.addAction(fitGauss)
         fitMenu.addAction(fitPower)
@@ -4491,7 +4766,22 @@ class sviewer(QMainWindow):
         AncMenu.addAction(H2ExcTemp)
         AncMenu.addAction(MetalAbundance)
 
-        # >>> create Combine Menu items
+        # >>> create 1d spec Menu items
+
+        fitCont = QAction('&Continuum...', self)
+        fitCont.setStatusTip('Construct continuum using various methods')
+        fitCont.setShortcut('Ctrl+C')
+        fitCont.triggered.connect(partial(self.fitCont))
+
+        rescaleErrs = QAction('&Adjust errors', self)
+        rescaleErrs.setStatusTip('Adjust uncertainties to dispersion in the spectrum')
+        rescaleErrs.triggered.connect(partial(self.rescale))
+
+        spec1dMenu.addAction(fitCont)
+        spec1dMenu.addAction(rescaleErrs)
+
+        # >>> create 2d spec Menu items
+        # >>> create 2d spec Menu items
 
         extract = QAction('&Extract', self)
         extract.setStatusTip('extract 1d spectrum from 2d spectrum')
@@ -4499,7 +4789,6 @@ class sviewer(QMainWindow):
         extract.triggered.connect(self.extract2d)
 
         spec2dMenu.addAction(extract)
-        combineMenu.addSeparator()
 
         # >>> create Combine Menu items
         
@@ -4550,127 +4839,134 @@ class sviewer(QMainWindow):
         combineMenu.addSeparator()
         combineMenu.addAction(combine)
         combineMenu.addAction(rebin)
+
+        if self.develope:
+            # >>> create SDSS Menu items
+            loadSDSS = QAction('&load SDSS', self)
+            loadSDSS.setStatusTip('Load SDSS by Plate/fiber')
+            loadSDSS.triggered.connect(self.showSDSSdialog)
+
+            loadSDSSlist = QAction('&Load list', self)
+            loadSDSSlist.setStatusTip('Load SDSS list')
+            loadSDSSlist.triggered.connect(self.showSDSSlistdialog)
+
+            SDSSLeelist = QAction('&DR9 Lee list', self)
+            SDSSLeelist.setStatusTip('load SDSS DR9 Lee database')
+            SDSSLeelist.triggered.connect(self.loadSDSSLee)
+
+            SDSSlist = QAction('&SDSS list', self)
+            SDSSlist.setStatusTip('SDSS list')
+            SDSSlist.triggered.connect(self.show_SDSS_list)
+
+            SDSSSearchH2 = QAction('&Search H2', self)
+            SDSSSearchH2.setStatusTip('Search H2 absorption systems')
+            SDSSSearchH2.triggered.connect(self.search_H2)
+
+            SDSSH2cand = QAction('&Show H2 cand.', self)
+            SDSSH2cand.setStatusTip('Show H2 cand.')
+            SDSSH2cand.triggered.connect(self.show_H2_cand)
+
+            SDSSStack = QAction('&Stack', self)
+            SDSSStack.setStatusTip('Calculate SDSS Stack spectrum')
+            SDSSStack.triggered.connect(self.calc_SDSS_Stack_Lee)
+
+            SDSSDLA = QAction('&DLA search', self)
+            SDSSDLA.setStatusTip('Search for DLA systems')
+            SDSSDLA.triggered.connect(self.calc_SDSS_DLA)
+
+            SDSSfilters = QAction('&SDSS filters', self, checkable=True)
+            SDSSfilters.setStatusTip('Add SDSS filters magnitudes')
+            SDSSfilters.triggered.connect(self.show_SDSS_filters)
+            SDSSfilters.setChecked(self.SDSS_filters_status)
+
+            SDSSPhot = QAction('&SDSS photometry', self)
+            SDSSPhot.setStatusTip('Show SDSS photometry window')
+            SDSSPhot.triggered.connect(self.SDSSPhot)
+
+            SDSSMenu.addAction(loadSDSS)
+            SDSSMenu.addSeparator()
+            SDSSMenu.addAction(loadSDSSlist)
+            SDSSMenu.addAction(SDSSLeelist)
+            SDSSMenu.addAction(SDSSlist)
+            SDSSMenu.addSeparator()
+            SDSSMenu.addAction(SDSSSearchH2)
+            SDSSMenu.addAction(SDSSH2cand)
+            SDSSMenu.addSeparator()
+            SDSSMenu.addAction(SDSSStack)
+            SDSSMenu.addAction(SDSSDLA)
+            SDSSMenu.addSeparator()
+            SDSSMenu.addAction(SDSSfilters)
+            SDSSMenu.addAction(SDSSPhot)
         
-        # >>> create SDSS Menu items
-        loadSDSS = QAction('&load SDSS', self)        
-        loadSDSS.setStatusTip('Load SDSS by Plate/fiber')
-        loadSDSS.triggered.connect(self.showSDSSdialog)
-                
-        loadSDSSlist = QAction('&Load list', self)        
-        loadSDSSlist.setStatusTip('Load SDSS list')
-        loadSDSSlist.triggered.connect(self.showSDSSlistdialog)
-        
-        SDSSLeelist = QAction('&DR9 Lee list', self)        
-        SDSSLeelist.setStatusTip('load SDSS DR9 Lee database')
-        SDSSLeelist.triggered.connect(self.loadSDSSLee)
-        
-        SDSSlist = QAction('&SDSS list', self)        
-        SDSSlist.setStatusTip('SDSS list')
-        SDSSlist.triggered.connect(self.show_SDSS_list)
+            # >>> create Samples Menu items
+            XQ100list = QAction('&XQ100 list', self)
+            XQ100list.setStatusTip('load XQ100 list')
+            XQ100list.triggered.connect(self.showXQ100list)
 
-        SDSSSearchH2 = QAction('&Search H2', self)
-        SDSSSearchH2.setStatusTip('Search H2 absorption systems')
-        SDSSSearchH2.triggered.connect(self.search_H2)
+            P94list = QAction('&P94 list', self)
+            P94list.setStatusTip('load P94 list')
+            P94list.triggered.connect(self.showP94list)
 
-        SDSSH2cand = QAction('&Show H2 cand.', self)        
-        SDSSH2cand.setStatusTip('Show H2 cand.')
-        SDSSH2cand.triggered.connect(self.show_H2_cand)
-        
-        SDSSStack = QAction('&Stack', self)        
-        SDSSStack.setStatusTip('Calculate SDSS Stack spectrum')
-        SDSSStack.triggered.connect(self.calc_SDSS_Stack_Lee)
-            
-        SDSSDLA = QAction('&DLA search', self)        
-        SDSSDLA.setStatusTip('Search for DLA systems')
-        SDSSDLA.triggered.connect(self.calc_SDSS_DLA)
-        
-        SDSSfilters = QAction('&SDSS filters', self, checkable=True)
-        SDSSfilters.setStatusTip('Add SDSS filters magnitudes')
-        SDSSfilters.triggered.connect(self.show_SDSS_filters)
-        SDSSfilters.setChecked(self.SDSS_filters_status)
+            DLAlist = QAction('&DLA list', self)
+            DLAlist.setStatusTip('load DLA list')
+            DLAlist.triggered.connect(self.showDLAlist)
 
-        SDSSPhot = QAction('&SDSS photometry', self)
-        SDSSPhot.setStatusTip('Show SDSS photometry window')
-        SDSSPhot.triggered.connect(self.SDSSPhot)
+            LyaforestMenu = QMenu('&Lyaforest', self)
 
-        SDSSMenu.addAction(loadSDSS)
-        SDSSMenu.addSeparator()
-        SDSSMenu.addAction(loadSDSSlist)
-        SDSSMenu.addAction(SDSSLeelist)
-        SDSSMenu.addAction(SDSSlist)
-        SDSSMenu.addSeparator()
-        SDSSMenu.addAction(SDSSSearchH2)
-        SDSSMenu.addAction(SDSSH2cand)
-        SDSSMenu.addSeparator()
-        SDSSMenu.addAction(SDSSStack)
-        SDSSMenu.addAction(SDSSDLA)
-        SDSSMenu.addSeparator()
-        SDSSMenu.addAction(SDSSfilters)
-        SDSSMenu.addAction(SDSSPhot)
-        
-        # >>> create Samples Menu items
-        XQ100list = QAction('&XQ100 list', self)        
-        XQ100list.setStatusTip('load XQ100 list')
-        XQ100list.triggered.connect(self.showXQ100list)
-        
-        P94list = QAction('&P94 list', self)
-        P94list.setStatusTip('load P94 list')
-        P94list.triggered.connect(self.showP94list)
+            Lyalist = QAction('&Lyaforest sample', self)
+            Lyalist.setStatusTip('load lya forest sample')
+            Lyalist.triggered.connect(self.showLyalist)
+            LyaforestMenu.addAction(Lyalist)
 
-        DLAlist = QAction('&DLA list', self)
-        DLAlist.setStatusTip('load DLA list')
-        DLAlist.triggered.connect(self.showDLAlist)
+            Lyalines = QAction('&Lyaforest line', self)
+            Lyalines.setStatusTip('load lya forest lines')
+            Lyalines.triggered.connect(self.showLyalines)
+            LyaforestMenu.addAction(Lyalines)
 
-        LyaforestMenu = QMenu('&Lyaforest', self)
+            Vandels = None
+            if self.VandelsFile is not None and os.path.isfile(self.VandelsFile):
+                Vandels = QAction('&Vandels', self)
+                Vandels.setStatusTip('load Vandels catalog')
+                Vandels.triggered.connect(self.showVandels)
 
-        Lyalist = QAction('&Lyaforest sample', self)
-        Lyalist.setStatusTip('load lya forest sample')
-        Lyalist.triggered.connect(self.showLyalist)
-        LyaforestMenu.addAction(Lyalist)
+            Kodiaq = None
+            if self.KodiaqFile is not None and os.path.isfile(self.KodiaqFile):
+                Kodiaq = QAction('&KODIAQ DR2', self)
+                Kodiaq.setStatusTip('load Kodiaq DR2 catalog')
+                Kodiaq.triggered.connect(self.showKodiaq)
 
-        Lyalines = QAction('&Lyaforest line', self)
-        Lyalines.setStatusTip('load lya forest lines')
-        Lyalines.triggered.connect(self.showLyalines)
-        LyaforestMenu.addAction(Lyalines)
+            UVES = None
+            if self.UVESfolder is not None and os.path.isdir(self.UVESfolder):
+                UVES = QAction('&UVES ADP QSO', self)
+                UVES.setStatusTip('load QSO sample from UVES ADP')
+                UVES.triggered.connect(self.showUVES)
 
-        Vandels = None
+            IGMspecMenu = None
+            if self.IGMspecfile is not None and os.path.isfile(self.IGMspecfile):
+                IGMspecMenu = QMenu('&IGMspec', self)
+                IGMspecMenu.setStatusTip('Data from IGMspec database')
+                try:
+                    self.IGMspec = h5py.File(self.IGMspecfile, 'r')
+                    for i in self.IGMspec.keys():
+                        item = QAction('&'+i, self)
+                        item.triggered.connect(partial(self.showIGMspec, i, None))
+                        IGMspecMenu.addAction(item)
+                except:
+                    pass
 
-        if self.VandelsFile is not None and os.path.isfile(self.VandelsFile):
-            Vandels = QAction('&Vandels', self)
-            Vandels.setStatusTip('load Vandels catalog')
-            Vandels.triggered.connect(self.showVandels)
-
-        Kodiaq = None
-
-        if self.KodiaqFile is not None and os.path.isfile(self.KodiaqFile):
-            Kodiaq = QAction('&KODIAQ DR2', self)
-            Kodiaq.setStatusTip('load Kodiaq DR2 catalog')
-            Kodiaq.triggered.connect(self.showKodiaq)
-
-        IGMspecMenu = None
-        if self.IGMspecfile is not None and os.path.isfile(self.IGMspecfile):
-            IGMspecMenu = QMenu('&IGMspec', self)
-            IGMspecMenu.setStatusTip('Data from IGMspec database')
-            try:
-                self.IGMspec = h5py.File(self.IGMspecfile, 'r')
-                for i in self.IGMspec.keys():
-                    item = QAction('&'+i, self)
-                    item.triggered.connect(partial(self.showIGMspec, i, None))
-                    IGMspecMenu.addAction(item)
-            except:
-                pass
-
-        samplesMenu.addAction(XQ100list)
-        samplesMenu.addAction(P94list)
-        samplesMenu.addAction(DLAlist)
-        samplesMenu.addMenu(LyaforestMenu)
-        if Vandels is not None:
-            samplesMenu.addAction(Vandels)
-        if Kodiaq is not None:
-            samplesMenu.addAction(Kodiaq)
-        samplesMenu.addSeparator()
-        if IGMspecMenu is not None:
-            samplesMenu.addMenu(IGMspecMenu)
+            samplesMenu.addAction(XQ100list)
+            samplesMenu.addAction(P94list)
+            samplesMenu.addAction(DLAlist)
+            samplesMenu.addMenu(LyaforestMenu)
+            if Vandels is not None:
+                samplesMenu.addAction(Vandels)
+            if Kodiaq is not None:
+                samplesMenu.addAction(Kodiaq)
+            if UVES is not None:
+                samplesMenu.addAction(UVES)
+            samplesMenu.addSeparator()
+            if IGMspecMenu is not None:
+                samplesMenu.addMenu(IGMspecMenu)
 
         # >>> create Generate Menu items
         loadSDSSmedian = QAction('&load VanDen Berk', self)        
@@ -4892,6 +5188,8 @@ class sviewer(QMainWindow):
     def setz_abs(self, text):
         self.z_abs = float(text)
         self.panel.z_panel.setText(str(self.z_abs))
+        if self.plot.restframe:
+            self.plot.updateVelocityAxis()
         self.abs.redraw()
 
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -4919,7 +5217,7 @@ class sviewer(QMainWindow):
         if remove_regions:
             for r in reversed(self.plot.regions[:]):
                 self.plot.regions.remove(r)
-            self.plot.regions = regionList(self)
+            self.plot.regions = regionList(self.plot)
 
         if remove_doublets:
             for d in reversed(self.plot.doublets[:]):
@@ -5844,13 +6142,13 @@ class sviewer(QMainWindow):
         x = self.plot.vb.getState()['viewRange'][0]
         self.s[self.s.ind].calc_cont(x[0], x[-1])
 
-    def fitCont(self, typ='cheb'):
+    def fitCheb(self, typ='cheb'):
         """
         fit Continuum using specified model.
             - kind        : can be 'cheb', 'GP',
         """
         s = self.s[0]
-        mask = (self.s[0].spec.x() > self.fit.cont_left) * (self.s[0].spec.x() < self.fit.cont_right)
+        mask = (s.spec.x() > self.fit.cont_left) * (s.spec.x() < self.fit.cont_right)
         fit = s.fit.f(s.spec.x())
         mask = np.logical_and(fit > 0.05, s.fit_mask.x)
         x = s.norm.x[mask]
@@ -6150,6 +6448,60 @@ class sviewer(QMainWindow):
             print(k, res[k])
 
         return res
+
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # >>>
+    # >>>   1d spec routines
+    # >>>
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+    def fitCont(self):
+        if self.fitContWindow is None:
+            self.fitContWindow = fitContWidget(self)
+            self.fitContWindow.show()
+        else:
+            self.fitContWindow.close()
+
+    def rescale(self):
+
+        if self.rescale_ind == 0:
+
+            s = self.s[self.s.ind]
+
+            #x = s.spec.raw.x[s.cont_mask]
+            y = s.spec.raw.y[s.cont_mask] / s.cont.y
+            #err = s.spec.raw.err[s.cont_mask] / s.cont.y
+
+            window = 20
+            mean = smooth(y, window_len=window, window='flat', mode='same')
+            square = smooth(y**2, window_len=window, window='flat', mode='same')
+            std = np.sqrt(square - mean**2)
+
+            mask_0 = (y < 1.5 * std)
+            mask_1 = (np.abs(y - 1) < 1.5 * std)
+
+            self.s.append(Spectrum(self, 'error_0', data=[s.cont.x[mask_0], std[mask_0], std[mask_0]/np.sqrt(window)]))
+            self.s.append(Spectrum(self, 'error_1', data=[s.cont.x[mask_1], std[mask_1], std[mask_1]/np.sqrt(window)]))
+            self.s.redraw(len(self.s) - 1)
+
+        if self.rescale_ind == 1:
+
+            s0 = self.s[self.s.find('error_0')]
+            s1 = self.s[self.s.find('error_1')]
+
+            inter0 = interp1d(s0.cont.x, s0.cont.y, fill_value='extrapolate')
+            inter1 = interp1d(s1.cont.x, s1.cont.y, fill_value='extrapolate')
+            s = self.s[self.s.ind]
+            y = s.spec.raw.y / s.cont.y
+            s.spec.raw.err = s.cont.y * (inter0(s.spec.raw.x) * (1 - np.abs(y)) + inter1(s.spec.raw.x) * np.abs(y))
+
+            self.s.redraw()
+
+        self.rescale_ind = 1 - self.rescale_ind
 
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -6713,6 +7065,12 @@ class sviewer(QMainWindow):
                              dtype=('U17', 'U30', 'U25', 'U14', 'U17', 'U10', 'U15', 'U9', '<f8', '<f8', '<f8', '<i4'))
         self.KodiaqTable = QSOlistTable(self, 'Kodiaq', folder=os.path.dirname(self.KodiaqFile))
         self.KodiaqTable.setdata(data)
+
+    def showUVES(self):
+        self.UVESTable = QSOlistTable(self, 'UVES', folder=self.UVESfolder)
+        data = np.genfromtxt(self.UVESfolder+'list.dat', names=True, delimiter='\t',
+                             dtype=('U20', '<f8', '<f8', '<i4', '<i4', 'U5', 'U20', 'U200'))
+        self.UVESTable.setdata(data)
 
     def showIGMspec(self, cat, data=None):
         self.IGMspecTable = IGMspecTable(self, cat)

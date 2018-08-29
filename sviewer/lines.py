@@ -358,6 +358,7 @@ class LineLabel(pg.TextItem):
 
         if QApplication.keyboardModifiers() == Qt.ShiftModifier:
             self.parent.parent.line_reper = self.line
+            self.parent.parent.plot.restframe = False
             self.parent.parent.plot.updateVelocityAxis()
             ev.accept()
         if QApplication.keyboardModifiers() == Qt.ControlModifier:

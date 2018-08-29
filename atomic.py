@@ -75,8 +75,10 @@ class e():
         if 'f' in kwargs.keys():
             if kwargs['f'] in ['d', 'dec']:
                 self.col.repr = 'dec'
+                self.col.default_format = 'dec'
             if kwargs['f'] in ['l', 'log']:
                 self.col.repr = 'log'
+                self.col.default_format = 'log'
 
         self.nu = None
         self.J = None

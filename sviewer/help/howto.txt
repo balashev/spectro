@@ -95,21 +95,16 @@ F9                                :  show/hide 2d spectrum panel
 
 -------------------------------------------------------------------------------- 
 Menu:
- - MainMenu / File / Open              :  load working process from file (default extension is .spv)
- - MainMenu / File / Save              :  save working process to latest file with latest options 
- - MainMenu / File / Save as           :  save working process to latest file
-                                          (with choice of preferences)
- - MainMenu / File / Import spectrum   :  import spectrum from file 
-                                          (can be either ascii '.dat' or '.fits')                                        
- - MainMenu / File / Export spectrum   :  export spectrum to file 
-                                          (ascii only)
- - MainMenu / File / Export data       :  export various type of data (continuum, lines, etc)
-                                          (choice by folded menu) 
- - MainMenu / File / Import list       :  import list of spectra from file with paths
-                                          (lines in file can be commented by '!' or '#' or '%')                                                                                   
- - MainMenu / File / Import folder     :  import all files as a list from selected folder
- - MainMenu / File / Export list       :  <<not-worked>>
- - MainMenu / File / Import list       :  import list of spectra from file with paths                                          
+ - MainMenu / File / Open                :  load working process from file (default extension is .spv)
+ - MainMenu / File / Save                :  save working process to latest file with latest options 
+ - MainMenu / File / Save as             :  save working process to latest file (with choice of preferences)
+ - MainMenu / File / Import spectrum     :  import spectrum from file (can be either ascii '.dat' or '.fits')
+ - MainMenu / File / Import 2d spectrum  :  import 2d spectrum from '.fits' file 
+ - MainMenu / File / Import list         :  import list of spectra from file with paths (lines in file can be commented by '!' or '#' or '%')                                                                                   
+ - MainMenu / File / Import folder       :  import all files as a list from selected folder
+ - MainMenu / File / Export spectrum     :  export spectrum to file (ascii only)
+ - MainMenu / File / Export 2d spectrum  :  export 2d spectrum to '.fits' file (with cosmic, sky, etc) 
+ - MainMenu / File / Export data         :  export various type of data (continuum, lines, etc) 
   --------------------------------------------------------------------------------
  - MainMenu / Lines / H2 lines              :  load working process from file
 

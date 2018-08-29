@@ -29,7 +29,7 @@ from scipy.stats import gaussian_kde
 
 from ..profiles import tau, convolveflux, makegrid
 from .external import sg_smooth as sg
-from .utils import Timer, debug, MaskableList, moffat_func
+from .utils import Timer, debug, MaskableList, moffat_func, smooth
 
 class Speclist(list):
     def __init__(self, parent):
@@ -1597,26 +1597,59 @@ class Spectrum():
         #self.set_fit_mask()
         #self.rewrite_mask()
 
-    def calc_cont(self, xl=None, xr=None, iter=5, window=101):
+
+    def calcCont(self, method='SG', xl=None, xr=None, iter=5, window=201, clip=2.5, sg_order=5, filter='flat', new=True, cont=False, sign=1):
         if self.spec.raw.n > 0:
             if xl is None:
                 xl = self.spec.raw.x[0]
             if xr is None:
                 xr = self.spec.raw.x[-1]
 
-            print(xl, xr)
+            y = np.copy(self.spec.raw.y)
+
             mask = (xl < self.spec.raw.x) * (self.spec.raw.x < xr)
-            ys = self.spec.raw.y[mask]
+            if cont:
+                mask *= self.cont_mask
+                self.cont.interpolate()
+                y[mask] = self.cont.inter(self.spec.raw.x[mask])
+                iter = 1
+            ys = y[mask]
+
+            if method == 'Bspline':
+                inds = np.r_[np.arange(len(ys) // window + 1) * window, len(ys)] + np.nonzero(mask)[0][0]
 
             for i in range(iter):
-                print(np.sum(mask), len(ys), len(self.spec.raw.y[mask]))
-                mask[mask] *= (ys - self.spec.raw.y[mask]) / self.spec.raw.err[mask] < 2.5
-                ys = sg.savitzky_golay(self.spec.raw.y[mask], window_size=window, order=5)
+                if i > 0:
+                    if sign == 0:
+                        mask[mask] *= np.abs(ys - y[mask]) / self.spec.raw.err[mask] < clip
+                    else:
+                        mask[mask] *= sign * (ys - y[mask]) / self.spec.raw.err[mask] < clip
 
-            inter = interp1d(self.spec.raw.x[mask], ys, fill_value=(ys[0], ys[-1]))
+                if method == 'SG':
+                    ys = sg.savitzky_golay(y[mask], window_size=window, order=sg_order)
+                if method == 'Smooth':
+                    ys = smooth(y[mask], window_len=window, window=filter, mode='same')
+                if method == 'Bspline':
+                    ys = smooth(y[mask], window_len=window, window=filter, mode='same')
+                    inter = interp1d(self.spec.raw.x[mask], ys, fill_value=(ys[0], ys[-1]), bounds_error=False)
+                    if i == iter - 1:
+                        self.spline.set_data(self.spec.raw.x[inds], inter(self.spec.raw.x[inds]))
+                        self.g_spline.setData(x=self.spline.x, y=self.spline.y)
+                    tck = splrep(self.spec.raw.x[inds], inter(self.spec.raw.x[inds]), k=3)
+                    ys = splev(self.spec.raw.x[mask], tck)
 
-            self.cont_mask = (xl < self.spec.raw.x ) & (self.spec.raw.x < xr)
-            self.cont.set_data(self.spec.raw.x[self.cont_mask], inter(self.spec.raw.x[self.cont_mask]))
+
+            inter = interp1d(self.spec.raw.x[mask], ys, fill_value=(ys[0], ys[-1]), bounds_error=False)
+            if new:
+                self.cont_mask = (xl < self.spec.raw.x) & (self.spec.raw.x < xr)
+                self.cont.set_data(self.spec.raw.x[self.cont_mask], inter(self.spec.raw.x[self.cont_mask]))
+            else:
+                y = np.copy(self.spec.raw.y)
+                y[self.cont_mask] = self.cont.y
+                mask = (xl < self.spec.raw.x) * (self.spec.raw.x < xr)
+                y[mask] = inter(self.spec.raw.x[mask])
+                self.cont_mask = np.logical_or(self.cont_mask, mask)
+                self.cont.set_data(self.spec.raw.x[self.cont_mask], y[self.cont_mask])
             self.redraw()
 
     def findFitLines(self, ind=-1, tlim=0.01, all=True, debug=False):
