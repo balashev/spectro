@@ -38,7 +38,7 @@ from ..XQ100 import load_QSO
 from ..plot_spec import *
 from ..profiles import add_LyaForest, add_ext, add_ext_bump, add_LyaCutoff, convolveflux, tau
 from ..a_unc import a
-from ..stats import distr1d
+from ..stats import distr1d, distr2d
 from .console import *
 from .external import spectres
 from .fit_model import *
@@ -4226,8 +4226,9 @@ class GenerateAbsWidget(QWidget):
         self.template.setCurrentIndex(ind)
         grid.addWidget(self.template, 0, 1)
 
-        self.snr = QCheckBox('', self)
-        grid.addWidget(self.snr, 4, 1)
+        self.snr = QCheckBox('SNR')
+        self.snr.setChecked(True)
+        grid.addWidget(self.snr, 6, 2)
 
         layout.addLayout(grid)
         layout.addStretch(1)
@@ -4696,6 +4697,10 @@ class sviewer(QMainWindow):
         fitMCMC.setShortcut('Ctrl+M')
         fitMCMC.triggered.connect(self.fitMCMC)
 
+        fitGrid = QAction('&Grid fit', self)
+        fitGrid.setStatusTip('Brute force calculation on the grid of parameters')
+        fitGrid.triggered.connect(partial(self.fitGrid, num=None))
+
         stopFit = QAction('&Stop Fit', self)
         stopFit.setStatusTip('Stop fitting process')
         stopFit.triggered.connect(self.stopFit)
@@ -4751,6 +4756,7 @@ class sviewer(QMainWindow):
         fitMenu.addSeparator()
         fitMenu.addAction(fitLM)
         fitMenu.addAction(fitMCMC)
+        fitMenu.addAction(fitGrid)
         fitMenu.addAction(stopFit)
         fitMenu.addAction(fitResults)
         fitMenu.addSeparator()
@@ -6056,6 +6062,61 @@ class sviewer(QMainWindow):
         self.panel.fitbutton.setChecked(False)
         QApplication.restoreOverrideCursor()
 
+    def fitGrid(self, num=None):
+        if not self.normview:
+            self.normalize()
+        self.s.prepareFit(all=all)
+
+        if len(self.fit.list_fit()) == 1:
+            p = str(self.fit.list_fit()[0])
+            if num is not None:
+                pg = np.linspace(self.fit.getValue(p, 'min'), self.fit.getValue(p, 'max'), num)
+            else:
+                pg = np.linspace(self.fit.getValue(p, 'min'), self.fit.getValue(p, 'max'), int((self.fit.getValue(p, 'max') - self.fit.getValue(p, 'min')) / self.fit.getValue(p, 'step'))+1)
+            lnL = np.zeros(pg.size)
+            for i, v in enumerate(pg):
+                self.fit.setValue(p, v)
+                self.s.calcFit(recalc=True)
+                lnL[i] = self.s.chi2()
+
+            d = distr1d(pg, np.exp(np.min(lnL.flatten())-lnL))
+            d.dopoint()
+            d.plot(conf=0.683)
+
+            self.fit.setValue(p, d.point)
+
+        if len(self.fit.list_fit()) == 2:
+            p1, p2 = str(self.fit.list_fit()[0]), str(self.fit.list_fit()[1])
+            psv1, psv2 = self.fit.getValue(p1), self.fit.getValue(p2)
+
+            if num is not None:
+                pg1 = np.linspace(self.fit.getValue(p1, 'min'), self.fit.getValue(p1, 'max'), num)
+                pg2 = np.linspace(self.fit.getValue(p2, 'min'), self.fit.getValue(p2, 'max'), num)
+            else:
+                pg1 = np.linspace(self.fit.getValue(p1, 'min'), self.fit.getValue(p1, 'max'), int((self.fit.getValue(p1, 'max') - self.fit.getValue(p1, 'min')) / self.fit.getValue(p1, 'step'))+1)
+                pg2 = np.linspace(self.fit.getValue(p2, 'min'), self.fit.getValue(p2, 'max'), int((self.fit.getValue(p2, 'max') - self.fit.getValue(p2, 'min')) / self.fit.getValue(p2, 'step'))+1)
+            lnL = np.zeros((pg2.size, pg1.size))
+            for i1, v1 in enumerate(pg1):
+                self.fit.setValue(p1, v1)
+                for i2, v2 in enumerate(pg2):
+                    self.fit.setValue(p2, v2)
+                    self.s.calcFit(recalc=True)
+                    lnL[i2, i1] = self.s.chi2()
+
+
+            d = distr2d(pg1, pg2, np.exp(np.min(lnL.flatten())-lnL))
+            #d = distr2d(pg1, pg2, np.exp(- lnL / np.min(lnL.flatten())))
+            d.plot_contour(conf_levels=[0.683, 0.954], xlabel=p1, ylabel=p2)
+
+            self.fit.setValue(p1, d.point[0])
+            self.fit.setValue(p2, d.point[1])
+
+        self.s.calcFit(recalc=True, redraw=True)
+        self.s.chi2()
+
+        plt.show()
+
+
     def LM(self, comp=-1, timer=True, redraw=True):
         t = Timer(verbose=True) if 1 else False
 
@@ -7157,7 +7218,7 @@ class sviewer(QMainWindow):
 
         if snr is not None:
             s.spec.set(y=s.spec.raw.y + s.cont.y * np.random.normal(0.0, 1.0 / snr, s.spec.raw.n))
-            s.spec.set(err=np.ones_like(s.spec.y()) / snr)
+            s.spec.set(err=s.cont.y / snr)
 
         if redraw:
             self.s.redraw()

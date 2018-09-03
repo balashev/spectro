@@ -315,7 +315,7 @@ class distr2d():
             my_cmap = ListedColormap(my_cmap)
             cs = ax.contourf(self.X, self.Y, self.z / self.zmax, 100, cmap=my_cmap, zorder=zorder)
         if color is not None:
-            if limits == 0:
+            if limits == None or limits == 0:
                 c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, zorder=zorder)
             else:
                 c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, alpha=0)

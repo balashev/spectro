@@ -1,21 +1,21 @@
-set err 0.01
-set err 0.01
-set err 0.01
-set err 0.01
-set err 0.01
-set err 0.01
-set err 0.01
-set err 0.01
-set err 0.01
-set err 0.01
-set err 0.01
-y 0 5
-y 0 5
-x 4000 5000
-set err 0.03
-set err 0.003
-set err 0.003
-set err 0.002
-set err 0.02
 stats
-hide CI
+stats
+set err 0.02
+set err 0.05
+set err 0.02
+set err 0.04
+set err 0.05
+fit grid 20
+fit grid 20
+fit grid 20
+fit grid 20
+fit grid 20
+fit grid 20
+fit grid 20
+fit grid 20
+set err 5/20
+set err 0.25
+fit grid 20
+fit grid 20
+fit grid 20
+fit grid 30

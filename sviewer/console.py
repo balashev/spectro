@@ -317,10 +317,15 @@ class Console(QTextEdit):
             self.exec_command('show '+ args[0])
 
         elif args[0] == 'fit':
-            #self.parent.setFit()
-            for par in self.parent.fit.list():
-                par.fit = par.vary
-            self.parent.fitLM()
+            if len(args) == 1:
+                #self.parent.setFit()
+                for par in self.parent.fit.list():
+                    par.fit = par.vary
+                self.parent.fitLM()
+            else:
+                if args[1] == 'grid':
+                    num = int(args[2]) if len(args) == 3 else 20
+                    self.parent.fitGrid(num=num)
             return 'fit is started'
 
         elif args[0] == 'fitcomp':
