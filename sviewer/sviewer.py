@@ -7275,5 +7275,5 @@ class sviewer(QMainWindow):
 if __name__ == '__main__':
     
     app = QApplication(sys.argv)
-    ex = Main()
+    #ex = Main()
     sys.exit(app.exec_())

@@ -347,15 +347,14 @@ class QSOlistTable(pg.TableWidget):
             self.parent.normalize(True)
             x, y = self.parent.s[-1].spec.norm.x, self.parent.s[-1].spec.norm.y
             mask = (x > 1215.6701 * (1 + float(self.cell_value('z_min')))) * (x < 1215.6701 * (1 + float(self.cell_value('z_max'))))
+            print(np.sum(mask))
             for r in self.parent.plot.regions:
                 mi, ma = r.getRegion()
                 mask *= (x < mi) | (x > ma)
             if np.sum(mask) > 0:
-                inds = np.append(np.where(np.diff(mask.astype(int))<0)[0], np.where(np.diff(mask.astype(int))>0)[0]+1)
-                print(inds)
+                inds = np.append(np.where(np.diff(mask.astype(int)) < 0)[0], np.where(np.diff(mask.astype(int)) > 0)[0]+1)
                 y[inds] = np.ones(len(inds))
                 data = np.c_[x[mask], y[mask], self.parent.s[-1].spec.norm.err[mask]]
-                print(data)
                 np.savetxt(self.folder+'/norm/'+self.cell_value('name')+'.dat', data, fmt='%10.4f %12.4f %12.4f')
                 return data
             else:
@@ -653,7 +652,7 @@ class QSOlistTable(pg.TableWidget):
                         self.parent.s[-1].add_spline([self.parent.s[-1].spec.raw.x[0], self.parent.s[-1].spec.raw.x[-1]], [1, 1])
                     else:
                         self.parent.importSpectrum(self.folder + '/spectra/' + filename)
-                        self.parent.s[-1].spec.raw.clean(min=-1, max=2)
+                        #self.parent.s[-1].spec.raw.clean(min=-1, max=10)
                         self.parent.s[-1].set_data()
                         with open(self.folder + '/cont/' + filename.replace('.dat', '.spv')) as f:
                             skip_header = 1 if '%' in f.readline() else 0
@@ -666,12 +665,15 @@ class QSOlistTable(pg.TableWidget):
                 self.parent.s[-1].set_fit_mask()
                 self.parent.s[-1].update_points()
                 self.parent.s[-1].set_res()
+                self.parent.fit.setValue('z_0', 1, 'min')
+                self.parent.fit.setValue('z_0', 9, 'max')
                 self.parent.fit.setValue('z_0', float(self.cell_value('z')))
                 self.parent.fit.setValue('N_0_HI', float(self.cell_value('N')))
                 self.parent.fit.setValue('b_0_HI', float(self.cell_value('b')))
+                self.parent.showfullfit = True
                 self.parent.showFit()
                 l = 1215.6701 * (float(self.cell_value('z')) + 1)
-                self.parent.plot.vb.setXRange(l*0.999, l*1.001)
+                self.parent.plot.vb.setXRange(l * 0.999, l * 1.001)
                 self.parent.plot.vb.setYRange(-0.1, 1.2)
                 if 'me' in self.cell_value('comment'):
                     self.parent.setz_abs(self.cell_value('comment').split('_')[2])

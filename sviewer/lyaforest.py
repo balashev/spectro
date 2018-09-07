@@ -42,6 +42,16 @@ def correl3(y, fit, mask, err=None):
     else:
         return np.sum(y_s**2 * mask, axis=1)
 
+def correlnew(y, fit, mask, err=None):
+    #t = Timer()
+    stride = y.strides[0]
+    #t.time('1')
+    y_s = as_strided(y, shape=[len(y) - fit.shape[0] + 1, fit.shape[0], 4], strides=[stride, stride, 0])
+    #t.time('2')
+    y_s = np.multiply(y_s, fit)
+    #t.time('3')
+    return np.sum(y_s * mask, axis=1)
+
 def Lyaforest_scan(parent, data):
 
     sample = np.genfromtxt('C:/science/Telikova/Lyasample/lines.dat', usecols=(0, 8), skip_header=1, dtype=[('z', '<f8'), ('name', '|S40')], unpack=True)
@@ -56,9 +66,7 @@ def Lyaforest_scan(parent, data):
         x = np.linspace(data[0][1], data[0][-2], int((data[0][-2]-data[0][1])/0.017))
     else:
         x = np.logspace(np.log10(data[0][1]), np.log10(data[0][-2]), int((data[0][-2]-data[0][1])/0.017))
-    print(data[0], x)
     y, err = spectres.spectres(data[0], data[1], x, spec_errs=data[2])
-    print(data[0], x)
     s = Spectrum(parent, name='rebinned')
     s.set_data([x, y, err])
     s.spec.norm.set_data(x, y, err=err)
@@ -85,7 +93,7 @@ def Lyaforest_scan(parent, data):
     t.time('prepare')
 
     # >>> make Lya line grid
-    if 0:
+    if 1:
         N_grid, b_grid, xf, f = makeLyagrid_uniform(N_range=[13.0, 14.5], b_range=[10, 30], N_num=10, b_num=10, resolution=s.resolution)
     else:
         max_ston = np.max(snr(np.linspace(x[0], x[-1], 50)))
@@ -120,6 +128,9 @@ def Lyaforest_scan(parent, data):
                 #t.time('prepare fit')
 
                 corr = correl3(y, yf, mask, err) / np.sum(mask, axis=0) / koef
+                fig, ax = plt.subplots()
+                ax.plot(x_corr, corr[:,0])
+                plt.show()
                 #print(corr.shape, corr)
                 if show_corr:
                     for l in range(4):
@@ -222,7 +233,7 @@ def Lyaforest_scan(parent, data):
                 if 1 or (1 - np.min(f[l[1], l[2]])) / np.mean(err) > 3:
                     # create a set of Parameters
                     params['z'].value, params['N'].value, params['b'].value = line.z, line.logN, line.b
-                    params['z'].min, params['z'].max = line.z*(1 - 1./parent.s[0].resolution), line.z*(1 + 1./parent.s[0].resolution)
+                    params['z'].min, params['z'].max = line.z*(1 - 10./parent.s[0].resolution), line.z*(1 + 10./parent.s[0].resolution)
 
                     # do fit, here with leastsq model
                     minner = Minimizer(fcn2min, params, fcn_args=(x, y, err, line))
@@ -230,7 +241,7 @@ def Lyaforest_scan(parent, data):
                     result = minner.minimize() #maxfev=200)
                     z, N, Nerr, b, berr, chi = result.params['z'].value, result.params['N'].value, result.params['N'].stderr,\
                                                result.params['b'].value, result.params['b'].stderr, result.redchi
-                    print(z, N, b, chi)
+                    print(z, N, result.params['N'].stderr,  b, chi)
                     plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')
                     if chi < 3 and N / Nerr > 3 and b / berr > 3: #1.5 + max_ston/50:
                         m = np.logical_or(m, mask)
