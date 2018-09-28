@@ -12,7 +12,7 @@ from ccdproc import cosmicray_lacosmic
 from copy import deepcopy
 import gc
 import itertools
-from matplotlib.cm import get_cmap
+from matplotlib import cm
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
@@ -1135,7 +1135,7 @@ class Spectrum():
             self.sm_pen = pg.mkPen(245, 0, 80)
             self.bad_brush = pg.mkBrush(252, 58, 38)
             self.region_brush = pg.mkBrush(147, 185, 69, 60)
-            cdict = get_cmap('viridis')
+            cdict = cm.get_cmap('viridis')
             cmap = np.array(cdict.colors)
             #cmap[0] = [1,1,1]
             cmap[-1] = [1,0.4,0]
@@ -1774,6 +1774,7 @@ class Spectrum():
             # >>> convolve the spectrum with instrument function
             #self.resolution = None
             if self.resolution not in [None, 0]:
+                print(self.resolution)
                 flux = convolveflux(x, flux, self.resolution, kind='direct')
             if timer:
                 t.time('convolve')
@@ -1781,6 +1782,13 @@ class Spectrum():
             # >>> correct for artificial continuum:
             if self.parent.fit.cont_fit:
                 flux = flux * self.correctContinuum(x)
+
+            # >>> correct for dispersion:
+            if self.parent.fit.disp_fit:
+                for i in range(self.parent.fit.disp_num):
+                    if getattr(self.parent.fit, 'dispz_' + str(i)).addinfo == 'exp_' + str(self.ind()):
+                        f = interp1d(x + (x - getattr(self.parent.fit, 'dispz_' + str(i)).val) * getattr(self.parent.fit,'disps_' + str(i)).val, flux, bounds_error=False, fill_value=1)
+                        flux = f(x)
 
             # >>> set fit graphics
             if ind == -1:
@@ -1985,10 +1993,12 @@ class Spectrum():
             if self.parent.fit.cont_fit:
                 flux = flux * self.correctContinuum(x)
 
-            # >>> correct for artificial continuum:
+            # >>> correct for dispersion:
+            print(self.parent.fit.disp_fit)
             if self.parent.fit.disp_fit:
                 for i in range(self.parent.fit.disp_num):
                     if getattr(self.parent.fit, 'dispz_' + str(i)).addinfo == 'exp_' + str(self.ind()):
+                        print((x - getattr(self.parent.fit, 'dispz_' + str(i)).val) * getattr(self.parent.fit, 'disps_' + str(i)).val)
                         f = interp1d(x + (x - getattr(self.parent.fit, 'dispz_' + str(i)).val) * getattr(self.parent.fit, 'disps_' + str(i)).val, flux, bounds_error=False, fill_value=1)
                         flux = f(x)
 
@@ -2200,12 +2210,22 @@ class regionList(list):
                     self[-1].addinfo = ' '.join(reg.split()[1:])
 
             self.parent.vb.addItem(self[-1])
+        self.sortit()
+        self.update()
 
     def remove(self, reg):
         i = self.check(reg)
         if i is not None:
             self.parent.vb.removeItem(self[i])
             del self[i]
+
+    def sortit(self):
+        self[:] = [self[i] for i in np.argsort([r.getRegion()[0] for r in self])]
+
+    def update(self):
+        for i, r in enumerate(self):
+            color = cm.viridis(i / len(self), bytes=True)[:3] + (100,)
+            r.setBrush(pg.mkBrush(color=color))
 
     def fromText(self, text):
         for i in reversed(range(len(self))):
@@ -2217,15 +2237,21 @@ class regionList(list):
         return '\n'.join([str(r) for r in self])
 
 class regionItem(pg.LinearRegionItem):
-    def __init__(self, parent, brush=pg.mkBrush(173, 173, 173, 100), xmin=None, xmax=None, addinfo=''):
+    def __init__(self, parent, brush=None, xmin=None, xmax=None, span=(0.75, 1.0), addinfo=''):
         self.parent = parent
+        if 1:
+            brush = pg.mkBrush(173, 173, 173, 100)
+        else:
+            brush = pg.mkBrush(100+np.random.randint(0,100), 100+np.random.randint(0,100), 100+np.random.randint(0,100), 120)
+
         if xmin is None:
             xmin = self.parent.parent.mousePoint_saved.x()
         if xmax is None:
             xmax = self.parent.parent.mousePoint_saved.x()
         super().__init__(values=[xmin, xmax],
                          orientation=pg.LinearRegionItem.Vertical,
-                         brush=brush)
+                         brush=brush,
+                         span=span)
         self.active = True
         self.activeBrush = brush
         self.activeBrush.setStyle(Qt.SolidPattern)
@@ -2276,7 +2302,7 @@ class regionItem(pg.LinearRegionItem):
 
     def mouseClickEvent(self, ev):
 
-        if ev.double():
+        if ev.double() and (QApplication.keyboardModifiers() == Qt.ShiftModifier):
             self.active = not self.active
             self.setMovable(self.active) # and (QApplication.keyboardModifiers() == Qt.ShiftModifier))
             if self.active:
@@ -2287,7 +2313,7 @@ class regionItem(pg.LinearRegionItem):
                 self.setRegion([self.size_full[0], self.size_full[0]+1])
                 self.setBrush(self.inactiveBrush)
             self.updateLines()
-            self.parent.parent.updateRegions()
+            #self.parent.parent.updateRegions()
 
         if ev.button() == Qt.LeftButton:
             if (QApplication.keyboardModifiers() == Qt.ControlModifier):

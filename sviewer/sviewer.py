@@ -2297,10 +2297,12 @@ class fitMCMCWidget(QWidget):
             fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
             k = 0
             for i, p in enumerate(pars):
+                print(i, p)
                 if p in names:
                     x = np.linspace(np.min(samples[nwalkers * burnin + 1:, i]), np.max(samples[nwalkers * burnin + 1:, i]), 50)
                     kde = gaussian_kde(samples[nwalkers * burnin + 1:, i])
                     d = distr1d(x, kde(x))
+                    print(x, kde(x))
                     d.dopoint()
                     d.dointerval()
                     res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0])
@@ -2331,6 +2333,7 @@ class fitMCMCWidget(QWidget):
                 values.append([p.val for p in self.parent.fit.list()])
 
             values = np.asarray(values)
+            print(t)
 
             if t == 'all':
                 k = len(self.parent.fit.list())  # samples.shape[1]
@@ -6069,12 +6072,14 @@ class sviewer(QMainWindow):
 
         if len(self.fit.list_fit()) == 1:
             p = str(self.fit.list_fit()[0])
+            print(p)
             if num is not None:
                 pg = np.linspace(self.fit.getValue(p, 'min'), self.fit.getValue(p, 'max'), num)
             else:
                 pg = np.linspace(self.fit.getValue(p, 'min'), self.fit.getValue(p, 'max'), int((self.fit.getValue(p, 'max') - self.fit.getValue(p, 'min')) / self.fit.getValue(p, 'step'))+1)
             lnL = np.zeros(pg.size)
             for i, v in enumerate(pg):
+                print(i, v)
                 self.fit.setValue(p, v)
                 self.s.calcFit(recalc=True)
                 lnL[i] = self.s.chi2()
@@ -6095,8 +6100,10 @@ class sviewer(QMainWindow):
             else:
                 pg1 = np.linspace(self.fit.getValue(p1, 'min'), self.fit.getValue(p1, 'max'), int((self.fit.getValue(p1, 'max') - self.fit.getValue(p1, 'min')) / self.fit.getValue(p1, 'step'))+1)
                 pg2 = np.linspace(self.fit.getValue(p2, 'min'), self.fit.getValue(p2, 'max'), int((self.fit.getValue(p2, 'max') - self.fit.getValue(p2, 'min')) / self.fit.getValue(p2, 'step'))+1)
+            print(pg1, pg2)
             lnL = np.zeros((pg2.size, pg1.size))
             for i1, v1 in enumerate(pg1):
+                print(i1)
                 self.fit.setValue(p1, v1)
                 for i2, v2 in enumerate(pg2):
                     self.fit.setValue(p2, v2)

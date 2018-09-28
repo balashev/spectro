@@ -520,7 +520,7 @@ class atomicData(OrderedDict):
             - n    : if list - specify rotational levels to read
                      if int - read J_l<=n
         """
-        x = np.genfromtxt(r'data/H2/energy_X.dat', comments='#', unpack=True)
+        x = np.genfromtxt(os.path.dirname(os.path.realpath(__file__))+r'/data/H2/energy_X.dat', comments='#', unpack=True)
 
         if isinstance(j, int) or isinstance(j, float):
             j = [j]

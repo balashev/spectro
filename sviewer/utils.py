@@ -11,6 +11,9 @@ from math import atan2,degrees
 import numpy as np
 import os
 from scipy.stats import rv_continuous
+import sys
+sys.path.append('C:/science/python')
+from spectro.sviewer.utils import *
 import threading
 import time
 
@@ -138,14 +141,12 @@ def slice_fields(a, fields):
     return np.ndarray(a.shape, dtype2, a, 0, a.strides)
 
 def hms_to_deg(coord):
-    print(coord)
     if ':' in coord:
         h, m, s = int(coord.split(':')[0]), int(coord.split(':')[1]), float(coord.split(':')[2])
     elif 'h' in coord:
         h, m, s = int(coord[:coord.index('h')]), int(coord[coord.index('h')+1:coord.index('m')]), float(coord[coord.index('m')+1:])
     else:
         h, m, s = int(coord[:2]), int(coord[2:4]), float(coord[4:])
-    print((h * 3600 + m * 60 + s) / 240)
     return (h * 3600 + m * 60 + s) / 240
 
 def dms_to_deg(coord):
@@ -155,8 +156,10 @@ def dms_to_deg(coord):
         d, m, s = int(coord[:coord.index('d')]), int(coord[coord.index('d')+1:coord.index('m')]), float(coord[coord.index('m')+1:])
     else:
         d, m, s = int(coord[:3]), int(coord[3:5]), float(coord[5:])
-    print(d, m, s)
-    return d + (m * 60 + s) / 3600
+    sign = -1 if coord[0] == '-' else 1
+    if coord[:3] == '+00':
+        print(d, m, s, sign * (np.abs(d) + (m * 60 + s) / 3600))
+    return sign * (np.abs(d) + (m * 60 + s) / 3600)
 
 #Label line with line2D label data
 def labelLine(line, x, label=None, align=True, xpos=0, ypos=0, **kwargs):

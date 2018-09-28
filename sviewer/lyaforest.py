@@ -93,12 +93,12 @@ def Lyaforest_scan(parent, data):
     t.time('prepare')
 
     # >>> make Lya line grid
-    if 1:
+    if 0:
         N_grid, b_grid, xf, f = makeLyagrid_uniform(N_range=[13.0, 14.5], b_range=[10, 30], N_num=10, b_num=10, resolution=s.resolution)
     else:
         max_ston = np.max(snr(np.linspace(x[0], x[-1], 50)))
         print('max_ston:', max_ston)
-        N_grid, b_grid, xf, f = makeLyagrid_fisher(N_range=[13.0, 14.5], b_range=[10, 30], z=(zmin+zmax)/2, ston=max_ston, resolution=s.resolution)
+        N_grid, b_grid, xf, f = makeLyagrid_fisher(N_range=[13.0, 14.5], b_range=[10, 50], z=(zmin+zmax)/2, ston=max_ston, resolution=s.resolution)
     #N_grid, b_grid, xf, f = makeLyagrid(N_range=[14.39, 14.39], b_range=[28, 28], N_num=1, b_num=1, resolution=s.resolution)
     xl = xf * x[int(len(x)/2)] / 1215.6701
     t.time('make Lya grid')
@@ -128,9 +128,6 @@ def Lyaforest_scan(parent, data):
                 #t.time('prepare fit')
 
                 corr = correl3(y, yf, mask, err) / np.sum(mask, axis=0) / koef
-                fig, ax = plt.subplots()
-                ax.plot(x_corr, corr[:,0])
-                plt.show()
                 #print(corr.shape, corr)
                 if show_corr:
                     for l in range(4):
@@ -192,7 +189,10 @@ def Lyaforest_scan(parent, data):
     #print(ind)
     #print(types)
     showFit = 1
+    check_doublicates = 1
     if 1:
+        if check_doublicates:
+            old_lines = np.genfromtxt('C:/science/Telikova/Lyasample/lines.dat', names=True, dtype=None)
         if 0:
             filename = open('C:/science/Telikova/Lyasample/lines.dat', 'a')
         else:
@@ -208,7 +208,7 @@ def Lyaforest_scan(parent, data):
         params = Parameters()
         params.add('z', value=2, min=0, max=10)
         params.add('N', value=13, min=11, max=20)
-        params.add('b', value=20, min=5, max=50)
+        params.add('b', value=20, min=5, max=200)
 
         m = np.zeros_like(parent.s[0].spec.x(), dtype=bool)
         if len(lines) > 0:
@@ -233,6 +233,7 @@ def Lyaforest_scan(parent, data):
                 if 1 or (1 - np.min(f[l[1], l[2]])) / np.mean(err) > 3:
                     # create a set of Parameters
                     params['z'].value, params['N'].value, params['b'].value = line.z, line.logN, line.b
+                    save_N, save_b = line.logN, line.b
                     params['z'].min, params['z'].max = line.z*(1 - 10./parent.s[0].resolution), line.z*(1 + 10./parent.s[0].resolution)
 
                     # do fit, here with leastsq model
@@ -243,8 +244,13 @@ def Lyaforest_scan(parent, data):
                                                result.params['b'].value, result.params['b'].stderr, result.redchi
                     print(z, N, result.params['N'].stderr,  b, chi)
                     plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')
+                    plt.arrow(save_N, save_b, N-save_N, b-save_b, fc='orangered', ec='orangered')
                     if chi < 3 and N / Nerr > 3 and b / berr > 3: #1.5 + max_ston/50:
                         m = np.logical_or(m, mask)
+                        if check_doublicates:
+                            if len(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0]) > 0:
+                                print(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0])
+                            #np.where((old_lines['name'] == qsoname) and np.abs(z - old_lines['z']) * 300 > 20:
                         #if len(sample['z']) == 0 or len(np.where(np.abs(sample['z'][qsoname.encode() == sample['name']] - z) < 0.0001)[0]) == 0:
                         filename.write('{:9.7f} {:7.3f} {:7.3f} {:7.3f} {:7.3f} {:7.2f} {:6.3f} {:2s} {:30s} {:30s}\n'.format(z, N, Nerr, b, berr, float(snr(1215.67*(1+z))), chi, typ, qsoname, '-'))
 
@@ -288,7 +294,7 @@ def makeLyagrid_uniform(N_range=[13., 14], b_range=[20, 30], N_num=30, b_num=30,
 
 def makeLyagrid_fisher(N_range=[13., 14], b_range=[20, 30], ston=10, z=0, resolution=50000, plot=0):
 
-    koef = 3.0
+    koef = 1.7
 
     lines = [line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=z)]
     N_grid, b_grid = [N_range[0]], [b_range[0]]
@@ -304,7 +310,7 @@ def makeLyagrid_fisher(N_range=[13., 14], b_range=[20, 30], ston=10, z=0, resolu
             dN, db, F, Fmin = fisherbN(N, b_grid[-1], lines, ston=ston, resolution=resolution)
             bmin = min(bmin, db)
         b_grid.append(b_grid[-1] + koef * bmin)
-    print(N_grid, b_grid)
+    print(len(N_grid), len(b_grid))
 
     if 0 or plot:
         fig, ax = plt.subplots()

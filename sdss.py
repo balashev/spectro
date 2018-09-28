@@ -1,10 +1,11 @@
-from .absorption_systems import DLA
-from .atomic import atomicData
 
 import astropy.constants as const
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, MaxNLocator
+
+from .atomic import atomicData
+from .profiles import tau, convolveflux
 
 class SDSS():
 
@@ -105,7 +106,8 @@ class SDSS():
                         color='k', ecolor='0.3', capsize=3)
             
             # >>> plot H2 candidate profile
-            H2 = atomicData.Malec(1)
+            H2 = atomicData().H2(1)
+            print(H2)
             
             N = self.H2_cand.H2.col.val
             t = 50
@@ -114,16 +116,17 @@ class SDSS():
             print(n)
             
             x = np.linspace(self.spectrum[0][i_min], self.spectrum[0][i_max], (i_max - i_min)*10)
-            tau = np.zeros_like(x)
+            t = np.zeros_like(x)
             for line in H2:
-                tau += calctau(x, line.l, line.f, line.g, n[line.J_l], 3, z=self.H2_cand.z, vel=False)
+                tl = tau(l=line.l(), f=line.f(), g=line.g(), logN=n[line.j_l], b=3, z=self.H2_cand.z)
+                t += tl.calctau(x)
             
-            I = convolveflux(x, np.exp(-tau), res=2600)
+            I = convolveflux(x, np.exp(-t), res=2600)
             ax.plot(x, I, '-r', lw=2)
             ax.set_xlim([self.spectrum[0][i_min], self.spectrum[0][i_max]])
             for line in H2:
-                if line.J_l == 0 and line.l*(1+self.H2_cand.z) > self.spectrum[0][i_min]:
-                    ax.text(line.l*(1+self.H2_cand.z), 1.1, str(line)[3:str(line).find('-0')+2], va='bottom', ha='center', color='r', fontsize=12)
+                if line.j_l == 0 and line.l()*(1+self.H2_cand.z) > self.spectrum[0][i_min]:
+                    ax.text(line.l()*(1+self.H2_cand.z), 1.1, str(line)[3:str(line).find('-0')+2], va='bottom', ha='center', color='r', fontsize=12)
         ax.set_ylabel('Normalized flux', fontsize=font)
         
         # >>> plot metal lines panels
@@ -139,7 +142,7 @@ class SDSS():
         for i in range(num):
             ax = fig.add_axes(rect_w[i])
             print(lines[i].name, lines[i].l)
-            lambda_0 = lines[i].l * (1 + z_DLA)
+            lambda_0 = lines[i].l() * (1 + z_DLA)
             
             vel_space = v_space
             x_minorLocator = AutoMinorLocator(5)
@@ -154,7 +157,7 @@ class SDSS():
                 if normalized:
                     y_min, y_max = -0.1, 1.3
                 else:
-                    y_min, y_max = minmax(self.spectrum[1][i_min:i_max])
+                    y_min, y_max = np.min(self.spectrum[1][i_min:i_max]), np.max(self.spectrum[1][i_min:i_max])
                     y_min, y_max = (y_min-y_max)*0.1, y_max+(y_max-y_min)*0.2
                 
                 # >>> plot spectrum
