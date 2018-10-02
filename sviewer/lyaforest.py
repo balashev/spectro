@@ -87,7 +87,7 @@ def Lyaforest_scan(parent, data):
     zmax = x[-1] / lya - 1
     print(zmin, zmax)
 
-    koef = 1.5
+    koef = 3
     flux_limit = 0.95
 
     t.time('prepare')
@@ -98,7 +98,7 @@ def Lyaforest_scan(parent, data):
     else:
         max_ston = np.max(snr(np.linspace(x[0], x[-1], 50)))
         print('max_ston:', max_ston)
-        N_grid, b_grid, xf, f = makeLyagrid_fisher(N_range=[13.0, 14.5], b_range=[10, 50], z=(zmin+zmax)/2, ston=max_ston, resolution=s.resolution)
+        N_grid, b_grid, xf, f = makeLyagrid_fisher(N_range=[13.0, 14.5], b_range=[10, 50], z=(zmin+zmax)/2, ston=max_ston, resolution=s.resolution, plot=0)
     #N_grid, b_grid, xf, f = makeLyagrid(N_range=[14.39, 14.39], b_range=[28, 28], N_num=1, b_num=1, resolution=s.resolution)
     xl = xf * x[int(len(x)/2)] / 1215.6701
     t.time('make Lya grid')
@@ -294,7 +294,7 @@ def makeLyagrid_uniform(N_range=[13., 14], b_range=[20, 30], N_num=30, b_num=30,
 
 def makeLyagrid_fisher(N_range=[13., 14], b_range=[20, 30], ston=10, z=0, resolution=50000, plot=0):
 
-    koef = 1.7
+    koef = 4
 
     lines = [line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=z)]
     N_grid, b_grid = [N_range[0]], [b_range[0]]
@@ -314,8 +314,8 @@ def makeLyagrid_fisher(N_range=[13., 14], b_range=[20, 30], ston=10, z=0, resolu
 
     if 0 or plot:
         fig, ax = plt.subplots()
-        for N in N_grid:
-            for b in b_grid:
+        for N in N_grid[:]:
+            for b in b_grid[:]:
               dN, db, F, Fmin = fisherbN(N, b, lines, ston=ston, resolution=resolution)
               ax.errorbar(N, b, xerr=dN, yerr=db, fmt='o', color='k')
         plt.show()
