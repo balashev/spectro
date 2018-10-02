@@ -1638,7 +1638,6 @@ class Spectrum():
                     tck = splrep(self.spec.raw.x[inds], inter(self.spec.raw.x[inds]), k=3)
                     ys = splev(self.spec.raw.x[mask], tck)
 
-
             inter = interp1d(self.spec.raw.x[mask], ys, fill_value=(ys[0], ys[-1]), bounds_error=False)
             if new:
                 self.cont_mask = (xl < self.spec.raw.x) & (self.spec.raw.x < xr)
@@ -2252,16 +2251,17 @@ class regionItem(pg.LinearRegionItem):
                          orientation=pg.LinearRegionItem.Vertical,
                          brush=brush,
                          span=span)
-        self.active = True
+        self.active = False
+
         self.activeBrush = brush
         self.activeBrush.setStyle(Qt.SolidPattern)
         self.activePen = pg.mkPen(brush.color())
-        self.updateLines()
 
         self.inactivePen = pg.mkPen(150, 150, 150, 255, style=Qt.DashLine)
         self.inactiveBrush = pg.mkBrush(100, 100, 100, 255)
         self.inactiveBrush.setStyle(Qt.Dense5Pattern)
 
+        self.updateLines()
         self.addinfo = addinfo
 
     def updateLines(self):
@@ -2272,10 +2272,13 @@ class regionItem(pg.LinearRegionItem):
                 c.setAlpha(255)
                 l.setHoverPen(pg.mkPen(c))
                 #l.setHoverPen(QPen(c))
+            self.setSpan(0, 1)
+
         else:
             for l in self.lines:
                 l.setPen(self.inactivePen)
                 l.setHoverPen(self.inactivePen)
+            self.setSpan(0.75, 1)
 
     def hoverEvent(self, ev):
         self.lines[0].setMovable((QApplication.keyboardModifiers() == Qt.ShiftModifier))
@@ -2302,16 +2305,17 @@ class regionItem(pg.LinearRegionItem):
 
     def mouseClickEvent(self, ev):
 
-        if ev.double() and (QApplication.keyboardModifiers() == Qt.ShiftModifier):
+        if ev.double(): # and (QApplication.keyboardModifiers() == Qt.ShiftModifier):
             self.active = not self.active
-            self.setMovable(self.active) # and (QApplication.keyboardModifiers() == Qt.ShiftModifier))
-            if self.active:
-                self.setBrush(self.activeBrush)
-                self.setRegion(self.size_full)
-            else:
-                self.size_full = self.getRegion()
-                self.setRegion([self.size_full[0], self.size_full[0]+1])
-                self.setBrush(self.inactiveBrush)
+            if 0:
+                self.setMovable(self.active) # and (QApplication.keyboardModifiers() == Qt.ShiftModifier))
+                if self.active:
+                    self.setBrush(self.activeBrush)
+                    self.setRegion(self.size_full)
+                else:
+                    self.size_full = self.getRegion()
+                    self.setRegion([self.size_full[0], self.size_full[0]+1])
+                    self.setBrush(self.inactiveBrush)
             self.updateLines()
             #self.parent.parent.updateRegions()
 

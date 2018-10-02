@@ -6081,6 +6081,7 @@ class sviewer(QMainWindow):
             for i, v in enumerate(pg):
                 print(i, v)
                 self.fit.setValue(p, v)
+                self.s.prepareFit(all=False)
                 self.s.calcFit(recalc=True)
                 lnL[i] = self.s.chi2()
 
@@ -6107,6 +6108,7 @@ class sviewer(QMainWindow):
                 self.fit.setValue(p1, v1)
                 for i2, v2 in enumerate(pg2):
                     self.fit.setValue(p2, v2)
+                    self.s.prepareFit(all=False)
                     self.s.calcFit(recalc=True)
                     lnL[i2, i1] = self.s.chi2()
 
