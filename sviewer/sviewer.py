@@ -447,6 +447,7 @@ class plotSpectrum(pg.PlotWidget):
                         self.doublets[-1].draw_temp(self.mousePoint.x())
                     else:
                         self.doublets[-1].find(self.doublets[-1].line_temp.value(), self.mousePoint.x())
+                        self.doublets.update()
                 self.u_status = False
 
             if event.key() == Qt.Key_W:
@@ -586,6 +587,7 @@ class plotSpectrum(pg.PlotWidget):
                     self.doublets[-1].draw_temp(self.mousePoint.x())
                 else:
                     self.doublets[-1].find(self.doublets[-1].line_temp.value(), self.mousePoint.x())
+                    self.doublets.update()
                     self.u_status = False
                 #self.u_status += 1
 
@@ -5231,7 +5233,7 @@ class sviewer(QMainWindow):
         if remove_doublets:
             for d in reversed(self.plot.doublets[:]):
                 d.remove()
-            self.plot.doublets = []
+            self.plot.doublets = doubletList(self.plot)
 
         folder = os.path.dirname(filename)
 
@@ -5333,6 +5335,7 @@ class sviewer(QMainWindow):
                 ns = int(d[i].split()[1])
                 for r in range(ns):
                     i += 1
+                    print(d[i].split()[0], float(d[i].split()[1]))
                     self.plot.doublets.append(Doublet(self.plot, name=d[i].split()[0], z=float(d[i].split()[1])))
 
             if 'lines' in d[i]:

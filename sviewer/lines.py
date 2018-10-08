@@ -477,8 +477,7 @@ class doubletList(list):
 
     def update(self):
         for i, doublet in enumerate(self):
-            print(i, len(self))
-            doublet.redraw(pen=pg.mkPen(cm.terrain(i / len(self), bytes=True)[:3] + (200,)))
+            doublet.redraw(pen=pg.mkPen(cm.terrain(0.1 + 0.9 * i / len(self), bytes=True)[:3] + (200,)))
 
     def fromText(self, text):
         for i in reversed(range(len(self))):
@@ -494,11 +493,7 @@ class Doublet():
         self.parent = parent
         self.read()
         self.active = False
-        try:
-            ind = self.parent.doublets.index(self) / len(self.parent.doublets)
-        except:
-            ind = 0
-        color = cm.terrain(ind, bytes=True)[:3] + (200,)
+        color = cm.terrain(1, bytes=True)[:3] + (200,)
         self.pen = pg.mkPen(color=color, width=0.5, style=Qt.SolidLine)
         self.name = name
         self.z = z
@@ -527,17 +522,18 @@ class Doublet():
 
     def redraw(self, pen=None):
         #self.determineY()
-        if pen is None:
+        if hasattr(self, 'l'):
             if self.active:
                 self.pen = pg.mkPen(225, 215, 0, width=2)
             else:
-                self.pen = pg.mkPen(45, 217, 207, width=0.5)
-        else:
-            self.pen = pen
-        for l, line, label in zip(self.l, self.line, self.label):
-            line.setPos(l * (1 + self.z))
-            line.setPen(self.pen)
-            label.redraw()
+                if pen is None:
+                    self.pen = pg.mkPen(45, 217, 207, width=0.5)
+                else:
+                    self.pen = pen
+            for l, line, label in zip(self.l, self.line, self.label):
+                line.setPos(l * (1 + self.z))
+                line.setPen(self.pen)
+                label.redraw()
 
     def remove(self):
         if self.temp is not None:
@@ -548,6 +544,7 @@ class Doublet():
                 self.parent.vb.removeItem(label)
             self.parent.doublets.remove(self)
 
+        self.parent.doublets.update()
         del self
 
     def draw_temp(self, x):
@@ -556,7 +553,7 @@ class Doublet():
         self.temp = []
         for lines in self.doublet.values():
             for d in combinations(lines, 2):
-                for i in [-1,1]:
+                for i in [-1, 1]:
                     x = self.line_temp.value() * (d[0] / d[1])**i
                     self.temp.append(doubletTempLine(self, x, angle=90, pen=pg.mkPen(color=(160, 80, 44), width=1, style=Qt.SolidLine)))
                     self.parent.vb.addItem(self.temp[-1])
@@ -577,10 +574,10 @@ class Doublet():
     def set_active(self, active=True):
         if active:
             for d in self.parent.doublets:
+                print(d.name, d.z)
                 d.set_active(False)
         self.active = active
         self.parent.parent.setz_abs(self.z)
-        self.parent.update()
         #self.redraw()
 
     def find(self, x1, x2, toll=9e-2, show=True):
@@ -626,16 +623,18 @@ class doubletTempLine(pg.InfiniteLine):
 
     def setMouseHover(self, hover):
         super().setMouseHover(hover)
-        name, z = self.parent.find(self.x, self.parent.line_temp.getXPos(), show=False)
-        anchor = (0, 1) if 'DLA' not in name else (0, 0)
-        self.parent.temp.append(doubletLabel(self.parent, name + '_' + str(int(self.parent.line_temp.getXPos()/(1+z))), self.x/(1+z), angle=90, anchor=anchor))
-        self.parent.parent.vb.addItem(self.parent.temp[-1])
+        if self.parent.temp is not None:
+            name, z = self.parent.find(self.x, self.parent.line_temp.getXPos(), show=False)
+            anchor = (0, 1) if 'DLA' not in name else (0, 0)
+            self.parent.temp.append(doubletLabel(self.parent, name + '_' + str(int(self.parent.line_temp.getXPos()/(1+z))), self.x/(1+z), angle=90, anchor=anchor, temp=True))
+            self.parent.parent.vb.addItem(self.parent.temp[-1])
 
 class doubletLabel(pg.TextItem):
-    def __init__(self, parent, name, line, **kwrds):
+    def __init__(self, parent, name, line, temp=False, **kwrds):
         self.parent = parent
         self.name = name
         self.line = line
+        self.temp = temp
         pg.TextItem.__init__(self, text=self.name, fill=pg.mkBrush(0, 0, 0, 0), **kwrds)
         self.setFont(QFont("SansSerif", 8))
         self.determineY()
@@ -653,7 +652,10 @@ class doubletLabel(pg.TextItem):
     def redraw(self):
         self.determineY()
         self.setText(self.name + ' ' + str(self.line)[:str(self.line).index('.')] + '   z=' + str(self.parent.z)[:6])
-        self.setColor(self.parent.pen.color())
+        if self.temp:
+            self.setColor((200,200,200))
+        else:
+            self.setColor(self.parent.pen.color())
         self.setPos(self.line * (1 + self.parent.z), self.y)
 
     def mouseDragEvent(self, ev):
@@ -677,8 +679,9 @@ class doubletLabel(pg.TextItem):
             ev.accept()
 
         if ev.double():
+            print(self.parent.active)
             self.parent.set_active(not self.parent.active)
-
+            self.parent.parent.doublets.update()
 
     def clicked(self, pts):
         print("clicked: %s" % pts)
