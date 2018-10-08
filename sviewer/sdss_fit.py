@@ -209,7 +209,7 @@ def makeH2Stack(self, beta=-0.9, Nmin=16, Nmax=22, b=4, norm=0, load=True, draw=
             print(np.log10(Ntot))
             for i, Ni in enumerate(N):
                 self.fit.sys[0].sp['H2j{}'.format(i)].N.val = Ni
-            self.generate(template='const', z=0, fit=True, xmin=950, xmax=1200, resolution=1500, snr=None,
+            self.generate(template='const', z=0, fit=True, xmin=950, xmax=1200, resolution=2000, snr=None,
                  lyaforest=0.0, lycutoff=False, Av=0.0, Av_bump=0.0, z_Av=0.0, redraw=False)
             y = self.s[self.s.ind].spec.y()
             if spec == None:
@@ -267,6 +267,9 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
         elif 'sstack' in name:
             beta = np.linspace(-1.4, -0.8, ngrid)
             norm = np.log10(np.logspace(-0.7, -0.2, ngrid))
+        elif 'NLR' in name:
+            beta = np.linspace(-1.9, -0.9, ngrid)
+            norm = np.log10(np.logspace(-1.2, -0.5, ngrid))
         else:
             beta = np.linspace(-1.6, -1.0, ngrid)
             norm = np.log10(np.logspace(-1.6, -1.2, ngrid))
@@ -308,6 +311,9 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
         d = distr2d(beta, norm, z, debug=False)
         d.normalize()
         d.dopoint()
+        d1 = d.marginalize(over='x')
+        d1.dopoint()
+        d1.plot()
         bf_beta, bf_norm = d.point[0], d.point[1]
         print(bf_beta, bf_norm)
         if rvs:
@@ -320,7 +326,7 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
             font, xlabel = 24, r'$\beta$'
             ax = d.plot_contour(conf_levels=[0.6827, 0.9973], xlabel=xlabel, ylabel=r'$\log$(r)', color='k',
                                 color_point='red', cmap=None, alpha=0, colorbar=False, ls=['-', '--'], font=font)
-            ax.set_xlim([-1.75, -0.75])
+            ax.set_xlim([-1.75, -0.45])
             ax.set_ylim([-1.7, -0.0])
             if rvs:
                 if 0:
@@ -393,17 +399,19 @@ def H2StackFit(self, Nmin=16, Nmax=22, b=4, ngrid=30, load=True, draw=True, name
                 d1.plot(conf=c)
         plt.show()
 
+    print(beta_min, Nmin)
     x, spec = makeH2Stack(self, beta=beta_min, Nmin=Nmin, Nmax=Nmax, b=b, norm=norm_min, draw=False)
     self.fit.setValue('cf_0', 1 - 10**norm_min)
     self.fit.setValue('cf_0', 'sys0_exp0', 'addinfo')
-    self.s[ind].spec.norm.err *= rescale
+    #self.s[ind].spec.norm.err *= rescale
     self.s[ind].set_fit(x=x, y=spec)
     self.s.chi2()
     if 0:
         self.importSpectrum('best_fit={:.2f}_min={:.1f}_max={:.1f}'.format(bf_beta, Nmin, Nmax), spec=[self.s[ind].fit.x(), self.s[ind].fit.y()], append=True)
         self.s[-1].spec.norm = self.s[-1].spec.raw
     self.s.redraw()
-    if draw:
+
+    if draw and 0:
         self.showLines(show=False)
         print('C:/science/papers/H2Stack/work/fig_H2_Mass'+ESDLA)
         self.showlines.loadSettings('C:/science/papers/H2Stack/work/fig_H2_Mass'+ESDLA)

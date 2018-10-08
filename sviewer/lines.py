@@ -2,13 +2,12 @@ from astropy import constants as const
 from collections import OrderedDict
 from functools import partial
 from itertools import combinations
+from matplotlib import cm
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import (QFont)
 from PyQt5.QtWidgets import (QWidget, QLabel, QGridLayout, QPushButton,
                              QApplication, QHBoxLayout, QVBoxLayout)
-
 import pyqtgraph as pg
-
 from ..atomic import *
 from .fit import par
 from .utils import Timer
@@ -467,11 +466,39 @@ class choiceLinesWidget(QWidget):
 
         # self.close()
 
+class doubletList(list):
+    def __init__(self, parent):
+        super(doubletList).__init__()
+        self.parent = parent
+
+    def append(self, obj):
+        super(doubletList, self).append(obj)
+        self.update()
+
+    def update(self):
+        for i, doublet in enumerate(self):
+            print(i, len(self))
+            doublet.redraw(pen=pg.mkPen(cm.terrain(i / len(self), bytes=True)[:3] + (200,)))
+
+    def fromText(self, text):
+        for i in reversed(range(len(self))):
+            self.remove(str(self[i]))
+        for reg in text.splitlines():
+            self.add(reg)
+
+    def __str__(self):
+        return '\n'.join([str(r) for r in self])
+
 class Doublet():
     def __init__(self, parent, name=None, z=None, color=pg.mkColor(45, 217, 207)):
         self.parent = parent
         self.read()
         self.active = False
+        try:
+            ind = self.parent.doublets.index(self) / len(self.parent.doublets)
+        except:
+            ind = 0
+        color = cm.terrain(ind, bytes=True)[:3] + (200,)
         self.pen = pg.mkPen(color=color, width=0.5, style=Qt.SolidLine)
         self.name = name
         self.z = z
@@ -483,7 +510,8 @@ class Doublet():
         self.doublet = {}
         with open('data/doublet.dat') as f:
             for line in f:
-                self.doublet[line.split()[0]] = [float(d) for d in line.split()[1:]]
+                if '#' not in line:
+                    self.doublet[line.split()[0]] = [float(d) for d in line.split()[1:]]
 
     def draw(self, add=True):
         self.l = self.doublet[self.name]
@@ -497,12 +525,15 @@ class Doublet():
         if add and self.name.strip() in ['CIV', 'SiIV', 'AlIII', 'FeII', 'MgII']:
             self.parent.doublets.append(Doublet(self.parent, name='DLA', z=self.z))
 
-    def redraw(self):
+    def redraw(self, pen=None):
         #self.determineY()
-        if self.active:
-            self.pen = pg.mkPen(225, 215, 0, width=2)
+        if pen is None:
+            if self.active:
+                self.pen = pg.mkPen(225, 215, 0, width=2)
+            else:
+                self.pen = pg.mkPen(45, 217, 207, width=0.5)
         else:
-            self.pen = pg.mkPen(45, 217, 207, width=0.5)
+            self.pen = pen
         for l, line, label in zip(self.l, self.line, self.label):
             line.setPos(l * (1 + self.z))
             line.setPen(self.pen)
@@ -549,7 +580,8 @@ class Doublet():
                 d.set_active(False)
         self.active = active
         self.parent.parent.setz_abs(self.z)
-        self.redraw()
+        self.parent.update()
+        #self.redraw()
 
     def find(self, x1, x2, toll=9e-2, show=True):
         """

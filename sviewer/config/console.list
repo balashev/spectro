@@ -1,21 +1,21 @@
-hide all
-show H2 0 1
-show NV
-show CII*
-show SiII*
-SiII*
-show H2 0 1
-show CI
-show DI
-show H2 0 1
-show H2 0 1
-SiII*
-show SiII*
-show CII*
-CI*
 show CI*
 show CI**
 SII
 MgII
 26MgII
 25MgII
+H2
+hide H2
+show H2 0 1
+show H2 0 1
+show H2 0 1
+show H2 0 1
+show H2 0 1
+show H2 0 1
+show H2 0 1
+show H2 0 1
+show H2 0 1
+show SiII*
+show CII*
+show H2 0 1
+show H2 0 1

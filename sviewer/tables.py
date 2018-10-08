@@ -333,7 +333,6 @@ class QSOlistTable(pg.TableWidget):
             name = 'name' if self.cat != 'Vandels' else 'id'
             if self.cell_value(name).strip() in self.parent.s[-1].filename:
                 name = self.cell_value(name).strip()
-        else:
             filename = self.folder + '/cont/' + name
             self.parent.save_opt = ['cont', 'others']
             self.parent.saveFile(filename, save_name=False)

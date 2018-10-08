@@ -157,8 +157,6 @@ def dms_to_deg(coord):
     else:
         d, m, s = int(coord[:3]), int(coord[3:5]), float(coord[5:])
     sign = -1 if coord[0] == '-' else 1
-    if coord[:3] == '+00':
-        print(d, m, s, sign * (np.abs(d) + (m * 60 + s) / 3600))
     return sign * (np.abs(d) + (m * 60 + s) / 3600)
 
 #Label line with line2D label data

@@ -520,7 +520,7 @@ class specline():
                 if len(self.raw.y) > 0:
                     self.norm.y = self.raw.y[self.parent.cont_mask] / self.parent.cont.y
                 if len(self.raw.err) > 0:
-                        self.norm.err = self.raw.err[self.parent.cont_mask] / self.parent.cont.y
+                    self.norm.err = self.raw.err[self.parent.cont_mask] / self.parent.cont.y
                 self.norm.n = len(self.norm.x)
             else:
                 self.raw.x[self.parent.cont_mask] = self.norm.x
@@ -2223,7 +2223,7 @@ class regionList(list):
 
     def update(self):
         for i, r in enumerate(self):
-            color = cm.viridis(i / len(self), bytes=True)[:3] + (100,)
+            color = cm.terrain(i / len(self), bytes=True)[:3] + (150,)
             r.setBrush(pg.mkBrush(color=color))
 
     def fromText(self, text):

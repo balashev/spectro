@@ -131,7 +131,7 @@ class plotSpectrum(pg.PlotWidget):
         self.saveState = None
         self.addline = None
         self.doublet = [None, None]
-        self.doublets = []
+        self.doublets = doubletList(self)
         self.pcRegions = []
         self.instr_file = None
         self.instr_widget = None

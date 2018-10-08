@@ -87,7 +87,7 @@ def Lyaforest_scan(parent, data):
     zmax = x[-1] / lya - 1
     print(zmin, zmax)
 
-    koef = 3
+    koef_red = 3
     flux_limit = 0.95
 
     t.time('prepare')
@@ -127,7 +127,7 @@ def Lyaforest_scan(parent, data):
 
                 #t.time('prepare fit')
 
-                corr = correl3(y, yf, mask, err) / np.sum(mask, axis=0) / koef
+                corr = correl3(y, yf, mask, err) / np.sum(mask, axis=0) / koef_red
                 #print(corr.shape, corr)
                 if show_corr:
                     for l in range(4):
@@ -170,6 +170,7 @@ def Lyaforest_scan(parent, data):
     c = [l[4] for l in lines]
     sortind = np.argsort(zi)
     zi = np.array(zi)[sortind]
+    corr = np.array(corr)[sortind]
     c = np.array(c)[sortind]
     ind = np.where(np.diff(zi) > 0.0003)[0] + 1
     ind = np.insert(ind, 0, 0)
@@ -210,59 +211,73 @@ def Lyaforest_scan(parent, data):
         params.add('N', value=13, min=11, max=20)
         params.add('b', value=20, min=5, max=200)
 
+        def calc_mask(l, typ):
+            mask = f[l[1], l[2]] < flux_limit
+            xmin, xmax = xf[mask][0], xf[mask][-1]
+            if typ == 'l':
+                mask2 = f[l[1], l[2]] < 1 - (1 - np.min(f[l[1], l[2]])) / 2
+                xmax = xf[np.max(np.where(np.diff(mask2) > 0)[0])]
+            elif typ == 'r':
+                mask2 = f[l[1], l[2]] < 1 - (1 - np.min(f[l[1], l[2]])) / 2
+                xmin = xf[np.min(np.where(np.diff(mask2) > 0)[0])]
+            elif typ == 'b':
+                mask2 = f[l[1], l[2]] < 1 - (1 - np.min(f[l[1], l[2]])) / 3
+                xmin, xmax = xf[np.min(np.where(np.diff(mask2) > 0)[0])], xf[np.max(np.where(np.diff(mask2) > 0)[0])]
+            mask = (x > xmin * (1 + l[0])) * (x < xmax * (1 + l[0]))
+            return mask
+
         m = np.zeros_like(parent.s[0].spec.x(), dtype=bool)
+        lines = [lines[i] for i in sortind]
         if len(lines) > 0:
-            for i, typ in zip(ind, types):
+            i = 0
+            while i < len(ind):
                 x, y, err = parent.s[0].spec.x(), parent.s[0].spec.y(), parent.s[0].spec.err()
-                l = lines[sortind[i]]
-                #print(l)
-                mask = f[l[1], l[2]] < flux_limit
-                xmin, xmax = xf[mask][0], xf[mask][-1]
-                if typ == 'l':
-                    mask2 = f[l[1], l[2]] < 1 - (1 - np.min(f[l[1], l[2]])) / 2
-                    xmax = xf[np.max(np.where(np.diff(mask2) > 0)[0])]
-                elif typ == 'r':
-                    mask2 = f[l[1], l[2]] < 1 - (1 - np.min(f[l[1], l[2]])) / 2
-                    xmin = xf[np.min(np.where(np.diff(mask2) > 0)[0])]
-                elif typ == 'b':
-                    mask2 = f[l[1], l[2]] < 1 - (1 - np.min(f[l[1], l[2]])) / 3
-                    xmin, xmax = xf[np.min(np.where(np.diff(mask2) > 0)[0])], xf[np.max(np.where(np.diff(mask2) > 0)[0])]
-                mask = (x > xmin * (1 + l[0])) * (x < xmax * (1 + l[0]))
-                x, y, err = x[mask], y[mask], err[mask]
-                line = tau(z=l[0], logN=N_grid[l[1]], b=b_grid[l[2]], resolution=parent.s[0].resolution)
-                if 1 or (1 - np.min(f[l[1], l[2]])) / np.mean(err) > 3:
-                    # create a set of Parameters
-                    params['z'].value, params['N'].value, params['b'].value = line.z, line.logN, line.b
-                    save_N, save_b = line.logN, line.b
-                    params['z'].min, params['z'].max = line.z*(1 - 10./parent.s[0].resolution), line.z*(1 + 10./parent.s[0].resolution)
+                #print(i, ind[i], types[i])
+                l, typ = lines[ind[i]], types[i]
 
-                    # do fit, here with leastsq model
-                    minner = Minimizer(fcn2min, params, fcn_args=(x, y, err, line))
-                    #kws = {'options': {'maxiter': 50}}
-                    result = minner.minimize() #maxfev=200)
-                    z, N, Nerr, b, berr, chi = result.params['z'].value, result.params['N'].value, result.params['N'].stderr,\
-                                               result.params['b'].value, result.params['b'].stderr, result.redchi
-                    print(z, N, result.params['N'].stderr,  b, chi)
-                    plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')
-                    plt.arrow(save_N, save_b, N-save_N, b-save_b, fc='orangered', ec='orangered')
-                    if chi < 3 and N / Nerr > 3 and b / berr > 3: #1.5 + max_ston/50:
-                        m = np.logical_or(m, mask)
-                        if check_doublicates:
-                            if len(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0]) > 0:
-                                print(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0])
-                            #np.where((old_lines['name'] == qsoname) and np.abs(z - old_lines['z']) * 300 > 20:
-                        #if len(sample['z']) == 0 or len(np.where(np.abs(sample['z'][qsoname.encode() == sample['name']] - z) < 0.0001)[0]) == 0:
-                        filename.write('{:9.7f} {:7.3f} {:7.3f} {:7.3f} {:7.3f} {:7.2f} {:6.3f} {:2s} {:30s} {:30s}\n'.format(z, N, Nerr, b, berr, float(snr(1215.67*(1+z))), chi, typ, qsoname, '-'))
-
-                        if showFit:
-                            parent.fit.addSys(z=result.params['z'].value)
-                            parent.fit.sys[len(parent.fit.sys)-1].addSpecies('HI')
-                            parent.fit.setValue('N_{:d}_HI'.format(len(parent.fit.sys)-1), result.params['N'].value)
-                            parent.fit.setValue('b_{:d}_HI'.format(len(parent.fit.sys)-1), result.params['b'].value)
+                mask = calc_mask(l, types[i])
+                if ind[i] < ind[-1]:
+                    mask_next = calc_mask(lines[ind[i+1]], types[i+1])
                 else:
-                    plt.errorbar(line.logN, line.b, fmt='o', color='r')
-                    print('discarded:', line.logN, line.b)
+                    mask_next = np.zeros_like(mask)
+                if np.sum(mask * mask_next) > 5:
+                    i += 1
+                else:
+                    x, y, err = x[mask], y[mask], err[mask]
+                    line = tau(z=l[0], logN=N_grid[l[1]], b=b_grid[l[2]], resolution=parent.s[0].resolution)
+                    if 1 or (1 - np.min(f[l[1], l[2]])) / np.mean(err) > 3:
+                        # create a set of Parameters
+                        params['z'].value, params['N'].value, params['b'].value = line.z, line.logN, line.b
+                        save_N, save_b = line.logN, line.b
+                        params['z'].min, params['z'].max = line.z*(1 - 5./parent.s[0].resolution), line.z*(1 + 5./parent.s[0].resolution)
 
+                        # do fit, here with leastsq model
+                        minner = Minimizer(fcn2min, params, fcn_args=(x, y, err, line))
+                        #kws = {'options': {'maxiter': 50}}
+                        result = minner.minimize() #maxfev=200)
+                        z, N, Nerr, b, berr, chi = result.params['z'].value, result.params['N'].value, result.params['N'].stderr,\
+                                                   result.params['b'].value, result.params['b'].stderr, result.redchi
+                        print(z, N, result.params['N'].stderr,  b, chi)
+                        plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')
+                        plt.arrow(save_N, save_b, N-save_N, b-save_b, fc='orangered', ec='orangered')
+                        if chi < 3 and N / Nerr > 3 and b / berr > 3 and Nerr != 0 and berr != 0 and np.sum(m * mask) == 0: #1.5 + max_ston/50:
+                            m = np.logical_or(m, mask)
+                            if check_doublicates:
+                                if len(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0]) > 0:
+                                    print(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0])
+                                #np.where((old_lines['name'] == qsoname) and np.abs(z - old_lines['z']) * 300 > 20:
+                            #if len(sample['z']) == 0 or len(np.where(np.abs(sample['z'][qsoname.encode() == sample['name']] - z) < 0.0001)[0]) == 0:
+                            filename.write('{:9.7f} {:7.3f} {:7.3f} {:7.3f} {:7.3f} {:7.2f} {:6.3f} {:2s} {:30s} {:30s}\n'.format(z, N, Nerr, b, berr, float(snr(1215.67*(1+z))), chi, typ, qsoname, '-'))
+
+                            if showFit:
+                                parent.fit.addSys(z=result.params['z'].value)
+                                parent.fit.sys[len(parent.fit.sys)-1].addSpecies('HI')
+                                parent.fit.setValue('N_{:d}_HI'.format(len(parent.fit.sys)-1), result.params['N'].value)
+                                parent.fit.setValue('b_{:d}_HI'.format(len(parent.fit.sys)-1), result.params['b'].value)
+                    else:
+                        plt.errorbar(line.logN, line.b, fmt='o', color='r')
+                        print('discarded:', line.logN, line.b)
+                i += 1
         t.time('fit lines')
 
     filename.close()
@@ -294,7 +309,7 @@ def makeLyagrid_uniform(N_range=[13., 14], b_range=[20, 30], N_num=30, b_num=30,
 
 def makeLyagrid_fisher(N_range=[13., 14], b_range=[20, 30], ston=10, z=0, resolution=50000, plot=0):
 
-    koef = 4
+    koef = 8
 
     lines = [line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=z)]
     N_grid, b_grid = [N_range[0]], [b_range[0]]
