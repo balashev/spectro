@@ -424,6 +424,8 @@ class gline():
             d = m - np.transpose(m)
             #print(np.exp(-np.power(np.multiply(d, np.transpose(self.x / resolution)), 2) / 2))
 
+    def copy(self):
+        return gline(x=self.x[:], y=self.y[:], err=self.err[:])
 
 class plotStepSpectrum(pg.PlotCurveItem):
     """
@@ -1082,6 +1084,7 @@ class Spectrum():
         self.wavelmax = None
         self.init_pen()
         self.spec = specline(self)
+        self.spec_factor = 1
         self.mask = specline(self)
         self.bad_mask = specline(self)
         self.fit_mask = specline(self)
@@ -1357,13 +1360,13 @@ class Spectrum():
         if data is not None:
             if len(data) >= 3:
                 mask = np.logical_and(data[1] != 0, data[2] != 0)
-                self.spec.add(data[0][mask], data[1][mask], err=data[2][mask])
+                self.spec.set(data[0][mask], data[1][mask], err=data[2][mask])
                 if len(data) == 4:
                     self.cont.set_data(data[0][mask], data[3][mask])
                     self.cont_mask = np.ones_like(self.spec.x(), dtype=bool)
             elif len(data) == 2:
                 mask = (data[1] != 0)
-                self.spec.add(data[0][mask], data[1][mask])
+                self.spec.set(data[0][mask], data[1][mask])
             else:
                 mask = data[1] != np.NaN
         self.spec.raw.interpolate()
@@ -1730,6 +1733,7 @@ class Spectrum():
             if x is None:
                 x_spec = self.spec.norm.x
                 mask_glob = self.mask.norm.x
+                print('fit mask', len(mask_glob))
                 #mask_glob = np.zeros_like(x_spec)
                 for line in self.fit_lines:
                     mask_glob = np.maximum(mask_glob, line.tau.grid_spec(x_spec, tlim=tau_limit))
@@ -2075,21 +2079,46 @@ class Spectrum():
         #self.g_cont.setData(x=self.cont.x, y=self.cont.y)
 
     def rebinning(self, factor):
-        print(factor)
-        if factor == 0:
-            self.parent.vb.removeItem(self.rebin)
-            self.rebin = None
+        if self.spec_factor == 1:
+            self.spec_save = self.spec.raw.copy()
+        self.spec_factor *= factor
+        if self.spec_factor < 1:
+            self.spec_factor = 1
+        self.spec_factor = int(self.spec_factor)
+        if self.spec_factor == 1:
+            y, err = self.spec_save.y, self.spec_save.err
         else:
-            if self.rebin is None:
-                #self.rebin = plotStepSpectrum(x=[], y=[], stepMode=True)
-                self.rebin = pg.PlotCurveItem(x=[], y=[], pen=pg.mkPen(250, 100, 0, width=4))
-                self.parent.vb.addItem(self.rebin)
+            # y = np.convolve(self.spec.raw.y, np.ones((factor,)) / factor, mode='same')
+            cumsum = np.cumsum(np.r_[np.zeros((int(self.spec_factor / 2),)), self.spec_save.y, np.zeros(int(self.spec_factor / 2))])
+            y = (cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / float(self.spec_factor)
+            cumsum = np.cumsum(np.r_[np.zeros((int(self.spec_factor / 2),)), self.spec_save.err, np.zeros(int(self.spec_factor / 2))])
+            err = (cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / float(self.spec_factor) / np.sqrt(float(self.spec_factor))
+        self.set_data([self.spec.raw.x, y, err])
+        self.redraw()
 
-            n = self.spec.raw.x.shape[0] // factor
-            x = self.spec.raw.x[:n * factor].reshape(self.spec.raw.x.shape[0] // factor, factor).sum(1) / factor
-            y = self.spec.raw.y[:n * factor].reshape(self.spec.raw.x.shape[0] // factor, factor).sum(1) / factor
-            #y, err = spectres(self.spec.raw.x, self.spec.raw.y, x1, spec_errs=self.spec.raw.err)
-            self.rebin.setData(x=x, y=y)
+        if 0:
+            if factor == 0:
+                self.parent.vb.removeItem(self.rebin)
+                self.rebin = None
+            else:
+                if self.rebin is None:
+                    #self.rebin = plotStepSpectrum(x=[], y=[], stepMode=True)
+                    self.rebin = pg.PlotCurveItem(x=[], y=[], pen=pg.mkPen(250, 100, 0, width=4))
+                    self.parent.vb.addItem(self.rebin)
+
+                if 0:
+                    n = self.spec.raw.x.shape[0] // factor
+                    x = self.spec.raw.x[:n * factor].reshape(self.spec.raw.x.shape[0] // factor, factor).sum(1) / factor
+                    y = self.spec.raw.y[:n * factor].reshape(self.spec.raw.x.shape[0] // factor, factor).sum(1) / factor
+                else:
+                    if factor == 1:
+                        y = self.spec_save.y
+                    else:
+                    #y = np.convolve(self.spec.raw.y, np.ones((factor,)) / factor, mode='same')
+                        cumsum = np.cumsum(np.r_[np.zeros((int(factor/2),)), self.spec_save.y, np.zeros(int(factor/2))])
+                        y = (cumsum[factor:] - cumsum[:-factor]) / float(factor)
+                #y, err = spectres(self.spec.raw.x, self.spec.raw.y, x1, spec_errs=self.spec.raw.err)
+                self.rebin.setData(x=self.spec.raw.x, y=y)
 
     def crosscorrExposures(self, ind, dv=50):
         fig, ax = plt.subplots()

@@ -344,16 +344,16 @@ class QSOlistTable(pg.TableWidget):
             #self.parent.normview = False
             self.row_clicked(idx.row())
             self.parent.normalize(True)
-            x, y = self.parent.s[-1].spec.norm.x, self.parent.s[-1].spec.norm.y
+            x, y, err = self.parent.s[-1].spec.norm.x, self.parent.s[-1].spec.norm.y, self.parent.s[-1].spec.norm.err
             mask = (x > 1215.6701 * (1 + float(self.cell_value('z_min')))) * (x < 1215.6701 * (1 + float(self.cell_value('z_max'))))
-            print(np.sum(mask))
             for r in self.parent.plot.regions:
                 mi, ma = r.getRegion()
                 mask *= (x < mi) | (x > ma)
             if np.sum(mask) > 0:
                 inds = np.append(np.where(np.diff(mask.astype(int)) < 0)[0], np.where(np.diff(mask.astype(int)) > 0)[0]+1)
                 y[inds] = np.ones(len(inds))
-                data = np.c_[x[mask], y[mask], self.parent.s[-1].spec.norm.err[mask]]
+                err[inds] = 0.01 * np.ones(len(inds))
+                data = np.c_[x[mask], y[mask], err[mask]]
                 np.savetxt(self.folder+'/norm/'+self.cell_value('name')+'.dat', data, fmt='%10.4f %12.4f %12.4f')
                 return data
             else:

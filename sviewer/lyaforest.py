@@ -68,6 +68,7 @@ def Lyaforest_scan(parent, data):
         x = np.logspace(np.log10(data[0][1]), np.log10(data[0][-2]), int((data[0][-2]-data[0][1])/0.017))
     y, err = spectres.spectres(data[0], data[1], x, spec_errs=data[2])
     s = Spectrum(parent, name='rebinned')
+    parent.normview = False
     s.set_data([x, y, err])
     s.spec.norm.set_data(x, y, err=err)
     s.cont.set_data(x, np.ones_like(x))
@@ -78,23 +79,24 @@ def Lyaforest_scan(parent, data):
         box = np.ones(window) / window
         snr = interp1d(x[mask], np.convolve(y[mask]/err[mask], box, mode='same'), fill_value='extrapolate')
 
-    parent.s.append(s)
-    parent.s.ind = 1
-    parent.s.redraw()
+    parent.normview = True
+    #parent.s.append(s)
+    parent.s.ind = 0
+    #parent.s.redraw()
 
     lya = 1215.6701
     zmin = x[0] / lya - 1
     zmax = x[-1] / lya - 1
     print(zmin, zmax)
 
-    koef_red = 3
+    koef_red = 4
     flux_limit = 0.95
 
     t.time('prepare')
 
     # >>> make Lya line grid
     if 0:
-        N_grid, b_grid, xf, f = makeLyagrid_uniform(N_range=[13.0, 14.5], b_range=[10, 30], N_num=10, b_num=10, resolution=s.resolution)
+        N_grid, b_grid, xf, f = makeLyagrid_uniform(N_range=[13.0, 14.5], b_range=[10, 30], N_num=5, b_num=5, resolution=s.resolution)
     else:
         max_ston = np.max(snr(np.linspace(x[0], x[-1], 50)))
         print('max_ston:', max_ston)
@@ -240,7 +242,7 @@ def Lyaforest_scan(parent, data):
                     mask_next = calc_mask(lines[ind[i+1]], types[i+1])
                 else:
                     mask_next = np.zeros_like(mask)
-                if np.sum(mask * mask_next) > 5:
+                if np.sum(mask * mask_next) > 4:
                     i += 1
                 else:
                     x, y, err = x[mask], y[mask], err[mask]
@@ -257,7 +259,7 @@ def Lyaforest_scan(parent, data):
                         result = minner.minimize() #maxfev=200)
                         z, N, Nerr, b, berr, chi = result.params['z'].value, result.params['N'].value, result.params['N'].stderr,\
                                                    result.params['b'].value, result.params['b'].stderr, result.redchi
-                        print(z, N, result.params['N'].stderr,  b, chi)
+                        print(z, N, Nerr,  b, berr, chi)
                         plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')
                         plt.arrow(save_N, save_b, N-save_N, b-save_b, fc='orangered', ec='orangered')
                         if chi < 3 and N / Nerr > 3 and b / berr > 3 and Nerr != 0 and berr != 0 and np.sum(m * mask) == 0: #1.5 + max_ston/50:
@@ -284,6 +286,7 @@ def Lyaforest_scan(parent, data):
     plt.show()
     if showFit:
         print(parent.fit.list())
+        print('mask', len(m))
         parent.s[0].mask.set(x=m)
         parent.s.prepareFit()
         parent.s.calcFit()

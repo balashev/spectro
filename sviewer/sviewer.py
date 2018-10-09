@@ -656,10 +656,8 @@ class plotSpectrum(pg.PlotWidget):
                 pass
             event.accept()
         elif self.m_status:
-            self.m_status *= 2 ** np.sign(event.angleDelta().y())
-            if self.m_status < 1:
-                self.m_status = 0
-            self.parent.s[self.parent.s.ind].rebinning(self.m_status)
+            #self.m_status =
+            self.parent.s[self.parent.s.ind].rebinning(np.power(2.0, np.sign(event.angleDelta().y())))
         else:
             super(plotSpectrum, self).wheelEvent(event)
             pos = self.vb.sceneBoundingRect()
@@ -669,7 +667,7 @@ class plotSpectrum(pg.PlotWidget):
     def mouseDragEvent(self, ev):
         
         if ev.button() == Qt.RightButton:
-            ev.ignore()    
+            ev.ignore()
         else:
             pg.ViewBox.mouseDragEvent(self, ev)
          
@@ -6762,11 +6760,11 @@ class sviewer(QMainWindow):
 
     def importSDSSlist(self, filename):
         if 1:
-            if any([s in filename for s in ['.dat', '.txt']]):
+            if any([s in filename for s in ['.dat', '.txt', '.list']]):
                 with open(filename) as f:
                     n = np.min([len(line.split()) for line in f])
                 print(n)
-                self.SDSSdata = np.genfromtxt(filename, names=True, dtype=None, unpack=True, usecols=range(n), comments='#')
+                self.SDSSdata = np.genfromtxt(filename, names=True, dtype=None, unpack=True, usecols=range(n), comments='#', encoding=None)
                 print(self.SDSSdata)
             elif '.fits' in filename:
                 hdulist = fits.open(filename)
