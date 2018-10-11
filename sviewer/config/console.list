@@ -1,13 +1,4 @@
 show H2 0 1
-show H2 0 1
-show H2 0 1
-show H2 0 1
-show H2 0 1
-show SiII*
-show CII*
-show H2 0 1
-show H2 0 1
-show H2 0 1
 show NV
 show SiII*
 show H2 0 1
@@ -19,3 +10,12 @@ SiII*
 show OI*
 show OI**
 show HD
+show NV
+show H2 0 1
+load H2
+load H201
+load H2_01
+load HIH2
+SiII*
+show SiII*
+show CII*

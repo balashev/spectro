@@ -1733,7 +1733,6 @@ class Spectrum():
             if x is None:
                 x_spec = self.spec.norm.x
                 mask_glob = self.mask.norm.x
-                print('fit mask', len(mask_glob))
                 #mask_glob = np.zeros_like(x_spec)
                 for line in self.fit_lines:
                     mask_glob = np.maximum(mask_glob, line.tau.grid_spec(x_spec, tlim=tau_limit))
@@ -1777,7 +1776,6 @@ class Spectrum():
             # >>> convolve the spectrum with instrument function
             #self.resolution = None
             if self.resolution not in [None, 0]:
-                print(self.resolution)
                 flux = convolveflux(x, flux, self.resolution, kind='direct')
             if timer:
                 t.time('convolve')
@@ -1997,11 +1995,9 @@ class Spectrum():
                 flux = flux * self.correctContinuum(x)
 
             # >>> correct for dispersion:
-            print(self.parent.fit.disp_fit)
             if self.parent.fit.disp_fit:
                 for i in range(self.parent.fit.disp_num):
                     if getattr(self.parent.fit, 'dispz_' + str(i)).addinfo == 'exp_' + str(self.ind()):
-                        print((x - getattr(self.parent.fit, 'dispz_' + str(i)).val) * getattr(self.parent.fit, 'disps_' + str(i)).val)
                         f = interp1d(x + (x - getattr(self.parent.fit, 'dispz_' + str(i)).val) * getattr(self.parent.fit, 'disps_' + str(i)).val, flux, bounds_error=False, fill_value=1)
                         flux = f(x)
 
@@ -2009,7 +2005,6 @@ class Spectrum():
             if ind == -1:
                 self.set_fit(x=x, y=flux)
                 if redraw:
-                    print('redraw')
                     self.set_gfit()
                     self.set_res()
             else:

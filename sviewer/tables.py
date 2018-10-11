@@ -351,7 +351,7 @@ class QSOlistTable(pg.TableWidget):
                 mask *= (x < mi) | (x > ma)
             if np.sum(mask) > 0:
                 inds = np.append(np.where(np.diff(mask.astype(int)) < 0)[0], np.where(np.diff(mask.astype(int)) > 0)[0]+1)
-                y[inds] = np.ones(len(inds))
+                y[inds] = np.zeros(len(inds))
                 err[inds] = 0.01 * np.ones(len(inds))
                 data = np.c_[x[mask], y[mask], err[mask]]
                 np.savetxt(self.folder+'/norm/'+self.cell_value('name')+'.dat', data, fmt='%10.4f %12.4f %12.4f')

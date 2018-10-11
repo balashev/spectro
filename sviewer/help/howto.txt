@@ -38,18 +38,19 @@ f: construct fit
 h: choose lya
    h + <mouse left click>         :  set redshift for lya line to be at the position of mouse
 
-m: rebin spectrum
-   m + <mouse wheel forward>      : increase rebinning
-   m + <mouse wheel backward>     : decrease rebinning
+m: smooth spectrum
+   m + <mouse wheel forward>      :  increase smoothness 
+   m + <mouse wheel backward>     :  decrease smoothness
 
 n: normalize/unnormalize the spectrum
 
 o: open / change UVES setup
-   o                              : change UVES setup 
+   o                              :  change UVES setup 
    o + CRTL                       :  open file
      
 r: select region:
    r + <select by mouse>          :  add region (how to work with regions see Tutorial)
+   r + SHIFT                      :  force top x axis to show restframe wavelenght
    
 s: select data points:
    s + <select by mouse>          :  select data points

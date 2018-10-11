@@ -12,6 +12,7 @@ from scipy.signal import correlate, argrelextrema
 from ..profiles import tau, convolveflux, fisherbN
 from ..atomic import line
 from .external import spectres
+from .fit import fitPars
 from .graphics import Spectrum
 from .utils import Timer
 
@@ -193,6 +194,8 @@ def Lyaforest_scan(parent, data):
     #print(types)
     showFit = 1
     check_doublicates = 1
+    if showFit:
+        parent.fit = fitPars(parent)
     if 1:
         if check_doublicates:
             old_lines = np.genfromtxt('C:/science/Telikova/Lyasample/lines.dat', names=True, dtype=None)

@@ -43,10 +43,10 @@ class speci:
         self.set_names()
         self.g = np.zeros(self.num)
         self.E = np.zeros(self.num)
-        self.descr = ['']*self.num
+        self.descr = [''] * self.num
         self.coll = {}
-        self.A = np.zeros([self.num,self.num])
-        self.B = np.zeros([self.num,self.num])
+        self.A = np.zeros([self.num, self.num])
+        self.B = np.zeros([self.num, self.num])
         self.n = n
         self.mask = [n is not None for n in self.n]
         self.const2 = (ac.h.cgs**2/(2*ac.m_e.cgs*np.pi)**(1.5)/(ac.k_B.cgs)**0.5).value
@@ -992,7 +992,7 @@ class pyratio():
             ref = x[level]
 
         if isinstance(logN, (int, float)):
-            return [np.log10(10**logN * x[i]/ref) for i in range(self.species[name].num)]
+            return [np.log10(10**logN * x[i] / ref) for i in range(self.species[name].num)]
 
         if isinstance(logN, a):
             return [logN * x[i]/ref for i in range(self.species[name].num)]
@@ -1764,8 +1764,18 @@ if __name__ == '__main__':
     if 1:
         pr = pyratio(z=2.5)
         pr.set_pars(['T', 'n', 'f', 'UV'])
-        pr.set_prior('f', a(0, 0, 0))
-        pr.set_prior('T', a(1.7, 0, 0))
-        pr.add_spec('CI', [a(), a(), a()])
-        pr.pars['n'].value = 2
-        pr.predict()
+        pr.pars['T'].range = [1.5, 5]
+        pr.set_prior('T', a(4, 0, 0))
+        pr.pars['UV'].range = [2, 5]
+        pr.pars['n'].range = [1, 5]
+        pr.pars['f'].range = [-6, 0]
+        pr.set_fixed('f', -3)
+        pr.add_spec('SiII', [a(15, 0.1), a(14, 0.1)])
+        if 0:
+            pr.pars['n'].value = 7
+            pr.pars['UV'].value = 3
+            print(pr.predict())
+        else:
+            out = pr.calc_grid(grid_num=10, plot=2, verbose=1, alpha=0.5, color='dodgerblue')
+            plt.show()
+
