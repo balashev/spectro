@@ -156,12 +156,14 @@ class speci:
                         for l in range(n):
                             data.append(list(map(float, f_in.readline().split())))
                         data = np.array(data)
-                        self.E = np.append(self.E, sorted(list(set(data.transpose()[0]))))
+                        E, inds = np.unique(data.transpose()[0], return_index=True)
+                        self.E = np.append(self.E, E)
+                        self.g = np.append(self.g, data.transpose()[1][inds])
                         for E in self.E[self.num:]:
                             A = np.zeros(self.num)
                             for d in data:
                                 if d[0] == E:
-                                    self.g = np.append(self.g, d[1])
+                                    #self.g = np.append(self.g, d[1])
                                     A[int(d[2])-1] = d[3]
                             self.A = np.append(self.A, [A], axis=0)
                         #print(self.E)

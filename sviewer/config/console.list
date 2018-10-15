@@ -1,5 +1,3 @@
-show H2 0 1
-show NV
 show SiII*
 show H2 0 1
 show SiII*
@@ -19,3 +17,5 @@ load HIH2
 SiII*
 show SiII*
 show CII*
+hide H2
+show H2 0 1

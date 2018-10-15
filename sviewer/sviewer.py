@@ -2241,7 +2241,7 @@ class fitMCMCWidget(QWidget):
         mask = np.array([self.parent.fit.list()[[str(i) for i in self.parent.fit.list()].index(p)].show for p in pars])
         names = [str(p).replace('_', ' ') for p in self.parent.fit.list_fit() if p.show]
         if self.parent.options('MCMC_likelihood'):
-            names = [r'$\chi^2$'] + names
+            names = [r'$\chi^2$'] + pars
             samples = np.insert(samples, 0, lnprobs, axis=1)
             mask = np.insert(mask, 0, True)
         imax = np.argmin(lnprobs)
