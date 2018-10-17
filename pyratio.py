@@ -730,7 +730,7 @@ class pyratio():
             K = np.transpose(W)
             for i in range(speci.num):
                 for k in range(speci.num):
-                    if k != i: K[i, i] -= W[i, k]
+                    K[i, i] -= W[i, k]
             return np.insert(np.abs(np.linalg.solve(K[1:, 1:], -K[1:, 0])), 0, 1)
 
         elif debug in ['A', 'CMB', 'C', 'UV']:

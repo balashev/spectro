@@ -110,7 +110,7 @@ def Lyaforest_scan(parent, data):
     # >>> calc fit line
     show_corr = 0
     typ = {0: 'c', 1: 'r', 2: 'l', 3: 'b'}
-    if 0:
+    if 1:
         lines = []
         for i, N in enumerate(N_grid):
             print(i)
@@ -283,7 +283,6 @@ def Lyaforest_scan(parent, data):
                         plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')
                         plt.arrow(save_N, save_b, N-save_N, b-save_b, fc='orangered', ec='orangered')
                         if chi < 3 and N / Nerr > 1 and b / berr > 1: #and Nerr != 0 and berr != 0 and np.sum(m * mask) == 0:
-                            print('take it')
                             m = np.logical_or(m, mask)
                             if check_doublicates:
                                 if len(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0]) > 0:
