@@ -7,6 +7,7 @@ import pickle
 from PyQt5.QtCore import Qt
 import pyqtgraph as pg
 from scipy.interpolate import interp1d
+from scipy.optimize import curve_fit
 from scipy.signal import correlate, argrelextrema
 
 from ..profiles import tau, convolveflux, fisherbN
@@ -109,7 +110,7 @@ def Lyaforest_scan(parent, data):
     # >>> calc fit line
     show_corr = 0
     typ = {0: 'c', 1: 'r', 2: 'l', 3: 'b'}
-    if 1:
+    if 0:
         lines = []
         for i, N in enumerate(N_grid):
             print(i)
@@ -210,6 +211,14 @@ def Lyaforest_scan(parent, data):
             inter = interp1d(line.x, convolveflux(line.x, np.exp(-line.tau), res=parent.s[0].resolution), bounds_error=False, fill_value=1)
             return (y - inter(x)) / err
 
+        def VoigtProfile(x, z, logN, b):
+            line.z, line.logN, line.b = z, logN, b
+            line.calctau()
+            inter = interp1d(line.x, convolveflux(line.x, np.exp(-line.tau), res=parent.s[0].resolution),
+                             bounds_error=False, fill_value=1)
+            return inter(x)
+
+
         # create a set of Parameters
         params = Parameters()
         params.add('z', value=2, min=0, max=10)
@@ -249,23 +258,32 @@ def Lyaforest_scan(parent, data):
                     i += 1
                 else:
                     x, y, err = x[mask], y[mask], err[mask]
+                    global line
+
                     line = tau(z=l[0], logN=N_grid[l[1]], b=b_grid[l[2]], resolution=parent.s[0].resolution)
                     if 1 or (1 - np.min(f[l[1], l[2]])) / np.mean(err) > 3:
-                        # create a set of Parameters
-                        params['z'].value, params['N'].value, params['b'].value = line.z, line.logN, line.b
                         save_N, save_b = line.logN, line.b
-                        params['z'].min, params['z'].max = line.z*(1 - 5./parent.s[0].resolution), line.z*(1 + 5./parent.s[0].resolution)
 
-                        # do fit, here with leastsq model
-                        minner = Minimizer(fcn2min, params, fcn_args=(x, y, err, line))
-                        #kws = {'options': {'maxiter': 50}}
-                        result = minner.minimize() #maxfev=200)
-                        z, N, Nerr, b, berr, chi = result.params['z'].value, result.params['N'].value, result.params['N'].stderr,\
-                                                   result.params['b'].value, result.params['b'].stderr, result.redchi
+                        params['z'].value, params['N'].value, params['b'].value = line.z, line.logN, line.b
+                        params['z'].min, params['z'].max = line.z * (1 - 15. / parent.s[0].resolution), line.z * (1 + 15. / parent.s[0].resolution)
+
+                        if 0:
+                            minner = Minimizer(fcn2min, params, fcn_args=(x, y, err, line))
+                            #kws = {'options': {'maxiter': 50}}
+                            result = minner.minimize(method='leastsq') #maxfev=200)
+                            z, N, Nerr, b, berr, chi = result.params['z'].value, result.params['N'].value, result.params['N'].stderr,\
+                                                       result.params['b'].value, result.params['b'].stderr, result.redchi
+                        else:
+                            popt, pcov = curve_fit(VoigtProfile, x, y, p0=(l[0], save_N, save_b), sigma=err, bounds=([params['z'].min, params['N'].min, params['b'].min], [params['z'].max, params['N'].max, params['b'].max]))
+                            z, N, Nerr, b, berr = popt[0], popt[1], np.sqrt(pcov[1, 1]), popt[2], np.sqrt(pcov[2, 2])
+                            chi = np.sum(((VoigtProfile(x, z, N, b) - y) / err) ** 2) / (len(x) - 3)
+
                         print(z, N, Nerr,  b, berr, chi)
+
                         plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')
                         plt.arrow(save_N, save_b, N-save_N, b-save_b, fc='orangered', ec='orangered')
-                        if chi < 3 and N / Nerr > 3 and b / berr > 3 and Nerr != 0 and berr != 0 and np.sum(m * mask) == 0: #1.5 + max_ston/50:
+                        if chi < 3 and N / Nerr > 1 and b / berr > 1: #and Nerr != 0 and berr != 0 and np.sum(m * mask) == 0:
+                            print('take it')
                             m = np.logical_or(m, mask)
                             if check_doublicates:
                                 if len(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0]) > 0:
@@ -275,10 +293,10 @@ def Lyaforest_scan(parent, data):
                             filename.write('{:9.7f} {:7.3f} {:7.3f} {:7.3f} {:7.3f} {:7.2f} {:6.3f} {:2s} {:30s} {:30s}\n'.format(z, N, Nerr, b, berr, float(snr(1215.67*(1+z))), chi, typ, qsoname, '-'))
 
                             if showFit:
-                                parent.fit.addSys(z=result.params['z'].value)
+                                parent.fit.addSys(z=z)
                                 parent.fit.sys[len(parent.fit.sys)-1].addSpecies('HI')
-                                parent.fit.setValue('N_{:d}_HI'.format(len(parent.fit.sys)-1), result.params['N'].value)
-                                parent.fit.setValue('b_{:d}_HI'.format(len(parent.fit.sys)-1), result.params['b'].value)
+                                parent.fit.setValue('N_{:d}_HI'.format(len(parent.fit.sys)-1), N)
+                                parent.fit.setValue('b_{:d}_HI'.format(len(parent.fit.sys)-1), b)
                     else:
                         plt.errorbar(line.logN, line.b, fmt='o', color='r')
                         print('discarded:', line.logN, line.b)

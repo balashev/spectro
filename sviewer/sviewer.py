@@ -20,18 +20,6 @@ from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget, QD
                              QStatusBar, QMenu, QButtonGroup, QMessageBox)
 from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl
 from PyQt5.QtGui import QDesktopServices
-from pyqtgraph.widgets.MatplotlibWidget import MatplotlibWidget
-from pyqtgraph.GraphicsScene import exportDialog
-from scipy.integrate import quad
-from scipy.optimize import curve_fit
-from scipy.stats import gaussian_kde
-from sklearn.neighbors import KernelDensity
-import subprocess
-import sys
-sys.path.append('C:/science/python')
-import threading
-from time import sleep
-
 #from H2_summary import load_P94
 
 from ..XQ100 import load_QSO
