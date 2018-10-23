@@ -1,21 +1,21 @@
-show SiII*
+show HD 
+show CI
+FeII
+show H2 0 2
+show H2 2 3
+show ZnII
+show ClI
 show H2 0 1
 show SiII*
-show CiII*
-show CII*
 show NV
+FEII
+FeII
+show CII*
 SiII*
 show OI*
-show OI**
-show HD
-show NV
+OI*
+OI**
+FeII*
+OI*
 show H2 0 1
-load H2
-load H201
-load H2_01
-load HIH2
-SiII*
-show SiII*
-show CII*
-hide H2
-show H2 0 1
+logN H2

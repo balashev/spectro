@@ -8,6 +8,21 @@ from scipy import interpolate, integrate, optimize
 from scipy.stats import gaussian_kde, rv_continuous, norm
 
 class distr1d():
+    """
+    Dealing with 1d distributions.
+
+    Example of usage:
+    d = distr1d(x, y), where x and y array specified distribution
+
+    Make point estimate:
+    d.dopoint()
+
+    Make interval estimate:
+    d.dointerval(conf=0.683)
+
+    Make plot:
+    d.plot(conf=0.683)
+    """
     def __init__(self, x, y=None, xtol=1e-5, debug=False):
         self.x = x
         if y is not None:

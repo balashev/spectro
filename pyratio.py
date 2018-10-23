@@ -727,7 +727,7 @@ class pyratio():
 
         #self.timer.time('solve')
         if debug is None:
-            K = np.transpose(W)
+            K = np.transpose(W).copy()
             for i in range(speci.num):
                 for k in range(speci.num):
                     K[i, i] -= W[i, k]

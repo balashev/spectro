@@ -92,7 +92,7 @@ def Lyaforest_scan(parent, data):
     print(zmin, zmax)
 
     koef_red = 4
-    flux_limit = 0.95
+    flux_limit = 0.97
 
     t.time('prepare')
 
@@ -212,9 +212,9 @@ def Lyaforest_scan(parent, data):
             return (y - inter(x)) / err
 
         def VoigtProfile(x, z, logN, b):
-            line.z, line.logN, line.b = z, logN, b
-            line.calctau()
-            inter = interp1d(line.x, convolveflux(line.x, np.exp(-line.tau), res=parent.s[0].resolution),
+            line_.z, line_.logN, line_.b = z, logN, b
+            line_.calctau()
+            inter = interp1d(line_.x, convolveflux(line_.x, np.exp(-line_.tau), res=parent.s[0].resolution),
                              bounds_error=False, fill_value=1)
             return inter(x)
 
@@ -258,26 +258,30 @@ def Lyaforest_scan(parent, data):
                     i += 1
                 else:
                     x, y, err = x[mask], y[mask], err[mask]
-                    global line
+                    global line_
 
-                    line = tau(z=l[0], logN=N_grid[l[1]], b=b_grid[l[2]], resolution=parent.s[0].resolution)
+                    line_ = tau(z=l[0], logN=N_grid[l[1]], b=b_grid[l[2]], resolution=parent.s[0].resolution)
                     if 1 or (1 - np.min(f[l[1], l[2]])) / np.mean(err) > 3:
-                        save_N, save_b = line.logN, line.b
+                        save_N, save_b = line_.logN, line_.b
 
-                        params['z'].value, params['N'].value, params['b'].value = line.z, line.logN, line.b
-                        params['z'].min, params['z'].max = line.z * (1 - 15. / parent.s[0].resolution), line.z * (1 + 15. / parent.s[0].resolution)
+                        params['z'].value, params['N'].value, params['b'].value = line_.z, line_.logN, line_.b
+                        params['z'].min, params['z'].max = line_.z * (1 - 15. / parent.s[0].resolution), line_.z * (1 + 15. / parent.s[0].resolution)
 
-                        if 0:
-                            minner = Minimizer(fcn2min, params, fcn_args=(x, y, err, line))
-                            #kws = {'options': {'maxiter': 50}}
-                            result = minner.minimize(method='leastsq') #maxfev=200)
-                            z, N, Nerr, b, berr, chi = result.params['z'].value, result.params['N'].value, result.params['N'].stderr,\
-                                                       result.params['b'].value, result.params['b'].stderr, result.redchi
-                        else:
-                            popt, pcov = curve_fit(VoigtProfile, x, y, p0=(l[0], save_N, save_b), sigma=err, bounds=([params['z'].min, params['N'].min, params['b'].min], [params['z'].max, params['N'].max, params['b'].max]))
+                        dN, db, F, Fmin = fisherbN(save_N, save_b, [line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=line_.z)], ston=float(snr(1215.67 * (1 + line_.z))), resolution=parent.s[0].resolution)
+
+                        if 1:
+                            popt, pcov = curve_fit(VoigtProfile, x, y, p0=(l[0], save_N, save_b), sigma=err, method='dogbox', bounds=([params['z'].min, params['N'].min, params['b'].min], [params['z'].max, params['N'].max, params['b'].max]))
                             z, N, Nerr, b, berr = popt[0], popt[1], np.sqrt(pcov[1, 1]), popt[2], np.sqrt(pcov[2, 2])
                             chi = np.sum(((VoigtProfile(x, z, N, b) - y) / err) ** 2) / (len(x) - 3)
+                        else:
+                            minner = Minimizer(fcn2min, params, fcn_args=(x, y, err, line_))
+                            # kws = {'options': {'maxiter': 50}}
+                            result = minner.minimize(method='leastsq')  # maxfev=200)
+                            z, N, Nerr, b, berr, chi = result.params['z'].value, result.params['N'].value, result.params['N'].stderr, result.params['b'].value, result.params['b'].stderr, result.redchi
 
+                        Nerr, berr = np.max([Nerr, dN]), np.max([berr, db])
+
+                        #if np.sqrt(pcov[1, 1]) > fisherbN(N, b, [line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=z)], ston=float(snr(1215.67*(1+z))), resolution=parent.s[0].resolution)
                         print(z, N, Nerr,  b, berr, chi)
 
                         plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')

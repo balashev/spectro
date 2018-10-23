@@ -4,4 +4,4 @@ version: 0.1
 created by: Serj Balashev
 licence: GPL?
 dependensies additional to standart Anaconda package: 
-PyQT, pyqtgraph, PyOpenGL, emcee, lmfit, ChainConsumer, corner, adjustText, mendeleev
+PyQT, pyqtgraph, PyOpenGL, emcee, lmfit, ChainConsumer, corner, ccdproc, adjustText, mendeleev, astroplan
