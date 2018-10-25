@@ -96,21 +96,21 @@ def Lyaforest_scan(parent, data):
 
     t.time('prepare')
 
-    # >>> make Lya line grid
-    if 0:
-        N_grid, b_grid, xf, f = makeLyagrid_uniform(N_range=[13.0, 14.5], b_range=[10, 30], N_num=5, b_num=5, resolution=s.resolution)
-    else:
-        max_ston = np.max(snr(np.linspace(x[0], x[-1], 50)))
-        print('max_ston:', max_ston)
-        N_grid, b_grid, xf, f = makeLyagrid_fisher(N_range=[13.0, 14.5], b_range=[10, 50], z=(zmin+zmax)/2, ston=max_ston, resolution=s.resolution, plot=0)
-    #N_grid, b_grid, xf, f = makeLyagrid(N_range=[14.39, 14.39], b_range=[28, 28], N_num=1, b_num=1, resolution=s.resolution)
-    xl = xf * x[int(len(x)/2)] / 1215.6701
-    t.time('make Lya grid')
-
-    # >>> calc fit line
-    show_corr = 0
     typ = {0: 'c', 1: 'r', 2: 'l', 3: 'b'}
-    if 1:
+    if 0:
+        # >>> make Lya line grid
+        if 1:
+            N_grid, b_grid, xf, f = makeLyagrid_uniform(N_range=[13.0, 14.5], b_range=[10, 30], N_num=5, b_num=5, resolution=s.resolution)
+        else:
+            max_ston = np.max(snr(np.linspace(x[0], x[-1], 50)))
+            print('max_ston:', max_ston)
+            N_grid, b_grid, xf, f = makeLyagrid_fisher(N_range=[13.0, 14.5], b_range=[10, 50], z=(zmin+zmax)/2, ston=max_ston, resolution=s.resolution, plot=0)
+        #N_grid, b_grid, xf, f = makeLyagrid(N_range=[14.39, 14.39], b_range=[28, 28], N_num=1, b_num=1, resolution=s.resolution)
+        xl = xf * x[int(len(x)/2)] / 1215.6701
+        t.time('make Lya grid')
+
+        # >>> calc fit line
+        show_corr = 0
         lines = []
         for i, N in enumerate(N_grid):
             print(i)
@@ -162,12 +162,12 @@ def Lyaforest_scan(parent, data):
                         lines.append((x_corr[ind[0][imin]] / 1215.6701 - 1, i, k, corr[ind[0][imin], ind[1][imin]], typ[ind[1, imin]]))
                 #t.time('find local minima')
             t.time('loop')
-        with open('C:/Temp/Lyalines.dat', 'wb') as fil:
-            pickle.dump(lines, fil)
+        with open('C:/science/Telikova/Lyasample/pickle/' + qsoname, 'wb') as fil:
+            pickle.dump((N_grid, b_grid, xf, f, lines), fil)
         t.time('fit lines')
     else:
-        lines = pickle.load(open('C:/Temp/Lyalines.dat', 'rb'))
-
+        with open('C:/science/Telikova/Lyasample/pickle/' + qsoname, 'rb') as fil:
+            N_grid, b_grid, xf, f, lines = pickle.load(fil)
 
     zi = [l[0] for l in lines]
     corr = [l[3] for l in lines]
@@ -286,7 +286,7 @@ def Lyaforest_scan(parent, data):
 
                         plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')
                         plt.arrow(save_N, save_b, N-save_N, b-save_b, fc='orangered', ec='orangered')
-                        if chi < 3 and N / Nerr > 1 and b / berr > 1: #and Nerr != 0 and berr != 0 and np.sum(m * mask) == 0:
+                        if chi < 3 and N / Nerr > 5 and b / berr > 5: #and Nerr != 0 and berr != 0 and np.sum(m * mask) == 0:
                             m = np.logical_or(m, mask)
                             if check_doublicates:
                                 if len(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0]) > 0:

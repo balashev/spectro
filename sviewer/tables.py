@@ -493,8 +493,8 @@ class QSOlistTable(pg.TableWidget):
         load_spectrum = 0
         if 'SDSS' == self.cat:
             if colInd == 0:
-                fiber = '{:04d}'.format(int(self.cell_value('Fiber')))
-                plate = self.cell_value('Plate')
+                fiber = '{:04d}'.format(int(self.cell_value('FIBERID')))
+                plate = self.cell_value('PLATE')
                 MJD = self.cell_value('MJD')
                 if 1:
                     self.parent.loadSDSS(plate=plate, MJD=MJD, fiber=fiber)
@@ -504,15 +504,18 @@ class QSOlistTable(pg.TableWidget):
                 #self.parent.vb.enableAutoRange()
                 print('spectrum loaded')
                 if 1:
-                    ind = np.where((self.data['PLATE'] == int(self.cell_value('PLATE'))) & (self.data['FIBER'] == int(fiber)))[0][0]
-                    self.parent.setz_abs(self.data['z_H2'][ind])
-                else:
-                    self.parent.setz_abs(float(self.cell_value('z_H2')))
-                self.parent.console.exec_command('load HIH2')
-                print(float(self.cell_value('NHI')), self.parent.fit.sys[0].sp['HI'].N.val)
-                self.parent.fit.sys[0].sp['HI'].N.val = float(self.cell_value('NHI'))
-                self.parent.fit.sys[0].sp['H2j0'].N.val = float(self.cell_value('H2')) - 0.2
-                self.parent.fit.sys[0].sp['H2j1'].N.val = float(self.cell_value('H2')) - 0.1
+                    ind = np.where((self.data['PLATE'] == int(self.cell_value('PLATE'))) & (self.data['FIBERID'] == int(fiber)))[0][0]
+                    for attr in ['Z', 'Z_VI', 'Z_PCE', 'Z_CIV']:
+                        if attr in self.data.dtype.names:
+                            self.parent.setz_abs(self.data[attr][ind])
+                            break
+
+                if 0:
+                    self.parent.console.exec_command('load HIH2')
+                    print(float(self.cell_value('NHI')), self.parent.fit.sys[0].sp['HI'].N.val)
+                    self.parent.fit.sys[0].sp['HI'].N.val = float(self.cell_value('NHI'))
+                    self.parent.fit.sys[0].sp['H2j0'].N.val = float(self.cell_value('H2')) - 0.2
+                    self.parent.fit.sys[0].sp['H2j1'].N.val = float(self.cell_value('H2')) - 0.1
 
         if 'SDSSLee' == self.cat:
             if colInd == 0:

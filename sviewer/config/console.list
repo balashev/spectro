@@ -1,4 +1,3 @@
-show HD 
 show CI
 FeII
 show H2 0 2
@@ -19,3 +18,4 @@ FeII*
 OI*
 show H2 0 1
 logN H2
+show H2 0 1

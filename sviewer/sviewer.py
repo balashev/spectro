@@ -1,5 +1,6 @@
 from adjustText import adjust_text
 from astropy.io import fits
+from astropy.table import Table
 from collections import OrderedDict
 from copy import deepcopy
 import emcee
@@ -3423,58 +3424,263 @@ class loadSDSSwidget(QWidget):
         
     def initUI(self):      
 
-        lbl = QLabel('Plate:', self)
-        lbl.move(20, 20)
+        splitter = QSplitter(Qt.Vertical)
+
+        layout = QVBoxLayout(self)
+        l = QHBoxLayout(self)
+        l.addWidget(QLabel('Plate:', self))
         self.plate = QLineEdit(self)
         self.plate.setMaxLength(4)
-        #self.plate.setInputMask('9999')
-        self.plate.move(20, 40) 
-        #self.plate.textChanged[str].connect(self.plateChanged)
+        l.addWidget(self.plate)
+
+        l.addWidget(QLabel('MJD:', self))
+        self.mjd = QLineEdit(self)
+        self.mjd.setMaxLength(5)
+        l.addWidget(self.mjd)
+        #self.MJD.move(20, 90)
         
-        lbl = QLabel('MJD:', self)
-        lbl.move(20, 70)
-        self.MJD = QLineEdit(self)
-        self.MJD.setMaxLength(5)
-        #self.MJD.setInputMask('99999')
-        self.MJD.move(20, 90)
-        
-        lbl = QLabel('fiber:', self)
-        lbl.move(20, 120)
+        l.addWidget(QLabel('fiber:', self))
         self.fiber = QLineEdit(self)
         self.fiber.setMaxLength(4)
-        #self.fiber.setInputMask('9999')
-        self.fiber.move(20, 140)
+        l.addWidget(self.fiber)
+        l.addStretch(1)
 
-        lbl = QLabel('or name:', self)
-        lbl.move(20, 180)
+        l.addWidget(QLabel('or name:', self))
         self.name = QLineEdit(self)
         self.name.setMaxLength(30)
         self.name.setFixedSize(200, 30)
-        # self.fiber.setInputMask('9999')
-        self.name.move(20, 200)
-        
+        l.addWidget(self.name)
+
+        layout.addLayout(l)
+
+        l = QHBoxLayout(self)
         self.load = QPushButton('Load', self)
-        self.load.move(20, 250)
-        self.load.setFixedSize(100, 30)
-        self.load.resize(self.load.sizeHint())
+        self.load.setFixedSize(150, 30)
+        #self.load.resize(self.load.sizeHint())
         self.load.clicked.connect(self.loadspectrum)
-        
-        self.setGeometry(300, 300, 320, 290)
+        l.addWidget(self.load)
+        l.addStretch(1)
+
+        layout.addLayout(l)
+        layout.addStretch(1)
+
+        widget = QWidget()
+        widget.setLayout(layout)
+        splitter.addWidget(widget)
+
+        layout = QVBoxLayout(self)
+        l = QHBoxLayout(self)
+        l.addWidget(QLabel('Load list:'))
+        self.filename = QLineEdit(self)
+        self.filename.setMaxLength(100)
+        self.filename.setFixedSize(600, 30)
+        l.addWidget(self.filename)
+        self.choosefile = QPushButton('Choose', self)
+        self.choosefile.setFixedSize(100, 30)
+        self.choosefile.clicked.connect(self.chooseFile)
+        l.addWidget(self.choosefile)
+        l.addStretch(1)
+        layout.addLayout(l)
+
+        l = QHBoxLayout(self)
+        self.DR14 = QCheckBox('DR14')
+        self.DR14.clicked.connect(partial(self.selectCat, 'DR14'))
+        l.addWidget(self.DR14)
+
+        self.DR12 = QCheckBox('DR12')
+        self.DR12.clicked.connect(partial(self.selectCat, 'DR12'))
+        l.addWidget(self.DR12)
+
+        self.DR9Lee = QCheckBox('DR9Lee')
+        self.DR9Lee.clicked.connect(partial(self.selectCat, 'DR9Lee'))
+        l.addWidget(self.DR9Lee)
+        l.addStretch(1)
+
+        grp = QButtonGroup(self)
+        grp.addButton(self.DR14)
+        grp.addButton(self.DR12)
+        grp.addButton(self.DR9Lee)
+        getattr(self, self.parent.SDSScat).setChecked(True)
+
+        layout.addLayout(l)
+
+        hl = QHBoxLayout(self)
+
+        self.sdsslist = QTextEdit('#enter list in PLATE, FIBER format')
+        self.sdsslist.setFixedSize(250, 500)
+        hl.addWidget(self.sdsslist)
+
+        self.listPars = QWidget(self)
+        self.scrolllayout = QVBoxLayout(self.listPars)
+        self.scroll = None
+        self.saved = {}
+        self.updateScroll()
+        hl.addWidget(self.listPars)
+
+        vl = QVBoxLayout(self)
+        self.preview = QTextEdit()
+        self.preview.setFixedSize(400, 500)
+        vl.addWidget(self.preview)
+
+        l = QHBoxLayout(self)
+        l.addWidget(QLabel('Plate:'))
+        self.plate_col = QLineEdit()
+        self.plate_col.setFixedSize(40, 30)
+        l.addWidget(self.plate_col)
+
+        l.addWidget(QLabel('Fiber:'))
+        self.fiber_col = QLineEdit()
+        self.fiber_col.setFixedSize(40, 30)
+        l.addWidget(self.fiber_col)
+
+        l.addWidget(QLabel('Header:'))
+        self.header = QLineEdit()
+        self.header.setText('1')
+        self.header.setFixedSize(40, 30)
+        l.addWidget(self.header)
+        l.addStretch(1)
+        vl.addLayout(l)
+
+        hl.addStretch(1)
+        hl.addLayout(vl)
+
+        layout.addLayout(hl)
+
+        l = QHBoxLayout(self)
+        self.loadlist = QPushButton('Load list', self)
+        self.loadlist.setFixedSize(150, 30)
+        # self.load.resize(self.load.sizeHint())
+        self.loadlist.clicked.connect(self.loadList)
+        l.addWidget(self.loadlist)
+        l.addStretch(1)
+
+        layout.addLayout(l)
+
+        layout.addStretch(1)
+        widget = QWidget()
+        widget.setLayout(layout)
+        splitter.addWidget(widget)
+
+        splitter.setSizes([250, 1500])
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(splitter)
+        self.setLayout(layout)
+
+        self.setGeometry(300, 300, 950, 900)
         self.setWindowTitle('load SDSS by Plate/MJD/Fiber or name')
-        self.show()    
-    
+        self.show()
+        self.selectCat()
+
+    def updateScroll(self):
+        for s in self.saved.keys():
+            try:
+                self.scrolllayout.removeWidget(getattr(self, s))
+                getattr(self, s).deleteLater()
+            except:
+                pass
+        if self.scroll is not None:
+            self.scrolllayout.removeWidget(self.scroll)
+            self.scroll.deleteLater()
+
+        self.scroll = QScrollArea()
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setWidgetResizable(True)
+        #self.scroll.setMaximumHeight(self.height()-150)
+        self.scrollContent = QWidget(self.scroll)
+        if hasattr(self, 'data'):
+            l = QVBoxLayout()
+            for par in self.saved.keys():
+                setattr(self, str(par), QCheckBox(str(par)))
+                getattr(self, str(par)).setChecked(self.saved[par])
+                getattr(self, str(par)).clicked[bool].connect(partial(self.click, str(par)))
+                l.addWidget(getattr(self, str(par)))
+            l.addStretch()
+            self.scrollContent.setLayout(l)
+            self.scroll.setWidget(self.scrollContent)
+        self.scrolllayout.addWidget(self.scroll)
+
+
     def loadspectrum(self):
 
         plate = str(self.plate.text())
-        MJD = str(self.MJD.text())
+        MJD = str(self.mjd.text())
         fiber = '{:0>4}'.format(self.fiber.text())
         name = self.name.text().strip()
 
         if self.parent.loadSDSS(plate=plate, MJD=MJD, fiber=fiber, name=name):
             self.close()
 
+    def chooseFile(self):
+        fname = QFileDialog.getOpenFileName(self, 'Import SDSS list', self.parent.SDSSfolder)
+
+        if fname[0]:
+            self.filename.setText(fname[0])
+            self.parent.options('SDSSfolder', os.path.dirname(fname[0]))
+            with open(fname[0], 'r') as f:
+                try:
+                    self.header.setText('1')
+                    data = np.genfromtxt(self.filename.text(), names=True)
+                    names = [n.lower() for n in data.dtype.names]
+                    self.plate_col.setText(str(data.dtype.names.index(names.index('plate'))))
+                    ind = names.index('fiber') if 'fiber' in names else names.index('fiberid')
+                    self.fiber_col.setText(str(ind))
+                except:
+                    t = f.readlines()
+                    self.preview.setPlainText(''.join(t))
+                    ind = [len(s.split()) for s in t]
+                    print(ind)
+                    self.header.setText(str(np.argmax(ind)))
+
+    def selectCat(self, cat=None):
+        if cat != self.parent.SDSScat:
+            if cat is None:
+                cat = self.parent.SDSScat
+            self.parent.options('SDSScat', cat)
+            if cat == 'DR14':
+                self.data = Table.read('C:\science\SDSS\DR14\DR14Q_v4_4.fits')
+                default = ['SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID', 'Z']
+            if cat == 'DR12':
+                self.data = Table(self.parent.IGMspec['BOSS_DR12']['meta'][()])
+                default = ['SDSS_NAME', 'RA_GROUP', 'DEC_GROUP', 'PLATE', 'MJD', 'FIBERID', 'Z_VI']
+            if cat == 'DR9Lee':
+                self.data = Table.read('C:/science/SDSS/DR9_Lee/BOSSLyaDR9_cat.fits')
+                default = ['SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID', 'Z_VI']
+            self.saved = {}
+            for par in self.data.colnames:
+                self.saved[str(par)] = par in default
+            self.updateScroll()
+
+    def click(self, s):
+        self.saved[s] = getattr(self, s).isChecked()
+
+    def loadList(self):
+        pars = [k for k, v in self.saved.items() if v]
+
+        self.parent.SDSSdata = None
+        if self.filename.text().strip() == '':
+            self.parent.SDSSdata = np.array(self.data[pars])
+        else:
+            data = np.genfromtxt(self.filename.text(), dtype=int, skip_header=int(self.header.text()))
+            plate = data[:, int(self.plate_col.text())]
+            fiber = data[:, int(self.fiber_col.text())]
+            inds = []
+            for p, f in zip(plate, fiber):
+                ind = np.where((self.data['PLATE'] == p) * (self.data['FIBERID'] == f))[0]
+                if len(ind) > 0:
+                    inds.append(ind[0])
+                else:
+                    print('missing:', p, f)
+
+            self.parent.SDSSdata = np.array(self.data[pars][inds])
+
+        if self.parent.SDSSdata is not None:
+            self.parent.SDSSlist = QSOlistTable(self.parent, 'SDSS')
+            self.parent.SDSSlist.setdata(self.parent.SDSSdata)
+
     def keyPressEvent(self, qKeyEvent):
-        if qKeyEvent.key() == Qt.Key_Return: 
+        if qKeyEvent.key() == Qt.Key_Return:
             self.loadspectrum()
 
 class SDSSPhotWidget(QWidget):
@@ -3527,8 +3733,8 @@ class ShowListImport(QWidget):
         with open(self.parent.importListFile) as f:
             if loadall:
                 flist = f.read().splitlines()
-            self.parent.importSpectrum(flist, 
-                                       dir_path=os.path.dirname(self.parent.importListFile)+'/')
+            self.parent.importSpectrum(flist, dir_path=os.path.dirname(self.parent.importListFile)+'/')
+
     def loadall(self):
         self.load(loadall=True)
 
@@ -4396,6 +4602,9 @@ class sviewer(QMainWindow):
             self.config = 'config/options_linux.ini'
         self.develope = self.options('developerMode', config=self.config)
         self.SDSSfolder = self.options('SDSSfolder', config=self.config)
+        self.SDSSDR14 = self.options('SDSSDR14', config=self.config)
+        if self.SDSSDR14 is not None and os.path.isfile(self.SDSSDR14):
+            self.SDSSDR14 = h5py.File(self.SDSSDR14, 'r')
         self.SDSSLeefolder = self.options('SDSSLeefolder', config=self.config)
         self.SDSSdata = []
         self.SDSS_filters_status = 0
@@ -4423,6 +4632,7 @@ class sviewer(QMainWindow):
         self.comp_view = self.options('comp_view')
         self.animateFit = self.options('animateFit')
         self.polyDeg = int(self.options('polyDeg'))
+        self.SDSScat = self.options('SDSScat')
         self.comp = 0
         self.fitprocess = None
         self.fitModel = None
@@ -4441,7 +4651,7 @@ class sviewer(QMainWindow):
         dbg = pg.dbg()
         # self.specview sets the type of plot representation
         for l in ['specview', 'selectview', 'linelabels', 'showinactive', 'show_osc', 'fitType', 'fitComp', 'fitPoints']:
-            setattr(self, l , self.options(l))
+            setattr(self, l, self.options(l))
         # >>> create panel for plotting spectra
         self.plot = plotSpectrum(self)
         self.vb = self.plot.getPlotItem().getViewBox()
@@ -4843,10 +5053,6 @@ class sviewer(QMainWindow):
             loadSDSS.setStatusTip('Load SDSS by Plate/fiber')
             loadSDSS.triggered.connect(self.showSDSSdialog)
 
-            loadSDSSlist = QAction('&Load list', self)
-            loadSDSSlist.setStatusTip('Load SDSS list')
-            loadSDSSlist.triggered.connect(self.showSDSSlistdialog)
-
             SDSSLeelist = QAction('&DR9 Lee list', self)
             SDSSLeelist.setStatusTip('load SDSS DR9 Lee database')
             SDSSLeelist.triggered.connect(self.loadSDSSLee)
@@ -4882,7 +5088,6 @@ class sviewer(QMainWindow):
 
             SDSSMenu.addAction(loadSDSS)
             SDSSMenu.addSeparator()
-            SDSSMenu.addAction(loadSDSSlist)
             SDSSMenu.addAction(SDSSLeelist)
             SDSSMenu.addAction(SDSSlist)
             SDSSMenu.addSeparator()
@@ -6700,40 +6905,61 @@ class sviewer(QMainWindow):
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
     def loadSDSS(self, plate=None, MJD=None, fiber=None, name=None, z_abs=0):
-        try :
-            sdss = self.IGMspec['BOSS_DR12']
+        out = True
+        print(self.SDSScat)
+        if self.SDSScat == 'DR12':
+            try:
+                sdss = self.IGMspec['BOSS_DR12']
 
-            if name is None or name is '':
-                ind = np.where((sdss['meta']['PLATE'] == int(plate)) & (sdss['meta']['FIBERID'] == int(fiber)))[0][0]
-            else:
-                name = name.replace('J', '').replace('SDSS', '').strip()
-                ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (name[:name.index('-')], name[name.index('-'):])
-                ra, dec = hms_to_deg(ra), dms_to_deg(dec)
-                print(ra, dec)
-                ind = np.argmin((sdss['meta']['RA_GROUP'] - ra) ** 2 + (sdss['meta']['DEC_GROUP'] - dec) ** 2)
-            print(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'))
-            self.importSpectrum(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'), spec=[sdss['spec'][ind]['wave'], sdss['spec'][ind]['flux'],
-                                             sdss['spec'][ind]['sig']])
+                if name is None or name is '':
+                    ind = np.where((sdss['meta']['PLATE'] == int(plate)) & (sdss['meta']['FIBERID'] == int(fiber)))[0][0]
+                else:
+                    name = name.replace('J', '').replace('SDSS', '').strip()
+                    ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (name[:name.index('-')], name[name.index('-'):])
+                    ra, dec = hms_to_deg(ra), dms_to_deg(dec)
+                    print(ra, dec)
+                    ind = np.argmin((sdss['meta']['RA_GROUP'] - ra) ** 2 + (sdss['meta']['DEC_GROUP'] - dec) ** 2)
+                print(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'))
+                self.importSpectrum(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'), spec=[sdss['spec'][ind]['wave'], sdss['spec'][ind]['flux'],
+                                                 sdss['spec'][ind]['sig']])
+                resolution = int(sdss['meta'][ind]['R'])
+            except:
+                out = False
+        elif self.SDSScat == 'DR14':
+            try:
+                sdss = self.SDSSDR14['meta']
 
-            self.s[-1].resolution = int(sdss['meta'][ind]['R'])
+                if name is None or name.strip() == '':
+                    ind = np.where((sdss['meta']['PLATE'] == int(plate)) & (sdss['meta']['FIBERID'] == int(fiber)))[0][0]
+                else:
+                    name = name.replace('J', '').replace('SDSS', '').strip()
+                    ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (name[:name.index('-')], name[name.index('-'):])
+                    ra, dec = hms_to_deg(ra), dms_to_deg(dec)
+                    ind = np.argmin((sdss['meta']['RA'] - ra) ** 2 + (sdss['meta']['DEC'] - dec) ** 2)
+                print(ind)
+                plate, fiber = sdss['meta']['PLATE'][ind], sdss['meta']['FIBERID'][ind]
+                print(plate, fiber)
+                print('data/{0:04d}/{1:04d}'.format(plate, fiber))
+                spec = sdss['data/{0:04d}/{1:04d}'.format(plate, fiber)]
+                print(spec)
+                print(spec[0])
+                self.importSpectrum('spec-{0:05d}-{1:05d}-{2:04d}'.format(plate, sdss['meta']['MJD'][ind], fiber),
+                                    spec=[spec[0], spec[1], spec[2]])
+                resolution = 1800
+            except:
+                out = False
+        elif self.SDSScat == 'DR9Lee':
+            pass
+        else:
+            out = False
+        if out:
+            self.s[-1].resolution = resolution
             self.vb.enableAutoRange()
             self.z_abs = z_abs
             self.abs.redraw()
             self.statusBar.setText('Spectrum is imported: ' + self.s[-1].filename)
-            return True
-        except:
-            return False
+        return out
 
-    def showSDSSlistdialog(self):
-
-        fname = QFileDialog.getOpenFileName(self, 'Import SDSS list', self.SDSSfolder)
-
-        if fname[0]:
-            self.options('SDSSfolder', os.path.dirname(fname[0]))
-            self.importSDSSlist(fname[0])
-            self.statusBar.setText('SDSS list is imported ' + fname[0])
-            self.show_SDSS_list()
-    
     def loadSDSSLee(self):
         self.LeeResid = np.loadtxt('C:/Science/SDSS/DR9_Lee/residcorr_v5_4_45.dat', unpack=True)
         self.importSDSSlist('C:/science/SDSS/DR9_Lee/BOSSLyaDR9_cat.fits')
