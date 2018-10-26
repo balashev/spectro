@@ -6936,15 +6936,11 @@ class sviewer(QMainWindow):
                     ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (name[:name.index('-')], name[name.index('-'):])
                     ra, dec = hms_to_deg(ra), dms_to_deg(dec)
                     ind = np.argmin((sdss['meta']['RA'] - ra) ** 2 + (sdss['meta']['DEC'] - dec) ** 2)
-                print(ind)
                 plate, fiber = sdss['meta']['PLATE'][ind], sdss['meta']['FIBERID'][ind]
-                print(plate, fiber)
-                print('data/{0:04d}/{1:04d}'.format(plate, fiber))
-                spec = sdss['data/{0:04d}/{1:04d}'.format(plate, fiber)]
-                print(spec)
-                print(spec[0])
+                spec = self.SDSSDR14['data/{0:04d}/{1:04d}'.format(plate, fiber)]
+                mask = spec[:, 2] > 0
                 self.importSpectrum('spec-{0:05d}-{1:05d}-{2:04d}'.format(plate, sdss['meta']['MJD'][ind], fiber),
-                                    spec=[spec[0], spec[1], spec[2]])
+                                    spec=[10**spec[:,0][mask], spec[:,1][mask], np.sqrt(1.0/spec[:,2][mask])])
                 resolution = 1800
             except:
                 out = False

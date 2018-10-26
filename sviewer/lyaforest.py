@@ -97,10 +97,10 @@ def Lyaforest_scan(parent, data):
     t.time('prepare')
 
     typ = {0: 'c', 1: 'r', 2: 'l', 3: 'b'}
-    if 0:
+    if 1:
         # >>> make Lya line grid
-        if 1:
-            N_grid, b_grid, xf, f = makeLyagrid_uniform(N_range=[13.0, 14.5], b_range=[10, 30], N_num=5, b_num=5, resolution=s.resolution)
+        if 0:
+            N_grid, b_grid, xf, f = makeLyagrid_uniform(N_range=[13.0, 14.5], b_range=[10, 30], N_num=20, b_num=20, resolution=s.resolution)
         else:
             max_ston = np.max(snr(np.linspace(x[0], x[-1], 50)))
             print('max_ston:', max_ston)
@@ -287,19 +287,36 @@ def Lyaforest_scan(parent, data):
                         plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')
                         plt.arrow(save_N, save_b, N-save_N, b-save_b, fc='orangered', ec='orangered')
                         if chi < 3 and N / Nerr > 5 and b / berr > 5: #and Nerr != 0 and berr != 0 and np.sum(m * mask) == 0:
-                            m = np.logical_or(m, mask)
-                            if check_doublicates:
-                                if len(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0]) > 0:
-                                    print(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0])
-                                #np.where((old_lines['name'] == qsoname) and np.abs(z - old_lines['z']) * 300 > 20:
-                            #if len(sample['z']) == 0 or len(np.where(np.abs(sample['z'][qsoname.encode() == sample['name']] - z) < 0.0001)[0]) == 0:
-                            filename.write('{:9.7f} {:7.3f} {:7.3f} {:7.3f} {:7.3f} {:7.2f} {:6.3f} {:2s} {:30s} {:30s}\n'.format(z, N, Nerr, b, berr, float(snr(1215.67*(1+z))), chi, typ, qsoname, '-'))
+                            lyb = True
+                            if lyb:
+                                line_ = tau(line=line('lyb', l=1025.7223, f=0.07912, g=1.897e8, z=z, logN=N, b=b), resolution=parent.s[0].resolution)
+                                line_.calctau()
+                                flux = convolveflux(line_.x, np.exp(-line_.tau), res=parent.s[0].resolution)
+                                x, y, err = parent.s[0].spec.x(), parent.s[0].spec.y(), parent.s[0].spec.err()
+                                m_lyb = (x > line_.x[0]) * (x < line_.x[-1])
+                                inter = interp1d(line_.x, flux, bounds_error=False, fill_value=1)
+                                m1 = y[m_lyb] > inter(x[m_lyb])
+                                print(np.sum(m_lyb), np.sum(m1))
+                                if np.sum(m1) > 10 and np.sum(((y[m_lyb][m1] - inter(x[m_lyb])[m1])/err[m_lyb][m1])**2)/np.sum(m1) > 4:
+                                    fig, ax = plt.subplots()
+                                    ax.plot(x[m_lyb], y[m_lyb])
+                                    ax.plot(x[m_lyb], inter(x[m_lyb]), '-r')
+                                else:
+                                    lyb = False
+                            if not lyb:
+                                m = np.logical_or(m, mask)
+                                if check_doublicates:
+                                    if len(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0]) > 0:
+                                        print(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0])
+                                    #np.where((old_lines['name'] == qsoname) and np.abs(z - old_lines['z']) * 300 > 20:
+                                #if len(sample['z']) == 0 or len(np.where(np.abs(sample['z'][qsoname.encode() == sample['name']] - z) < 0.0001)[0]) == 0:
+                                filename.write('{:9.7f} {:7.3f} {:7.3f} {:7.3f} {:7.3f} {:7.2f} {:6.3f} {:2s} {:30s} {:30s}\n'.format(z, N, Nerr, b, berr, float(snr(1215.67*(1+z))), chi, typ, qsoname, '-'))
 
-                            if showFit:
-                                parent.fit.addSys(z=z)
-                                parent.fit.sys[len(parent.fit.sys)-1].addSpecies('HI')
-                                parent.fit.setValue('N_{:d}_HI'.format(len(parent.fit.sys)-1), N)
-                                parent.fit.setValue('b_{:d}_HI'.format(len(parent.fit.sys)-1), b)
+                                if showFit:
+                                    parent.fit.addSys(z=z)
+                                    parent.fit.sys[len(parent.fit.sys)-1].addSpecies('HI')
+                                    parent.fit.setValue('N_{:d}_HI'.format(len(parent.fit.sys)-1), N)
+                                    parent.fit.setValue('b_{:d}_HI'.format(len(parent.fit.sys)-1), b)
                     else:
                         plt.errorbar(line.logN, line.b, fmt='o', color='r')
                         print('discarded:', line.logN, line.b)

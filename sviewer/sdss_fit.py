@@ -14,6 +14,7 @@ import pickle
 from scipy.interpolate import interp1d, interp2d
 from scipy.optimize import minimize
 from scipy.sparse.linalg import svds
+from scipy.stats import spearmanr
 from sklearn.preprocessing import Imputer
 from sklearn.decomposition import PCA, FastICA
 
@@ -607,7 +608,7 @@ def HIStackFitGamma(self, load=True, draw=True):
 
 def make_H2_template(self):
     self.console.exec_command('load H2_2')
-    H2_range = np.linspace(19, 21, 10)
+    H2_range = np.linspace(20, 21, 1)
     spec = None
     for i, H2 in enumerate(H2_range):
         print(i)
@@ -634,38 +635,51 @@ def load_H2_template():
     return H2_range, x, spec
 
 def weight_H2(x):
-    return 1 / (1 + np.exp((x-3)*5)) * (1 + np.exp((-x-2)))
+    return 1 / (1 + np.exp((-x-2)*5)) * (1 + np.exp((x-2)))
 
-def search_H2(self, z_abs=2.4, v_range=4000, HI=21.2, H2=19.8):
+def search_H2(self, z_abs=2.4, v_range=2000, HI=21.2, H2=19.8):
     mask = (self.s[self.s.ind].spec.x() < 1130 * (1 + z_abs)) * (self.s[self.s.ind].spec.x() > 911 * (1 + z_abs))
     x, y, err = self.s[self.s.ind].spec.x()[mask], self.s[self.s.ind].spec.y()[mask], self.s[self.s.ind].spec.err()[mask]
     if 0:
         make_H2_template(self)
     H2_range, x_s, spec = load_H2_template()
+    print(H2_range)
     fig, ax = plt.subplots()
-    ax.plot(x, y)
+    ax2 = ax.twinx()
+    ax3 = ax.twinx()
+    #ax.plot(x, y)
     for i, H2 in enumerate(H2_range):
         #ax.plot(x, spec[i])
-        f = interp1d(x_s, spec[i], fill_value=1)
+        f = interp1d(x_s, spec[i], fill_value=1, bounds_error=False)
         mask = spec[i] < 0.95
-        mask_inter = interp1d(x_s, mask, fill_value=0)
+        mask_inter = interp1d(x_s, mask, fill_value=0, bounds_error=False)
         v_grid = np.linspace(-v_range, v_range, 100)
-        chi = np.zeros_like(v_grid)
+        chi, sp, p = np.zeros_like(v_grid), np.zeros_like(v_grid), np.zeros_like(v_grid)
         for k, v in enumerate(v_grid):
-            z = z_abs + v / 3e5
+            z = z_abs + (1 + z_abs) * v / 3e5
             m = mask_inter(x / (1 + z)) == 1
-            res = (y[m] - f(x[m] / (1 + z))) / err[m]
-            w = weight_H2(res)
-            chi[k] = np.sum(res ** 2 * w) / np.sum(w)
-            if 1 and i == 5 and k in [0, 50, 99]:
-                print(x, f(x / (1 + z)))
-                ax.plot(x, f(x / (1 + z)))
-        if 0:
-            ax.plot(v_grid, np.log10(chi), label=H2)
+            if 1:
+                sp[k], p[k] = spearmanr(y[m], f(x[m] / (1 + z)))
+            if 1:
+                res = (y[m] - f(x[m] / (1 + z))) / err[m]
+                w = weight_H2(res)
+                chi[k] = np.sum(res ** 2 * w) / np.sum(w)
+
+        if 1:
+            ax.plot(v_grid, sp, c='orangered', label=H2)
+            ax2.plot(v_grid, np.log10(p), 'dodgerblue', label=H2)
+            ax2.spines['right'].set_position(('outward', 0))
+            ax2.set_frame_on(True)
+            ax2.patch.set_visible(False)
+            ax3.plot(v_grid, chi, 'forestgreen', label=H2)
+            ax3.spines['right'].set_position(('outward', 60))
+            ax3.set_frame_on(True)
+            ax3.patch.set_visible(False)
         if 0:
             x1 = np.linspace(910, 1150, 200)
             ax.plot(x1, mask_inter(x1))
-    plt.legend()
+        ind = np.argmax(sp)
+        self.setz_abs(z_abs + (1 + z_abs) * v_grid[ind] / 3e5)
     plt.show()
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
