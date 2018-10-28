@@ -150,18 +150,18 @@ class par:
                     dec = self.dec
             if latex:
                 if self.name in ['z']:
-                    return '${0:.{3}f}(^{{+{1:d}}}_{{-{2:d}}})$'.format(self.val, int(self.unc.plus*10**dec), int(self.unc.minus*10**dec), dec)
+                    return '${0:.{3}f}(^{{+{1:d}}}_{{-{2:d}}})$'.format(self.unc.val, int(self.unc.plus*10**dec), int(self.unc.minus*10**dec), dec)
                 else:
-                    return '${0:.{3}f}^{{+{1:.{3}f}}}_{{-{2:.{3}f}}}$'.format(self.val, self.unc.plus, self.unc.minus, dec)
+                    return '${0:.{3}f}^{{+{1:.{3}f}}}_{{-{2:.{3}f}}}$'.format(self.unc.val, self.unc.plus, self.unc.minus, dec)
             elif classview:
                 if self.name in ['z']:
-                    return 'co = sy({0:.{2}f}, {1:d})'.format(self.val, int(np.sqrt(self.unc.plus**2 + self.unc.minus**2) * 10 ** dec), dec)
+                    return 'co = sy({0:.{2}f}, {1:d})'.format(self.unc.val, int(np.sqrt(self.unc.plus**2 + self.unc.minus**2) * 10 ** dec), dec)
                 elif self.name in ['N']:
-                    return "co.el('{0}', {1:.{4}f}, {2:.{4}f}, {3:.{4}f})".format(self.parent.name, self.val, self.unc.plus, self.unc.minus, dec)
+                    return "co.el('{0}', {1:.{4}f}, {2:.{4}f}, {3:.{4}f})".format(self.parent.name, self.unc.val, self.unc.plus, self.unc.minus, dec)
             elif aview:
-                return '({0:.{3}f}, {1:.{3}f}, {2:.{3}f})'.format(self.val, self.unc.plus, self.unc.minus, dec)
+                return '({0:.{3}f}, {1:.{3}f}, {2:.{3}f})'.format(self.unc.val, self.unc.plus, self.unc.minus, dec)
             else:
-                return '{0} = {1:.{4}f} + {2:.{4}f} - {3:.{4}f}'.format(str(self), self.val, self.unc.plus, self.unc.minus, dec)
+                return '{0} = {1:.{4}f} + {2:.{4}f} - {3:.{4}f}'.format(str(self), self.unc.val, self.unc.plus, self.unc.minus, dec)
         else:
             if dec is None:
                 dec = self.dec
@@ -192,6 +192,7 @@ class fitSystem:
         #self.turb = par(self, 'turb', 5, 0.5, 20, 0.05, vary=self.cons_vary, fit=self.cons_vary)
         #self.kin = par(self, 'kin', 5e4, 1e4, 1e5, 1e3, vary=self.cons_vary, fit=self.cons_vary)
         self.sp = OrderedDict()
+        self.total = OrderedDict()
         self.pr = None
 
     def add(self, name):
@@ -213,9 +214,9 @@ class fitSystem:
             if hasattr(self, name):
                 delattr(self, name)
 
-    def addSpecies(self, name):
-        if name not in self.sp.keys():
-            self.sp[name] = fitSpecies(self, name)
+    def addSpecies(self, name, dic='sp'):
+        if name not in getattr(self, dic).keys():
+            getattr(self, dic)[name] = fitSpecies(self, name)
             #if self.parent.parent is not None:
             #    self.parent.parent.console.exec_command('show ' + name)
             return True
@@ -281,6 +282,8 @@ class fitPars:
     def __init__(self, parent):
         self.parent = parent
         self.sys = []
+        self.total = fitSystem(self)
+        self.total.ind = 'total'
         self.cont_fit = False
         self.cont_num = 0
         self.cont_left = 3500
@@ -506,6 +509,16 @@ class fitPars:
                             pars[str(p)] = p
         return pars
 
+    def list_total(self):
+        pars = OrderedDict()
+        for sys in self.sys:
+            for k, v in sys.total.items():
+                pars['_'.join(['N', str(self.sys.index(sys)), k])] = v.N
+        for k, v in self.total.sp.items():
+            pars['_'.join(['N', 'total', k])] = v.N
+
+        return pars
+
     def readPars(self, name):
         s = name.split()
         attrs = ['val', 'min', 'max', 'step', 'vary', 'addinfo']
@@ -559,6 +572,10 @@ class fitPars:
     def __str__(self):
         return '\n'.join([str(s) for s in self.sys])
 
+
+
+
+# Classes for parallelization
 
 class spectra(list):
     def __init__(self):

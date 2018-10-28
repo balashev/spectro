@@ -1086,11 +1086,13 @@ class fitResultsWidget(QWidget):
         fit = self.parent.fit
         if (self.showtotal.isChecked() or self.showme.isChecked() or self.showdep.isChecked()): #and self.res is None:
             self.res = self.parent.showMetalAbundance(component=0, dep_ref=self.depref, HI=self.HI)
+
         sps = OrderedDict()
         for sys in fit.sys:
             for sp in sys.sp.keys():
                 sps[sp] = 1
         #names = ['par'] + ['comp '+str(i+1) for i in range(len(fit.sys))]
+
         d = ['comp', 'z']
         if self.showv.isChecked():
             d += ['$\Delta$v, km/s']
@@ -1102,25 +1104,34 @@ class fitResultsWidget(QWidget):
         if self.showLFR.isChecked() and self.parent.fit.cf_fit:
             d += [r'LFR']
         data = [d]
+
         for sys in fit.sys:
             d = [str(fit.sys.index(sys)+1)]
             d.append(sys.z.fitres(latex=True, showname=False))
+
             if self.showv.isChecked():
                 d.append('{:.1f}'.format((sys.z.val - fit.sys[self.comp].z.val)/(1 + fit.sys[self.comp].z.val) * 299792.46))
+
             if self.showb.isChecked():
                 sp = sys.sp[list(sys.sp.keys())[0]]
                 if sp.b.addinfo is not '':
                     sp = sys.sp[sp.b.addinfo]
                 d.append(sp.b.fitres(latex=True, dec=2, showname=False))
+
             for sp in sps.keys():
                 if sp in sys.sp.keys():
                     d.append(sys.sp[sp].N.fitres(latex=True, dec=2, showname=False))
                 else:
                     d.append(' ')
+
             t = False
             if self.showtotal.isChecked():
                 for el in ['H2', 'CO', 'HD', 'CI']:
-                    if all([el in sp for sp in sys.sp.keys()]):
+                    print(sys.total.keys())
+                    if el in sys.total.keys():
+                        d.append(sys.total[el].N.fitres(latex=True, dec=2, showname=False))
+                        print(sys.total[el].N.fitres(latex=True, dec=2, showname=False))
+                    elif all([el in sp for sp in sys.sp.keys()]):
                         n = a(0, 0, 0)
                         for v in sys.sp.values():
                             n += v.N.unc
@@ -1131,6 +1142,7 @@ class fitResultsWidget(QWidget):
                         print(sys.sp[el + 't'].N.fitres(latex=True, dec=2, showname=False))
                         del sys.sp[el + 't']
                         t = True
+
             if self.showLFR.isChecked() and fit.cf_fit:
                 for i in range(fit.cf_num):
                     if 'sys'+str(fit.sys.index(sys)) in fit.getPar('cf_'+str(i)).addinfo:
@@ -1140,6 +1152,7 @@ class fitResultsWidget(QWidget):
                     d += ['']
 
             data.append(d)
+
         for show, ind, name in zip(['showtotal', 'showme', 'showdep'], [0, 1, 2], [r'$\log N_{\rm tot}$', r'$\rm [X/H]$', r'$\rm [X/' + self.depref + ']$']):
             if getattr(self, show).isChecked():
                 if ind > 0 or (ind == 0 and len(self.parent.fit.sys) > 1):
