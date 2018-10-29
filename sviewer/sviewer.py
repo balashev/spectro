@@ -2012,8 +2012,8 @@ class fitMCMCWidget(QWidget):
 
         h = QHBoxLayout()
         grid = QGridLayout()
-        names = ['Burn-in:     ', '',
-                 '', '',
+        names = ['', '',
+                 'Burn-in: ', '',
                  '', '',
                  '', '',
                  '', '',
@@ -6695,12 +6695,17 @@ class sviewer(QMainWindow):
 
         sp = {}
         for name in names:
-            sp[name] = a(0, 0, 'd')
-            for sys in self.fit.sys:
-                if name in sys.sp.keys():
-                    print(name, sys.sp[name].N.unc)
-                    sp[name] += sys.sp[name].N.unc
-            sp[name].log()
+            if name not in self.fit.total.sp.keys():
+                sp[name] = a(0, 0, 'd')
+                for sys in self.fit.sys:
+                    if name in sys.sp.keys():
+                        print(name, sys.sp[name].N.unc)
+                        sp[name] += sys.sp[name].N.unc
+                sp[name].log()
+                self.fit.total.addSpecies(name)
+                self.fit.total.sp[name].N.unc = sp[name]
+            else:
+                sp[name] = self.fit.total.sp[name].N.unc
 
         res = {}
         for k, v in sp.items():
@@ -6708,7 +6713,7 @@ class sviewer(QMainWindow):
                 res[k] = [v]
             else:
                 res[k] = [v, metallicity(k, v, HI), depletion(k, v, sp[dep_ref], ref=dep_ref)]
-            print(k, res[k])
+            print('SMA', k, res[k])
 
         return res
 

@@ -1124,13 +1124,12 @@ class fitResultsWidget(QWidget):
                 else:
                     d.append(' ')
 
-            t = False
+            t = ''
             if self.showtotal.isChecked():
                 for el in ['H2', 'CO', 'HD', 'CI']:
-                    print(sys.total.keys())
                     if el in sys.total.keys():
                         d.append(sys.total[el].N.fitres(latex=True, dec=2, showname=False))
-                        print(sys.total[el].N.fitres(latex=True, dec=2, showname=False))
+                        t = el
                     elif all([el in sp for sp in sys.sp.keys()]):
                         n = a(0, 0, 0)
                         for v in sys.sp.values():
@@ -1139,9 +1138,8 @@ class fitResultsWidget(QWidget):
                         sys.sp[el + 't'].N.set(n.val)
                         sys.sp[el + 't'].N.set(n, attr='unc')
                         d.append(sys.sp[el + 't'].N.fitres(latex=True, dec=2, showname=False))
-                        print(sys.sp[el + 't'].N.fitres(latex=True, dec=2, showname=False))
                         del sys.sp[el + 't']
-                        t = True
+                        t = el
 
             if self.showLFR.isChecked() and fit.cf_fit:
                 for i in range(fit.cf_num):
@@ -1162,14 +1160,19 @@ class fitResultsWidget(QWidget):
                             d += ['']
                     for sp in sps.keys():
                         d.append(self.res[sp][ind].log().latex())
-                    if t:
-                        n = a(0, 0, 0, 'd')
-                        for sp in sps.keys():
-                            n += self.res[sp][0].log()
-                        d += [n.log().latex()]
+                    print('total:', t)
+                    if t != '':
+                        if t not in fit.total.sp.keys():
+                            n = a(0, 0, 0, 'd')
+                            for sp in sps.keys():
+                                n += self.res[sp][0].log()
+                            d += [n.log().latex()]
+                        else:
+                            d += [fit.total.sp[t].N.unc.latex()]
                     data.append(d)
+                    print(d)
 
-        print(data)
+        #print(data)
         if view == 'widget':
             if hasattr(self, 'table') and self.table is not None:
                 self.table.close()
@@ -1183,12 +1186,12 @@ class fitResultsWidget(QWidget):
         if self.vert.isChecked():
             data = [list(i) for i in zip(*data)]
 
-        print('data:', data[0], data[1:])
+        #print('data:', data[0], data[1:])
         output = StringIO()
         ascii.write([list(i) for i in zip(*data[1:])], output, names=data[0], format='latex')
         #ascii.write(data, output, names=names, format='latex')
         table = output.getvalue()
-        print(table)
+        #print(table)
         self.output.setText(table)
         output.close()
 

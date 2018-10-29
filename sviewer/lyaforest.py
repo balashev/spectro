@@ -97,7 +97,7 @@ def Lyaforest_scan(parent, data):
     t.time('prepare')
 
     typ = {0: 'c', 1: 'r', 2: 'l', 3: 'b'}
-    if 1:
+    if 0:
         # >>> make Lya line grid
         if 0:
             N_grid, b_grid, xf, f = makeLyagrid_uniform(N_range=[13.0, 14.5], b_range=[10, 30], N_num=20, b_num=20, resolution=s.resolution)
@@ -265,7 +265,7 @@ def Lyaforest_scan(parent, data):
                         save_N, save_b = line_.logN, line_.b
 
                         params['z'].value, params['N'].value, params['b'].value = line_.z, line_.logN, line_.b
-                        params['z'].min, params['z'].max = line_.z * (1 - 15. / parent.s[0].resolution), line_.z * (1 + 15. / parent.s[0].resolution)
+                        params['z'].min, params['z'].max = line_.z * (1 - 7. / parent.s[0].resolution), line_.z * (1 + 7. / parent.s[0].resolution)
 
                         dN, db, F, Fmin = fisherbN(save_N, save_b, [line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=line_.z)], ston=float(snr(1215.67 * (1 + line_.z))), resolution=parent.s[0].resolution)
 
@@ -289,20 +289,22 @@ def Lyaforest_scan(parent, data):
                         if chi < 3 and N / Nerr > 5 and b / berr > 5: #and Nerr != 0 and berr != 0 and np.sum(m * mask) == 0:
                             lyb = True
                             if lyb:
-                                line_ = tau(line=line('lyb', l=1025.7223, f=0.07912, g=1.897e8, z=z, logN=N, b=b), resolution=parent.s[0].resolution)
-                                line_.calctau()
-                                flux = convolveflux(line_.x, np.exp(-line_.tau), res=parent.s[0].resolution)
-                                x, y, err = parent.s[0].spec.x(), parent.s[0].spec.y(), parent.s[0].spec.err()
-                                m_lyb = (x > line_.x[0]) * (x < line_.x[-1])
-                                inter = interp1d(line_.x, flux, bounds_error=False, fill_value=1)
-                                m1 = y[m_lyb] > inter(x[m_lyb])
-                                print(np.sum(m_lyb), np.sum(m1))
-                                if np.sum(m1) > 10 and np.sum(((y[m_lyb][m1] - inter(x[m_lyb])[m1])/err[m_lyb][m1])**2)/np.sum(m1) > 4:
-                                    fig, ax = plt.subplots()
-                                    ax.plot(x[m_lyb], y[m_lyb])
-                                    ax.plot(x[m_lyb], inter(x[m_lyb]), '-r')
-                                else:
-                                    lyb = False
+                                lyb = False
+                                for lylines in [line('lyb', l=1025.7223, f=0.07912, g=1.897e8, z=z, logN=N, b=b), line('lyg', l=972.5368, f=0.02900, g=8.127e7, z=z, logN=N, b=b)]:
+                                    line_ = tau(line=lylines, resolution=parent.s[0].resolution)
+                                    line_.calctau()
+                                    flux = convolveflux(line_.x, np.exp(-line_.tau), res=parent.s[0].resolution)
+                                    x, y, err = parent.s[0].spec.x(), parent.s[0].spec.y(), parent.s[0].spec.err()
+                                    m_lyb = (x > line_.x[0]) * (x < line_.x[-1])
+                                    inter = interp1d(line_.x, flux, bounds_error=False, fill_value=1)
+                                    m1 = y[m_lyb] > inter(x[m_lyb])
+                                    print(np.sum(m_lyb), np.sum(m1))
+                                    if np.sum(m1) > 10 and np.sum(((y[m_lyb][m1] - inter(x[m_lyb])[m1])/err[m_lyb][m1])**2)/np.sum(m1) > 4:
+                                        fig, ax = plt.subplots()
+                                        ax.plot(x[m_lyb], y[m_lyb])
+                                        ax.plot(x[m_lyb], inter(x[m_lyb]), '-r')
+                                        lyb = True
+                                        break
                             if not lyb:
                                 m = np.logical_or(m, mask)
                                 if check_doublicates:
