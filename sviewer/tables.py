@@ -6,6 +6,8 @@ Created on Thu Dec 22 11:45:49 2016
 """
 from astropy.io import fits
 import fileinput
+from functools import partial
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pyqtgraph as pg
@@ -234,7 +236,8 @@ class QSOlistTable(pg.TableWidget):
             self.contextMenu.addAction('Save data').triggered.connect(self.saveData)
             self.contextMenu.addAction('Save continuum').triggered.connect(self.saveCont)
             self.contextMenu.addAction('Save norm').triggered.connect(self.saveNorm)
-            self.contextMenu.addAction('Lya scan').triggered.connect(self.scan)
+            self.contextMenu.addAction('Lya scan').triggered.connect(partial(self.scan, do=None))
+            self.contextMenu.addAction('Lya fit').triggered.connect(partial(self.scan, do='fit'))
         if self.cat == 'Lyalines':
             self.contextMenu.addSeparator()
             self.contextMenu.addAction('Plot data').triggered.connect(self.plotLines)
@@ -337,31 +340,35 @@ class QSOlistTable(pg.TableWidget):
             self.parent.save_opt = ['cont', 'others']
             self.parent.saveFile(filename, save_name=False)
 
-    def saveNorm(self):
+    def saveNorm(self, row):
+        self.row_clicked(row)
+        self.parent.normalize(True)
+        x, y, err = self.parent.s[-1].spec.norm.x, self.parent.s[-1].spec.norm.y, self.parent.s[-1].spec.norm.err
+        mask = (x > 1215.6701 * (1 + float(self.cell_value('z_min')))) * (x < 1215.6701 * (1 + float(self.cell_value('z_max'))))
+        for r in self.parent.plot.regions:
+            mi, ma = r.getRegion()
+            mask *= (x < mi) | (x > ma)
+        if np.sum(mask) > 0:
+            inds = np.append(np.where(np.diff(mask.astype(int)) < 0)[0], np.where(np.diff(mask.astype(int)) > 0)[0]+1)
+            y[inds] = np.zeros(len(inds))
+            err[inds] = 0.01 * np.ones(len(inds))
+            data = np.c_[x[mask], y[mask], err[mask]]
+            np.savetxt(self.folder+'/norm/'+self.cell_value('name')+'.dat', data, fmt='%10.4f %12.4f %12.4f')
+            return data
+        else:
+            print('norm not saved for: '+ self.cell_value('name'))
 
+    def scan(self, do=None):
+        if do is None:
+            do = 'corr' if len(self.selectedIndexes()) > 1 else 'all'
+        rows = set()
         for idx in self.selectedIndexes():
             print(idx.row())
-            #self.parent.normview = False
-            self.row_clicked(idx.row())
-            self.parent.normalize(True)
-            x, y, err = self.parent.s[-1].spec.norm.x, self.parent.s[-1].spec.norm.y, self.parent.s[-1].spec.norm.err
-            mask = (x > 1215.6701 * (1 + float(self.cell_value('z_min')))) * (x < 1215.6701 * (1 + float(self.cell_value('z_max'))))
-            for r in self.parent.plot.regions:
-                mi, ma = r.getRegion()
-                mask *= (x < mi) | (x > ma)
-            if np.sum(mask) > 0:
-                inds = np.append(np.where(np.diff(mask.astype(int)) < 0)[0], np.where(np.diff(mask.astype(int)) > 0)[0]+1)
-                y[inds] = np.zeros(len(inds))
-                err[inds] = 0.01 * np.ones(len(inds))
-                data = np.c_[x[mask], y[mask], err[mask]]
-                np.savetxt(self.folder+'/norm/'+self.cell_value('name')+'.dat', data, fmt='%10.4f %12.4f %12.4f')
-                return data
-            else:
-                print('norm not saved for: '+ self.cell_value('name'))
-
-    def scan(self):
-        data = self.saveNorm()
-        Lyaforest_scan(self.parent, data.transpose())
+            if idx.row() not in rows:
+                rows.add(idx.row())
+                data = self.saveNorm(idx.row())
+                Lyaforest_scan(self.parent, data.transpose(), do=do)
+        plt.show()
 
     def plotLines(self):
         self.lyalines = plotLyalines(self)

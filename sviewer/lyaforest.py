@@ -54,10 +54,18 @@ def correlnew(y, fit, mask, err=None):
     #t.time('3')
     return np.sum(y_s * mask, axis=1)
 
-def Lyaforest_scan(parent, data):
+def Lyaforest_scan(parent, data, do='corr'):
+    """
+    Scan for individual Lya forest lines and fit them
+    paremeters:
+        -  data         :  spectrum to fit, 2d numpy array
+        -  do           :  type of calculations, can be '
+                                'all'  -  whole fitting process
+                                'corr' -  only cross correlate the spectrum
+                                'fit'  -  only fit lines using loaded correlation array from "pickle/<filename>.pkl" file
+    """
 
     sample = np.genfromtxt('C:/science/Telikova/Lyasample/lines.dat', usecols=(0, 8), skip_header=1, dtype=[('z', '<f8'), ('name', '|S40')], unpack=True)
-    print(sample['z'], sample['name'])
 
     print('scan')
     t = Timer()
@@ -97,10 +105,10 @@ def Lyaforest_scan(parent, data):
     t.time('prepare')
 
     typ = {0: 'c', 1: 'r', 2: 'l', 3: 'b'}
-    if 0:
+    if do in ['all', 'corr']:
         # >>> make Lya line grid
         if 0:
-            N_grid, b_grid, xf, f = makeLyagrid_uniform(N_range=[13.0, 14.5], b_range=[10, 30], N_num=20, b_num=20, resolution=s.resolution)
+            N_grid, b_grid, xf, f = makeLyagrid_uniform(N_range=[13.0, 14.5], b_range=[10, 30], N_num=5, b_num=5, resolution=s.resolution)
         else:
             max_ston = np.max(snr(np.linspace(x[0], x[-1], 50)))
             print('max_ston:', max_ston)
@@ -193,11 +201,9 @@ def Lyaforest_scan(parent, data):
     # >>> fit lines
     #print(ind)
     #print(types)
-    showFit = 1
-    check_doublicates = 1
-    if showFit:
+    check_doublicates = 0
+    if do in ['all', 'fit']:
         parent.fit = fitPars(parent)
-    if 1:
         if check_doublicates:
             old_lines = np.genfromtxt('C:/science/Telikova/Lyasample/lines.dat', names=True, dtype=None)
         if 0:
@@ -314,20 +320,18 @@ def Lyaforest_scan(parent, data):
                                 #if len(sample['z']) == 0 or len(np.where(np.abs(sample['z'][qsoname.encode() == sample['name']] - z) < 0.0001)[0]) == 0:
                                 filename.write('{:9.7f} {:7.3f} {:7.3f} {:7.3f} {:7.3f} {:7.2f} {:6.3f} {:2s} {:30s} {:30s}\n'.format(z, N, Nerr, b, berr, float(snr(1215.67*(1+z))), chi, typ, qsoname, '-'))
 
-                                if showFit:
-                                    parent.fit.addSys(z=z)
-                                    parent.fit.sys[len(parent.fit.sys)-1].addSpecies('HI')
-                                    parent.fit.setValue('N_{:d}_HI'.format(len(parent.fit.sys)-1), N)
-                                    parent.fit.setValue('b_{:d}_HI'.format(len(parent.fit.sys)-1), b)
+                                parent.fit.addSys(z=z)
+                                parent.fit.sys[len(parent.fit.sys)-1].addSpecies('HI')
+                                parent.fit.setValue('N_{:d}_HI'.format(len(parent.fit.sys)-1), N)
+                                parent.fit.setValue('b_{:d}_HI'.format(len(parent.fit.sys)-1), b)
                     else:
                         plt.errorbar(line.logN, line.b, fmt='o', color='r')
                         print('discarded:', line.logN, line.b)
                 i += 1
         t.time('fit lines')
 
-    filename.close()
-    plt.show()
-    if showFit:
+        filename.close()
+
         print(parent.fit.list())
         print('mask', len(m))
         parent.s[0].mask.set(x=m)
