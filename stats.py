@@ -155,10 +155,20 @@ class distr1d():
 
 class distr2d():
     def __init__(self, x, y, z, xtol=1e-5, debug=False):
-        self.x = x
-        self.y = y
+        if len(x) == len(y) == len(z):
+            self.x = np.unique(sorted(x))
+            self.y = np.unique(sorted(y))
+            self.z = np.zeros([len(self.y), len(self.x)])
+            for i, xi in enumerate(self.x):
+                for k, yk in enumerate(self.y):
+                    ind = np.where((xi == x) * (yk == y))[0]
+                    if len(ind) > 0:
+                        self.z[k, i] = z[ind[0]]
+        elif len(x) in z.shape and len(y) in z.shape:
+            self.x = x
+            self.y = y
+            self.z = z
         self.X, self.Y = np.meshgrid(self.x, self.y)
-        self.z = z
         self.zmax = None
         self.xtol = xtol
         self.debug = debug
@@ -321,7 +331,6 @@ class distr2d():
         if type(conf_levels) in [float, int]:
             conf_levels = [conf_levels]
         conf_levels = np.sort(conf_levels)[::-1]
-        levels = [self.level(c) for c in conf_levels]
         if cmap is not None:
             if isinstance(cmap, str):
                 cmap = getattr(cm, cmap)
@@ -330,6 +339,7 @@ class distr2d():
             my_cmap = ListedColormap(my_cmap)
             cs = ax.contourf(self.X, self.Y, self.z / self.zmax, 100, cmap=my_cmap, zorder=zorder)
         if color is not None:
+            levels = [self.level(c) for c in conf_levels]
             if limits == None or limits == 0:
                 c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, zorder=zorder)
             else:

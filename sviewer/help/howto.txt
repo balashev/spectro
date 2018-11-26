@@ -79,7 +79,7 @@ x: select bad pixels:
 
 z: zoom mode:
    z + <select by mouse>          :  zoom into region
-   ctrl + z                       :  return to the previous view 
+   z + CTRL                       :  return to the previous view 
     
 shift: 
   1. when shift is pressed you can shift absortion pointers using mouse

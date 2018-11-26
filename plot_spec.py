@@ -133,19 +133,29 @@ class plot_spec(list):
     def specify_comps(self, *args):
         self.comps = np.array(args)
                 
-    def specify_styles(self, color=None, ls=None, lw=None):
+    def specify_styles(self, color=None, ls=None, lw=None, lw_total=None):
         if color is None:
-            index = [0, 1, 2, 4, 5, 6, 7, 8, 9]
-            color = [col.tableau10[i] for i in index]
+            index = [0, 2, 4, 9, 1, 6, 7, 8, 9]
+            color = col.tableau10
+            color = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
+            color = [color[i] for i in index]
         self.color = color[:len(self.comps+1)]
         
         if ls is None:
             ls = ['-']*10
+        if isinstance(ls, (str)):
+            ls = [ls] * 10
         self.ls = ls[:len(self.comps+1)]
         
         if lw is None:
             lw = [0.5]*10
+        if isinstance(lw, (float, int)):
+            lw = [lw]*10
         self.lw = lw[:len(self.comps+1)]
+
+        if lw_total is None:
+            lw_total = 1.5
+        self.lw_total = lw_total
     
     def set_limits(self, x_min, x_max, y_min, y_max):
         for p in self:
@@ -384,10 +394,10 @@ class plotline():
         # >>> plot spectrum
         if self.gray_out:
             ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=0.5, drawstyle='steps-mid',
-                        color='0.5', ecolor='0.7', capsize=1.5)
+                        color='0.5', ecolor='0.7', capsize=1.5, zorder=1)
             k = (self.points == 0)
             self.spec.y[k] = np.NaN
-        ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=0.5, drawstyle='steps-mid',  color='k', ecolor='0.3', capsize=1.5)
+        ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=0.5, drawstyle='steps-mid',  color='k', ecolor='0.3', capsize=1.5, zorder=0)
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         # >>> plot fit
@@ -413,10 +423,10 @@ class plotline():
                             print(i, inds[i], self.fit.x[inds[i]], self.fit.x[inds[i + 1]])
                             ax.plot(self.fit_comp[k].x[inds[i]:inds[i + 1]], self.fit_comp[k].y[inds[i]:inds[i + 1]], color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k])
                     else:
-                        ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k])
+                        ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
 
             # >>> plot joint fit
-            ax.plot(self.fit.x, self.fit.y, color=col.tableau10[3], ls='-', lw=1.5)
+            ax.plot(self.fit.x, self.fit.y, color=col.tableau10[3], ls='-', lw=self.parent.lw_total, zorder=11)
 
         # >>> add residuals
         if self.add_residual and self.show_fit:
@@ -518,18 +528,18 @@ class plotline():
         if self.gray_out:
             if self.add_errors:
                 ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=0.2, drawstyle='steps-mid',
-                            color='k', ecolor='0.3', capsize=1.5)
+                            color='k', ecolor='0.3', capsize=1.5, zorder=1)
             else:
                 ax.errorbar(self.spec.x, self.spec.y, lw=1, elinewidth=0.2, drawstyle='steps-mid',
-                            color='k', capsize=1.5)
+                            color='k', capsize=1.5, zorder=1)
             k = (self.points == 0)
             self.spec.y[k] = np.NaN
         if self.add_errors:
             ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=0.5, drawstyle='steps-mid',
-                        color='k', ecolor='0.3', capsize=1.5)
+                        color='k', ecolor='0.3', capsize=1.5, zorder=0)
         else:
             ax.errorbar(self.spec.x, self.spec.y, lw=1, elinewidth=0.5, drawstyle='steps-mid',
-                        color='k', ecolor='0.3', capsize=1.5)
+                        color='k', ecolor='0.3', capsize=1.5, zorder=0)
 
         # >>> correct continuum
         try:
@@ -548,10 +558,10 @@ class plotline():
                 for k in range(self.num_comp):
                     self.fit_comp[k].mask(self.x_min, self.x_max)
                     ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k],
-                            lw=self.parent.lw[k])
+                            lw=self.parent.lw[k], zorder=10)
 
             # >>> plot joint fit
-            ax.plot(self.fit.x, self.fit.y, color=col.tableau10[3], ls='-', lw=1.5)
+            ax.plot(self.fit.x, self.fit.y, color=col.tableau10[3], ls='-', lw=self.parent.lw_total, zorder=11)
 
             # >>> add residuals
             if self.add_residual and self.fit:
@@ -597,7 +607,6 @@ class plotline():
         ax.tick_params(axis='both', which='major', labelsize=self.font-2)
 
         # >>> set axis ticks formater:
-        print('formater', self.y_formatter)
         if self.y_formatter is not None:
             ax.yaxis.set_major_formatter(FormatStrFormatter(self.y_formatter))
         else:
@@ -638,7 +647,7 @@ class plotline():
                 for c in self.fit.comp:
                     c = c / sum_cont
 
-    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5], pos=0.84, dpos=0.05, color='cornflowerblue', show_ticks=True):
+    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5], pos=0.84, dpos=0.04, color='cornflowerblue', show_ticks=True):
         if 1:
             ymin, ymax = ax.get_ylim()
             pos, dpos = ymin + pos * (ymax - ymin), dpos * (ymax - ymin)
@@ -647,7 +656,7 @@ class plotline():
         lines = [l for l in lines if l.l()*(1+self.parent.z_ref) > xmin and l.l()*(1+self.parent.z_ref) < xmax]
         s = set([str(line).split()[1][:str(line).split()[1].index('-')] for line in lines])
         for band in s:
-            pos_y = pos if 'L' in band else pos - dpos - dpos * (ymax - ymin)
+            pos_y = pos if ('L' in band and (int(band.split('-')[0][1:]) % 2 == 0 or (np.max(levels) < 5 and int(band.split('-')[0][1:]) < 10))) else pos - dpos - dpos * (ymax - ymin)
             b_lines = [line for line in lines if band in str(line)]
             b_lines = [line for line in b_lines if line.l()*(1 + self.parent.z_ref) > xmin and line.l()*(1 + self.parent.z_ref) < xmax]
             if str(min(levels)) in [str(line).split()[0][3:] for line in b_lines]:

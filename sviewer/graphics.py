@@ -1133,6 +1133,7 @@ class Spectrum():
         if self.active():
             self.view = self.parent.specview
             self.pen = pg.mkPen(255, 255, 255)
+            self.brush = pg.mkBrush(52, 152, 219, 255)
             self.points_brush = pg.mkBrush(145, 224, 29)
             self.points_size = 15
             self.sm_pen = pg.mkPen(245, 0, 80)
@@ -1152,6 +1153,7 @@ class Spectrum():
             if self.parent.showinactive:
                 self.view = self.parent.specview.replace('err', '')
                 self.pen = pg.mkPen(100, 100, 100)
+                self.brush = pg.mkBrush(66, 90, 113, 255)
                 self.points_brush = pg.mkBrush(81, 122, 136)
                 self.points_size = 8 if self.parent.normview else 3
                 self.sm_pen = pg.mkPen(105, 30, 30, style=Qt.DashLine)
@@ -1166,19 +1168,23 @@ class Spectrum():
 
             if 'err' in self.view and len(err) == len(y):
                 self.g_err = pg.ErrorBarItem(x=x, y=y, top=err, pen=self.err_pen, bottom=err, beam=(x[1]-x[0])/2)
+                self.g_err.setZValue(2)
                 self.parent.vb.addItem(self.g_err)
             if 'point' in self.view:
-                self.g_point = pg.ScatterPlotItem(x=x, y=y, size=10, brush=pg.mkBrush(52, 152, 219, 255))
+                self.g_point = pg.ScatterPlotItem(x=x, y=y, size=10, brush=self.brush, pen=self.pen)
+                self.g_point.setZValue(2)
                 self.parent.vb.addItem(self.g_point)
             if 'step' in self.view:
                 self.g_line = plotStepSpectrum(x=x, y=y, clickable=True)
                 self.g_line.setPen(self.pen)
                 self.g_line.sigClicked.connect(self.specClicked)
+                self.g_line.setZValue(2)
                 self.parent.vb.addItem(self.g_line)
             if 'line' in self.view:
                 self.g_line = pg.PlotCurveItem(x=x, y=y, clickable=True)
                 self.g_line.sigClicked.connect(self.specClicked)
                 self.g_line.setPen(self.pen)
+                self.g_line.setZValue(2)
                 self.parent.vb.addItem(self.g_line)
 
         # >>> plot fit point:
@@ -1186,6 +1192,7 @@ class Spectrum():
         if len(self.fit_mask.x()) > 0:
             if self.parent.selectview == 'point':
                 self.points = pg.ScatterPlotItem(x=self.spec.x()[self.fit_mask.x()], y=self.spec.y()[self.fit_mask.x()], size=self.points_size, brush=self.points_brush)
+                self.points.setZValue(3)
                 self.parent.vb.addItem(self.points)
 
             elif self.parent.selectview == 'color':
@@ -1196,11 +1203,13 @@ class Spectrum():
                     self.points = pg.PlotCurveItem(connect='finite', pen=pg.mkPen((145, 180, 29), width=5))
                 else:
                     self.points = plotStepSpectrum(connect='finite', pen=pg.mkPen((145, 180, 29), width=5))
+                self.points.setZValue(3)
                 self.points.setData(x=x, y=y)
                 self.parent.vb.addItem(self.points)
 
             elif self.parent.selectview == 'region':
                 self.updateRegions()
+
 
         # >>> plot bad point:
         if len(self.bad_mask.x()) > 0 and len(self.spec.x()) > 0:
@@ -1214,6 +1223,7 @@ class Spectrum():
                                             pen=self.fit_pen, brush=pg.mkBrush(self.fit_pen.color()))
         else:
             self.g_fit = pg.PlotCurveItem(x=[], y=[], pen=self.fit_pen)
+        self.g_fit.setZValue(7)
         self.parent.vb.addItem(self.g_fit)
         self.set_gfit()
         if len(self.parent.fit.sys) > 0:
@@ -1225,13 +1235,16 @@ class Spectrum():
         else:
             if len(self.parent.s) == 0 or self.active():
                 self.g_cont = pg.PlotCurveItem(x=self.cont.x, y=self.cont.y, pen=self.cont_pen)
+                self.g_cont.setZValue(4)
                 self.parent.vb.addItem(self.g_cont)
                 self.g_spline = pg.ScatterPlotItem(x=self.spline.x, y=self.spline.y, size=12, symbol='s',
                                                    pen=pg.mkPen(0, 0, 0, 255), brush=self.spline_brush)
+                self.g_spline.setZValue(5)
                 self.parent.vb.addItem(self.g_spline)
 
         # >>> plot chebyshev continuum:
         self.g_cheb = pg.PlotCurveItem(x=[], y=[], pen=pg.mkPen(color=self.cont_pen.color(), style=Qt.DashLine, width=3))
+        self.g_cheb.setZValue(4)
         self.parent.vb.addItem(self.g_cheb)
 
         if self.parent.fit.cont_fit:
@@ -1423,6 +1436,7 @@ class Spectrum():
                     color = pg.mkPen(50, 115, 235, width=1.0) if self.parent.comp_view == 'all' and self.parent.comp != i else self.fit_comp_pen.color()
                     pen = color = pg.mkPen(50, 115, 235, width=1.0) if self.parent.comp_view == 'all' and self.parent.comp != i else self.fit_comp_pen
                     self.g_fit_comp.append(pg.PlotCurveItem(x=c.x(), y=c.y(), pen=pen)) #pg.mkPen(color=color, style=style)))
+                    self.g_fit_comp[-1].setZValue(6)
                     self.parent.vb.addItem(self.g_fit_comp[-1])
 
     def remove_g_fit_comps(self):
@@ -1561,6 +1575,10 @@ class Spectrum():
         if getattr(self, 'spline'+name).n > 1:
             self.calc_spline(name=name)
         self.update_fit()
+
+    def set_spline(self, x, y, name=''):
+        getattr(self, 'spline'+name).delete()
+        self.add_spline(x, y, name=name)
 
     def calc_spline(self, name=''):
         if getattr(self, 'spline'+name).n > 1:
@@ -2223,7 +2241,7 @@ class regionList(list):
             if reg in self:
                 return self.index(reg)
 
-    def add(self, reg=None):
+    def add(self, reg=None, sort=True):
         if reg is None or (self.check(reg) is None and len(re.findall('[\d\.]+\.\.[\d\.]+', reg))>0):
             if reg is None:
                 self.append(regionItem(self))
@@ -2233,7 +2251,8 @@ class regionList(list):
                     self[-1].addinfo = ' '.join(reg.split()[1:])
 
             self.parent.vb.addItem(self[-1])
-        self.sortit()
+        if sort:
+            self.sortit()
         self.update()
 
     def remove(self, reg):
@@ -2250,11 +2269,11 @@ class regionList(list):
             color = cm.terrain(i / len(self), bytes=True)[:3] + (150,)
             r.setBrush(pg.mkBrush(color=color))
 
-    def fromText(self, text):
+    def fromText(self, text, sort=True):
         for i in reversed(range(len(self))):
             self.remove(str(self[i]))
         for reg in text.splitlines():
-            self.add(reg)
+            self.add(reg, sort=sort)
 
     def __str__(self):
         return '\n'.join([str(r) for r in self])

@@ -204,7 +204,7 @@ class Console(QTextEdit):
                 #    lines += self.parent.atomic[s].lines
 
             elif args[1] == 'H2' or 'H2j' in args[1]:
-                color = (255, 115, 63)
+                color = (229, 43, 80)
                 energy = None
                 if 'H2j' in args[1]:
                     j = [int(args[1][3:])]
@@ -444,6 +444,10 @@ class Console(QTextEdit):
                     self.parent.s[self.parent.s.ind].spec.raw.err[mask] = float(args[2])
                     self.parent.s.redraw()
 
+                if args[1] == 'cont':
+                    self.parent.s[self.parent.s.ind].set_spline([self.parent.s[self.parent.s.ind].spec.raw.x[mask][0], self.parent.s[self.parent.s.ind].spec.raw.x[mask][-1]], [float(args[2]), float(args[2])])
+                    #self.parent.s.redraw()
+
         elif args[0] == 'divide':
             if len(args) == 3:
                 i1, i2 = int(args[1]), int(args[2])
@@ -624,6 +628,9 @@ class Console(QTextEdit):
             if len(args) > 1:
                 levels = [int(a) for a in args[1:]]
             self.parent.H2ExcitationTemp(levels=levels)
+
+        elif args[0].isdigit():
+            self.parent.s.setSpec(int(args[0]))
 
         else:
             return None

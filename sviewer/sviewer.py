@@ -1319,7 +1319,7 @@ class showLinesWidget(QWidget):
                     ('units', str), ('regions', int),
                     ('xmin', float), ('xmax', float), ('ymin', float), ('ymax', float),
                     ('residuals', int), ('gray_out', int), ('res_sigma', int),
-                    ('show_comps', int), ('sys_ind', int),
+                    ('show_comps', int), ('fit_lw', float), ('sys_ind', int),
                     ('font', int), ('xlabel', str), ('ylabel', str),
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
                     ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
@@ -1400,7 +1400,7 @@ class showLinesWidget(QWidget):
         self.opt_but = OrderedDict([('width', [0, 2]), ('height', [0, 4]), ('cols', [1, 2]), ('rows', [1, 4]),
                                     ('v_indent', [2, 2]), ('h_indent', [2, 4]), ('col_offset', [4, 2]), ('row_offset', [4, 4]),
                                     ('xmin', [6, 2]), ('xmax', [6, 4]), ('ymin', [7, 2]), ('ymax', [7, 4]),
-                                    ('res_sigma', [8, 4]), ('font', [10, 2]),
+                                    ('res_sigma', [8, 4]), ('fit_lw', [9, 2]), ('font', [10, 2]),
                                     ('xlabel', [11, 2]), ('ylabel', [11, 4]),
                                     ('x_ticks', [12, 2]), ('xnum', [12, 4]), ('y_ticks', [13, 2]), ('ynum', [13, 4]),
                                     ('font_labels', [14, 2]), ('name_x_pos', [15, 2]), ('name_y_pos', [15, 4]),
@@ -1555,7 +1555,7 @@ class showLinesWidget(QWidget):
 
     def readLines(self):
         if self.regions:
-            self.parent.plot.regions.fromText(self.lines.toPlainText())
+            self.parent.plot.regions.fromText(self.lines.toPlainText(), sort=False)
             self.numRegions.setText('Regions: ' + str(len(self.parent.plot.regions)))
         else:
             self.parent.lines.fromText(self.lines.toPlainText())
@@ -1593,7 +1593,7 @@ class showLinesWidget(QWidget):
             self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
-            self.ps.specify_styles()
+            self.ps.specify_styles(lw=1.0, lw_total=self.fit_lw)
             if len(self.parent.fit.sys) > 0:
                 self.ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
             else:
@@ -1650,13 +1650,15 @@ class showLinesWidget(QWidget):
             self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
-            self.ps.specify_styles()
+            self.ps.specify_styles(lw=1.0, lw_total=self.fit_lw)
             if len(self.parent.fit.sys) > 0:
                 self.ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
             else:
                 self.ps.z_ref = self.parent.z_abs
             for i, p in enumerate(self.ps):
-                st = str(self.parent.plot.regions[i]).split()
+                regions = self.lines.toPlainText().splitlines()
+                #regions = self.parent.plot.regions
+                st = str(regions[i]).split()
                 print(st)
                 p.x_min, p.x_max = (float(s) for s in st[0].split('..'))
                 #p.y_formater = '%.1f'
@@ -1732,6 +1734,9 @@ class showLinesWidget(QWidget):
                 o[opt] = func(getattr(self, opt))
             pickle.dump(o, f)
             pickle.dump(str(self.parent.lines), f)
+            #if self.regions:
+            #    pickle.dump(self.lines.toPlainText(), f)
+            #else:
             pickle.dump(str(self.parent.plot.regions), f)
             f.close()
 
@@ -1751,7 +1756,7 @@ class showLinesWidget(QWidget):
             for opt, item in o.items():
                 setattr(self, opt, item)
             self.parent.lines.fromText(str(pickle.load(f)))
-            self.parent.plot.regions.fromText(str(pickle.load(f)))
+            self.parent.plot.regions.fromText(str(pickle.load(f)), sort=False)
             f.close()
         self.close()
         self.parent.showLines()
@@ -5356,7 +5361,7 @@ class sviewer(QMainWindow):
             setattr(self, status, 1 - getattr(self, status))
         if value is not 0:
             if status == 'abs_H2_status' and value is not 0:
-                lines, color, va = self.atomic.list(['H2j'+str(i) for i in range(3)]), (255, 95, 32), 'down'
+                lines, color, va = self.atomic.list(['H2j'+str(i) for i in range(3)]), (229, 43, 80), 'down'
             if status == 'abs_DLA_status' and value is not 0:
                 lines, color, va = self.atomic.DLA_list(), (105, 213, 105), 'down'
             if status == 'abs_DLAmajor_status' and value is not 0:

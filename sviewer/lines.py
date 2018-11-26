@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (QWidget, QLabel, QGridLayout, QPushButton,
                              QApplication, QHBoxLayout, QVBoxLayout)
 import pyqtgraph as pg
 from ..atomic import *
+from ..profiles import tau
 from .fit import par
 from .utils import Timer
 
@@ -278,13 +279,14 @@ class LineLabel(pg.TextItem):
     def __init__(self, parent, line, graphicType, **kwrds):
         self.parent = parent
         self.saved_color = kwrds['color']
-        self.va = kwrds['va']
-        del kwrds['va']
-        if self.va == 'down':
-            anchor, angle, tailLen, pos = [0.5, -2], 90, 30, (0, 5)
-        elif self.va == 'up':
-            anchor, angle, tailLen, pos = [0.5, 2], -90, 30, (0, -10)
-        pg.TextItem.__init__(self, text='', anchor=anchor, fill=pg.mkBrush(0, 0, 0, 0), **kwrds)
+        if 'va' in kwrds:
+            self.va = kwrds['va']
+            del kwrds['va']
+            if self.va == 'down':
+                anchor, angle, tailLen, pos = [0.5, -2], 90, 30, (0, 5)
+            elif self.va == 'up':
+                anchor, angle, tailLen, pos = [0.5, 2], -90, 30, (0, -10)
+            pg.TextItem.__init__(self, text='', anchor=anchor, fill=pg.mkBrush(0, 0, 0, 0), **kwrds)
         self.graphicType = graphicType
         if self.graphicType == 'short':
             anchor[0] = anchor[1] - 1 if self.va == 'down' else anchor[1] + 1
@@ -293,9 +295,13 @@ class LineLabel(pg.TextItem):
         elif self.graphicType == 'infinite':
             self.arrow = pg.InfiniteLine(angle=90, pen=pg.mkPen(color=kwrds['color'], width=.5, style=Qt.SolidLine), label='') #style=Qt.DashLine
         self.arrow.setParentItem(self)
-        self.setFont(QFont("SansSerif", 10))
+        font = QFont("SansSerif", 10)
+        font.setBold(True)
+        font.setWeight(75)
+        self.setFont(font)
         self.line = line
         self.setActive()
+        self.info = False
 
     def setActive(self, bool=None):
         if bool is not None:
@@ -308,18 +314,20 @@ class LineLabel(pg.TextItem):
             self.setText(str(self.line))
 
         if self.active:
-            self.border = pg.mkPen(40, 10, 0, 255, width=1)
-            self.fill = pg.mkBrush(255, 69, 0, 255)
+            self.border = pg.mkPen(255, 255, 255, 255, width=1)
+            self.fill = pg.mkBrush(46, 150, 61, 255)
             self.setColor(pg.mkColor(255, 255, 255, 255))
             if self.graphicType == 'infinite':
                 self.arrow.setPen(pg.mkPen(color=self.fill.color(), width=1, style=Qt.SolidLine))
             #self.setColor(pg.mkColor(255, 69, 0, 255))
+            self.setZValue(11)
         else:
             self.border = pg.mkPen(0, 0, 0, 0, width=0)
             self.fill = pg.mkBrush(0, 0, 0, 0)
             self.setColor(self.saved_color)
             if self.graphicType == 'infinite':
                 self.arrow.setPen(pg.mkPen(color=self.saved_color, width=.5, style=Qt.SolidLine))
+            self.setZValue(10)
         #self.paint()
 
     def redraw(self, z):
@@ -329,7 +337,9 @@ class LineLabel(pg.TextItem):
                 ypos = s.spec.inter(self.line.l() * (1 + z))
                 if ypos != 0:
                     break
+
         self.setPos(self.line.l() * (1 + z), ypos)
+        return self.line.l() * (1 + z), ypos
 
     def mouseDragEvent(self, ev):
 
@@ -352,17 +362,18 @@ class LineLabel(pg.TextItem):
             self.parent.parent.plot.updateVelocityAxis()
             self.parent.redraw()
             ev.accept()
+        elif QApplication.keyboardModifiers() == Qt.AltModifier or self.info:
+            self.showInfo()
+            ev.accept()
+    #def hoverEvent(self, ev):
+    #    if ev.isEnter():
+    #        print(ev.pos())
+    #        print('hover', self.line.name)
+    #    #ev.ignore()
+
 
     def mouseClickEvent(self, ev):
 
-        if QApplication.keyboardModifiers() == Qt.ShiftModifier:
-            self.parent.parent.line_reper = self.line
-            self.parent.parent.plot.restframe = False
-            self.parent.parent.plot.updateVelocityAxis()
-            ev.accept()
-        if QApplication.keyboardModifiers() == Qt.ControlModifier:
-            self.parent.remove(self.line)
-            del self
         if ev.double():
             self.setActive(not self.active)
             if self.active and str(self.line) not in self.parent.parent.lines:
@@ -372,6 +383,66 @@ class LineLabel(pg.TextItem):
             if not self.active:
                 self.parent.parent.lines.remove(str(self.line))
             ev.accept()
+        else:
+            if QApplication.keyboardModifiers() == Qt.ShiftModifier:
+                self.parent.parent.line_reper = self.line
+                self.parent.parent.plot.restframe = False
+                self.parent.parent.plot.updateVelocityAxis()
+                ev.accept()
+            elif QApplication.keyboardModifiers() == Qt.ControlModifier:
+                self.parent.remove(self.line)
+                del self
+            elif QApplication.keyboardModifiers() == Qt.AltModifier or self.info:
+                self.showInfo()
+                ev.accept()
+
+    def showInfo(self, show=None):
+        print('showInfo', show)
+        if show is not None:
+            self.info = show
+        else:
+            for l in self.parent.lines:
+                if l.info and l is not self:
+                    l.showInfo(show=False)
+            self.info = not self.info
+            print(self.info)
+        if self.info:
+            self.border = pg.mkPen(255, 255, 255, 255, width=1)
+            #self.fill = pg.mkBrush(229, 43, 80, 255)
+            print(self.color)
+            if self.graphicType == 'infinite':
+                self.arrow.setPen(pg.mkPen(color=self.fill.color(), width=1, style=Qt.SolidLine))
+            #self.setColor(pg.mkColor(255, 69, 0, 255))
+            self.setZValue(11)
+            text = str(self.line)
+            text += ', l={:.3f}, f={:.4f}, g={:.2E}'.format(self.line.l(), self.line.f(), self.line.g())
+            if self.line.name in self.parent.parent.fit.sys[self.parent.parent.comp].sp.keys():
+                self.line.logN = self.parent.parent.fit.sys[self.parent.parent.comp].sp[self.line.name].N.val
+                self.line.b = self.parent.parent.fit.sys[self.parent.parent.comp].sp[self.line.name].b.val
+                t = tau(line=self.line)
+                text += ', logN={: .2f}, b={: .2f}, tau_0={:.2f}'.format(self.line.logN, self.line.b, t.calctau0())
+                #text += '\na={:.5f}'.format(t.a)
+                #print(text)
+            self.infoLabel = pg.TextItem(text=text, color=(255, 255, 255), anchor=self.anchor, fill=self.color, border=self.border)
+            font = QFont("SansSerif", 10)
+            font.setBold(True)
+            font.setWeight(75)
+            self.infoLabel.setFont(font)
+            self.infoLabel.setZValue(12)
+            self.parent.parent.plot.vb.addItem(self.infoLabel)
+            self.infoLabel.setPos(*self.redraw(self.parent.parent.z_abs))
+            self.setColor(pg.mkColor(255, 255, 255, 255))
+            #self.setText(text)
+            #self.redraw(self.parent.parent.z_abs)
+        else:
+            self.setActive(self.active)
+            try:
+                self.parent.parent.plot.vb.removeItem(self.infoLabel)
+                del self.infoLabel
+            except:
+                pass
+            #self.setText(str(self.line))
+
 
     def clicked(self, pts):
         print("clicked: %s" % pts)

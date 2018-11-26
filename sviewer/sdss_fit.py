@@ -1096,5 +1096,5 @@ def SDSS_to_asinh(flux):
     return - 1.086 * (np.arcsinh(flux / b)) + m0
 
 def getIDfromName(s):
-    name = s[:s.index('.fits')]
+    name = s.replace('.fits', '').replace('.dat', '')
     return [int(i) for i in name[-15:].split('-')]
