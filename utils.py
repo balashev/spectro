@@ -10,15 +10,12 @@ def cmap_from_color(color, r=0, c='w', name='mycmap'):
         - c          : second color can be set as tuple (x_r,x_g,x_b) of str ('w', 'k', ...)
     """
     if isinstance(c, str):
-        try:
-            color = mcolors.hex2color(mcolors.cnames[color])
-        except:
-            d = {'w': (1, 1, 1), 'k': (0, 0, 0)}
-            c = d[c]
+        d = {'w': (1, 1, 1), 'k': (0, 0, 0)}
+        c = d[c]
     cdict = {}
     if isinstance(color, str):
         color = mcolors.hex2color(mcolors.cnames[color])
-    print(color)
+    print(color, c)
     for i, col in enumerate(['red', 'green', 'blue']):
         if r:
             cdict[col] = (0.0, color[i], color[i]), (1.0, c[i], c[i])

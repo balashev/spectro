@@ -155,7 +155,7 @@ class distr1d():
 
 class distr2d():
     def __init__(self, x, y, z, xtol=1e-5, debug=False):
-        if len(x) == len(y) == len(z):
+        if len(z.shape) == 0 and len(x) == len(y) == len(z):
             self.x = np.unique(sorted(x))
             self.y = np.unique(sorted(y))
             self.z = np.zeros([len(self.y), len(self.x)])

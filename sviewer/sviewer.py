@@ -2426,7 +2426,7 @@ class fitMCMCWidget(QWidget):
                 if p.startswith('z'):
                     samples[:, i] = samples[:, i] * 1000
             fig, ax0 = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
-            ax0[0, 0].hist(-lnprobs[-nwalkers:], 20, normed=1, histtype='bar', color='crimson', label='$\chi^2$')
+            ax0[0, 0].hist(-lnprobs[-nwalkers:], 20, density=1, histtype='bar', color='crimson', label='$\chi^2$')
             ax0[0, 0].legend()
             ax0[0, 0].set_title('$\chi^2$ distribution')
             for i in range(k):
@@ -2440,6 +2440,7 @@ class fitMCMCWidget(QWidget):
 
         if any([s in qc for s in ['moments', 'all']]):
             ind = np.random.randint(0,nwalkers)
+            SomeChain = samples[1 + ind::nwalkers,:]
             SomeChain = samples[1 + ind::nwalkers,:]
             print((samples.shape[0])/nwalkers)
             niters = int((samples.shape[0])/nwalkers)
@@ -4571,9 +4572,9 @@ class buttonpanel(QFrame):
         id = getIDfromName(self.parent.s[self.parent.s.ind].filename)
         print(id)
         if typ == 'SAS':
-            url = QUrl('https://dr12.sdss.org/spectrumDetail?mjd={0:d}&fiber={1:d}&plateid={2:d}'.format(id[1],id[2],id[0]))
+            url = QUrl('https://dr14.sdss.org/spectrumDetail?mjd={0:d}&fiber={1:d}&plateid={2:d}'.format(id[1],id[2],id[0]))
         elif typ == 'SkyS':
-            url = QUrl('https://skyserver.sdss.org/dr13/en/tools/explore/Summary.aspx?plate={0:d}&fiber={1:d}&mjd={2:d}'.format(id[0], id[2], id[1]))
+            url = QUrl('http://skyserver.sdss.org/dr14/en/tools/explore/Summary.aspx?plate={0:d}&fiber={1:d}&mjd={2:d}'.format(id[0], id[2], id[1]))
         if not QDesktopServices.openUrl(url):
             QMessageBox.warning(self, 'Open Url', 'Could not open url')
 

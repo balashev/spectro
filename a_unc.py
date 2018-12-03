@@ -332,6 +332,7 @@ class a:
             if self.type == 'm' and other.type == 'm':
                 res.val = self.val / other.val
                 res.val, res.plus, res.minus = self.val / other.val, np.sqrt((self.plus / other.val)**2 + (self.val / other.val**2 * other.plus)**2), np.sqrt((self.minus / other.val)**2 + (self.val / other.val**2 * other.minus)**2)
+                #if (res.minus > res.value): res.minus = res.value * 0.9
                 res = self.mini(self.div_lnL, other, res)
             else: 
                 res.val = self.val/other.val
@@ -383,6 +384,7 @@ class a:
             other.dec()
             if self.type == 'm' and other.type == 'm':
                 res.val, res.plus, res.minus = self.val * other.val,  np.sqrt(self.val**2 * other.plus**2 + self.plus**2 * other.val**2), np.sqrt(self.val**2 * other.minus**2 + self.minus**2 * other.val**2)
+                print(res.val, res.plus, res.minus)
                 res = self.mini(self.mul_lnL, other, res)
             else: 
                 res.val = self.val*other.val
@@ -407,8 +409,8 @@ class a:
         return np.abs(m.fun - 0.5)
 
     def mini(self, func, other, res):
-        res.plus = res.val * (minimize(self.minim, 1 + res.plus / res.val, args=(func, other), method=self.method, bounds=[(1, None)], options={'ftol':self.tol, 'eps':0.001}).x[0] - 1)
-        res.minus = res.val * (1 - minimize(self.minim, 1 - res.minus / res.val, args=(func, other), method=self.method, bounds=[(None, 1)], options={'scale':res.val, 'ftol':self.tol, 'eps':0.001}).x[0])
+        res.plus = res.val * (minimize(self.minim, 1 + res.plus / res.val, args=(func, other), method=self.method, bounds=[(0.999, None)], options={'ftol':self.tol, 'eps':0.001}).x[0] - 1)
+        res.minus = res.val * (1 - minimize(self.minim, 1 - res.minus / res.val, args=(func, other), method=self.method, bounds=[(None, 0.999)], options={'scale':res.val, 'ftol':self.tol, 'eps':0.001}).x[0])
 
         return res
 
@@ -488,13 +490,13 @@ if __name__ == '__main__':
     #print(a(2,4,4, 'd').log())
 
     if 1:
-        x = a("$20.73\pm0.01", 'l')
+        x = a("$17.70\pm0.50", 'l')
         #x = a(0, 0, 0, 'd')
-        y = a("$19.03\pm0.03", 'l')
+        y = a("$0\pm0.5", 'l')
         #x = a("$1\pm0.1", 'd')
         #y = a("$10\pm3", 'd')
         #y = a('$2\pm0.3$', 'd')
-        z = y * 2 / (x + y * 2)
+        z = x * y
         print(z.log())
     if 0:
         x = a("$19\pm0.2", 'l')
