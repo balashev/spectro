@@ -3664,21 +3664,29 @@ class loadSDSSwidget(QWidget):
         pars = [k for k, v in self.saved.items() if v]
 
         self.parent.SDSSdata = None
+        inds, fiber, plate = [], [], []
         if self.filename.text().strip() == '':
-            self.parent.SDSSdata = np.array(self.data[pars])
+            data = np.recarray((0,), dtype=[('plate', int), ('fiber', int)])
+            for line in self.sdsslist.toPlainText().splitlines():
+                if not line.startswith('#'):
+                    data = np.append(data, np.array([(int(line.split()[0]), int(line.split()[1]))], dtype=data.dtype))
+            if data.shape[0] > 0:
+                plate, fiber = data['plate'], data['fiber']
+            else:
+                inds = np.arange(len(self.data['PLATE']))
         else:
             data = np.genfromtxt(self.filename.text(), dtype=int, skip_header=int(self.header.text()))
-            plate = data[:, int(self.plate_col.text())]
-            fiber = data[:, int(self.fiber_col.text())]
-            inds = []
-            for p, f in zip(plate, fiber):
-                ind = np.where((self.data['PLATE'] == p) * (self.data['FIBERID'] == f))[0]
-                if len(ind) > 0:
-                    inds.append(ind[0])
-                else:
-                    print('missing:', p, f)
+            plate, fiber = data[:, int(self.plate_col.text())-1], data[:, int(self.fiber_col.text())-1]
 
-            self.parent.SDSSdata = np.array(self.data[pars][inds])
+        for p, f in zip(plate, fiber):
+            print(p, f)
+            ind = np.where((self.data['PLATE'] == p) * (self.data['FIBERID'] == f))[0]
+            if len(ind) > 0:
+                inds.append(ind[0])
+            else:
+                print('missing:', p, f)
+
+        self.parent.SDSSdata = np.array(self.data[pars][inds])
 
         if self.parent.SDSSdata is not None:
             self.parent.SDSSlist = QSOlistTable(self.parent, 'SDSS')

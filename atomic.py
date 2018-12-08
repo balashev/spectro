@@ -1,3 +1,4 @@
+import astropy.constants as const
 from collections import OrderedDict
 from functools import wraps
 import h5py
@@ -570,7 +571,7 @@ class atomicData(OrderedDict):
             if isinstance(j, int) or isinstance(j, float):
                 mask = np.logical_and(x[0] <= nu, x[1] == j)
             if isinstance(j, list):
-                mask = np.logical_and(x[0] <= nu, np.logical_and(x[1] >= j[0], x[1] <= j[1]))
+                mask = np.logical_and(x[0] <= nu, np.logical_and(x[1] >= j[0], x[1] <= j[-1]))
         else:
             mask = x[2] < energy
         x = x[:,mask]
@@ -621,7 +622,7 @@ class atomicData(OrderedDict):
                     for l1 in self['H2j' + m[4]].lines:
                         if l1.nu_u == int(m[2]) and m[3] in str(l1) and m[1] in str(l1):
                             #out.write(line[:54] + '{0:12.10f}   {1:6.1e} '.format(l1.f, l1.g) + line[77:])
-                            out.write(line[:-1] + '{0:12.10f}   {1:6.1e}\n'.format(l1.f, l1.g))
+                            out.write(line[:-1] + '{0:12.8f}   {1:6.1e}  {2:6.2f}\n'.format(l1.f(), l1.g(), l1.f()/float(m[8])))
             out.close()
 
     def readHD(self):
@@ -1247,9 +1248,16 @@ if __name__ == '__main__':
         me = a('-1.2^{+0.1}_{-0.1}', 'l')
         print(abundance('OI', HI, me))
 
-    if 1:
+    if 0:
         A = atomicData()
         #A.readCO()
         #print(A.list('SiII'))
         A.makedatabase()
         #A.makedatabase()
+
+    if 1:
+        A = atomicData()
+        A.readH2Abgrall(j=[0,1,2,3,4,5,6,7])
+        print(A.keys())
+        #A.readH2(j=[0,1,2,3,4,5,6,7])
+        A.compareH2()
