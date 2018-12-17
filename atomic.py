@@ -511,15 +511,16 @@ class atomicData(OrderedDict):
             self.readH2Abgrall(nu=nu, j=j, energy=energy)
         else:
             if nu == 0:
-                self.readH2Malec(j=j)
+                self.readH2new(j=j)
 
-    def readH2Malec(self, j=[0,1]):
+    def readH2new(self, j=[0,1], cat='Ubachs'):
         """
-        read Malec calalogue 2010 data for H2
+        read H2 data from differernt compilations
 
         parameters:
-            - n    : if list - specify rotational levels to read
-                     if int - read J_l<=n
+            - j       :   if list - specify rotational levels to read
+                          if int - read J_l<=n
+            - cat     :   name of the catalogue to read. Can be 'Malec' or 'Ubachs'
         """
         x = np.genfromtxt(os.path.dirname(os.path.realpath(__file__))+r'/data/H2/energy_X.dat', comments='#', unpack=True)
 
@@ -529,10 +530,6 @@ class atomicData(OrderedDict):
         for j in j:
             mask = np.logical_or(mask, x[1]==j)
         mask = np.logical_and(mask, x[0] <= 0)
-
-        with open(os.path.dirname(os.path.realpath(__file__)) + r'/data/H2/H2MalecCat.dat', newline='') as f:
-            f.readline()
-            data = f.readlines()
 
         x = x[:, mask]
         x = np.transpose(x)
@@ -545,7 +542,10 @@ class atomicData(OrderedDict):
             self[name] = e(name)
             self[name].energy = float(xi[2])
             self[name].stats = (2 * (j_l % 2) + 1) * (2 * j_l + 1)
-            self.read_maleccat(n=[j_l])
+            if cat == 'Malec':
+                self.read_maleccat(n=[j_l])
+            elif cat  == 'Ubachs':
+                self.read_ubachscomp(n=[j_l])
 
     def readH2Abgrall(self, nu=0, j=[0,1], energy=None):
         """
@@ -615,14 +615,28 @@ class atomicData(OrderedDict):
                         print(line, l1.f()/line.f(), line.f(), l1.f())
             input()
         else:
-            out = open(r'C:/Users/Serj/Desktop/H2MalecCat_comparison.dat', 'w')
-            with open(r'C:/science/python/spectro/data/H2MalecCat.dat', 'r') as f:
-                for line in f.readlines()[1:]:
-                    m = line.split()
-                    for l1 in self['H2j' + m[4]].lines:
-                        if l1.nu_u == int(m[2]) and m[3] in str(l1) and m[1] in str(l1):
-                            #out.write(line[:54] + '{0:12.10f}   {1:6.1e} '.format(l1.f, l1.g) + line[77:])
-                            out.write(line[:-1] + '{0:12.8f}   {1:6.1e}  {2:6.2f}\n'.format(l1.f(), l1.g(), l1.f()/float(m[8])))
+            out = open(r'C:/Users/Serj/Desktop/H2_comparison.dat', 'w')
+            if 1:
+                with open(r'C:/science/python/spectro/data/H2/H2UbachsComp.dat', 'r') as f:
+                    for line in f.readlines()[1:]:
+                        if not line.startswith('#'):
+                            words = line.split()
+                            d = re.split('(\d+)', words[0])
+                            for l1 in self['H2j' + d[3]].lines:
+                                print(str(l1).split()[1].replace('-0', ''))
+                                #if l1.nu_u == int(d[1]) and d[2] in str(l1) and d[0] in str(l1):
+                                if words[0] in str(l1).split()[1].replace('-0', ''):
+                                    # out.write(line[:54] + '{0:12.10f}   {1:6.1e} '.format(l1.f, l1.g) + line[77:])
+                                    out.write(line[:-1] + '{0:12.8f} {1:6.1e}  {2:6.2f}  {3:6.2f} {4:6.3e}\n'.format(l1.f(), l1.g(), l1.f() / float(words[4]), l1.g() / float(words[5]), l1.l() / float(words[1]) - 1))
+
+            else:
+                with open(r'C:/science/python/spectro/data/H2/H2MalecCat.dat', 'r') as f:
+                    for line in f.readlines()[1:]:
+                        m = line.split()
+                        for l1 in self['H2j' + m[4]].lines:
+                            if l1.nu_u == int(m[2]) and m[3] in str(l1) and m[1] in str(l1):
+                                #out.write(line[:54] + '{0:12.10f}   {1:6.1e} '.format(l1.f, l1.g) + line[77:])
+                                out.write(line[:-1] + '{0:12.8f}   {1:6.1e}  {2:6.2f}  {3:6.2f}\n'.format(l1.f(), l1.g(), l1.f()/float(m[8]), l1.g() / float(m[9])))
             out.close()
 
     def readHD(self):
@@ -656,7 +670,6 @@ class atomicData(OrderedDict):
             self['HF'].lines.append(line(l[4].decode('UTF-8'), l[6], l[7], l[8], ref='', j_l=l[0], nu_l=l[1], j_u=l[2], nu_u=l[3]))
 
     def makedatabase(self):
-        f = h5py.File('data/atomic.hdf5', 'w')
         self.readMorton()
         #self.readCashman()
         self.readH2(j=[0,1,2,3,4,5,6])
@@ -665,6 +678,11 @@ class atomicData(OrderedDict):
         self.readHF()
         self.read_Molecular()
         self.read_EmissionSF()
+
+        self.writedatabase()
+
+    def writedatabase(self):
+        f = h5py.File('data/atomic.hdf5', 'w')
         for el in self.keys():
             grp = f.create_group(el)
             dt = h5py.special_dtype(vlen=str)
@@ -689,10 +707,10 @@ class atomicData(OrderedDict):
     def read_maleccat(self, n=-1):
         """
         read Malec calalogue 2010 data for H2
-
+        WARNING !!!!!:  This data is bad for J=7 levels and osciallator strenghts for Werner transitions !!!!!
         parameters:
             - n    : if list - specify rotational levels to read
-                     if int - read J_l<=n
+                     if int - read J_l <= n
         """
         with open(os.path.dirname(os.path.realpath(__file__)) + r'/data/H2/H2MalecCat.dat', newline='') as f:
             f.readline()
@@ -710,6 +728,28 @@ class atomicData(OrderedDict):
                     l.j_l = int(words[4])
                     l.set_Ju()
                     self['H2j'+words[4]].lines.append(l)
+
+    def read_ubachscomp(self, n=-1):
+        """
+        read Ubachs compilation 2019 data for H2
+
+        parameters:
+            - n    : if list - specify rotational levels to read
+                     if int - read J_l<=n
+        """
+        data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r'/data/H2/H2UbachsComp.dat', comments='#', dtype=str)
+        for words in data:
+            d = re.split('(\d+)', words[0])
+            if (isinstance(n, list) and int(d[3]) in n) or (isinstance(n, int) and int(d[3]) <= n) or n == -1:
+                l = line('H2j' + str(int(d[3])), words[1], words[4], words[5])
+                l.band = d[0]
+                l.nu_u = int(d[1])
+                l.nu_l = 0
+                l.rot = d[2]
+                l.j_l = int(d[3])
+                l.set_Ju()
+
+                self['H2j'+d[3]].lines.append(l)
 
     def read_Molecular(self):
         with open(os.path.dirname(os.path.realpath(__file__))+r'/data/Molecular_data.dat', newline='') as f:
@@ -1248,16 +1288,17 @@ if __name__ == '__main__':
         me = a('-1.2^{+0.1}_{-0.1}', 'l')
         print(abundance('OI', HI, me))
 
-    if 0:
+    if 1:
         A = atomicData()
         #A.readCO()
         #print(A.list('SiII'))
         A.makedatabase()
         #A.makedatabase()
 
-    if 1:
+    if 0:
         A = atomicData()
         A.readH2Abgrall(j=[0,1,2,3,4,5,6,7])
-        print(A.keys())
+        #A.readH2new(j=[0])
+        #print(A.keys())
         #A.readH2(j=[0,1,2,3,4,5,6,7])
         A.compareH2()

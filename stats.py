@@ -155,7 +155,7 @@ class distr1d():
 
 class distr2d():
     def __init__(self, x, y, z, xtol=1e-5, debug=False):
-        if len(z.shape) == 0 and len(x) == len(y) == len(z):
+        if len(z.shape) == 1 and len(x.shape) == 1 and len(y.shape) == 1:
             self.x = np.unique(sorted(x))
             self.y = np.unique(sorted(y))
             self.z = np.zeros([len(self.y), len(self.x)])
@@ -431,3 +431,16 @@ class distr2d():
     def stats(self):
         pass
 
+
+if __name__ == '__main__':
+
+    if 1:
+        x = np.linspace(1, 10, 10)
+        y = np.linspace(0, 1, 10)
+        x, y = np.meshgrid(x, y)
+        x, y = x.flatten(), y.flatten()
+        x, y = np.delete(x, x[0]), np.delete(y, y[0])
+        z = np.exp(- (x - 5)**2 + (y - 1)**2)
+        d = distr2d(x, y, z)
+        d.plot_contour()
+        plt.show()

@@ -135,7 +135,7 @@ class plot_spec(list):
                 
     def specify_styles(self, color=None, ls=None, lw=None, lw_total=None):
         if color is None:
-            index = [0, 2, 4, 9, 1, 6, 7, 8, 9]
+            index = [0, 1, 2, 4, 5, 6, 7, 8, 9]
             color = col.tableau10
             color = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan']
             color = [color[i] for i in index]
@@ -394,10 +394,10 @@ class plotline():
         # >>> plot spectrum
         if self.gray_out:
             ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=0.5, drawstyle='steps-mid',
-                        color='0.5', ecolor='0.7', capsize=1.5, zorder=1)
+                        color='0.5', ecolor='0.7', capsize=1.5, zorder=0)
             k = (self.points == 0)
             self.spec.y[k] = np.NaN
-        ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=0.5, drawstyle='steps-mid',  color='k', ecolor='0.3', capsize=1.5, zorder=0)
+        ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=0.5, drawstyle='steps-mid',  color='k', ecolor='0.3', capsize=1.5, zorder=1)
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         # >>> plot fit

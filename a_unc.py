@@ -176,7 +176,7 @@ class a:
                 base     : base for dec values                
         """
         if self.repr == 'log':
-            print(self.val, self.plus, self.minus, f)
+            #print(self.val, self.plus, self.minus, f)
             s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.val, self.plus, self.minus, n=f)
         if self.repr == 'dec':
             if base == None:
@@ -274,6 +274,9 @@ class a:
             elif fmt in ['dec', 'd']:
                 self.default_format == 'dec'
 
+    def copy(self):
+        return copy.deepcopy(self)
+
     def __add__(self, other):
         
         self.dec()
@@ -309,9 +312,9 @@ class a:
 
         if isinstance(other, a):
             other.dec()
-            print(self.plus, other.plus, self.minus, other.minus, np.sqrt(self.plus ** 2 + other.plus ** 2), np.sqrt(self.minus ** 2 + other.minus ** 2))
+            #print(self.plus, other.plus, self.minus, other.minus, np.sqrt(self.plus ** 2 + other.plus ** 2), np.sqrt(self.minus ** 2 + other.minus ** 2))
             res.val, res.plus, res_minus = self.val - other.val, np.sqrt(self.plus ** 2 + other.plus ** 2), np.sqrt(self.minus ** 2 + other.minus ** 2)
-            print(res.val, res.plus, res_minus)
+            #print(res.val, res.plus, res_minus)
             res = self.mini(self.sub_lnL, other, res)
             other.default()
 
@@ -384,7 +387,7 @@ class a:
             other.dec()
             if self.type == 'm' and other.type == 'm':
                 res.val, res.plus, res.minus = self.val * other.val,  np.sqrt(self.val**2 * other.plus**2 + self.plus**2 * other.val**2), np.sqrt(self.val**2 * other.minus**2 + self.minus**2 * other.val**2)
-                print(res.val, res.plus, res.minus)
+                #print(res.val, res.plus, res.minus)
                 res = self.mini(self.mul_lnL, other, res)
             else: 
                 res.val = self.val*other.val
@@ -490,14 +493,14 @@ if __name__ == '__main__':
     #print(a(2,4,4, 'd').log())
 
     if 1:
-        x = a("$17.70\pm0.50", 'l')
+        x = a("$11.37\pm0.03", 'l')
         #x = a(0, 0, 0, 'd')
-        y = a("$0\pm0.5", 'l')
+        y = a("$14.90\pm0.15", 'l')
         #x = a("$1\pm0.1", 'd')
         #y = a("$10\pm3", 'd')
         #y = a('$2\pm0.3$', 'd')
-        z = x * y
-        print(z.log())
+        z = x / y
+        print(z.dec())
     if 0:
         x = a("$19\pm0.2", 'l')
         x = a(19, 0.2, 0.1)

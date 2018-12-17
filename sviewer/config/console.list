@@ -1,21 +1,21 @@
-show H2 0 1
-show SiII*
-show SiII
 SiII
-NV
-CaII
-CaI
+hide FeII*
 FeII
-show H2 0 1
-show H2 0
-show H2 1
-show CI
+FeII*
+show FeII*
+FeII**
+show FeII**
+FeII***
+show FeII***
+show CI 1560 1656
 show SiII*
 show CI
+show CI*
+show CI**
+
 set cont 1
-set cont 3
-CO
-COj1
-set cont 1
-set cont 1
-set cont 1
+stats
+stats
+stats
+stats
+show H2 0 1

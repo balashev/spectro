@@ -21,7 +21,7 @@ from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget, QD
                              QStatusBar, QMenu, QButtonGroup, QMessageBox)
 from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl
 from PyQt5.QtGui import QDesktopServices
-#from H2_summary import load_P94
+import tarfile
 
 from ..XQ100 import load_QSO
 from ..plot_spec import *
@@ -3615,7 +3615,8 @@ class loadSDSSwidget(QWidget):
         name = self.name.text().strip()
 
         if self.parent.loadSDSS(plate=plate, MJD=MJD, fiber=fiber, name=name):
-            self.close()
+            pass
+            #self.close()
 
     def chooseFile(self):
         fname = QFileDialog.getOpenFileName(self, 'Import SDSS list', self.parent.SDSSfolder)
@@ -5710,8 +5711,18 @@ class sviewer(QMainWindow):
             s = Spectrum(self, name=filename)
 
             if spec is None:
-                if ':' not in filename:
-                    filename = dir_path+filename
+
+                if filename.endswith('tar.gz'):
+                    tar = tarfile.open(filename, 'r:gz')
+                    for m in tar.getmembers():
+                        if m.name.endswith('.fits'):
+                            filename = tar.extractfile(m)
+                            hdulist = fits.open(filename)
+                else:
+                    hdulist = None
+                    if ':' not in filename:
+                        filename = dir_path+filename
+
                 if 'IGMspec' in filename:
                     if self.IGMspecfile is not None:
                         s1 = filename.split('/')
@@ -5725,8 +5736,9 @@ class sviewer(QMainWindow):
                             s.set_data()
                         s.resolution = data['meta']['R'][ind]
 
-                elif filename.endswith('.fits'):
-                    hdulist = fits.open(filename)
+                elif hdulist is not None or filename.endswith('.fits'):
+                    if hdulist is None:
+                        hdulist = fits.open(filename)
                     if 'INSTRUME' in hdulist[0].header:
                         try:
                             if 'XSHOOTER' in hdulist[0].header['INSTRUME']:
@@ -5794,6 +5806,16 @@ class sviewer(QMainWindow):
                         if hdulist[0].header['HIERARCH ESO PRO CATG'] == 'MOS_SCIENCE_REDUCED':
                             x = np.linspace(hdulist[0].header['CRVAL1'], hdulist[0].header['CRVAL1']+hdulist[0].header['CDELT1']*(hdulist[0].header['NAXIS1']-1), hdulist[0].header['NAXIS1'])
                             s.set_data([x, hdulist[0].data[0]*1e20, np.ones_like(x)])
+                    elif 'UVES_popler' in str(hdulist[0].header['HISTORY']):
+                        header = hdulist[0].header
+                        if 'LOGLIN' in header['CTYPE1']:
+                            x = 10 ** (header['CRVAL1'] + np.arange(header['NAXIS1'] + 1 - header['CRPIX1']) * header['CD1_1'])
+
+                        elif 'LINEAR' in header['CTYPE1']:
+                            pass
+                        err = hdulist[0].data[1, :]
+                        err[err < 0] = 0
+                        s.set_data([x, hdulist[0].data[0, :], err])
                     else:
                         prihdr = hdulist[1].data
                         if 1:
