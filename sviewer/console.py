@@ -492,7 +492,12 @@ class Console(QTextEdit):
                         self.parent.s[self.parent.s.ind].apply_shift(float(args[2]))
                     except:
                         pass
+                if args[1] == 'restframe':
+                    self.parent.s[self.parent.s.ind].spec.raw.x /= (1 + self.parent.z_abs)
+                    self.parent.setz_abs('0.0')
 
+                self.parent.s[self.parent.s.ind].spec.raw.interpolate()
+                self.parent.s.redraw()
 
         elif args[0] == 'lines':
 

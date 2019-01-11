@@ -63,7 +63,7 @@ class plot_spec(list):
         - readlist    :  read the path to lines from the file with the list
         -
     """
-    def __init__(self, arg, vel_scale=False, font=14, font_labels=16, fit=True, figure=None, gray_out=False, show_comps=True):
+    def __init__(self, arg, vel_scale=False, font=14, font_labels=16, fit=True, figure=None, gray_out=False, show_comps=True, show_err=True):
         self.vel_scale = vel_scale
         self.name_pos = [0.02, 0.19]
         self.add_ioniz = False
@@ -72,6 +72,7 @@ class plot_spec(list):
         self.fit = fit
         self.figure = figure
         self.show_comps = show_comps
+        self.show_err = show_err
         self.gray_out = gray_out
         self.order = 'v'
 
@@ -133,7 +134,7 @@ class plot_spec(list):
     def specify_comps(self, *args):
         self.comps = np.array(args)
                 
-    def specify_styles(self, color=None, ls=None, lw=None, lw_total=None):
+    def specify_styles(self, color=None, ls=None, lw=None, lw_total=1.5, lw_spec=1.0):
         if color is None:
             index = [0, 1, 2, 4, 5, 6, 7, 8, 9]
             color = col.tableau10
@@ -142,7 +143,7 @@ class plot_spec(list):
         self.color = color[:len(self.comps+1)]
         
         if ls is None:
-            ls = ['-']*10
+            ls = ['-'] * 10
         if isinstance(ls, (str)):
             ls = [ls] * 10
         self.ls = ls[:len(self.comps+1)]
@@ -153,10 +154,9 @@ class plot_spec(list):
             lw = [lw]*10
         self.lw = lw[:len(self.comps+1)]
 
-        if lw_total is None:
-            lw_total = 1.5
         self.lw_total = lw_total
-    
+        self.lw_spec = lw_spec
+
     def set_limits(self, x_min, x_max, y_min, y_max):
         for p in self:
             p.x_min, p.x_max, p.y_min, p.y_max = x_min, x_max, y_min, y_max
@@ -277,6 +277,7 @@ class plotline():
             self.wavelength = 0
         self.show_fit = fit
         self.add_errors = True
+        self.show_err = self.parent.show_err
         self.gray_out = self.parent.gray_out
         self.add_cont = True
         self.rect = []
@@ -392,12 +393,15 @@ class plotline():
         self.points = self.points[self.spec.mask(self.x_min, self.x_max)]
 
         # >>> plot spectrum
+        if self.show_err:
+            elinewidth, ecolor, capsize = 0.5, '0.3', 1.5
+        else:
+            elinewidth, ecolor, capsize = 0, None, 0
         if self.gray_out:
-            ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=0.5, drawstyle='steps-mid',
-                        color='0.5', ecolor='0.7', capsize=1.5, zorder=0)
+            ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid', color='0.5', ecolor='0.7', capsize=capsize, zorder=0)
             k = (self.points == 0)
             self.spec.y[k] = np.NaN
-        ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=0.5, drawstyle='steps-mid',  color='k', ecolor='0.3', capsize=1.5, zorder=1)
+        ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid',  color='k', ecolor=ecolor, capsize=capsize, zorder=1)
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         # >>> plot fit
@@ -647,7 +651,7 @@ class plotline():
                 for c in self.fit.comp:
                     c = c / sum_cont
 
-    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5], pos=0.84, dpos=0.04, color='cornflowerblue', show_ticks=True):
+    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5], pos=0.84, dpos=0.03, color='cornflowerblue', show_ticks=True):
         if 1:
             ymin, ymax = ax.get_ylim()
             pos, dpos = ymin + pos * (ymax - ymin), dpos * (ymax - ymin)
@@ -656,7 +660,13 @@ class plotline():
         lines = [l for l in lines if l.l()*(1+self.parent.z_ref) > xmin and l.l()*(1+self.parent.z_ref) < xmax]
         s = set([str(line).split()[1][:str(line).split()[1].index('-')] for line in lines])
         for band in s:
-            pos_y = pos if ('L' in band and (int(band.split('-')[0][1:]) % 2 == 0 or (np.max(levels) < 5 and int(band.split('-')[0][1:]) < 10))) else pos - dpos - dpos * (ymax - ymin)
+            if ('L' in band and (int(band.split('-')[0][1:]) % 2 == 0 or (np.max(levels) < 5 and int(band.split('-')[0][1:]) < 10))):
+                pos_y = pos
+            elif 'W' in band:
+                pos_y = pos - 2*dpos - 2*dpos * (ymax - ymin)
+            else:
+                pos_y = pos - dpos - dpos * (ymax - ymin)
+
             b_lines = [line for line in lines if band in str(line)]
             b_lines = [line for line in b_lines if line.l()*(1 + self.parent.z_ref) > xmin and line.l()*(1 + self.parent.z_ref) < xmax]
             if str(min(levels)) in [str(line).split()[0][3:] for line in b_lines]:
@@ -667,7 +677,7 @@ class plotline():
                             if line.j_l in levels:
                                 ax.plot([line.l() * (1 + self.parent.z_ref), line.l() * (1 + self.parent.z_ref)], [pos_y, pos_y + dpos], lw=0.75, color=color, ls='-')
                         ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)], [pos_y + dpos, pos_y + dpos], lw=0.75, color=color, ls='-')
-                ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0', ha='left', va='bottom', fontsize=self.parent.font-4, color=color)
+                ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0', ha='left', va='bottom', fontsize=self.parent.font-8, color=color)
 
     def __str__(self):
         return 'plot line object: ' + str(self.name) + ', ' + str(self.wavelength)

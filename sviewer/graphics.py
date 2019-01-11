@@ -507,10 +507,12 @@ class specline():
     def set(self, x=None, y=None, err=None):
         if x is not None:
             self.current().x = x
+            self.current().n = len(x)
         if y is not None:
             self.current().y = y
         if err is not None:
             self.current().err = err
+
 
     def interpolate(self):
         self.current().interpolate()

@@ -1,6 +1,8 @@
-import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.colors import ListedColormap, LogNorm
+import matplotlib.pyplot as plt
+from matplotlib.transforms import Affine2D
+import mpl_toolkits.axisartist.floating_axes as floating_axes
 import numpy as np
 from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph.opengl as gl
@@ -113,14 +115,16 @@ class distr1d():
         """
         self.point = optimize.fmin(self.minter, self.x[np.argmax(self.y)], xtol=self.xtol, disp=self.debug)[0]
         self.ymax = self.inter(self.point)
-        #print('point', self.point, self.x[np.argmax(self.y)])
+        if self.debug or verbose:
+            print('point:', self.point, self.x[np.argmax(self.y)])
         return self.point
 
-    def dointerval(self, conf=0.683):
+    def dointerval(self, conf=0.683, verbose=False):
         """
         Interval estimate for given confidence level
         parameters:
             - conf        :  confidence level
+            - verbose     :  verbose output
         return: interval, level
             - interval    :  estimated interval
             - level       :  level of pdf
@@ -130,8 +134,15 @@ class distr1d():
         n = self.ymax / (nd.pdf(0) / (nd.pdf(nd.interval(conf)[0]) / 2))
         res = optimize.fsolve(self.func, n, args=(conf), xtol=self.xtol, full_output=self.debug)
         self.interval = self.minmax(res[0])
-        #print('interval:', interval[0], interval[1])
+        if self.debug or verbose:
+            print('interval:', self.interval[0], self.interval[1])
         return self.interval, res[0]
+
+    def stats(self, conf=0.683, latex=0, name='par'):
+        self.dopoint(verbose=True)
+        self.dointerval(conf=conf, verbose=True)
+        if latex:
+            print("{name} = {0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.point, self.point - self.interval[0], self.interval[1] - self.point, n=latex, name=name))
 
     def pdf(self, x):
         return self.inter(x)
@@ -150,8 +161,6 @@ class distr1d():
     def latex(self, f=2):
         return "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.point, self.point - self.interval[0],
                                                                 self.interval[1] - self.point, n=f)
-    def stats(self):
-        pass
 
 class distr2d():
     def __init__(self, x, y, z, xtol=1e-5, debug=False):
@@ -186,7 +195,6 @@ class distr2d():
         if self.debug:
             print('norm:', norm)
         self.z = self.z / norm
-
 
     def interpolate(self):
         if 1:
@@ -263,7 +271,7 @@ class distr2d():
 
         return res
 
-    def dointerval(self, conf=0.683):
+    def dointerval(self, conf=0.683, verbose=False):
         """
         Estimate the interval for the both parameters.
         parameters:
@@ -281,7 +289,8 @@ class distr2d():
 
         level = self.level(conf=conf)
         self.interval = self.minmax(level)
-        print('interval:', self.interval[0], self.interval[1])
+        if self.debug or verbose:
+            print('interval:', self.interval[0], self.interval[1])
         return self.interval[0], self.interval[1], res[0]
 
     def plot(self, conf_levels=None):
@@ -322,7 +331,8 @@ class distr2d():
         app.instance().exec_()
 
     def plot_contour(self, conf_levels=None, ax=None, xlabel='', ylabel='', limits=None, ls=None,
-                     color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False, font=18, zorder=1):
+                     color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False,
+                     font=18, title=None, zorder=1):
         if ax == None:
             fig, ax = plt.subplots()
         self.dopoint()
@@ -364,8 +374,40 @@ class distr2d():
         ax.set_xlabel(xlabel, fontsize=font)
         ax.set_ylabel(ylabel, fontsize=font)
         ax.tick_params(axis='both', which='major', labelsize=font)
-
+        if title is not None:
+            ax.set_title(title, fontdict={'fontsize': font})
         return ax
+
+    def plot(self, fig=None, frac=0.2, indent=0.1, color_marg='dodgerblue',
+             conf_levels=None, xlabel='', ylabel='', limits=None, ls=None,
+             color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False,
+             font=18, title=None, zorder=1):
+        if fig is None:
+            fig = plt.figure()
+        ax = fig.add_axes([indent, indent, 1 - indent - frac, 1 - indent - frac])
+        self.plot_contour(ax=ax, conf_levels=conf_levels, xlabel=xlabel, ylabel=ylabel, limits=limits, ls=ls,
+                     color=color, color_point=color_point, cmap=cmap, alpha=alpha, colorbar=colorbar,
+                     font=font, title=title, zorder=zorder)
+
+        x, y = ax.get_xlim(), ax.get_ylim()
+        print(x, y)
+        #helper = floating_axes.GridHelperCurveLinear(Affine2D().rotate_deg(-90), extremes=(0, 4, 0, 4))
+        #ax = floating_axes.FloatingSubplot(fig, [1 - frac, indent, frac, 1 - indent - frac], grid_helper=helper)
+        ax = fig.add_axes([1 - frac, indent, frac, 1 - indent - frac])
+        ax.set_axis_off()
+        dy = self.marginalize('x')
+        ax.plot(dy.inter(dy.x), dy.x, '-', color=color_marg, lw=1.5)
+        ax.set_ylim(y)
+        ax.set_xlim([0,ax.get_xlim()[1]])
+
+        ax = fig.add_axes([indent, 1 - frac, 1 - indent - frac, frac])
+        ax.set_axis_off()
+        dx = self.marginalize('y')
+        ax.plot(dx.x, dx.inter(dx.x), '-', color=color_marg, lw=1.5)
+        ax.set_xlim(x)
+        ax.set_ylim([0, ax.get_ylim()[1]])
+
+        plt.tight_layout()
 
     def marginalize(self, over='y'):
         """
@@ -428,19 +470,26 @@ class distr2d():
         m = np.random.choice(len(genx), n)
         return np.asarray(genx)[m], np.asarray(geny)[m]
 
-    def stats(self):
-        pass
+
+def powerlaw(a, b, g, size=1):
+    """Power-law gen for pdf(x)\propto x^{g-1} for a<=x<=b"""
+
+    r = np.random.random(size=size)
+    ag, bg = a ** g, b ** g
+    return (ag + (bg - ag) * r) ** (1. / g)
 
 
 if __name__ == '__main__':
 
     if 1:
-        x = np.linspace(1, 10, 10)
-        y = np.linspace(0, 1, 10)
+        x = np.linspace(1, 10, 40)
+        y = np.linspace(0, 3, 40)
         x, y = np.meshgrid(x, y)
         x, y = x.flatten(), y.flatten()
         x, y = np.delete(x, x[0]), np.delete(y, y[0])
-        z = np.exp(- (x - 5)**2 + (y - 1)**2)
+        z = np.exp(- (x - 5)**2 - (y - 1)**2)
         d = distr2d(x, y, z)
-        d.plot_contour()
+        d.plot(frac=0.15)
+        d1 = d.marginalize('x')
+        d1.stats(latex=3)
         plt.show()

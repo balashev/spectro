@@ -1,21 +1,21 @@
-SiII
-hide FeII*
-FeII
-FeII*
+show AlIII
+show He
+HeI
+HeII
+show TiII
+TiII
+show SII
+SII
+SiIV
+SiV
+SiVI
+FeI
+show FeI
 show FeII*
-FeII**
 show FeII**
-FeII***
 show FeII***
-show CI 1560 1656
-show SiII*
-show CI
-show CI*
-show CI**
-
-set cont 1
-stats
-stats
-stats
-stats
+show FeII****
+hide FeI
+show FeI
+FeI
 show H2 0 1

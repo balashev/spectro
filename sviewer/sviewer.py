@@ -738,7 +738,6 @@ class residualsWidget(pg.PlotWidget):
             self.kde = pg.ViewBox()
             self.kde.setGeometry(self.vb.sceneBoundingRect())
             self.kde.setGeometry(QRectF(25.0, 1.0, 150.0, 458.0))
-            print('residual:', self.vb.sceneBoundingRect())
         self.scene().addItem(self.kde)
         self.kde.setYLink(self)
         #self.getAxis('right').setLabel('axis2', color='#0000ff')
@@ -1318,6 +1317,7 @@ class showLinesWidget(QWidget):
                     ('col_offset', float), ('row_offset', float),
                     ('units', str), ('regions', int),
                     ('xmin', float), ('xmax', float), ('ymin', float), ('ymax', float),
+                    ('spec_lw', float), ('show_err', int),
                     ('residuals', int), ('gray_out', int), ('res_sigma', int),
                     ('show_comps', int), ('fit_lw', float), ('sys_ind', int),
                     ('font', int), ('xlabel', str), ('ylabel', str),
@@ -1378,6 +1378,7 @@ class showLinesWidget(QWidget):
                  'X-units:', '', '', '', '',
                  'X-scale:', 'min:', '', 'max:', '',
                  'Y-scale:', 'min:', '', 'max:', '',
+                 'Spectrum:', '', '', '', '',
                  'Residuals:', '', '', 'sig:', '',
                  'Comps:', '', '', 'central:', '',
                  'Fonts:', 'axis:', '', '', '',
@@ -1390,7 +1391,7 @@ class showLinesWidget(QWidget):
                  'H2:', '', '', 'pos:', '',
                  'Covering factor:', '', '', '', '',]
 
-        positions = [(i, j) for i in range(19) for j in range(5)]
+        positions = [(i, j) for i in range(20) for j in range(5)]
 
         for position, name in zip(positions, names):
             if name == '':
@@ -1400,11 +1401,12 @@ class showLinesWidget(QWidget):
         self.opt_but = OrderedDict([('width', [0, 2]), ('height', [0, 4]), ('cols', [1, 2]), ('rows', [1, 4]),
                                     ('v_indent', [2, 2]), ('h_indent', [2, 4]), ('col_offset', [4, 2]), ('row_offset', [4, 4]),
                                     ('xmin', [6, 2]), ('xmax', [6, 4]), ('ymin', [7, 2]), ('ymax', [7, 4]),
-                                    ('res_sigma', [8, 4]), ('fit_lw', [9, 2]), ('font', [10, 2]),
-                                    ('xlabel', [11, 2]), ('ylabel', [11, 4]),
-                                    ('x_ticks', [12, 2]), ('xnum', [12, 4]), ('y_ticks', [13, 2]), ('ynum', [13, 4]),
-                                    ('font_labels', [14, 2]), ('name_x_pos', [15, 2]), ('name_y_pos', [15, 4]),
-                                    ('show_H2', [17, 2]), ('pos_H2', [17, 4])])
+                                    ('spec_lw', [8, 2]),
+                                    ('res_sigma', [9, 4]), ('fit_lw', [10, 2]), ('font', [11, 2]),
+                                    ('xlabel', [12, 2]), ('ylabel', [12, 4]),
+                                    ('x_ticks', [13, 2]), ('xnum', [13, 4]), ('y_ticks', [14, 2]), ('ynum', [14, 4]),
+                                    ('font_labels', [15, 2]), ('name_x_pos', [16, 2]), ('name_y_pos', [16, 4]),
+                                    ('show_H2', [18, 2]), ('pos_H2', [18, 4])])
         for opt, v in self.opt_but.items():
             b = QLineEdit(str(getattr(self, opt)))
             b.setFixedSize(80, 30)
@@ -1429,37 +1431,42 @@ class showLinesWidget(QWidget):
         grid.addWidget(self.unitsv, 5, 2)
         grid.addWidget(self.unitsl, 5, 4)
 
+        self.showerr = QCheckBox('show err')
+        self.showerr.setChecked(self.show_err)
+        self.showerr.clicked[bool].connect(self.setErr)
+        grid.addWidget(self.showerr, 8, 3)
+
         self.resid = QCheckBox('')
         self.resid.setChecked(self.residuals)
         self.resid.clicked[bool].connect(self.setResidual)
-        grid.addWidget(self.resid, 8, 1)
+        grid.addWidget(self.resid, 9, 1)
 
         self.gray = QCheckBox('gray')
         self.gray.setChecked(self.gray_out)
         self.gray.clicked[bool].connect(self.setGray)
-        grid.addWidget(self.gray, 8, 2)
+        grid.addWidget(self.gray, 9, 2)
 
         self.plotcomps = QCheckBox('show')
         self.plotcomps.setChecked(self.show_comps)
         self.plotcomps.clicked[bool].connect(self.setPlotComps)
-        grid.addWidget(self.plotcomps, 9, 1)
+        grid.addWidget(self.plotcomps, 10, 1)
 
         self.refcomp = QComboBox(self)
         self.refcomp.addItems([str(i+1) for i in range(len(self.parent.fit.sys))])
         self.sys_ind = min(self.sys_ind, len(self.parent.fit.sys))
         self.refcomp.setCurrentIndex(self.sys_ind-1)
         self.refcomp.currentIndexChanged.connect(self.onIndChoose)
-        grid.addWidget(self.refcomp, 9, 4)
+        grid.addWidget(self.refcomp, 10, 4)
 
         self.showcont = QCheckBox('show')
         self.showcont.setChecked(self.show_cont)
         self.showcont.clicked[bool].connect(self.setCont)
-        grid.addWidget(self.showcont, 16, 1)
+        grid.addWidget(self.showcont, 17, 1)
 
         self.showcf = QCheckBox('show')
         self.showcf.setChecked(self.show_cf)
         self.showcf.clicked[bool].connect(self.setCf)
-        grid.addWidget(self.showcf, 18, 1)
+        grid.addWidget(self.showcf, 19, 1)
 
         layout.addStretch(1)
         l = QHBoxLayout()
@@ -1535,6 +1542,9 @@ class showLinesWidget(QWidget):
             getattr(self, 'units'+u).setChecked(s == u)
         self.units = s
 
+    def setErr(self, b):
+        self.show_err = int(self.showerr.isChecked())
+
     def setResidual(self, b):
         self.residuals = int(self.resid.isChecked())
 
@@ -1584,7 +1594,7 @@ class showLinesWidget(QWidget):
                 self.parent.normalize()
 
             self.ps = plot_spec(len(self.parent.lines), font=self.font, font_labels=self.font_labels,
-                           vel_scale=(self.units=='l'), gray_out=self.gray_out, figure=fig)
+                           vel_scale=(self.units=='l'), gray_out=self.gray_out, show_err=self.show_err, figure=fig)
             rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order,
                                v_indent=self.v_indent, h_indent=self.h_indent,
                                col_offset=self.col_offset, row_offset=self.row_offset)
@@ -1593,7 +1603,7 @@ class showLinesWidget(QWidget):
             self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
-            self.ps.specify_styles(lw=1.0, lw_total=self.fit_lw)
+            self.ps.specify_styles(lw=1.0, lw_total=self.fit_lw, lw_spec=self.spec_lw)
             if len(self.parent.fit.sys) > 0:
                 self.ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
             else:
@@ -1641,7 +1651,7 @@ class showLinesWidget(QWidget):
 
         else:
             self.ps = plot_spec(len(self.parent.plot.regions), font=self.font, font_labels=self.font_labels,
-                           vel_scale=True, gray_out=self.gray_out, figure=fig)
+                           vel_scale=True, gray_out=self.gray_out, show_err=self.show_err, figure=fig)
             rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order,
                                v_indent=self.v_indent, h_indent=self.h_indent,
                                col_offset=self.col_offset, row_offset=self.row_offset)
@@ -1650,7 +1660,7 @@ class showLinesWidget(QWidget):
             self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
-            self.ps.specify_styles(lw=1.0, lw_total=self.fit_lw)
+            self.ps.specify_styles(lw=1.0, lw_total=self.fit_lw, lw_spec=self.spec_lw)
             if len(self.parent.fit.sys) > 0:
                 self.ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
             else:
@@ -2235,7 +2245,7 @@ class fitMCMCWidget(QWidget):
         mask = np.array([self.parent.fit.list()[[str(i) for i in self.parent.fit.list()].index(p)].show for p in pars])
         names = [str(p).replace('_', ' ') for p in self.parent.fit.list_fit() if p.show]
         if self.parent.options('MCMC_likelihood'):
-            names = [r'$\chi^2$'] + pars
+            names = [r'$\chi^2$'] + names #pars
             samples = np.insert(samples, 0, lnprobs, axis=1)
             mask = np.insert(mask, 0, True)
         imax = np.argmin(lnprobs)
@@ -2261,6 +2271,7 @@ class fitMCMCWidget(QWidget):
                                         )
             if self.parent.options('MCMC_graph') == 'corner':
                 import corner
+                print(names)
                 figure = corner.corner(samples[nwalkers * burnin:, np.where(mask)[0]],
                                        labels=names,
                                        show_titles=True,
@@ -3464,6 +3475,12 @@ class loadSDSSwidget(QWidget):
         #self.load.resize(self.load.sizeHint())
         self.load.clicked.connect(self.loadspectrum)
         l.addWidget(self.load)
+        self.add = QPushButton('Add', self)
+        self.add.setFixedSize(150, 30)
+        # self.load.resize(self.load.sizeHint())
+        self.add.clicked.connect(partial(self.loadspectrum, append=True))
+        l.addWidget(self.add)
+
         l.addStretch(1)
 
         layout.addLayout(l)
@@ -3524,7 +3541,7 @@ class loadSDSSwidget(QWidget):
 
         vl = QVBoxLayout(self)
         self.preview = QTextEdit()
-        self.preview.setFixedSize(400, 500)
+        self.preview.setFixedHeight(500)
         vl.addWidget(self.preview)
 
         l = QHBoxLayout(self)
@@ -3538,11 +3555,25 @@ class loadSDSSwidget(QWidget):
         self.fiber_col.setFixedSize(40, 30)
         l.addWidget(self.fiber_col)
 
+        l.addWidget(QLabel('Name:'))
+        self.name_col = QLineEdit()
+        self.name_col.setFixedSize(40, 30)
+        l.addWidget(self.name_col)
+
         l.addWidget(QLabel('Header:'))
         self.header = QLineEdit()
         self.header.setText('1')
         self.header.setFixedSize(40, 30)
         l.addWidget(self.header)
+        l.addStretch(1)
+        vl.addLayout(l)
+
+        l = QHBoxLayout(self)
+        l.addWidget(QLabel('Add columns:'))
+        self.addcolumns = QLineEdit()
+        self.addcolumns.setText('1')
+        self.addcolumns.setFixedSize(100, 30)
+        l.addWidget(self.addcolumns)
         l.addStretch(1)
         vl.addLayout(l)
 
@@ -3607,14 +3638,14 @@ class loadSDSSwidget(QWidget):
         self.scrolllayout.addWidget(self.scroll)
 
 
-    def loadspectrum(self):
+    def loadspectrum(self, append=False):
 
         plate = str(self.plate.text())
         MJD = str(self.mjd.text())
         fiber = '{:0>4}'.format(self.fiber.text())
         name = self.name.text().strip()
 
-        if self.parent.loadSDSS(plate=plate, MJD=MJD, fiber=fiber, name=name):
+        if self.parent.loadSDSS(plate=plate, MJD=MJD, fiber=fiber, name=name, append=append):
             pass
             #self.close()
 
@@ -3665,7 +3696,7 @@ class loadSDSSwidget(QWidget):
         pars = [k for k, v in self.saved.items() if v]
 
         self.parent.SDSSdata = None
-        inds, fiber, plate = [], [], []
+        inds, add_inds = [], []
         if self.filename.text().strip() == '':
             data = np.recarray((0,), dtype=[('plate', int), ('fiber', int)])
             for line in self.sdsslist.toPlainText().splitlines():
@@ -3676,18 +3707,39 @@ class loadSDSSwidget(QWidget):
             else:
                 inds = np.arange(len(self.data['PLATE']))
         else:
-            data = np.genfromtxt(self.filename.text(), dtype=int, skip_header=int(self.header.text()))
-            plate, fiber = data[:, int(self.plate_col.text())-1], data[:, int(self.fiber_col.text())-1]
-
-        for p, f in zip(plate, fiber):
-            print(p, f)
-            ind = np.where((self.data['PLATE'] == p) * (self.data['FIBERID'] == f))[0]
-            if len(ind) > 0:
-                inds.append(ind[0])
+            data = np.genfromtxt(self.filename.text(), dtype=None, skip_header=int(self.header.text()), encoding=None)
+            if len(self.name_col.text().strip()) == 0:
+                for p, f, i in zip(data['f{:d}'.format(int(self.plate_col.text())-1)], data['f{:d}'.format(int(self.fiber_col.text())-1)], range(len(data['f0']))):
+                    print(p, f)
+                    ind = np.where((self.data['PLATE'] == p) * (self.data['FIBERID'] == f))[0]
+                    if len(ind) > 0:
+                        inds.append(ind[0])
+                        add_inds.append(i)
+                    else:
+                        print('missing:', p, f)
             else:
-                print('missing:', p, f)
-
-        self.parent.SDSSdata = np.array(self.data[pars][inds])
+                for i, name in enumerate(data['f{:d}'.format(int(self.name_col.text())-1)]):
+                    name = name.replace('J', '').replace('SDSS', '')
+                    ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (
+                    name[:name.index('-')], name[name.index('-'):])
+                    ra, dec = hms_to_deg(ra), dms_to_deg(dec)
+                    if 'RA' in self.data.dtype.names:
+                        RA, DEC = self.data['RA'], self.data['DEC']
+                    elif 'RA_GROUP' in self.data.dtype.names:
+                        RA, DEC = self.data['RA_GROUP'], self.data['DEC_GROUP']
+                    ind = np.argmin((RA - ra) ** 2 + (DEC - dec) ** 2)
+                    if (RA[ind] - ra) ** 2 + (DEC[ind] - dec) ** 2 < 0.3:
+                        inds.append(ind)
+                        add_inds.append(i)
+                    #print(self.data['RA'], self.data['DEC'])
+            if len(self.addcolumns.text().split()) > 0:
+                add = data[:][['f{:d}'.format(int(i)-1) for i in self.addcolumns.text().split()]]
+            else:
+                add = None
+        if len(self.data[pars][inds]) > 0:
+            self.parent.SDSSdata = np.array(self.data[pars][inds])
+            if add is not None:
+                self.parent.SDSSdata = np.lib.recfunctions.merge_arrays([self.parent.SDSSdata, add[add_inds]], flatten=True, usemask=False)
 
         if self.parent.SDSSdata is not None:
             self.parent.SDSSlist = QSOlistTable(self.parent, 'SDSS')
@@ -6615,7 +6667,7 @@ class sviewer(QMainWindow):
                 y = np.array(y)[arg]
 
                 p = ax.plot(x, [v.val for v in y], 'o', markersize=1) #, label='sys_' + str(self.fit.sys.index(sys)))
-                ax.errorbar(x, [v.val for v in y], yerr=[[v.plus for v in y], [v.minus for v in y]],  fmt='o', color = p[0].get_color(), label=label)
+                ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]],  fmt='o', color = p[0].get_color(), label=label)
                 #temp = self.H2ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax)
                 text.append(self.H2ExcitationTemp(levels=[0, 1], E=500, ind=self.fit.sys.index(sys), plot=False, ax=ax))
 
@@ -6944,9 +6996,11 @@ class sviewer(QMainWindow):
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    def loadSDSS(self, plate=None, MJD=None, fiber=None, name=None, z_abs=0):
+    def loadSDSS(self, plate=None, MJD=None, fiber=None, name=None, z_abs=0, append=False):
         out = True
         print(self.SDSScat)
+        if name is not None:
+            name = name.replace('J', '').replace('SDSS', '').replace(':', '').replace('−', '-').strip()
         if self.SDSScat == 'DR12':
             try:
                 sdss = self.IGMspec['BOSS_DR12']
@@ -6954,14 +7008,12 @@ class sviewer(QMainWindow):
                 if name is None or name is '':
                     ind = np.where((sdss['meta']['PLATE'] == int(plate)) & (sdss['meta']['FIBERID'] == int(fiber)))[0][0]
                 else:
-                    name = name.replace('J', '').replace('SDSS', '').strip()
                     ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (name[:name.index('-')], name[name.index('-'):])
                     ra, dec = hms_to_deg(ra), dms_to_deg(dec)
-                    print(ra, dec)
                     ind = np.argmin((sdss['meta']['RA_GROUP'] - ra) ** 2 + (sdss['meta']['DEC_GROUP'] - dec) ** 2)
                 print(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'))
                 self.importSpectrum(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'), spec=[sdss['spec'][ind]['wave'], sdss['spec'][ind]['flux'],
-                                                 sdss['spec'][ind]['sig']])
+                                                 sdss['spec'][ind]['sig']], append=append)
                 resolution = int(sdss['meta'][ind]['R'])
             except:
                 out = False
@@ -6972,7 +7024,6 @@ class sviewer(QMainWindow):
                 if name is None or name.strip() == '':
                     ind = np.where((sdss['meta']['PLATE'] == int(plate)) & (sdss['meta']['FIBERID'] == int(fiber)))[0][0]
                 else:
-                    name = name.replace('J', '').replace('SDSS', '').strip()
                     ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (name[:name.index('-')], name[name.index('-'):])
                     ra, dec = hms_to_deg(ra), dms_to_deg(dec)
                     ind = np.argmin((sdss['meta']['RA'] - ra) ** 2 + (sdss['meta']['DEC'] - dec) ** 2)
@@ -6980,7 +7031,7 @@ class sviewer(QMainWindow):
                 spec = self.SDSSDR14['data/{0:04d}/{1:04d}'.format(plate, fiber)]
                 mask = spec[:, 2] > 0
                 self.importSpectrum('spec-{0:05d}-{1:05d}-{2:04d}'.format(plate, sdss['meta']['MJD'][ind], fiber),
-                                    spec=[10**spec[:,0][mask], spec[:,1][mask], np.sqrt(1.0/spec[:,2][mask])])
+                                    spec=[10**spec[:,0][mask], spec[:,1][mask], np.sqrt(1.0/spec[:,2][mask])], append=append)
                 resolution = 1800
             except:
                 out = False
@@ -7430,6 +7481,7 @@ class sviewer(QMainWindow):
 
     def generate(self, template='current', z=0, fit=True, xmin=3500, xmax=10000, resolution=2000, snr=None,
                  lyaforest=0.0, lycutoff=True, Av=0.0, Av_bump=0.0, z_Av=0.0, redraw=True):
+
         if template in ['Slesing', 'VanDenBerk', 'HST', 'const']:
             s = Spectrum(self, name='mock')
             if template == 'Slesing':
@@ -7448,14 +7500,14 @@ class sviewer(QMainWindow):
             data[0] *= (1 + z)
             inter = interp1d(data[0], data[1], bounds_error=False, fill_value=fill_value, assume_sorted=True)
             s.resolution = resolution
-            bin = (xmin + xmax) / 2 / resolution / 10
+            bin = (xmin + xmax) / 2 / resolution / 4
             x = np.linspace(xmin, xmax, (xmax - xmin) / bin)
             #debug(len(x), 'lenx')
             s.set_data([x, inter(x), np.ones_like(x) * 0.1])
             self.s.append(s)
             self.s.ind = len(self.s) - 1
         s = self.s[self.s.ind]
-        s.cont.x, s.cont.y = s.spec.raw.x[:], s.spec.raw.y[:]
+        s.cont.x, s.cont.y = np.copy(s.spec.raw.x), np.copy(s.spec.raw.y)
         s.cont.n = len(s.cont.y)
         s.cont_mask = np.logical_not(np.isnan(s.spec.raw.x))
         s.spec.normalize()
@@ -7463,7 +7515,7 @@ class sviewer(QMainWindow):
         if lyaforest > 0 or Av > 0 or lycutoff:
             y = s.spec.raw.y
             if lyaforest > 0:
-                y *= add_LyaForest(x=s.spec.raw.x, z_em=z, factor=lyaforest)
+                y *= add_LyaForest(x=s.spec.raw.x, z_em=z, factor=lyaforest, kind='lines')
             if Av > 0:
                 y *= add_ext_bump(x=s.spec.raw.x, z_ext=z_Av, Av=Av, Av_bump=Av_bump)
             if lycutoff:
@@ -7475,6 +7527,13 @@ class sviewer(QMainWindow):
             s.calcFit_fft(recalc=True, redraw=False, debug=False)
             s.fit.norm.interpolate(fill_value=1.0)
             s.spec.set(y=s.spec.raw.y * s.fit.norm.inter(s.spec.raw.x))
+
+        if 0:
+            def rebin(a, factor):
+                n = a.shape[0] // factor
+                return a[:n * factor].reshape(a.shape[0] // factor, factor).sum(1) / factor
+            s.spec.set(x=rebin(s.spec.raw.x, 3), y=rebin(s.spec.raw.x, 3))
+            s.cont.y = rebin(s.cont.y, 3)
 
         if snr is not None:
             s.spec.set(y=s.spec.raw.y + s.cont.y * np.random.normal(0.0, 1.0 / snr, s.spec.raw.n))

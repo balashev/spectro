@@ -477,7 +477,6 @@ class QSOlistTable(pg.TableWidget):
         self.header = infoWidget(self.parent, 'Header of '+self.cell_value('name', row=row).strip(), text=repr(hdul[0].header))
         self.header.show()
 
-    def saveUVES(self, row, col):
         if row == self.edit_item[0] and col == self.edit_item[1]:
             if self.horizontalHeaderItem(col).text() in ['z', 'z_DLA', 'Lyaf', 'comment']:
                 for line in fileinput.input(self.folder + '/list.dat', inplace=True):

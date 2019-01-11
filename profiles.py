@@ -12,6 +12,9 @@ import numpy as np
 from scipy.integrate import simps
 from scipy.interpolate import interp1d
 from scipy.special import wofz
+#from scipy.stats import lognormal
+
+from .stats import powerlaw
 
 #import sys
 #sys.path.append('D:/science/python/')
@@ -504,8 +507,22 @@ def add_LyaForest(x, z_em=0, factor=1, kind='trans'):
         corr[mask] = inter(x[mask])
 
     if kind == 'lines':
-        # not implemented yet!!!
-        pass
+
+        z_min, z_max = x[0] / 1215.6701 - 1, z_em
+        n = int(6.1 * ((1+z_max)**3.5 - (1+z_min)**3.5) * factor)
+        print(n)
+        z, N, b = powerlaw(z_min, z_max, 2.5, size=n), np.log10(powerlaw(10**13.5, 10**17, -1.29, size=n)), np.random.lognormal(mean=8/2.4, sigma=1.0/2.4, size=n)
+        mask = N > 12
+        print(np.sum(mask))
+        flux = np.zeros_like(x)
+        for zi, Ni, bi in zip(z[mask], N[mask], b[mask]):
+            print(zi, Ni, bi)
+            l, f, g = [1215.6701, 1025.7223, 972.5368, 949.7431], [0.416400, 0.079120, 0.029000, 0.013940], [6.265e8, 1.897e8, 8.127e7, 4.204e7]
+            for li, fi, gi in zip(l, f, g):
+                t = tau(l=li, f=fi, g=gi, logN=Ni, b=40, z=zi, resolution=10000)
+                flux += t.calctau(x)
+
+        corr = convolveflux(x, np.exp(-flux), res=2000)
 
     return corr
 
