@@ -499,9 +499,9 @@ class QSOlistTable(pg.TableWidget):
         load_spectrum = 0
         if 'SDSS' == self.cat:
             if colInd == 0:
-                fiber = '{:04d}'.format(int(self.cell_value('FIBERID')))
-                plate = self.cell_value('PLATE')
-                MJD = self.cell_value('MJD')
+                fiber = int(self.cell_value('FIBERID'))
+                plate = int(self.cell_value('PLATE'))
+                MJD = int(self.cell_value('MJD'))
                 if 1:
                     self.parent.loadSDSS(plate=plate, MJD=MJD, fiber=fiber)
                     load_spectrum = 0

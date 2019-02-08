@@ -541,6 +541,8 @@ class fitPars:
 
         for attr, val in zip(reversed(attrs), reversed(s[1:])):
             self.setValue(s[0], val, attr)
+            if attr == 'step':
+                self.setValue(s[0], float(val), 'unc')
 
         if 'res' in s[0]:
             self.parent.s[int(s[0][4:])].resolution = getattr(self, s[0]).val

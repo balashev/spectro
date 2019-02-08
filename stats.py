@@ -293,7 +293,7 @@ class distr2d():
             print('interval:', self.interval[0], self.interval[1])
         return self.interval[0], self.interval[1], res[0]
 
-    def plot(self, conf_levels=None):
+    def plot_3d(self, conf_levels=None):
         app = QtGui.QApplication([])
         w = gl.GLViewWidget()
         w.show()

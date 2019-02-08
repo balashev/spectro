@@ -553,10 +553,12 @@ def add_ext(x, z_ext=0, Av=0, kind='SMC'):
         - corr      : correction array at each x.
     """
     if Av > 0:
-        et = {'SMC': 2, 'LMC': 6}
-        data = np.genfromtxt('data/extinction.dat', skip_header=3, usecols=[0, et[kind]], unpack=True)
-        inter = interp1d(data[0]*1e4, data[1], fill_value='extrapolate')
-
+        if kind in ['SMC', 'LMC']:
+            et = {'SMC': 2, 'LMC': 6}
+            data = np.genfromtxt('data/extinction.dat', skip_header=3, usecols=[0, et[kind]], unpack=True)
+            inter = interp1d(data[0]*1e4, data[1], fill_value='extrapolate')
+        elif kind == 'MW':
+            pass
         return np.exp(- 0.92 * Av * inter(x / (1+z_ext)))
     else:
         return np.ones_like(x)

@@ -672,7 +672,7 @@ class atomicData(OrderedDict):
     def makedatabase(self):
         self.readMorton()
         #self.readCashman()
-        self.readH2(j=[0,1,2,3,4,5,6])
+        self.readH2(j=[0,1,2,3,4,5,6,7,8])
         self.readHD()
         self.readCO()
         self.readHF()
@@ -981,10 +981,21 @@ class atomicData(OrderedDict):
                     'HI 3889',
                     'OIII 5006',
                     'OIII 4958',
+                    'OIII 4363',
+                    'OIII 2320',
+                    'OIII 2331',
                     'OII 3726',
                     'OII 3728',
                     'NII 6548',
                     'NII 6583',
+                    'HeI 7065',
+                    'HeI 6678',
+                    'HeI 5875',
+                    'HeI 4471',
+                    'HeI 4026',
+                    'HeI 3888',
+                    'SII 6716',
+                    'SII 6730'
                     ]
         if lines:
             return self.list(linelist=linelist)

@@ -1,4 +1,5 @@
 from adjustText import adjust_text
+from astropy import coordinates as coords
 from astropy.io import fits
 from astropy.table import Table
 from collections import OrderedDict
@@ -6,7 +7,7 @@ from copy import deepcopy
 import emcee
 import h5py
 import inspect
-from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs
+from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs, Model
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
 from multiprocessing import Process
@@ -21,6 +22,7 @@ from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget, QD
                              QStatusBar, QMenu, QButtonGroup, QMessageBox)
 from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl
 from PyQt5.QtGui import QDesktopServices
+import subprocess
 import tarfile
 
 from ..XQ100 import load_QSO
@@ -260,6 +262,10 @@ class plotSpectrum(pg.PlotWidget):
                     else:
                         self.showfullfit = False
                     self.parent.showFit(all=self.showfullfit)
+
+            if event.key() == Qt.Key_G:
+                self.g_status = True
+                self.parent.fitGauss()
 
             if event.key() == Qt.Key_H:
                 self.h_status = True
@@ -2304,7 +2310,7 @@ class fitMCMCWidget(QWidget):
             for i, p in enumerate(pars):
                 print(i, p)
                 if p in names:
-                    x = np.linspace(np.min(samples[nwalkers * burnin + 1:, i]), np.max(samples[nwalkers * burnin + 1:, i]), 50)
+                    x = np.linspace(np.min(samples[nwalkers * burnin + 1:, i]), np.max(samples[nwalkers * burnin + 1:, i]), 100)
                     kde = gaussian_kde(samples[nwalkers * burnin + 1:, i])
                     d = distr1d(x, kde(x))
                     print(x, kde(x))
@@ -2535,6 +2541,20 @@ class fitExtWidget(QWidget):
         self.initUI()
 
     def initUI(self):
+        layout = QVBoxLayout()
+
+        l = QHBoxLayout()
+        l.addWidget(QLabel('Tempplate:'))
+        temp_group = QButtonGroup(self)
+        for template in ['VandenBerk', 'HST', 'Slesing']:
+            setattr(self, template, QRadioButton(template))
+            temp_group.addButton(getattr(self, template))
+            l.addWidget(getattr(self, template))
+            getattr(self, template).toggled.connect(partial(self.set, 'template', template))
+        self.HST.setChecked(True)
+        l.addStretch(1)
+        layout.addLayout(l)
+
         l = QGridLayout()
 
         self.z_em = QCheckBox('z_em:', self)
@@ -2558,48 +2578,110 @@ class fitExtWidget(QWidget):
         self.Av_value.setText('0.0')
         l.addWidget(self.Av_value, 2, 1)
 
-        self.Av_bump = QCheckBox('Av_bump:', self)
-        self.Av_bump.setChecked(False)
-        l.addWidget(self.Av_bump, 3, 0)
-        self.Av_bump_value = QLineEdit(self)
-        self.Av_bump_value.setText('0.0')
-        l.addWidget(self.Av_bump_value, 3, 1)
+        layout.addLayout(l)
+        self.tab = QTabWidget()
+        self.tab.setGeometry(0, 0, 1050, 900)
+        # self.tab.setMinimumSize(1050, 300)
+
+        for t in ['Emperical', 'Analytical']:
+            self.tab.addTab(self.initTabGUI(t), t)
+
+        layout.addWidget(self.tab)
+
+        l = QHBoxLayout()
+        self.showEC = QPushButton('Show', self)
+        self.showEC.setFixedSize(100, 30)
+        self.showEC.clicked.connect(self.fitExt)
+        l.addWidget(self.showEC)
 
         self.fit = QPushButton('Fit', self)
         self.fit.setFixedSize(100, 30)
         self.fit.clicked.connect(self.fitExt)
-        l.addWidget(self.fit, 4, 0)
+        l.addWidget(self.fit)
+        l.addStretch(1)
 
-        self.setLayout(l)
-        self.setGeometry(300, 300, 280, 230)
+        layout.addLayout(l)
+
+        self.setLayout(layout)
+        self.setGeometry(300, 300, 280, 330)
         self.setWindowTitle('fit Extinction curve')
         self.show()
 
+    def set(self, name, value):
+        setattr(self, name, value)
+
+    def initTabGUI(self, window=None):
+
+        frame = QFrame()
+        validator = QDoubleValidator()
+        locale = QLocale('C')
+        validator.setLocale(locale)
+
+        layout = QHBoxLayout()
+        self.grid = QGridLayout()
+
+        if window == 'Emperical':
+            l = QHBoxLayout()
+            type_group = QButtonGroup(self)
+            for ec in ['MW', 'SMC', 'LMC']:
+                setattr(self, ec, QRadioButton(ec))
+                type_group.addButton(getattr(self, ec))
+                l.addWidget(getattr(self, ec))
+                getattr(self, ec).toggled.connect(partial(self.set, 'ec', ec))
+            self.SMC.setChecked(True)
+            l.addStretch(1)
+            layout.addLayout(l)
+
+        if window == 'Analytical':
+
+            l = QHBoxLayout()
+            self.Av_bump = QCheckBox('Av_bump:', self)
+            self.Av_bump.setChecked(False)
+            l.addWidget(self.Av_bump)
+            self.Av_bump_value = QLineEdit(self)
+            self.Av_bump_value.setText('0.0')
+            l.addWidget(self.Av_bump_value)
+            l.addStretch(1)
+            layout.addLayout(l)
+
+        layout.addLayout(self.grid)
+        layout.addStretch()
+        frame.setLayout(layout)
+        return frame
+
     def fitExt(self, signal, template='HST'):
 
+        print(self.tab.tabText(self.tab.currentIndex()), self.ec)
+        print(self.template)
         z_em = float(self.z_em_value.text())
         z_abs = float(self.z_abs_value.text())
         Av = float(self.Av_value.text())
         Av_bump = float(self.Av_bump_value.text())
-        if template in ['VanDenBerk', 'HST', 'const']:
-            if template == 'VanDenBerk':
+        if self.template in ['VandenBerk', 'HST', 'Slesing']:
+            if self.template == 'VandenBerk':
                 data = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
                 data[0] *= (1 + z_em)
                 fill_value = (1.3, 0.5)
-            elif template == 'HST':
+            elif self.template == 'HST':
                 data = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
                 data[0] *= (1 + z_em)
                 fill_value = 'extrapolate'
-                print('HST_data', data)
-            elif template == 'const':
+            elif self.template == 'Slesing':
+                data = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
+                data[0] *= (1 + z_em)
+                fill_value = 'extrapolate'
+            elif self.template == 'const':
                 data = np.ones((2, 10))
                 data[0] = np.linspace(xmin, xmax, 10)
             inter = interp1d(data[0], data[1], bounds_error=False, fill_value=fill_value, assume_sorted=True)
         s = self.parent.s[self.parent.s.ind]
 
         y = inter(s.spec.raw.x[:])
-        if Av > 0 or Av_bump > 0:
-            y *= add_ext_bump(x=s.spec.raw.x, z_ext=z_abs, Av=Av, Av_bump=Av_bump)
+        if self.tab.tabText(self.tab.currentIndex()) == 'Emperical':
+            y *= add_ext(x=s.spec.raw.x, z_ext=z_abs, Av=Av, kind=self.ec)
+        elif self.tab.tabText(self.tab.currentIndex()) == 'Analytical':
+            if Av > 0 or Av_bump > 0:
+                y *= add_ext_bump(x=s.spec.raw.x, z_ext=z_abs, Av=Av, Av_bump=Av_bump)
 
         mask = np.logical_and(s.spec.raw.x > 1465 * (1 + z_em), s.spec.raw.x < 1475 * (1 + z_em))
         print(np.sum(s.spec.raw.y[mask]), np.sum(y[mask]))
@@ -3505,6 +3587,10 @@ class loadSDSSwidget(QWidget):
         layout.addLayout(l)
 
         l = QHBoxLayout(self)
+        self.Astroquery = QCheckBox('Astroquery')
+        self.Astroquery.clicked.connect(partial(self.selectCat, 'Astroquery'))
+        l.addWidget(self.Astroquery)
+
         self.DR14 = QCheckBox('DR14')
         self.DR14.clicked.connect(partial(self.selectCat, 'DR14'))
         l.addWidget(self.DR14)
@@ -3519,9 +3605,8 @@ class loadSDSSwidget(QWidget):
         l.addStretch(1)
 
         grp = QButtonGroup(self)
-        grp.addButton(self.DR14)
-        grp.addButton(self.DR12)
-        grp.addButton(self.DR9Lee)
+        for attr in ['Astroquery', 'DR14', 'DR12', 'DR9Lee']:
+            grp.addButton(getattr(self, attr))
         getattr(self, self.parent.SDSScat).setChecked(True)
 
         layout.addLayout(l)
@@ -3640,9 +3725,9 @@ class loadSDSSwidget(QWidget):
 
     def loadspectrum(self, append=False):
 
-        plate = str(self.plate.text())
-        MJD = str(self.mjd.text())
-        fiber = '{:0>4}'.format(self.fiber.text())
+        plate = int(self.plate.text())
+        MJD = None if len(self.mjd.text().strip()) == 0 else int(self.mjd.text())
+        fiber = int(self.fiber.text())#'{:0>4}'.format(self.fiber.text())
         name = self.name.text().strip()
 
         if self.parent.loadSDSS(plate=plate, MJD=MJD, fiber=fiber, name=name, append=append):
@@ -3684,6 +3769,9 @@ class loadSDSSwidget(QWidget):
             if cat == 'DR9Lee':
                 self.data = Table.read('C:/science/SDSS/DR9_Lee/BOSSLyaDR9_cat.fits')
                 default = ['SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID', 'Z_VI']
+            if cat == 'Astroquery':
+                self.data = Table.read('C:\science\SDSS\DR14\DR14Q_v4_4.fits')
+                default = ['SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID', 'Z']
             self.saved = {}
             for par in self.data.colnames:
                 self.saved[str(par)] = par in default
@@ -4610,6 +4698,11 @@ class buttonpanel(QFrame):
         self.SkyS.move(530, 20)
         self.SkyS.resize(70, 30)
 
+        self.ESO = QPushButton('ESO', self)
+        self.ESO.clicked.connect(self.getESO)
+        self.ESO.move(630, 20)
+        self.ESO.resize(70, 30)
+
     def initStyle(self):
         self.setStyleSheet("""
             QFrame {
@@ -4639,6 +4732,8 @@ class buttonpanel(QFrame):
         if not QDesktopServices.openUrl(url):
             QMessageBox.warning(self, 'Open Url', 'Could not open url')
 
+    def getESO(self):
+        print(self.parent.s[self.parent.s.ind].filename)
 class sviewer(QMainWindow):
     
     def __init__(self):
@@ -4673,6 +4768,7 @@ class sviewer(QMainWindow):
             self.SDSSDR14 = h5py.File(self.SDSSDR14, 'r')
         self.SDSSLeefolder = self.options('SDSSLeefolder', config=self.config)
         self.SDSSdata = []
+        self.SDSSquery = None
         self.SDSS_filters_status = 0
         self.sdss_filters = None
         self.UVESSetup_status = False
@@ -5503,6 +5599,7 @@ class sviewer(QMainWindow):
             if '%' in d[i] or any([x in d[i] for x in ['spect', 'Bcont', 'fitting']]):
                 if '%' in d[i]:
                     specname = d[i][1:].strip()
+                    print(specname)
                     try:
                         ind = [s.filename for s in self.s].index(specname)
                     except:
@@ -5514,7 +5611,7 @@ class sviewer(QMainWindow):
                             if not self.importSpectrum(specname, append=True):
                                 st = re.findall(r'spec-\d{4}-\d{5}-\d+', specname)
                                 if len(st) > 0:
-                                    self.loadSDSS(plate=st[0].split('-')[1], fiber=st[0].split('-')[3])
+                                    self.loadSDSS(plate=int(st[0].split('-')[1]), fiber=int(st[0].split('-')[3]))
                             ind = len(self.s) - 1
                         except:
                             pass
@@ -5744,7 +5841,7 @@ class sviewer(QMainWindow):
             self.statusBar.setText('2d spectrum is imported from ' + fname[0])
 
 
-    def importSpectrum(self, filelist, spec=None, header=0, dir_path='', scale_factor=1, append=False, corr=True):
+    def importSpectrum(self, filelist, spec=None, mask=None, header=0, dir_path='', scale_factor=1, append=False, corr=True):
 
         if not append:
             for s in self.s:
@@ -5782,7 +5879,7 @@ class sviewer(QMainWindow):
                         d = np.empty([len(data['meta']['IGM_ID'])], dtype=[('SPEC_FILE', np.str_, 100)])
                         d['SPEC_FILE'] = np.array([x[:] for x in data['meta']['SPEC_FILE']])
                         ind = [i for i, d in enumerate(d['SPEC_FILE']) if  s1[2] in d][0]
-                        s.set_data([data['spec'][ind]['wave'], data['spec'][ind]['flux'], data['spec'][ind]['sig']])
+                        s.set_data([data['spec'][ind]['wave'], data['spec'][ind]['flux'], data['spec'][ind]['sig']], mask=data['spec'][ind]['and_mask'])
                         if s1[1] == 'KODIAQ_DR1':
                             s.spec.raw.clean(min=-1, max=2)
                             s.set_data()
@@ -5883,13 +5980,31 @@ class sviewer(QMainWindow):
                         except:
                             print('aborted Hadi fits')
                             return False
+                elif filename.endswith('.hdf5'):
+                    f = h5py.File(filename, 'r')
+                    for l in ['wavelength', 'wave', 'x']:
+                        if l in f.keys():
+                            wave = np.asarray(f[l][:], dtype=np.float)
+                    for l in ['flux', 'f', 'y']:
+                        if l in f.keys():
+                            flux = f[l][:]
+                    err = None
+                    for l in ['err', 'unc', 's', 'error', 'errors']:
+                        if l in f.keys():
+                            err = f[l][:]
+                    if err is not None:
+                        s.set_data([wave, flux, err])
+                    else:
+                        s.set_data([wave, flux])
                 else:
                     try:
                         args = line.split()
-                        f, header = open(args[0], 'r'), 0
-                        while f.readline().startswith('#'):
-                            header += 1
-                        data = np.genfromtxt(args[0], skip_header=header, unpack=True)
+                        #f, header = open(args[0], 'r'), 0
+                        #while f.readline().startswith('#'):
+                        #    header += 1
+                        data = np.genfromtxt(args[0], comments='#', unpack=True)
+                        print('args', args[0])
+                        print('data', data)
                         #data[1] *= scale_factor
                         #if len(data) > 2:
                         #    data[2] *= scale_factor
@@ -5908,7 +6023,7 @@ class sviewer(QMainWindow):
                         return False
 
             else:
-                s.set_data(spec)
+                s.set_data(spec, mask=mask)
 
             s.wavelmin = np.min(s.spec.raw.x)
             s.wavelmax = np.max(s.spec.raw.x)
@@ -6541,18 +6656,46 @@ class sviewer(QMainWindow):
         fit spectrum with simple gaussian line (emission)
         """
         for s in self.s:
-            n = np.sum(s.mask)
-            if  n > 0:
-                x, y = s.spec.x[s.mask], s.spec.y[s.mask]
-                mean = self.line_reper.l*(1+self.z_abs)
-                sigma = 10
-                print(mean, sigma)
-                def gaus(x,a,x0,sigma):
-                    return a*np.exp(-(x-x0)**2/(2*sigma**2))
-                popt, pcov = curve_fit(gaus, x, y, p0=[1, mean, sigma])
-                print(gaus(x, *popt))
-                self.plot.add_line(x, gaus(x, *popt))
-                print(quad(gaus, x[0], x[-1], args=tuple(popt)))
+            n = np.sum(s.mask.x())
+            if n > 0:
+                x, y, err = s.spec.x()[s.mask.x()], s.spec.y()[s.mask.x()], s.spec.err()[s.mask.x()]
+                mean = self.line_reper.l()*(1+self.z_abs)
+                ymax = np.max(y) - 1
+                m = y - 1 > ymax /2
+                if len(x[m]) > 1:
+                    fwhm = (x[m][-1] - x[m][0])
+                else:
+                    fwhm = x[np.where(y == ymax)[0]] - x[np.where(y == ymax)[0]+1]
+                sigma = fwhm / 2 / np.sqrt(2 * np.log(2))
+                amp = ymax * np.sqrt(2 * np.pi) * sigma
+                print(amp, mean, sigma)
+
+                def gaussian(x, amp, cen, disp):
+                    """1-d gaussian: gaussian(x, amp, cen, disp)"""
+                    return 1 + (amp / (np.sqrt(2 * np.pi) * disp)) * np.exp(-(x - cen) ** 2 / (2 * disp ** 2))
+
+                if 0:
+                    popt, pcov = curve_fit(gaussian, x, y, p0=[amp, mean, sigma])
+                    print(popt, pcov)
+                    amp, mean, sigma = popt[0], popt[1], popt[2]
+                    #print(quad(gauss, x[0], x[-1], args=tuple(popt)))
+                else:
+                    params = Parameters()
+                    for name, value in zip(['amp', 'cen', 'disp'], [amp, mean, sigma]):
+                        params.add(name, value=value, min=0, max=2*value)
+                    def fcn2min(params, x, y, err):
+                        return (y - gaussian(x, params['amp'], params['cen'], params['disp'])) / err
+
+                    minner = Minimizer(fcn2min, params, fcn_args=(x, y, err))
+                    result = minner.minimize(method='nelder')
+                    for par in params:
+                        params[par].value = result.params[par].value
+                    result = minner.minimize() #, 'nelder')
+                    print(result.errorbars)
+                    self.console.set(fit_report(result))
+                    amp, mean, sigma = result.params['amp'].value, result.params['cen'].value, result.params['disp'].value
+                x = np.linspace(x[0], x[-1], 100)
+                self.plot.add_line(x, gaussian(x, amp, mean, sigma))
 
     def fitPowerLaw(self):
         if not self.normview:
@@ -6998,18 +7141,17 @@ class sviewer(QMainWindow):
 
     def loadSDSS(self, plate=None, MJD=None, fiber=None, name=None, z_abs=0, append=False):
         out = True
-        print(self.SDSScat)
-        if name is not None:
+        if name is not None and len(name) > 0:
             name = name.replace('J', '').replace('SDSS', '').replace(':', '').replace('−', '-').strip()
+            ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (name[:name.index('-')], name[name.index('-'):])
+            ra, dec = hms_to_deg(ra), dms_to_deg(dec)
         if self.SDSScat == 'DR12':
             try:
                 sdss = self.IGMspec['BOSS_DR12']
 
                 if name is None or name is '':
-                    ind = np.where((sdss['meta']['PLATE'] == int(plate)) & (sdss['meta']['FIBERID'] == int(fiber)))[0][0]
+                    ind = np.where((sdss['meta']['PLATE'] == plate) & (sdss['meta']['FIBERID'] == fiber))[0][0]
                 else:
-                    ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (name[:name.index('-')], name[name.index('-'):])
-                    ra, dec = hms_to_deg(ra), dms_to_deg(dec)
                     ind = np.argmin((sdss['meta']['RA_GROUP'] - ra) ** 2 + (sdss['meta']['DEC_GROUP'] - dec) ** 2)
                 print(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'))
                 self.importSpectrum(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'), spec=[sdss['spec'][ind]['wave'], sdss['spec'][ind]['flux'],
@@ -7018,25 +7160,37 @@ class sviewer(QMainWindow):
             except:
                 out = False
         elif self.SDSScat == 'DR14':
-            try:
-                sdss = self.SDSSDR14['meta']
-
-                if name is None or name.strip() == '':
-                    ind = np.where((sdss['meta']['PLATE'] == int(plate)) & (sdss['meta']['FIBERID'] == int(fiber)))[0][0]
-                else:
-                    ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (name[:name.index('-')], name[name.index('-'):])
-                    ra, dec = hms_to_deg(ra), dms_to_deg(dec)
-                    ind = np.argmin((sdss['meta']['RA'] - ra) ** 2 + (sdss['meta']['DEC'] - dec) ** 2)
-                plate, fiber = sdss['meta']['PLATE'][ind], sdss['meta']['FIBERID'][ind]
-                spec = self.SDSSDR14['data/{0:04d}/{1:04d}'.format(plate, fiber)]
-                mask = spec[:, 2] > 0
-                self.importSpectrum('spec-{0:05d}-{1:05d}-{2:04d}'.format(plate, sdss['meta']['MJD'][ind], fiber),
-                                    spec=[10**spec[:,0][mask], spec[:,1][mask], np.sqrt(1.0/spec[:,2][mask])], append=append)
-                resolution = 1800
-            except:
-                out = False
+            #try:
+            sdss = self.SDSSDR14['meta']
+            if name is None or name.strip() == '':
+                ind = np.where((sdss['meta']['PLATE'] == plate) & (sdss['meta']['FIBERID'] == fiber))[0][0]
+            else:
+                ind = np.argmin((sdss['meta']['RA'] - ra) ** 2 + (sdss['meta']['DEC'] - dec) ** 2)
+            plate, MJD, fiber = sdss['meta']['PLATE'][ind], sdss['meta']['MJD'][ind], sdss['meta']['FIBERID'][ind]
+            spec = self.SDSSDR14['data/{0:05d}/{2:04d}/{1:05d}'.format(plate, MJD, fiber)]
+            self.importSpectrum('spec-{0:05d}-{1:05d}-{2:04d}'.format(plate, MJD, fiber),
+                                spec=[10**spec['loglam'][:], spec['flux'][:], np.sqrt(1.0/spec['ivar'][:])],
+                                mask=(spec['and_mask'][:] == 0), append=append)
+            resolution = 1800
+            #except:
+            #    print('error')
+            #    out = False
         elif self.SDSScat == 'DR9Lee':
             pass
+        elif self.SDSScat == 'Astroquery':
+            if self.SDSSquery is None:
+                from astroquery.sdss import SDSS
+                self.SDSSquery = SDSS
+            if name is not None and len(name) > 0:
+                qso = self.SDSSquery.get_spectra(coordinates=coords.SkyCoord(ra, dec, frame='icrs', unit='deg'))[0]
+            else:
+                qso = self.SDSSquery.get_spectra(plate=plate, fiberID=fiber, mjd=MJD)[0]
+            #mask = qso[1].data['ivar'] > 0
+            plate, MJD, fiber = qso[0].header['PLATEID'], qso[0].header['MJD'], qso[0].header['FIBERID']
+            self.importSpectrum('spec-{0:05d}-{1:05d}-{2:04d}'.format(plate, MJD, fiber),
+                                spec=[10 ** qso[1].data['loglam'][:], qso[1].data['flux'][:], np.sqrt(1.0 / qso[1].data['ivar'][:])],
+                                mask=qso[1].data['and_mask'], append=append)
+            resolution = 1800
         else:
             out = False
         if out:

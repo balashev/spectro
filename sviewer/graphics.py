@@ -288,10 +288,11 @@ class gline():
     class for working with lines inside Spectrum plotting
     """
 
-    def __init__(self, x=[], y=[], err=[]):
+    def __init__(self, x=[], y=[], err=[], mask=[]):
         self.x = np.asarray(x)
         self.y = np.asarray(y)
         self.err = np.asarray(err)
+        self.mask = np.asarray(mask)
         # self.x_s, self.y_s, self.err_s = self.x, self.y, self.err
         self.n = self.x.shape[0]
         if self.x.shape != self.y.shape:
@@ -395,7 +396,7 @@ class gline():
             mask = np.logical_and(mask, self.y > min)
         if max is not None:
             mask = np.logical_and(mask, self.y < max)
-        self.x, self.y, self.err = self.x[mask], self.y[mask], self.err[mask]
+        self.x, self.y, self.err, self.mask = self.x[mask], self.y[mask], self.err[mask], self.mask[mask]
         self.n = len(self.x)
 
     def apply_region(self, regions=[]):
@@ -404,9 +405,7 @@ class gline():
             regions = np.sort(regions, axis=0)
             for r in regions:
                 mask = np.logical_and(mask, np.logical_or(self.x_s < np.min(r), self.x_s > np.max(r)))
-        self.x = self.x_s[mask]
-        self.y = self.y_s[mask]
-        self.err = self.err_s[mask]
+        self.x, self.y, self.err, self.mask = self.x_s[mask], self.y_s[mask], self.err_s[mask], self.mask_s[mask]
         self.n = len(self.x)
 
         if len(regions) > 0:
@@ -492,6 +491,9 @@ class specline():
     def err(self):
         return self.current().err
 
+    def mask(self):
+        return self.current().mask
+
     def f(self, x):
         return self.current().inter(x)
 
@@ -504,7 +506,7 @@ class specline():
     def add(self, x, y=[], err=[]):
         self.raw.add(x=x, y=y, err=err)
 
-    def set(self, x=None, y=None, err=None):
+    def set(self, x=None, y=None, err=None, mask=None):
         if x is not None:
             self.current().x = x
             self.current().n = len(x)
@@ -512,7 +514,8 @@ class specline():
             self.current().y = y
         if err is not None:
             self.current().err = err
-
+        if mask is not None:
+            self.current().mask = mask
 
     def interpolate(self):
         self.current().interpolate()
@@ -1141,10 +1144,11 @@ class Spectrum():
             self.sm_pen = pg.mkPen(245, 0, 80)
             self.bad_brush = pg.mkBrush(252, 58, 38)
             self.region_brush = pg.mkBrush(147, 185, 69, 60)
+            self.mask_region_brush = pg.mkBrush(0, 0, 0, 255)
             cdict = cm.get_cmap('viridis')
             cmap = np.array(cdict.colors)
             #cmap[0] = [1,1,1]
-            cmap[-1] = [1,0.4,0]
+            cmap[-1] = [1, 0.4, 0]
             map = pg.ColorMap(np.linspace(0,1,cdict.N), cmap, mode='rgb')
             self.colormap = map.getLookupTable(0.0, 1.0, 256, alpha=False)
             map = pg.ColorMap(np.linspace(0, 1, 2), [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 0.0]], mode='rgb')
@@ -1188,6 +1192,9 @@ class Spectrum():
                 self.g_line.setPen(self.pen)
                 self.g_line.setZValue(2)
                 self.parent.vb.addItem(self.g_line)
+
+            if len(self.spec.mask()) > 0 and np.sum(~self.spec.mask()) > 0:
+                self.updateMask()
 
         # >>> plot fit point:
         self.set_fit_mask()
@@ -1336,6 +1343,11 @@ class Spectrum():
         except:
             pass
 
+        try:
+            for r in self.mask_regions:
+                self.parent.vb.removeItem(r)
+        except:
+            pass
 
         try:
             self.parent.residualsPanel.vb.removeItem(self.residuals)
@@ -1371,17 +1383,19 @@ class Spectrum():
             pass
         self.set_res()
 
-    def set_data(self, data=None):
+    def set_data(self, data=None, mask=None):
         if data is not None:
             if len(data) >= 3:
-                mask = np.logical_and(data[1] != 0, data[2] != 0)
-                self.spec.set(data[0][mask], data[1][mask], err=data[2][mask])
+                if mask is not None:
+                    mask = np.logical_and(mask, np.logical_and(data[1] != 0, data[2] != 0))
+                self.spec.set(data[0], data[1], err=data[2], mask=mask)
                 if len(data) == 4:
-                    self.cont.set_data(data[0][mask], data[3][mask])
+                    self.cont.set_data(data[0], data[3])
                     self.cont_mask = np.ones_like(self.spec.x(), dtype=bool)
             elif len(data) == 2:
-                mask = (data[1] != 0)
-                self.spec.set(data[0][mask], data[1][mask])
+                if mask is not None:
+                    mask = np.logical_and(mask, (data[1] != 0))
+                self.spec.set(data[0], data[1], mask=mask)
             else:
                 mask = data[1] != np.NaN
         self.spec.raw.interpolate()
@@ -1546,7 +1560,7 @@ class Spectrum():
 
         i = np.where(self.fit_mask.x())
         if i[0].shape[0] > 0:
-            ind = np.where(np.diff(np.where(self.fit_mask.x())[0]) > 1)[0]
+            ind = np.where(np.diff(i[0]) > 1)[0]
             ind = np.sort(np.append(np.append(i[0][ind], i[0][ind + 1]), [i[0][-1], i[0][0]]))
 
             self.regions = []
@@ -1556,6 +1570,26 @@ class Spectrum():
                                                        brush=self.region_brush))
                 # self.regions.append(pg.LinearRegionItem([self.spec.x()[ind[k]], self.spec.x()[ind[k+1]]], movable=False, brush=pg.mkBrush(100, 100, 100, 30)))
                 self.parent.vb.addItem(self.regions[-1])
+
+    def updateMask(self):
+        try:
+            for r in self.mask_regions:
+                self.parent.vb.removeItem(r)
+        except:
+            pass
+
+        i = np.where(self.spec.mask())
+        if i[0].shape[0] > 0:
+            ind = np.where(np.diff(i[0]) > 1)[0]
+            ind = np.sort(np.append(np.append(i[0][ind], i[0][ind + 1]), [i[0][-1], i[0][0]]))
+
+            self.mask_regions = []
+            for i, k in enumerate(range(0, len(ind), 2)):
+                x_r = self.spec.x()[-1] if ind[k+1] > len(self.spec.x())-2 else (self.spec.x()[ind[k+1]+1] + self.spec.x()[ind[k+1]]) / 2
+                self.mask_regions.append(VerticalRegionItem([(self.spec.x()[max(0, ind[k]-1)] + self.spec.x()[ind[k]]) / 2, x_r],
+                                                       brush=self.mask_region_brush))
+                #self.regions.append(pg.LinearRegionItem([self.spec.x()[ind[k]], self.spec.x()[ind[k+1]]], movable=False, brush=pg.mkBrush(100, 100, 100, 30)))
+                self.parent.vb.addItem(self.mask_regions[-1])
 
     def add_spline(self, x, y, name=''):
         getattr(self, 'spline'+name).add(x, y)
@@ -2407,8 +2441,11 @@ class SpectrumFilter():
         data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r'/data/SDSS/' + self.name + '.dat',
                              skip_header=6, usecols=(0, 1), unpack=True)
         self.data = gline(x=data[0], y=data[1])
-        self.flux_0 = np.trapz(3.631 * 3e-18 / self.data.x * self.data.y, x=self.data.x)
-        print(self.name, self.flux_0)
+        #self.flux_0 = np.trapz(3.631e-29 * ac.c.to('Angstrom/s').value / self.data.x**2 * self.data.y, x=self.data.x)
+        #self.flux_0 = np.trapz(3.631 * 3e-18 / self.data.x * self.data.y, x=self.data.x)
+        self.flux_0 = 3.631e-20  # standart calibration flux in maggies
+        self.norm = np.trapz(self.data.x * self.data.y, x=self.data.x)
+        print(self.name, self.norm)
         self.ymax_pos = np.argmax(self.data.y)
         self.inter = interp1d(self.data.x, self.data.y, bounds_error=False, fill_value=0, assume_sorted=True)
 
@@ -2432,8 +2469,11 @@ class SpectrumFilter():
                 x, y = self.parent.s[self.parent.s.ind].spec.x(), self.parent.s[self.parent.s.ind].spec.y()
             mask = np.logical_and(x > self.data.x[0], x < self.data.x[-1])
             x, y = x[mask], y[mask]
-            flux = np.trapz(y * 1e-33 * x * self.inter(x), x=x)
-            self.value = -2.5 / np.log(10) * (np.arcsinh(flux / self.flux_0 / 2 / self.b) + np.log(self.b))
+            #flux = np.trapz(y * 1e-33 * x * self.inter(x), x=x)
+            #self.value = 2.5 / np.log(10) * (np.arcsinh(flux / self.flux_0 / 2 / self.b) + np.log(self.b))
+            flux = - 2.5 / np.log(10) * (np.arcsinh(y * 1e-17 * x**2 / ac.c.to('Angstrom/s').value / self.flux_0 / 2 / self.b) + np.log(self.b))
+            print(flux)
+            self.value = np.trapz(flux * self.inter(x), x=x) / np.trapz( self.inter(x), x=x)
         except:
             self.value = np.nan
         return self.value

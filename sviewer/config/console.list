@@ -1,21 +1,20 @@
-show AlIII
-show He
-HeI
-HeII
-show TiII
-TiII
-show SII
-SII
-SiIV
-SiV
-SiVI
-FeI
-show FeI
+show H2 0 1 7
+hide H2
+show H2 6 7
+show CI
+show FeII
 show FeII*
 show FeII**
 show FeII***
 show FeII****
-hide FeI
-show FeI
-FeI
+show FeII*****
+show H2 0 1
+show CIII
+CIII
+show AlIII
+AlIII
+CII
+show CII
+show H2 0 1\
+show H2 0 1
 show H2 0 1

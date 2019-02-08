@@ -8,7 +8,7 @@
 # is interpreted as a comment and ignored.  The same magic number
 # appears at the start and end of the file.
 #
-#EU	VU	JU	EL	VL	JL	A (s-1) T
+#EU	VU	JU	EL	VL	JL	A
 1	0	0	0	0	1	9.32E+06
 1	0	0	0	1	1	6.44E+07
 1	0	0	0	2	1	2.01E+08
