@@ -2,8 +2,9 @@ from adjustText import adjust_text
 from astropy import coordinates as coords
 from astropy.io import fits
 from astropy.table import Table
+from chainconsumer import ChainConsumer
 from collections import OrderedDict
-from copy import deepcopy
+from copy import deepcopy, copy
 import emcee
 import h5py
 import inspect
@@ -22,6 +23,8 @@ from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget, QD
                              QStatusBar, QMenu, QButtonGroup, QMessageBox)
 from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl
 from PyQt5.QtGui import QDesktopServices
+from scipy.special import erf
+from scipy.stats import gaussian_kde
 import subprocess
 import tarfile
 
@@ -610,7 +613,7 @@ class plotSpectrum(pg.PlotWidget):
                 print(w, err_w)
                 self.w_region = pg.FillBetweenItem(curve1, curve2, brush=pg.mkBrush(44, 160, 44, 150))
                 self.vb.addItem(self.w_region)
-                self.w_label = pg.TextItem('w = {:0.5f}+/-{:0.5f}, log(w/l)={:0.2f}'.format(w, err_w, np.log10(2 * w / (x[0]+x[-1]))),  anchor=(0,1), color=(44, 160, 44))
+                self.w_label = pg.TextItem('w = {:0.5f}+/-{:0.5f}, log(w/l)={:0.2f}, w_r = {:0.5f}+/-{:0.5f}'.format(w, err_w, np.log10(2 * w / (x[0]+x[-1])), w / (1+self.parent.z_abs), err_w / (1+self.parent.z_abs)),  anchor=(0,1), color=(44, 160, 44))
                 self.w_label.setFont(QFont("SansSerif", 14))
                 #print('{:0.2f}'.format(w), (x[0]+x[-1])/2, s.cont.inter((x[0]+x[-1])/2))
                 self.w_label.setPos((x[0]+x[-1])/2, cont((x[0]+x[-1])/2))
@@ -2016,11 +2019,15 @@ class fitMCMCWidget(QWidget):
         self.stop_button = QPushButton("Stop")
         self.stop_button.setFixedSize(70, 30)
         self.stop_button.clicked[bool].connect(self.stop)
+        #self.cont_fit = QPushButton("Fit cont")
+        #self.cont_fit.setFixedSize(70, 30)
+        #self.cont_fit.clicked[bool].connect(self.fitCont)
         hbox = QHBoxLayout()
         hbox.addWidget(self.start_button)
         hbox.addWidget(self.continue_button)
         hbox.addWidget(self.stop_button)
         hbox.addStretch(1)
+        #hbox.addWidget(self.cont_fit)
 
         fitlayout = QVBoxLayout()
         #fitlayout.addWidget(QLabel('Fit MCMC:'))
@@ -2208,7 +2215,11 @@ class fitMCMCWidget(QWidget):
             pars, pos = [], []
             for par in self.parent.fit.list_fit():
                 pars.append(str(par))
-                pos.append(par.val * np.ones(nwalkers) + np.random.randn(nwalkers) * par.step)
+                val = par.val * np.ones(nwalkers) + np.random.randn(nwalkers) * par.step
+                val[val > par.max] = par.max
+                val[val < par.min] = par.min
+                print(val)
+                pos.append(val)
             pos = np.array(pos).transpose()
         else:
             with open("output/current.pkl", "rb") as f:
@@ -3631,12 +3642,12 @@ class loadSDSSwidget(QWidget):
 
         l = QHBoxLayout(self)
         l.addWidget(QLabel('Plate:'))
-        self.plate_col = QLineEdit()
+        self.plate_col = QLineEdit('2')
         self.plate_col.setFixedSize(40, 30)
         l.addWidget(self.plate_col)
 
         l.addWidget(QLabel('Fiber:'))
-        self.fiber_col = QLineEdit()
+        self.fiber_col = QLineEdit('4')
         self.fiber_col.setFixedSize(40, 30)
         l.addWidget(self.fiber_col)
 
@@ -3656,7 +3667,7 @@ class loadSDSSwidget(QWidget):
         l = QHBoxLayout(self)
         l.addWidget(QLabel('Add columns:'))
         self.addcolumns = QLineEdit()
-        self.addcolumns.setText('1')
+        self.addcolumns.setText('6')
         self.addcolumns.setFixedSize(100, 30)
         l.addWidget(self.addcolumns)
         l.addStretch(1)
@@ -3725,9 +3736,9 @@ class loadSDSSwidget(QWidget):
 
     def loadspectrum(self, append=False):
 
-        plate = int(self.plate.text())
+        plate = None if len(self.mjd.text().strip()) == 0 else int(self.plate.text())
         MJD = None if len(self.mjd.text().strip()) == 0 else int(self.mjd.text())
-        fiber = int(self.fiber.text())#'{:0>4}'.format(self.fiber.text())
+        fiber = None if len(self.mjd.text().strip()) == 0 else int(self.fiber.text())#'{:0>4}'.format(self.fiber.text())
         name = self.name.text().strip()
 
         if self.parent.loadSDSS(plate=plate, MJD=MJD, fiber=fiber, name=name, append=append):
@@ -5064,6 +5075,10 @@ class sviewer(QMainWindow):
         fitGrid.setStatusTip('Brute force calculation on the grid of parameters')
         fitGrid.triggered.connect(partial(self.fitGrid, num=None))
 
+        fitCont = QAction('&Fit with cont...', self)
+        fitCont.setStatusTip('Fit with cont unc')
+        fitCont.triggered.connect(self.fitwithCont)
+
         stopFit = QAction('&Stop Fit', self)
         stopFit.setStatusTip('Stop fitting process')
         stopFit.triggered.connect(self.stopFit)
@@ -5120,6 +5135,7 @@ class sviewer(QMainWindow):
         fitMenu.addAction(fitLM)
         fitMenu.addAction(fitMCMC)
         fitMenu.addAction(fitGrid)
+        fitMenu.addAction(fitCont)
         fitMenu.addAction(stopFit)
         fitMenu.addAction(fitResults)
         fitMenu.addSeparator()
@@ -6563,7 +6579,7 @@ class sviewer(QMainWindow):
         result = minner.minimize(maxfev=200)
 
         # calculate final result
-        print(result.success, result.var_names, result.params, result.covar, result.errorbars, result.message)
+        #print(result.success, result.var_names, result.params, result.covar, result.errorbars, result.message)
         #final = data + result.residual
 
         # write error report
@@ -6651,51 +6667,137 @@ class sviewer(QMainWindow):
         self.fitExtWindow = fitExtWidget(self)
         self.fitExtWindow.show()
 
-    def fitGauss(self):
+    def fitwithCont(self, st, n=200, priors=[]):
+        reg = []
+        #priors = {'b_0_HDj0': a(11.4, 0.5, 0.7, 'd'), 'b_1_HDj0': a(7.6, 0.2, 0.4, 'd')}
+        priors = {'b_0_HDj0': a(3.9, 0.3, 0.3, 'd')}
+        self.fit.save()
+        for ind, s in enumerate(self.s):
+            inds = np.where(np.diff(s.mask.x()) == 1)[0]
+            if len(inds) > 0:
+                for i_s, i_e in zip(inds[::2], inds[1::2]):
+                    reg.append([ind, [i_s, i_e], np.copy(s.spec.norm.y[i_s:i_e]), np.mean(s.spec.norm.err[i_s:i_e])])
+        res = []
+        for i in range(n):
+            print(i)
+            self.fit.load()
+            for p in priors.keys():
+                self.fit.setValue(p, priors[p].rvs(repr='dec')[0])
+            for r in reg:
+                self.s[r[0]].spec.norm.y[r[1][0]:r[1][1]] = r[2] + r[3] * np.random.randn()
+            self.LM(timer=False)
+            res.append([self.fit.sys[0].sp['HDj0'].N.val]) #, self.fit.sys[1].sp['HDj0'].N.val])
+
+        x = np.asarray([r[0] for r in res])
+        np.savetxt('temp/HD.dat', x)
+        z = np.linspace(np.min(x) - (np.max(x) - np.min(x)) / 4, np.max(x) + (np.max(x) - np.min(x)) / 4, 100)
+        kernel = gaussian_kde(x)
+        d = distr1d(z, kernel(z))
+        d.stats(latex=2)
+        d.plot(conf=0.683)
+        if 0:
+            x = [r[1] for r in res]
+            np.savetxt('temp/HD_1.dat', x)
+            z = np.linspace(np.min(x) - (np.max(x) - np.min(x)) / 6, np.max(x) + (np.max(x) - np.min(x)) / 6, 100)
+            kernel = gaussian_kde(x)
+            d = distr1d(z, kernel(z))
+            d.stats(latex=2)
+            d.plot(conf=0.683)
+        plt.show()
+
+    def fitGauss(self, kind='integrate'):
         """
         fit spectrum with simple gaussian line (emission)
         """
         for s in self.s:
             n = np.sum(s.mask.x())
             if n > 0:
-                x, y, err = s.spec.x()[s.mask.x()], s.spec.y()[s.mask.x()], s.spec.err()[s.mask.x()]
-                mean = self.line_reper.l()*(1+self.z_abs)
+                mean = self.line_reper.l() * (1 + self.z_abs)
+                x, y, err = np.array(s.spec.x()[s.mask.x()], dtype=np.float), np.array(s.spec.y()[s.mask.x()], dtype=np.float), np.array(s.spec.err()[s.mask.x()], dtype=np.float)
+                if self.normview:
+                    cont = np.ones_like(x, dtype=np.float)
+                else:
+                    cont = np.array(s.cont.y[s.mask.x()[s.cont_mask]], dtype=np.float)
+                np.savetxt('C:/temp/data.dat', np.c_[x, y, err, cont])
                 ymax = np.max(y) - 1
-                m = y - 1 > ymax /2
+                m = y - 1 > ymax / 2
                 if len(x[m]) > 1:
                     fwhm = (x[m][-1] - x[m][0])
                 else:
                     fwhm = x[np.where(y == ymax)[0]] - x[np.where(y == ymax)[0]+1]
                 sigma = fwhm / 2 / np.sqrt(2 * np.log(2))
                 amp = ymax * np.sqrt(2 * np.pi) * sigma
-                print(amp, mean, sigma)
+                mean = np.mean(x)
+                print(amp, sigma, mean, y / cont)
 
                 def gaussian(x, amp, cen, disp):
                     """1-d gaussian: gaussian(x, amp, cen, disp)"""
-                    return 1 + (amp / (np.sqrt(2 * np.pi) * disp)) * np.exp(-(x - cen) ** 2 / (2 * disp ** 2))
+                    return amp / ((2 * np.pi)**0.5 * disp) * np.exp(-(x - cen) ** 2 / (2 * disp ** 2))
 
-                if 0:
-                    popt, pcov = curve_fit(gaussian, x, y, p0=[amp, mean, sigma])
-                    print(popt, pcov)
-                    amp, mean, sigma = popt[0], popt[1], popt[2]
-                    #print(quad(gauss, x[0], x[-1], args=tuple(popt)))
-                else:
-                    params = Parameters()
-                    for name, value in zip(['amp', 'cen', 'disp'], [amp, mean, sigma]):
-                        params.add(name, value=value, min=0, max=2*value)
-                    def fcn2min(params, x, y, err):
-                        return (y - gaussian(x, params['amp'], params['cen'], params['disp'])) / err
+                def gauss_integ(x_int, amp, cen, disp):
+                    errf = erf((x_int - cen) / np.sqrt(2) / disp)
+                    return amp / 2 * (errf[1:] - errf[:-1]) / np.diff(x_int)
 
-                    minner = Minimizer(fcn2min, params, fcn_args=(x, y, err))
-                    result = minner.minimize(method='nelder')
+                def fcn2min(params, x, y, err, cont):
+                    return (y - (cont + gaussian(x, params['amp'].value, params['cen'].value, params['disp'].value))) / err
+
+                def fcn2min_integ(params, x_int, y, err, cont):
+                    return ((y - cont) - gauss_integ(x_int, params['amp'].value, params['cen'].value, params['disp'].value)) / err
+
+                params = Parameters()
+                names = ['amp', 'cen', 'disp']
+                for name, value in zip(names, [amp, mean, sigma]):
+                    params.add(name, value=value, min=0, max=np.inf)
+
+                if 1:
+                    if kind == 'integrate':
+                        x_bin = np.insert(np.insert(x[:-1] + np.diff(x) / 2, 0, x[0] - (x[1] - x[0]) / 2), len(x), x[-1] + (x[-1] - x[-2]) / 2)
+                        #print(np.diff(x), x_bin)
+                        minner = Minimizer(fcn2min_integ, params, fcn_args=(x_bin, y, err, cont))
+                    else:
+                        minner = Minimizer(fcn2min, params, fcn_args=(x, y, err, cont))
+                    result = minner.minimize(method='leastsq')
                     for par in params:
                         params[par].value = result.params[par].value
-                    result = minner.minimize() #, 'nelder')
-                    print(result.errorbars)
+                    #print(fit_report(result))
                     self.console.set(fit_report(result))
-                    amp, mean, sigma = result.params['amp'].value, result.params['cen'].value, result.params['disp'].value
+                if 0:
+                    minner = Minimizer(fcn2min, params, fcn_args=(x, y, err, cont), calc_covar=True)
+                    result = minner.minimize(method='emcee')
+                if 1:
+                    def lnprob(params, x_int, y, err, cont):
+                        return -0.5 * np.sum((((y - cont) - gauss_integ(x_int, params[0], params[1], params[2])) / err )**2)
+
+                    ndim, nwalkers, nsteps = 3, 100, 1000
+                    p0 = np.asarray([result.params[par].value + np.random.randn(nwalkers) * result.params[par].stderr for par in params]).transpose()
+                    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[x_bin, y / cont, err, cont])
+                    sampler.run_mcmc(p0, nsteps)
+                    samples = sampler.chain[:, int(nsteps/2):, :].reshape((-1, ndim))
+                    samples[:, 2] = samples[:, 0] / (2 * np.pi)**0.5 / samples[:, 2]
+                    c = ChainConsumer()
+                    names, truth = ['Area', 'Centroid', 'Amplitude'], [params['amp'].value, params['cen'].value, params['amp'].value / (2 * np.pi)**0.5 / params['disp'].value]
+                    c.add_chain(samples, walkers=nwalkers, parameters=names)
+                    c.configure(smooth=True,
+                                cloud=True,
+                                sigmas=[0, 1, 2, 3],
+                                )
+                    c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
+                    #fig = c.plotter.plot_walks(truth={name: params[name].value for name in names}, convolve=50)
+                    fig = c.plotter.plot(figsize=(30, 30),
+                                         # filename="output/fit.png",
+                                         display=True,
+                                         truth=truth
+                                         )
+                    table = c.analysis.get_latex_table(caption="Results for emission line fit", label="tab:results")
+                    print(table)
+                    self.console.set(table)
+                    plt.show()
+                amp, mean, sigma = result.params['amp'].value, result.params['cen'].value, result.params['disp'].value
+                c = interp1d(x, cont, fill_value='extrapolate')
                 x = np.linspace(x[0], x[-1], 100)
-                self.plot.add_line(x, gaussian(x, amp, mean, sigma))
+                x_bin = np.insert(x + (x[1] - x[0]) / 2, 0, x[0] - (x[1] - x[0]) / 2)
+                #self.plot.add_line(x, c(x) + gauss_integ(x_bin, amp, mean, sigma))
+                self.plot.add_line(x, c(x) + gaussian(x, amp, mean, sigma))
 
     def fitPowerLaw(self):
         if not self.normview:
@@ -7145,6 +7247,8 @@ class sviewer(QMainWindow):
             name = name.replace('J', '').replace('SDSS', '').replace(':', '').replace('−', '-').strip()
             ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (name[:name.index('-')], name[name.index('-'):])
             ra, dec = hms_to_deg(ra), dms_to_deg(dec)
+        else:
+            plate, fiber = int(plate), int(fiber)
         if self.SDSScat == 'DR12':
             try:
                 sdss = self.IGMspec['BOSS_DR12']

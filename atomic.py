@@ -69,6 +69,8 @@ class e():
                 self.col = args[1]
             elif isinstance(args[1], (int, float)):
                 self.col = a(args[1], 0, 0)
+        elif len(args) == 3:
+            self.col = a(args[1], args[2], args[2])
         elif len(args) == 4:
             self.col = a(args[1], args[2], args[3])
         else:

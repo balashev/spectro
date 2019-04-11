@@ -25,7 +25,7 @@ class distr1d():
     Make plot:
     d.plot(conf=0.683)
     """
-    def __init__(self, x, y=None, xtol=1e-5, debug=False):
+    def __init__(self, x, y=None, xtol=1e-5, debug=False, name='par'):
         self.x = x
         if y is not None:
             self.y = y
@@ -33,12 +33,13 @@ class distr1d():
             self.kde()
         self.xtol = xtol
         self.debug = debug
+        self.name = name
         self.normalize()
         self.interpolate()
 
     def kde(self):
         kde = gaussian_kde(self.x)
-        x = np.linspace(np.min(self.x), np.max(self.x), np.min([100, np.sqrt(len(self.x))]))
+        x = np.linspace(np.min(self.x), np.max(self.x), np.max([100, np.sqrt(len(self.x))]))
         self.y = kde(x)
         self.x = x
 
@@ -57,16 +58,16 @@ class distr1d():
     def level(self, x, level):
         return self.inter(x) - level
 
-    def plot(self, x=None, conf=None, color='orangered', ax=None, xlabel=None, ylabel=None, fontsize=16, alpha=0.3):
+    def plot(self, x=None, conf=None, kind='center', color='orangered', ax=None, xlabel=None, ylabel=None, fontsize=16, alpha=0.3):
         if ax is None:
             fig, ax = plt.subplots()
         if x is None:
             x = self.x
         ax.plot(x, self.inter(x), '-', color=color, lw=1.5)
         if conf is not None:
-            self.dointerval(conf=conf)
+            self.dointerval(conf=conf, kind=kind)
             print('interval plot', self.interval)
-            mask = np.logical_and(x > self.interval[0], x < self.interval[1])
+            mask = np.logical_and(x >= self.interval[0], x <= self.interval[1])
             ax.fill_between(x[mask], self.inter(x)[mask], facecolor=color, alpha=alpha, interpolate=True)
 
         ax.tick_params(axis='both', which='major', labelsize=fontsize - 2)
@@ -101,11 +102,18 @@ class distr1d():
             self.xmin, self.xmax = self.point, self.point
         elif level <= 0:
             self.xmin, self.xmax = self.x[0], self.x[-1]
+
         return self.xmin, self.xmax
 
-    def func(self, level, conf):
+    def func_twoside(self, level, conf):
         xmin, xmax = self.minmax(level)
         return integrate.quad(self.inter, xmin, xmax)[0] - conf
+
+    def func_oneside(self, x, conf, kind='left'):
+        if kind == 'right':
+            return integrate.quad(self.inter, x, self.x[-1])[0] - conf
+        elif kind == 'left':
+            return integrate.quad(self.inter, self.x[0], x)[0] - conf
 
     def dopoint(self, verbose=True):
         """
@@ -119,11 +127,12 @@ class distr1d():
             print('point:', self.point, self.x[np.argmax(self.y)])
         return self.point
 
-    def dointerval(self, conf=0.683, verbose=False):
+    def dointerval(self, conf=0.683, kind='center', verbose=False):
         """
         Interval estimate for given confidence level
         parameters:
             - conf        :  confidence level
+            - kind        :  type of the interval, can be: 'center' (default), 'left', 'right'
             - verbose     :  verbose output
         return: interval, level
             - interval    :  estimated interval
@@ -131,18 +140,29 @@ class distr1d():
         """
         nd = norm()
         self.dopoint(verbose=False)
-        n = self.ymax / (nd.pdf(0) / (nd.pdf(nd.interval(conf)[0]) / 2))
-        res = optimize.fsolve(self.func, n, args=(conf), xtol=self.xtol, full_output=self.debug)
-        self.interval = self.minmax(res[0])
+        if kind == 'center':
+            n = self.ymax / (nd.pdf(0) / (nd.pdf(nd.interval(conf)[0]) / 2))
+            res = optimize.fsolve(self.func_twoside, n, args=(conf), xtol=self.xtol, full_output=self.debug)
+            self.interval = self.minmax(res[0])
+        else:
+            res = optimize.fsolve(self.func_oneside, self.point, args=(conf, kind), xtol=self.xtol, full_output=self.debug)
+            if kind == 'right':
+                self.interval = [res[0], self.x[-1]]
+            elif kind == 'left':
+                self.interval = [self.x[0], res[0]]
+
         if self.debug or verbose:
             print('interval:', self.interval[0], self.interval[1])
         return self.interval, res[0]
 
-    def stats(self, conf=0.683, latex=0, name='par'):
-        self.dopoint(verbose=True)
-        self.dointerval(conf=conf, verbose=True)
-        if latex:
-            print("{name} = {0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.point, self.point - self.interval[0], self.interval[1] - self.point, n=latex, name=name))
+
+    def stats(self, conf=0.683, kind='center', latex=0, name=None):
+        if name is not None:
+            self.name = name
+        self.dopoint(verbose=(latex<0))
+        self.dointerval(conf=conf, kind=kind, verbose=(latex<0))
+        if latex >= 0:
+            print("{name} = {0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.point, self.interval[1] - self.point, self.point - self.interval[0], n=latex, name=self.name))
 
     def pdf(self, x):
         return self.inter(x)
@@ -159,8 +179,7 @@ class distr1d():
         return gen(self, a=self.x[0], b=self.x[-1]).rvs(size=n)
 
     def latex(self, f=2):
-        return "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.point, self.point - self.interval[0],
-                                                                self.interval[1] - self.point, n=f)
+        return "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.point, self.interval[1] - self.point, self.point - self.interval[0], n=f)
 
 class distr2d():
     def __init__(self, x, y, z, xtol=1e-5, debug=False):
@@ -275,7 +294,8 @@ class distr2d():
         """
         Estimate the interval for the both parameters.
         parameters:
-            - conf            :  confodence levels
+            - conf            :  confidence levels
+
         return: x_interval, y_interval, level
             - x_interval      :  interval values for x
             - y_interval      :  interval values for y
@@ -332,7 +352,7 @@ class distr2d():
 
     def plot_contour(self, conf_levels=None, ax=None, xlabel='', ylabel='', limits=None, ls=None,
                      color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False,
-                     font=18, title=None, zorder=1):
+                     font=14, title=None, zorder=1, label=None):
         if ax == None:
             fig, ax = plt.subplots()
         self.dopoint()
@@ -351,7 +371,7 @@ class distr2d():
         if color is not None:
             levels = [self.level(c) for c in conf_levels]
             if limits == None or limits == 0:
-                c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, zorder=zorder)
+                c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, zorder=zorder, label=label)
             else:
                 c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, alpha=0)
                 x, y = c.collections[0].get_segments()[0][:,0], c.collections[0].get_segments()[0][:,1]
@@ -363,7 +383,7 @@ class distr2d():
                 if limits > 0:
                     lolims, uplims = True, False
                 x = np.linspace(x[0], x[-1], 10)
-                ax.errorbar(x, inter(x), yerr=np.abs(limits), lolims=lolims, fmt='o', color=color, uplims=uplims, markersize=0, capsize=0, zorder=zorder)
+                ax.errorbar(x, inter(x), yerr=np.abs(limits), lolims=lolims, fmt='o', color=color, uplims=uplims, markersize=0, capsize=0, zorder=zorder, label=label)
         if ls is not None:
             for c, s in zip(c.collections[:len(ls)], ls[::-1]):
                 c.set_dashes(s)
@@ -378,36 +398,40 @@ class distr2d():
             ax.set_title(title, fontdict={'fontsize': font})
         return ax
 
-    def plot(self, fig=None, frac=0.2, indent=0.1, color_marg='dodgerblue',
+    def plot(self, fig=None, frac=0.2, indent=0.15, color_marg='dodgerblue',
              conf_levels=None, xlabel='', ylabel='', limits=None, ls=None,
              color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False,
-             font=18, title=None, zorder=1):
+             font=14, title=None, zorder=1):
         if fig is None:
             fig = plt.figure()
         ax = fig.add_axes([indent, indent, 1 - indent - frac, 1 - indent - frac])
+        ax.set_position([indent, indent, 1 - indent - frac, 1 - indent - frac])
         self.plot_contour(ax=ax, conf_levels=conf_levels, xlabel=xlabel, ylabel=ylabel, limits=limits, ls=ls,
                      color=color, color_point=color_point, cmap=cmap, alpha=alpha, colorbar=colorbar,
                      font=font, title=title, zorder=zorder)
 
         x, y = ax.get_xlim(), ax.get_ylim()
-        print(x, y)
         #helper = floating_axes.GridHelperCurveLinear(Affine2D().rotate_deg(-90), extremes=(0, 4, 0, 4))
         #ax = floating_axes.FloatingSubplot(fig, [1 - frac, indent, frac, 1 - indent - frac], grid_helper=helper)
-        ax = fig.add_axes([1 - frac, indent, frac, 1 - indent - frac])
-        ax.set_axis_off()
+
         dy = self.marginalize('x')
+        ax = fig.add_axes([1 - frac, indent, frac, 1 - indent - frac])
+        #ax.set_position([1 - frac, indent, frac, 1 - indent - frac])
+        ax.set_axis_off()
         ax.plot(dy.inter(dy.x), dy.x, '-', color=color_marg, lw=1.5)
         ax.set_ylim(y)
-        ax.set_xlim([0,ax.get_xlim()[1]])
+        ax.set_xlim([0 + ax.get_xlim()[1]/50, ax.get_xlim()[1]])
 
-        ax = fig.add_axes([indent, 1 - frac, 1 - indent - frac, frac])
-        ax.set_axis_off()
         dx = self.marginalize('y')
+        ax = fig.add_axes([indent, 1 - frac, 1 - indent - frac, frac])
+        #ax.set_position([indent, 1 - frac, 1 - indent - frac, frac])
+        ax.set_axis_off()
         ax.plot(dx.x, dx.inter(dx.x), '-', color=color_marg, lw=1.5)
         ax.set_xlim(x)
-        ax.set_ylim([0, ax.get_ylim()[1]])
+        ax.set_ylim([0 + ax.get_ylim()[1]/50, ax.get_ylim()[1]])
 
-        plt.tight_layout()
+        fig.tight_layout()
+        return fig
 
     def marginalize(self, over='y'):
         """

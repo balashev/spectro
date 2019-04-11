@@ -97,10 +97,10 @@ class ExcitationTemp():
             
             self.g = np.array([(2 * i + 1) * ((i % 2) * 2 + 1) for i in range(self.num)])
 
-            data = np.genfromtxt('data/H2/energy_X.dat', comments='#', unpack=True)
-            self.E = data[2][:self.num]
+            #data = np.genfromtxt('data/H2/energy_X.dat', comments='#', unpack=True)
+            data = np.array([0, 118.5, 354.35, 705.54])
             # transform energy from cm^-1 to Kelvins
-            self.E = self.E / 0.695
+            self.E = data[:self.num] / 0.695
 
         if self.species == 'CI':
             self.g = np.array([2*i+1 for i in range(self.num)])

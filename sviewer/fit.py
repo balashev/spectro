@@ -561,8 +561,20 @@ class fitPars:
             par = result.params[p]
             name = str(par.name).replace('l2', '**').replace('l1', '*')
             self.setValue(name, self.pars()[name].ref(par.value), 'val')
-            self.setValue(name, self.pars()[name].ref(par.stderr, attr='unc'), 'unc')
-            self.setValue(name, self.pars()[name].ref(par.stderr, attr='unc'), 'step')
+            print(p, par.stderr)
+            if isinstance(self.pars()[name].ref(par.stderr, attr='unc'), float):
+                self.setValue(name, self.pars()[name].ref(par.stderr, attr='unc'), 'unc')
+                self.setValue(name, self.pars()[name].ref(par.stderr, attr='unc'), 'step')
+            else:
+                self.setValue(name, 0, 'unc')
+
+    def save(self):
+        self.saved = [copy(l) for l in self.list()]
+
+    def load(self):
+        for p, saved in zip(self.pars(), self.saved):
+            print(p, saved.val)
+            self.setValue(p, saved.val)
 
     def setSpecific(self):
         self.addSys(z=2.8083543)
@@ -576,10 +588,7 @@ class fitPars:
         return '\n'.join([str(s) for s in self.sys])
 
 
-
-
 # Classes for parallelization
-
 class spectra(list):
     def __init__(self):
         super(spectra).__init__()

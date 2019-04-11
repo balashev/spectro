@@ -13,16 +13,16 @@ import warnings
 class a:
     r"""
     This class provide basic arithmetic operations with the values
-    in case of asymmetric uncerainties. 
+    in case of asymmetric uncertainties.
     
-    Written by Sergei Balashev
+    Written by Serj Balashev
     email: s.balashev@gmail.com
     
     To import class put a_unc folder in python path folder and just use:
         >>> from a_unc import a
         
     Uncertainties are estimated by minimization of joint likelihood function
-    for deatails see Barlow 2003 - arXiv:physics/0406120
+    for details see e.g. Barlow 2003 - arXiv:physics/0406120
     
     Supported operations are: +, -, *, /, product by some factor
     
@@ -175,17 +175,33 @@ class a:
                 f        : format - number of numbers after floating point
                 base     : base for dec values                
         """
-        if self.repr == 'log':
-            #print(self.val, self.plus, self.minus, f)
-            s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.val, self.plus, self.minus, n=f)
-        if self.repr == 'dec':
-            if base == None:
-                base = int(np.log10(abs(self.val)))
-            if base == 0:
-                s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.val/10**base, self.plus/10**base, self.minus/10**base, n=f)
+        if np.isfinite(self.plus) and np.isfinite(self.minus):
+            if self.repr == 'log':
+                #print(self.val, self.plus, self.minus, f)
+                s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.val, self.plus, self.minus, n=f)
+            if self.repr == 'dec':
+                if base == None:
+                    base = int(np.log10(abs(self.val)))
+                if base == 0:
+                    s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.val/10**base, self.plus/10**base, self.minus/10**base, n=f)
+                else:
+                    s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}} \\times 10^{{{b}}}".format(self.val/10**base, self.plus/10**base, self.minus/10**base, b=base, n=f)
+        else:
+            if not np.isfinite(self.plus) and np.isfinite(self.minus):
+                pre, val = '>', self.val - self.minus
             else:
-                s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}} \\times 10^{{{b}}}".format(self.val/10**base, self.plus/10**base, self.minus/10**base, b=base, n=f)
-            
+                pre, val = '<', self.val + self.plus
+            if self.repr == 'log':
+                #print(self.val, self.plus, self.minus, f)
+                s = "{0:s}{1:.{n}f}".format(pre, val, n=f)
+            if self.repr == 'dec':
+                if base == None:
+                    base = int(np.log10(abs(val)))
+                if base == 0:
+                    s = "{0:s}{1:.{n}f}".format(pre, val/10**base, n=f)
+                else:
+                    s = "{0:s}{1:.{n}f} \\times 10^{{{b}}}".format(pre, val/10**base, b=base, n=f)
+
         la = '$' if eqs == 1 else ''
         return la + s + la
         
@@ -409,11 +425,12 @@ class a:
 
     def minim(self, delta, func, other):
         m = minimize(func, 1, args=(other, delta), method=self.method, bounds=[(self.tol, None)], options={'ftol':self.tol, 'eps':0.001})
+        #print(delta, m.fun, m.x)
         return np.abs(m.fun - 0.5)
 
     def mini(self, func, other, res):
-        res.plus = res.val * (minimize(self.minim, 1 + res.plus / res.val, args=(func, other), method=self.method, bounds=[(0.999, None)], options={'ftol':self.tol, 'eps':0.001}).x[0] - 1)
-        res.minus = res.val * (1 - minimize(self.minim, 1 - res.minus / res.val, args=(func, other), method=self.method, bounds=[(None, 0.999)], options={'scale':res.val, 'ftol':self.tol, 'eps':0.001}).x[0])
+        res.plus = res.val * (minimize(self.minim, 1 + res.plus / 2 / res.val, args=(func, other), method=self.method, bounds=[(0.999, None)], options={'ftol':self.tol, 'eps':0.001}).x[0] - 1)
+        res.minus = res.val * (1 - minimize(self.minim, 1 - res.minus / 2 / res.val, args=(func, other), method=self.method, bounds=[(None, 0.999)], options={'ftol':self.tol, 'eps':0.001}).x[0])
 
         return res
 
@@ -463,15 +480,16 @@ class a:
         plt.plot(z,y)
         plt.axhline(-0.5, c='k', ls='--')
 
-    def rvs(self, n):
+    def rvs(self, n=1, repr='log'):
         """
         Generates the sample drawn from the likelihood related to <a> object
         parameters:
-            - n         :  length of the sample 
+            - n          :  length of the sample
+            - repr       :  log or dec (for generating pdf)
         return:
             - sample     :  1d np.array with the sample of n
         """
-        self.log()
+        getattr(self, repr)()
         d = distr(self, a=self.val - 4 * self.minus, b=self.val + 4 * self.plus)
 
         return d.rvs(size=n)
@@ -494,13 +512,14 @@ if __name__ == '__main__':
 
     if 1:
         x = a("$11.37\pm0.03", 'l')
-        #x = a(0, 0, 0, 'd')
+        x = a(13.28, 0.05, 0.04, 'l')
         y = a("$14.90\pm0.15", 'l')
+        y = a(13.17, 0.10, 0.11, 'l')
         #x = a("$1\pm0.1", 'd')
         #y = a("$10\pm3", 'd')
         #y = a('$2\pm0.3$', 'd')
-        z = x / y
-        print(z.dec())
+        z = x + y
+        print(z.log())
     if 0:
         x = a("$19\pm0.2", 'l')
         x = a(19, 0.2, 0.1)

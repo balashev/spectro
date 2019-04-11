@@ -593,7 +593,7 @@ class pyratio():
         else:
             n = [a()] * d[name]
 
-        print('add_spec:', n)
+        #print('add_spec:', n)
         self.species[name] = speci(self, name, n, num)
 
     def set_pars(self, parlist):
@@ -1081,7 +1081,7 @@ class pyratio():
             axi.legend(loc=4)
 
     def calc_grid(self, grid_num=50, plot=1, verbose=1, output=None, marginalize=True, limits=0,
-                  title='', ax=None, alpha=1, color=None, cmap='PuBu', color_point=None,
+                  title='', ax=None, fig=None, alpha=1, color=None, cmap='PuBu', color_point=None,
                   zorder=1):
         """
         calculate ranges for two parameters using given populations of levels
@@ -1093,6 +1093,7 @@ class pyratio():
             - limits       :  show upper of lower limits: 0 for not limits, >0 for lower, <0 for upper
             - title        :  title name for the plot
             - ax           :  axes object where to plot data, of not present make it if plot==1.
+            - fig          :  fig object where to plot data, needed for 2dplot with marginalization
             - alpha        :  alpha value for the contour plots
             - color        :  color of the regions in the plot
             - cmap         :  color map for contour fill
@@ -1112,7 +1113,7 @@ class pyratio():
 
         if len(self.vary) == 2:
             out = self.calc_2d(self.vary, grid_num=grid_num, plot=plot, verbose=verbose, output=output, marginalize=marginalize, limits=limits,
-                               title=title, ax=ax, alpha=alpha, color=color, cmap=cmap, color_point=color_point, zorder=zorder)
+                               title=title, fig=fig, ax=ax, alpha=alpha, color=color, cmap=cmap, color_point=color_point, zorder=zorder)
 
         return out
 
@@ -1181,7 +1182,7 @@ class pyratio():
         return out
 
     def calc_2d(self, vary, grid_num=50, plot=1, verbose=1, marginalize=True, limits=0, output=None,
-                title='', ax=None, alpha=1, color=None, cmap='PuBu', color_point='gold', zorder=1):
+                title='', fig=None, ax=None, alpha=1, color=None, cmap='PuBu', color_point='gold', zorder=1):
         """
         calculate ranges for two parameters using given populations of levels
         parameters:
@@ -1192,6 +1193,7 @@ class pyratio():
             - marginalize  :  print and plot marginalized estimates
             - limits       :  show upper of lower limits: 0 for not limits, >0 for lower, <0 for upper
             - title        :  title name for the plot
+            - fig          :  fig object where to plot data, needed for plot with marginalization
             - ax           :  axes object where to plot data, of not present make it if plot==1.
             - alpha        :  alpha value for the contour plots
             - color        :  color of the regions in the plot
@@ -1201,11 +1203,13 @@ class pyratio():
         """
 
         # >> colors for plotting
-        if ax is None:
+        if ax is None and fig is None:
              fig, ax = plt.subplots()
         if color is None:
-            color = (1, 0, 0)
+            color = 'orangered' #(1, 0, 0)
         print(self.pars)
+
+        out = {}
 
         #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
         #
@@ -1214,7 +1218,6 @@ class pyratio():
             self.print_species()
             self.print_pars()
 
-        out = []
         X1 = np.linspace(self.pars[vary[0]].range[0], self.pars[vary[0]].range[1], grid_num)
         X2 = np.linspace(self.pars[vary[1]].range[0], self.pars[vary[1]].range[1], grid_num)
         Z = np.zeros([len(X1), len(X2)])
@@ -1237,24 +1240,41 @@ class pyratio():
                 pickle.dump(np.exp(Z), f)
 
         d = distr2d(X1, X2, np.exp(Z))
+        if marginalize:
+            d.plot(fig=fig, frac=0.2, indent=0.1, limits=None, ls=None,
+                   xlabel=self.pars[vary[0]].label, ylabel=self.pars[vary[1]].label,
+                   color=color, color_point=color_point, color_marg='dodgerblue', cmap=cmap,
+                   alpha=alpha, colorbar=False,
+                   font=18, title=None, zorder=zorder)
+        else:
+            d.plot_contour(ax=ax, limits=None, ls=None,
+                           xlabel=self.pars[vary[0]].label, ylabel=self.pars[vary[1]].label,
+                           color=color, color_point=color_point, cmap=cmap, alpha=alpha, colorbar=False,
+                           font=18, title=None, zorder=zorder)
+
+        out[vary[0]], out[vary[1]], out['lnL'] = X1, X2, Z
         point = d.dopoint()
 
-        if marginalize:
-            if plot:
-                d1 = d.marginalize('x')
-                d1.dopoint()
-                d1.dointerval()
-                print('marg point:', d1.point)
-                print('marg interval:', d1.interval)
-                d1.plot()
-                d2 = d.marginalize('y')
-                d2.dopoint()
-                d2.dointerval()
-                print('marg point:', d2.point)
-                print('marg interval:', d2.interval)
-                d2.plot()
+        d1 = d.marginalize('x')
+        d1.dopoint()
+        d1.dointerval()
+        print('marg point:', d1.point)
+        print('marg interval:', d1.interval)
+        d2 = d.marginalize('y')
+        d2.dopoint()
+        d2.dointerval()
+        print('marg point:', d2.point)
+        print('marg interval:', d2.interval)
 
-        if plot > 0:
+        out['res_'+vary[0]] = a(d1.point, d1.interval[1] - d1.point, d1.point - d1.interval[0])
+        out['res_'+vary[1]] = a(d2.point, d2.interval[1] - d2.point, d2.point - d2.interval[0])
+
+        if marginalize:
+            d1.plot()
+            d2.plot()
+
+        old = 0
+        if old == 1:
             print('plot regions...')
 
             if 0: #self.species[self.species.keys()[0]].y[0][2].type in ['u', 'l']:
@@ -1316,8 +1336,8 @@ class pyratio():
                 print(vary)
                 d.dointerval(0.6827)
                 print(d.interval)
-                out.append([vary[0], a(d.point[0], d.interval[0][1] - d.point[0], d.point[0] - d.interval[0][0])])
-                out.append([vary[1], a(d.point[1], d.interval[1][1] - d.point[1], d.point[1] - d.interval[1][0])])
+                out['par'].append([vary[0], a(d.point[0], d.interval[0][1] - d.point[0], d.point[0] - d.interval[0][0])])
+                out['par'].append([vary[1], a(d.point[1], d.interval[1][1] - d.point[1], d.point[1] - d.interval[1][0])])
 
         return out
     
@@ -1686,31 +1706,32 @@ if __name__ == '__main__':
         print('G_0 of Mathis:',  np.trapz(pr.uv(nu, kind='Mathis')/l)*abs(l[1]-l[0])/5.29e-14)
         
         
-    if 0:
+    if 1:
         fig, ax = plt.subplots()
         
         import H2_summary
         QSO = H2_summary.load_QSO()
-        for q in QSO:
-            if 1==1 and q.name.find('2140') > -1:
-                pr = pyratio(z=q.z_dla)
-                pr.set_pars(['T', 'n', 'f'])
-                pr.set_prior('f', a(0,0,0))
-                #pr.set_prior('T', a(2.04,0,0))
-                pr.set_prior('T', q.e['T01'].col.log())
-                print(q.e['T01'].col.log())
-                pr.pars['n'].value = 0
-                #pr.set_prior('T', q.e['T01'].col.log())
-                pr.add_spec('CI', [q.e['CI'].col, q.e['CI*'].col, q.e['CI**'].col])
-                if 0:
-                    fig, ax = plt.subplots()
-                #pr.calc_dep('UV', ax=ax)
-                if 1:
-                    out = pr.calc_grid(grid_num=100, plot=2, verbose=1, ax=ax, alpha=0.5, color=col.tableau10[4])
-                    for o in out:
-                        print("q.el(\'{:}\', {:.2f}, {:.2f}, {:.2f})".format(o[0], o[1].val, o[1].plus, o[1].minus))
+        q = QSO.get('J0000')
+        pr = pyratio(z=q.z_dla)
+        pr.set_pars(['T', 'n', 'f', 'UV'])
+        pr.set_prior('f', a(0, 0, 0))
+        #pr.set_prior('T', a(2.04,0,0))
+        pr.set_prior('T', a(q.e['T01'].col.log().val, 0, 0))
+        print(q.e['T01'].col.log())
+        pr.pars['n'].range = [0, 5]
+        pr.pars['n'].value = 2
+        pr.pars['UV'].range = [0, 3]
+        #pr.set_prior('T', q.e['T01'].col.log())
+        pr.add_spec('CI', [q.e['CI'].col, q.e['CI*'].col, q.e['CI**'].col])
+        if 0:
+            fig, ax = plt.subplots()
+        #pr.calc_dep('UV', ax=ax)
+        if 1:
+            out = pr.calc_grid(grid_num=50, verbose=1, ax=ax)
+            for o in out:
+                print("q.el(\'{:}\', {:.2f}, {:.2f}, {:.2f})".format(o[0], o[1].val, o[1].plus, o[1].minus))
                 
-        plt.savefig('pyratio.png', bbox_inches='tight', transparent=True)
+        #plt.savefig('pyratio.png', bbox_inches='tight', transparent=True)
         plt.show()
 
     # check calculation with Ntot
@@ -1739,7 +1760,7 @@ if __name__ == '__main__':
         plt.savefig('C:/Users/Serj/Desktop/W_CO.pdf')
         plt.show()
 
-    # check CO data
+    # emissivities of CO lines:
     if 0:
         pr = pyratio(z=2.525)
         pr.set_pars(['T', 'n', 'f'])
@@ -1763,7 +1784,7 @@ if __name__ == '__main__':
         plt.savefig('C:/Users/Serj/Desktop/W_CO.pdf')
         plt.show()
 
-    if 1:
+    if 0:
         pr = pyratio(z=2.5)
         pr.set_pars(['T', 'n', 'f', 'UV'])
         pr.pars['T'].range = [1.5, 5]

@@ -20,6 +20,7 @@ from spectro.sdss import SDSS
 from .external import spectres
 from .fit import fitPars
 from .lyaforest import Lyaforest_scan, plotLyalines
+from .stack import catalog
 from .utils import add_field, slice_fields
 
 def _defersort(fn):
@@ -189,6 +190,8 @@ class QSOlistTable(pg.TableWidget):
         self.format = None
         if 'SDSS' == self.cat:
             self.setWindowTitle('SDSS list of files')
+            self.format = {'SDSS_NAME': '%s', 'PLATE': '%5d', 'MJD': '%5d', 'FIBERID': '%4d',
+                           'f5': '%.6f'}
         if 'SDSSLee' == self.cat:
             self.setWindowTitle('SDSS DR9 Lee list of files')
         if 'XQ100' in self.cat:
@@ -231,6 +234,7 @@ class QSOlistTable(pg.TableWidget):
 
         if 'SDSS' in self.cat:
             self.contextMenu.addAction('Save spectra').triggered.connect(self.saveSpectra)
+            self.contextMenu.addAction('Make stack').triggered.connect(self.makeStackSDSS)
         if self.cat == 'Lya':
             self.contextMenu.addSeparator()
             self.contextMenu.addAction('Save data').triggered.connect(self.saveData)
@@ -306,6 +310,24 @@ class QSOlistTable(pg.TableWidget):
                     f.write('{:47} {:20} {:4} {:5} {:4} {:5} {:5}    {:5} \n'.format(plate + filename, plate + '-' + MJD + '-' + fiber,
                                                                                      plate, MJD, fiber, z_QSO, z_DLA,
                                                                                      nHI))
+
+    def makeStackSDSS(self):
+        x = np.linspace(1000, 1600, 1800)
+        cat = catalog(x, name='DLA', num=100)
+        for idx in self.selectedIndexes():
+            if idx.column() == 0:
+                name = self.cell_value('SDSS_NAME', row=idx.row())[2:-1]
+                print(name, self.cell_value('PLATE', row=idx.row()), self.cell_value('FIBERID', row=idx.row()))
+                self.parent.loadSDSS(plate=self.cell_value('PLATE', row=idx.row()), fiber=self.cell_value('FIBERID', row=idx.row()))
+                self.parent.openFile("C:/science/Noterdaeme/Coronographic/intervening/DR9/J" + name + '.spv')
+                self.parent.normalize()
+                spec = self.parent.s[self.parent.s.ind].spec
+                cat.add(spec.x(), spec.y(), spec.err(), np.ones_like(spec.x(), dtype=bool), z=float(self.cell_value('f5', row=idx.row())))
+        cat.finalize()
+        cat.stack()
+        print(cat.x, cat.fl)
+        cat.save('output/stack.hdf5', stack=True)
+        self.parent.importSpectrum('stack', spec=[cat.x, cat.fl])
 
     def saveData(self):
         with open(self.folder + '/sample_saved.dat', 'w') as f:

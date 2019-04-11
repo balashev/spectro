@@ -98,7 +98,6 @@ class tau:
                     setattr(self, k, getattr(line, k)())
                 else:
                     setattr(self, k, getattr(line, k))
-
         self.a = self.g / 4 / np.pi / self.b / 1e5 * self.l * 1e-8  # dimensionless
         self.resolution = resolution
         self.calctau0()

@@ -377,9 +377,7 @@ class LineLabel(pg.TextItem):
         if ev.double():
             self.setActive(not self.active)
             if self.active and str(self.line) not in self.parent.parent.lines:
-                print('double', str(self.line) + ' exp_' + str(self.parent.parent.s.ind))
                 self.parent.parent.lines.add(str(self.line) + ' exp_' + str(self.parent.parent.s.ind))
-                print('lines', self.parent.parent.lines)
             if not self.active:
                 self.parent.parent.lines.remove(str(self.line))
             ev.accept()
@@ -388,6 +386,21 @@ class LineLabel(pg.TextItem):
                 self.parent.parent.line_reper = self.line
                 self.parent.parent.plot.restframe = False
                 self.parent.parent.plot.updateVelocityAxis()
+                try:
+                    print(self.parent.reperLabel)
+                    self.parent.parent.plot.vb.removeItem(self.parent.reperLabel)
+                    del self.reperLabel
+                except:
+                    pass
+                self.parent.reperLabel = pg.TextItem(text=self.textItem.toPlainText(), color=(255, 215, 0, 255), anchor=self.anchor,
+                                              fill=pg.mkColor(0, 0, 0, 0), border=(255, 215, 0, 255))
+                font = QFont("SansSerif", 10)
+                font.setBold(True)
+                font.setWeight(75)
+                self.parent.reperLabel.setFont(font)
+                self.parent.reperLabel.setZValue(15)
+                self.parent.parent.plot.vb.addItem(self.parent.reperLabel)
+                self.parent.reperLabel.setPos(*self.redraw(self.parent.parent.z_abs))
                 ev.accept()
             elif QApplication.keyboardModifiers() == Qt.ControlModifier:
                 self.parent.remove(self.line)
