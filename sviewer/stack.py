@@ -5,17 +5,32 @@ from scipy.interpolate import interp1d
 from .utils import smooth
 
 class catalog:
-    def __init__(self, x, name='cat', num=100, sigma=0.1):
+    def __init__(self, x, name='cat', DLA=None, num=100, sigma=0.1):
         self.x = x
-        print(self.x)
         self.name = name
+        self.DLA = DLA
         self.sigma = sigma
         self.f, self.e, self.mask = np.zeros([num, len(x)]), np.zeros([num, len(x)]), np.zeros([num, len(x)], dtype=bool)
-        self.norm, self.w = np.zeros([num]), np.zeros([num])
+        self.norm, self.w, self.inds = np.zeros([num]), np.zeros([num]), np.arange(num)
         self.capacity = num
         self.size = 0
         self.median = None
         self.dla_mask = None
+        self.set_mask()
+
+    def set_mask(self, z=None, N=None):
+        self.smask = {}
+        if z is not None:
+            self.smask['z_abs'] = z
+        if N is not None:
+            self.smask['NHI'] = N
+
+    def calc_mask(self):
+        self.m = np.ones(len(self.DLA), dtype=bool)
+        for i, d in enumerate(self.DLA):
+            for k, v in self.smask.items():
+                if not v[0] < d[k] < v[1]:
+                    self.m[i] *= False
 
     def load_median(self, filename):
         f = h5py.File(filename.replace('.hdf5', '') + '.hdf5', 'r')
@@ -47,7 +62,7 @@ class catalog:
         #self.dla_mask = np.asarray(interp1d(x, mask, bounds_error=False, fill_value=0, assume_sorted=True)(self.x), dtype=bool)
         #print(self.x[self.dla_mask])
 
-    def add_interpolated(self, f, e, mask):
+    def add_interpolated(self, f, e, mask, ind=0):
         if self.size == self.capacity:
             print(self.size, self.capacity)
             self.capacity *= 2
@@ -64,7 +79,7 @@ class catalog:
             s = n / np.sqrt(np.mean(np.ma.array(e[m_norm], mask=~m)**(2)))
             if s >= 1:
                 self.f[self.size], self.e[self.size], self.mask[self.size] = f[:], e[:], mask[:]
-                self.norm[self.size], self.w[self.size] = n, 1 / (s**(-2) + self.sigma**2)
+                self.norm[self.size], self.w[self.size], self.inds[self.size] = n, 1 / (s**(-2) + self.sigma**2), ind
                 #print(self.norm[self.size], self.w[self.size])
                 self.size += 1
             else:
@@ -74,7 +89,7 @@ class catalog:
             #print('missed:', N, np.sum(m_norm))
             pass
 
-    def add(self, x, f, e, mask, z=0.0, corr=None, add_mask=None, remove_ouliers=True):
+    def add(self, x, f, e, mask, ind=0, z=0.0, corr=None, add_mask=None, remove_ouliers=True):
         f, e, m = interp1d(x[mask], f[mask], bounds_error=False, fill_value=0, assume_sorted=True), \
                   interp1d(x[mask], 1 / e[mask], bounds_error=False, fill_value=0, assume_sorted=True), \
                   interp1d(x, mask, bounds_error=False, fill_value=0, assume_sorted=True)
@@ -100,10 +115,10 @@ class catalog:
                 plt.show()
         if add_mask is not None:
             mask = np.logical_and(mask, add_mask)
-        self.add_interpolated(fl, el, mask)
+        self.add_interpolated(fl, el, mask, ind=ind)
 
-    def make_qsos(self, num=1, kind='QSO', apply_lyaforest=False, apply_DLA=False, DLA=None, SDSS=None):
-        for i, d in enumerate(DLA[:num]):
+    def make_qsos(self, num=1, kind='QSO', apply_lyaforest=False, apply_DLA=False, SDSS=None):
+        for i, d in enumerate(self.DLA[:num]):
             name = 'data/{0:05d}/{2:04d}/{1:05d}'.format(d['PLATE'], d['MJD'], d['FIBER'])
             #print(name)
             if i % 1000 == 0:
@@ -133,7 +148,7 @@ class catalog:
                 if apply_DLA:
                     pass
 
-            self.add(x, f, e, mask, z=z, corr=corr, add_mask=m)
+            self.add(x, f, e, mask, ind=i, z=z, corr=corr, add_mask=m)
 
             if 0:
                 self.mask[self.size - 1] *= (corr > 0)
@@ -145,19 +160,22 @@ class catalog:
         for attr in ['f', 'e']:
             setattr(self, attr, np.ma.array(getattr(self, attr)[:self.size], mask=self.mask[:self.size]))
 
-        for attr in ['norm', 'w']:
+        for attr in ['norm', 'w', 'inds']:
             setattr(self, attr, getattr(self, attr)[:self.size])
 
     def stack(self, mode='w_mean'):
+        m = self.m[self.inds]
         if mode == 'mean':
-            self.fl = np.ma.sum(self.f / self.norm[:, None] * self.w[:, None], axis=0) / np.ma.sum(self.w[:, None], axis=0)
-        if mode == 'w_mean':
-            w = self.e**(-1) * self.w[:, None]
-            self.fl = np.ma.sum(self.f / self.norm[:, None] * w, axis=0) / np.ma.sum(w, axis=0)
-        if mode == 'median':
-            self.fl = np.ma.median(self.f / self.norm[:, None], axis=0)
+            self.fl = np.ma.sum(self.f[m] / self.norm[m, None] * self.w[m, None], axis=0) / np.ma.sum(self.w[m, None], axis=0)
 
-        self.el = (np.ma.sum(self.e ** (-2) / self.norm[:, None] * self.w[:, None], axis=0) / np.ma.sum(self.w[:, None], axis=0))**(-2)
+        if mode == 'w_mean':
+            w = self.e[m]**(-1) * self.w[m, None]
+            self.fl = np.ma.sum(self.f[m] / self.norm[m, None] * w, axis=0) / np.ma.sum(w, axis=0)
+
+        if mode == 'median':
+            self.fl = np.ma.median(self.f[m] / self.norm[m, None], axis=0)
+
+        self.el = (np.ma.sum(self.e[m] ** (-2) / self.norm[m, None] * self.w[m, None], axis=0) / np.ma.sum(self.w[m, None], axis=0))**(-2)
 
     def stats(self):
 
@@ -168,7 +186,6 @@ class catalog:
         plt.fill_between(self.x, self.sig[0], self.sig[1], color='dodgerblue', alpha=0.4)
         plt.plot(self.x, self.fl)
         plt.show()
-
 
     def inter(self):
         return interp1d(self.x, self.fl, bounds_error=False, fill_value=0, assume_sorted=True)
@@ -181,7 +198,7 @@ class catalog:
         if stack:
             f['wavelength'], f['flux'] = self.x, self.fl
         else:
-            for attr in ['f', 'e', 'norm', 'w']:
+            for attr in ['f', 'e', 'norm', 'w', 'inds']:
                 f[attr] = getattr(self, attr)
         f.close()
 
@@ -189,9 +206,13 @@ class catalog:
         if filename is None:
             filename = self.name
         f = h5py.File(filename.replace('.hdf5', '')+'.hdf5', 'r')
-        for attr in ['f', 'e', 'norm', 'w']:
+
+        # >> use dtype to get rid of the Memory error in stack calculations:
+        dtype = {'f': np.float32, 'e': np.float32, 'norm': np.float32, 'w': np.float32, 'inds': np.int}
+
+        for attr in ['f', 'e', 'norm', 'w', 'inds']:
             if attr in f:
-                setattr(self, attr, np.ma.array(f[attr][:], mask=(f[attr][:] == 0)))
+                setattr(self, attr, np.ma.array(f[attr][:], mask=(f[attr][:] == 0), dtype=dtype[attr]))
         for attr, name in zip(['x', 'fl'], ['wavelength', 'flux']):
             if name in f:
                 setattr(self, attr, f[name][:])

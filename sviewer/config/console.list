@@ -1,21 +1,21 @@
 show SiII*
-show SiII*
-SIII*
 SiII*
-show CII*
-show CI
+SiII**
+OI*
+OI**
+SHOW nv
+show NV
 show H2 0 1
+show NV
 show H2 0 1
-FeII
+show SiII
+show SiII
 show H2 0 1
-show CI
-SiII
-show CII*
-show H2 0 1 2 3 4
-show H2 0 1 2 3 4 5
-show H2 0
-rescale y 0.5
-rescale y 0.3
-rescale y 1.6
-rescale y 1.1
 logN H2
+FeII
+sMgII
+show NiII
+NiII
+FeII
+show CII*
+H2j0

@@ -1233,11 +1233,10 @@ class pyratio():
         if verbose == 1:
             print(max(Z.flatten()))
 
+        print(output)
         if output is not None:
             with open(output, "wb") as f:
-                pickle.dump(X1, f)
-                pickle.dump(X2, f)
-                pickle.dump(np.exp(Z), f)
+                pickle.dump([X1, X2, Z], f)
 
         d = distr2d(X1, X2, np.exp(Z))
         if marginalize:

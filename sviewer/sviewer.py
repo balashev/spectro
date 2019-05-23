@@ -146,8 +146,8 @@ class plotSpectrum(pg.PlotWidget):
         if self.restframe:
             AuxPlotXMin, AuxPlotXMax = MainPlotXMin / (self.parent.z_abs + 1), MainPlotXMax / (self.parent.z_abs + 1)
         else:
-            AuxPlotXMin = (MainPlotXMin/(self.parent.z_abs + 1)/self.parent.line_reper.l() - 1)*ac.c.to('km/s').value
-            AuxPlotXMax = (MainPlotXMax/(self.parent.z_abs + 1)/self.parent.line_reper.l() - 1)*ac.c.to('km/s').value
+            AuxPlotXMin = (MainPlotXMin / (self.parent.z_abs + 1) / self.parent.line_reper.l() - 1) * ac.c.to('km/s').value
+            AuxPlotXMax = (MainPlotXMax / (self.parent.z_abs + 1) / self.parent.line_reper.l() - 1) * ac.c.to('km/s').value
         self.v_axis.setXRange(AuxPlotXMin, AuxPlotXMax, padding=0)
 
     def raiseContextMenu(self, ev):
@@ -594,8 +594,7 @@ class plotSpectrum(pg.PlotWidget):
             mask = np.logical_and(s.spec.x() > min(self.mousePoint.x(), self.mousePoint_saved.x()),
                                   s.spec.x() < max(self.mousePoint.x(), self.mousePoint_saved.x()))
             if np.sum(mask) > 0:
-                x, y = s.spec.x()[mask], s.spec.y()[mask]
-                curve1 = plotStepSpectrum(x=x, y=y, pen=pg.mkPen())
+                curve1 = plotStepSpectrum(x=s.spec.x()[mask], y=s.spec.y()[mask], pen=pg.mkPen())
                 x, y = curve1.returnPathData()
                 if QApplication.keyboardModifiers() != Qt.ShiftModifier:
                     if self.parent.normview:
@@ -609,13 +608,20 @@ class plotSpectrum(pg.PlotWidget):
                 curve2 = pg.PlotCurveItem(x=x, y=cont(x), pen=pg.mkPen())
 
                 w = np.trapz(1.0 - y / cont(x), x=x)
-                err_w =  np.sqrt(np.sum((s.spec.err()[mask] / cont(x)[:-1:2]  * np.diff(x)[::2])**2))
-                print(w, err_w)
+                err_w = np.sqrt(np.sum((s.spec.err()[mask] / cont(x)[:-1:2] * np.diff(x)[::2])**2))
+                print(w, err_w, w / (1+self.parent.z_abs))
+                print(self.parent.line_reper.l(), 1 + self.parent.z_abs, (s.spec.x()[mask] / self.parent.line_reper.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value)
+                dv = np.cumsum(np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])))
+                dv90 = interp1d(dv/dv[-1], (s.spec.x()[mask] / self.parent.line_reper.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value, fill_value='extrapolate')
                 self.w_region = pg.FillBetweenItem(curve1, curve2, brush=pg.mkBrush(44, 160, 44, 150))
                 self.vb.addItem(self.w_region)
-                self.w_label = pg.TextItem('w = {:0.5f}+/-{:0.5f}, log(w/l)={:0.2f}, w_r = {:0.5f}+/-{:0.5f}'.format(w, err_w, np.log10(2 * w / (x[0]+x[-1])), w / (1+self.parent.z_abs), err_w / (1+self.parent.z_abs)),  anchor=(0,1), color=(44, 160, 44))
+                text = 'w = {:0.5f}+/-{:0.5f}, log(w/l)={:0.2f}, w_r = {:0.5f}+/-{:0.5f}, dv90 = {:0.2f}'.format(w, err_w, np.log10(2 * w / (x[0]+x[-1])), w / (1+self.parent.z_abs), err_w / (1+self.parent.z_abs), dv90(0.95) - dv90(0.05))
+                if self.parent.s[self.parent.s.ind].resolution not in [0, None]:
+                    text += ', d90_c = {:0.2f}'.format(np.sqrt((dv90(0.95) - dv90(0.05))**2 - (1.4 * ac.c.to('km/s').value / self.parent.s[self.parent.s.ind].resolution)**2))
+                self.w_label = pg.TextItem(text, anchor=(0, 1), color=(44, 160, 44))
                 self.w_label.setFont(QFont("SansSerif", 14))
-                #print('{:0.2f}'.format(w), (x[0]+x[-1])/2, s.cont.inter((x[0]+x[-1])/2))
+                print(text)
+                self.parent.console.set(text)
                 self.w_label.setPos((x[0]+x[-1])/2, cont((x[0]+x[-1])/2))
                 self.vb.addItem(self.w_label)
         if self.x_status:
@@ -4016,6 +4022,13 @@ class ExportDataWidget(QWidget):
             hbox.addStretch(1)
             layout.addLayout(hbox)
 
+            hbox = QHBoxLayout()
+            self.cheb_applied = QCheckBox('chebyshev applied?')
+            self.cheb_applied.setChecked(True)
+            hbox.addWidget(self.cheb_applied)
+            hbox.addStretch(1)
+            layout.addLayout(hbox)
+
         self.okButton = QPushButton(self.type.title())
         self.okButton.clicked[bool].connect(getattr(self, self.type))
         self.okButton.setFixedSize(80, 30)
@@ -4070,14 +4083,19 @@ class ExportDataWidget(QWidget):
         if self.waveunit == 'nm':
             unit = 10
 
+        if self.cheb_applied.isChecked() and self.parent.fit.cont_fit:
+            cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
+        else:
+            cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
+
         if self.spectrum.isChecked():
-            np.savetxt(self.filename, np.c_[s.spec.x() / unit, s.spec.y(), s.spec.err()], **kwargs)
+            np.savetxt(self.filename, np.c_[s.spec.x() / unit, s.spec.y() / cheb(s.spec.x()), s.spec.err()], **kwargs)
         if self.cont.isChecked():
-            np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x / unit, s.cont.y], **kwargs)
+            np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x / unit, s.cont.y / cheb(s.spec.x())], **kwargs)
         if self.fit.isChecked():
-            np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x() / unit, s.fit.y()], **kwargs)
+            np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x() / unit, s.fit.y() / cheb(s.fit.x())], **kwargs)
         if self.lines.isChecked():
-            np.savetxt('_fit_comps.'.join(self.filename.rsplit('.', 1)), np.column_stack([s.fit.x() / unit] + [c.y() for c in s.fit_comp]), **kwargs)
+            np.savetxt('_fit_comps.'.join(self.filename.rsplit('.', 1)), np.column_stack([s.fit.x() / unit] + [c.y() / cheb(s.fit.x()) for c in s.fit_comp]), **kwargs)
 
     def save(self):
         self.parent.save_opt = self.opt
@@ -5726,6 +5744,10 @@ class sviewer(QMainWindow):
                     self.setz_abs(self.fit.sys[0].z.val)
                 self.fit.showLines()
 
+            if 'cheb' in d[i]:
+                i += 1
+                self.fit.cont_left, self.fit.cont_right = float(d[i].split()[0]), float(d[i].split()[1])
+
             if 'fit_results' in d[i]:
                 num = int(d[i].split()[1])
                 for k in range(num):
@@ -5818,6 +5840,12 @@ class sviewer(QMainWindow):
                 f.write('fit_model: {0:}\n'.format(len(pars)))
                 for p in pars:
                     f.write(p.str() + '\n')
+
+            # >>> save cheb parameters:
+            if 'fit' in self.save_opt:
+                if self.fit.cont_fit:
+                    f.write('cheb: \n')
+                    f.write('{0:.2f} {1:.2f} \n'.format(self.fit.cont_left, self.fit.cont_right))
 
             # >>> save fit result:
             if 'fit_results' in self.save_opt:
@@ -6622,7 +6650,9 @@ class sviewer(QMainWindow):
 
     def calc_cont(self):
         x = self.plot.vb.getState()['viewRange'][0]
-        self.s[self.s.ind].calc_cont(x[0], x[-1])
+        self.s[self.s.ind].calcCont(method='Smooth', xl=x[0], xr=x[-1], iter=3, clip=3, filter='hanning',
+                                           window=int(np.sum((self.s[self.s.ind].spec.x() > x[0]) * (self.s[self.s.ind].spec.x() < x[-1])) / 5)
+                                          )
 
     def fitCheb(self, typ='cheb'):
         """
@@ -6718,7 +6748,7 @@ class sviewer(QMainWindow):
                     cont = np.ones_like(x, dtype=np.float)
                 else:
                     cont = np.array(s.cont.y[s.mask.x()[s.cont_mask]], dtype=np.float)
-                np.savetxt('C:/temp/data.dat', np.c_[x, y, err, cont])
+                #np.savetxt('C:/temp/data.dat', np.c_[x, y, err, cont])
                 ymax = np.max(y) - 1
                 m = y - 1 > ymax / 2
                 if len(x[m]) > 1:

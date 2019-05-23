@@ -1471,9 +1471,10 @@ class Spectrum():
             self.construct_g_fit_comps()
 
     def set_cheb(self, x=None, y=None):
-        if self.active():
+        if self.active() and self.cont_mask is not None:
             if x is None and y is None:
                 self.cheb.norm.set_data(x=self.spec.raw.x[self.cont_mask], y=self.correctContinuum(self.spec.raw.x[self.cont_mask]))
+                print('cont_mask', self.cont_mask)
                 self.cheb.normalize(norm=False, cont_mask=False)
             else:
                 self.cheb.set(x=x, y=y)
@@ -2072,14 +2073,14 @@ class Spectrum():
         Calculate the correction to the continuum given chebyshev polinomial coefficients in self.fit
         """
         print('correctCont:', self.parent.fit.cont_num, self.parent.fit.cont_left, self.parent.fit.cont_right)
-        if len(x) > 0:
+        mask = (x > self.parent.fit.cont_left) * (x < self.parent.fit.cont_right)
+        corr = np.ones_like(x)
+        if len(x[mask]) > 0:
             cheb = np.array([getattr(self.parent.fit, 'cont_'+str(i)).val for i in range(self.parent.fit.cont_num)])
-            base = (x - x[0]) * 2 / (x[-1] - x[0]) - 1
-            if 1:
-                return np.polynomial.chebyshev.chebval(base, cheb)
-            else:
-                base = np.cos(np.outer(base, np.arange(self.parent.fit.cont_num)))
-                return np.sum(np.multiply(base, cheb), axis=1)
+            base = (x[mask] - x[mask][0]) * 2 / (x[mask][-1] - x[mask][0]) - 1
+            corr[mask] = np.polynomial.chebyshev.chebval(base, cheb)
+
+        return corr
 
     def chi(self):
         mask = self.fit_mask.x()
