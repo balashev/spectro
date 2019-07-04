@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from adjustText import adjust_text
 from bisect import bisect_left
 import matplotlib.pyplot as plt
 from matplotlib import patches
@@ -651,7 +652,7 @@ class plotline():
                 for c in self.fit.comp:
                     c = c / sum_cont
 
-    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5], pos=0.84, dpos=0.03, color='cornflowerblue', show_ticks=True):
+    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5], pos=0.84, dpos=0.03, color='cornflowerblue', show_ticks=True, kind='full'):
         if 1:
             ymin, ymax = ax.get_ylim()
             pos, dpos = ymin + pos * (ymax - ymin), dpos * (ymax - ymin)
@@ -659,6 +660,7 @@ class plotline():
         lines = atomicData.H2(levels)
         lines = [l for l in lines if l.l()*(1+self.parent.z_ref) > xmin and l.l()*(1+self.parent.z_ref) < xmax]
         s = set([str(line).split()[1][:str(line).split()[1].index('-')] for line in lines])
+        texts = []
         for band in s:
             if ('L' in band and (int(band.split('-')[0][1:]) % 2 == 0 or (np.max(levels) < 5 and int(band.split('-')[0][1:]) < 10))):
                 pos_y = pos
@@ -675,9 +677,19 @@ class plotline():
                     if show_ticks:
                         for line in b_lines:
                             if line.j_l in levels:
-                                ax.plot([line.l() * (1 + self.parent.z_ref), line.l() * (1 + self.parent.z_ref)], [pos_y, pos_y + dpos], lw=0.75, color=color, ls='-')
-                        ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)], [pos_y + dpos, pos_y + dpos], lw=0.75, color=color, ls='-')
-                ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0', ha='left', va='bottom', fontsize=self.parent.font-8, color=color)
+                                ax.plot([line.l() * (1 + self.parent.z_ref), line.l() * (1 + self.parent.z_ref)], [pos_y, pos_y + dpos], lw=1.0, color=color, ls='-')
+                                if kind == 'full':
+                                    texts.append(ax.text(line.l() * (1 + self.parent.z_ref), pos_y + dpos, str(line.j_l), ha='center', va='bottom',
+                                                 fontsize=self.parent.font - 4, color=color))
+
+                        ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)], [pos_y + dpos, pos_y + dpos], lw=1.0, color=color, ls='-')
+                if kind == 'short':
+                    ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0', ha='left', va='bottom', fontsize=self.parent.font-4, color=color)
+                elif kind == 'full':
+                    ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + ':$\,\,$', ha='right', va='bottom',
+                            fontsize=self.parent.font - 4, color=color)
+        print(texts)
+        adjust_text(texts, only_move={'text': 'x'})
 
     def __str__(self):
         return 'plot line object: ' + str(self.name) + ', ' + str(self.wavelength)

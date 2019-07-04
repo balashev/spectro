@@ -1296,7 +1296,7 @@ class pyratio():
             if typ == 'i':
                 print('interpolate region...')
                 if 1:
-                    f = interpolate.RectBivariateSpline(X2[:,0], X1[0,:], np.exp(Z-max(Z.flatten())))
+                    f = interpolate.RectBivariateSpline(X2[:, 0], X1[0, :], np.exp(Z - max(Z.flatten())))
                 else:
                     f = interpolate.interp2d(X1, X2, L, kind='cubic')
                 x = np.linspace(self.pars[vary[0]].range[0], self.pars[vary[0]].range[1], grid_num)

@@ -2318,9 +2318,9 @@ class fitMCMCWidget(QWidget):
 
             k = int(np.sum(mask)) #samples.shape[1]
             n_hor = int(k ** 0.5)
-            if n_hor <= 1:
-                n_hor = 2
+            n_hor = np.max([n_hor, 2])
             n_vert = k // n_hor + 1 if k % n_hor > 0 else k // n_hor
+            n_vert = np.max([n_vert, 2])
 
             fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
             k = 0
@@ -3987,7 +3987,7 @@ class ExportDataWidget(QWidget):
 
         if self.type == 'export':
             self.check = OrderedDict([('spectrum', 'Spectrum'), ('cont', 'Continuum'),
-                                      ('fit', 'Fit model'), ('lines', 'Lines')])
+                                      ('fit', 'Fit model'), ('fit_regions', 'Fit regions'), ('lines', 'Lines')])
             self.opt = self.parent.export_opt
         elif self.type == 'save':
             self.check = OrderedDict([('spectrum', 'Spectrum'), ('cont', 'Continuum'),
@@ -4086,7 +4086,7 @@ class ExportDataWidget(QWidget):
         if self.cheb_applied.isChecked() and self.parent.fit.cont_fit:
             cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
         else:
-            cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
+            cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1)
 
         if self.spectrum.isChecked():
             np.savetxt(self.filename, np.c_[s.spec.x() / unit, s.spec.y() / cheb(s.spec.x()), s.spec.err()], **kwargs)
@@ -4094,6 +4094,8 @@ class ExportDataWidget(QWidget):
             np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x / unit, s.cont.y / cheb(s.spec.x())], **kwargs)
         if self.fit.isChecked():
             np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x() / unit, s.fit.y() / cheb(s.fit.x())], **kwargs)
+        if self.fit.isChecked():
+            np.savetxt('_fit_regions.'.join(self.filename.rsplit('.', 1)), np.c_[s.spec.x()[s.fit_mask.x()] / unit, (s.spec.y() / cheb(s.spec.x()))[s.fit_mask.x()]], **kwargs)
         if self.lines.isChecked():
             np.savetxt('_fit_comps.'.join(self.filename.rsplit('.', 1)), np.column_stack([s.fit.x() / unit] + [c.y() / cheb(s.fit.x()) for c in s.fit_comp]), **kwargs)
 
@@ -6006,7 +6008,7 @@ class sviewer(QMainWindow):
 
                         elif 'LINEAR' in header['CTYPE1']:
                             pass
-                        err = hdulist[0].data[1, :]
+                        err = hdulist[0].data[2, :]
                         err[err < 0] = 0
                         s.set_data([x, hdulist[0].data[0, :], err])
                     else:
@@ -6985,12 +6987,12 @@ class sviewer(QMainWindow):
                         if temp.slope.type == 'm':
                             ax.plot(E / 1.4388 * 1.5, temp.slope.val * E * 1.5 + temp.zero.val, '--k', lw=1.5)
                             text = [E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
-                                    'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + temp.latex(f=0, base=0)+'K']
+                                    'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + temp.latex(f=0, base=0)+'$\,$K']
                         elif temp.slope.type == 'u':
                             E = np.linspace(E[0], E[1], 5)
                             ax.errorbar(E / 1.4388 * 1.5, (temp.slope.val - temp.slope.minus) * E * 1.5 + temp.zero.val, fmt='--k', yerr=0.1, lolims=E>0, lw=1.5, capsize=0, zorder=0 )
                             text = [E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
-                                    'T$_{' + ''.join([str(l) for l in levels]) + '}$>' + '{:.0f}'.format(temp.temp.dec().val) + 'K']
+                                    'T$_{' + ''.join([str(l) for l in levels]) + '}>' + '{:.0f}\,$'.format(temp.temp.dec().val) + 'K']
                         text[2] = ax.text(text[0], text[1], text[2], va='top', ha='right', fontsize=16)
         if plot:
             plt.show()

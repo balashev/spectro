@@ -1,7 +1,7 @@
 from matplotlib import colors as mcolors
 import matplotlib.pyplot as plt
 
-def cmap_from_color(color, r=0, c='w', name='mycmap'):
+def cmap_from_color(color, r=0, c='w', name='mycmap', bins=128):
     """
     return cmap object for given color. Cmap is color --> c, d by default is white (1,1,1)
     parameters:
@@ -14,7 +14,10 @@ def cmap_from_color(color, r=0, c='w', name='mycmap'):
         c = d[c]
     cdict = {}
     if isinstance(color, str):
-        color = mcolors.hex2color(mcolors.cnames[color])
+        if '#' in color:
+            color = mcolors.hex2color(color)
+        else:
+            color = mcolors.hex2color(mcolors.cnames[color])
     print(color, c)
     for i, col in enumerate(['red', 'green', 'blue']):
         if r:
@@ -22,5 +25,5 @@ def cmap_from_color(color, r=0, c='w', name='mycmap'):
         else:
             cdict[col] = (0.0, c[i], c[i]), (1.0, color[i], color[i])
 
-    plt.register_cmap(name=name, data=cdict)
+    plt.register_cmap(name=name, data=cdict, lut=bins)
     return plt.get_cmap(name)

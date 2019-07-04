@@ -371,9 +371,10 @@ class distr2d():
         if color is not None:
             levels = [self.level(c) for c in conf_levels]
             if limits == None or limits == 0:
-                c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, zorder=zorder, label=label)
+                c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, linestyles='-',
+                               zorder=zorder, label=label)
             else:
-                c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, alpha=0)
+                c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, linestyles='-', alpha=0)
                 x, y = c.collections[0].get_segments()[0][:,0], c.collections[0].get_segments()[0][:,1]
                 inter = interpolate.interp1d(x, y)
                 x = np.linspace(x[0], x[-1], 30)
