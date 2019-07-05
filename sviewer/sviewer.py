@@ -474,8 +474,9 @@ class plotSpectrum(pg.PlotWidget):
         super(plotSpectrum, self).mousePressEvent(event)
 
         self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
+
         if self.r_status:
-            self.r_status == 2
+            self.r_status = 2
             self.regions.add()
 
     def mouseReleaseEvent(self, event):
@@ -565,7 +566,7 @@ class plotSpectrum(pg.PlotWidget):
             self.p_status = 1 if self.p_status == 2 else 2
 
         if self.r_status:
-            self.r_status = 1
+            self.r_status = False
 
         if self.s_status or self.d_status:
             for s in self.parent.s:
@@ -641,8 +642,7 @@ class plotSpectrum(pg.PlotWidget):
         self.specname.setPos(self.vb.mapSceneToView(QPoint(pos.right()-10,pos.bottom()-10)))
         if self.r_status == 2 and event.type() == QEvent.MouseMove:
             self.regions[-1].setRegion([self.mousePoint_saved.x(), self.mousePoint.x()])
-
-        if (self.a_status or self.c_status) and event.type() == QEvent.MouseMove:
+        if any([getattr(self, s + '_status') for s in 'acr']) and event.type() == QEvent.MouseMove:
             self.vb.rbScaleBox.hide()
 
 
@@ -6042,6 +6042,10 @@ class sviewer(QMainWindow):
                         s.set_data([wave, flux, err])
                     else:
                         s.set_data([wave, flux])
+                elif filename.endswith('.spec'):
+                    data = np.genfromtxt(filename, comments='#', unpack=True)
+                    print(data)
+                    s.set_data([data[0], data[1] * 1e17, data[2] * 1e17])
                 else:
                     try:
                         args = line.split()

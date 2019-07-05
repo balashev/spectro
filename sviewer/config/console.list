@@ -1,21 +1,21 @@
-rescale y 0.3
-rescale y 0.8
-rescale y 3
-rescale y 1.2
-rescale y 2
-rescale y 1.2
-set cont 0.02
-set cont 0.01
-set err 0.1
-set err 0.02
-set err 0.03
-set err 0.03
-x 3500 5500
-logN H2
-logN H2
-show H2 0 1
 show HD 0 1
 HDj0
 show CI
 show H2 0 1
 show H2 2 3
+show H2 0 1
+DI
+show DI
+show CII
+show CII*
+show SiII*
+show SiII
+SiII*
+show H2 0 1
+show CI*
+show CI**
+stats
+stats
+stats
+stats
+stats
