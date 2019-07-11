@@ -383,6 +383,7 @@ class plotline():
             self.y_min, self.y_max = min(self.spec.y), max(self.spec.y)
 
         # >>> correct continuum
+        print('cont', len(self.cont))
         if len(self.cont) > 0:
             self.correct_cont()
 
@@ -634,11 +635,19 @@ class plotline():
         return ax
 
     def correct_cont(self):
+        mask = (self.spec.x > self.cont_range[0]) * (self.spec.x < self.cont_range[1])
+        corr = np.ones_like(self.spec.x)
+        if len(x[mask]) > 0:
+            base = (self.spec.x[mask] - self.spec.x[mask][0]) * 2 / (self.spec.x[mask][-1] - self.spec.x[mask][0]) - 1
+            corr[mask] = np.polynomial.chebyshev.chebval(base, self.cont)
+        print(corr)
+
         sum_cont = np.zeros(len(self.spec.x))
         for k in range(len(data[0])):
             for l in range(len(self.cont)):
                 sum_cont[k] = sum_cont[k] + self.cont[l] * np.cos((l) * np.arccos(
                     -1 + (self.spec.x[k] - self.cont_range[0]) / (self.cont_range[1] - self.cont_range[0]) * 2))
+        print(sum_cont - corr)
         self.spec.y = self.spec.y / sum_cont
         self.spec.err = self.spec.err / sum_cont
 

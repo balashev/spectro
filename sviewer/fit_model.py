@@ -505,6 +505,10 @@ class fitModelWidget(QWidget):
             self.parent.fit.cont_num = k
             if self.refr:
                 self.refresh()
+        if self.parent.fit.cont_num < 1:
+            self.parent.fit.cont_fit = 0
+        else:
+            self.parent.fit.cont_fit = 1
 
     def numResChanged(self):
         k = int(self.res_num.text())

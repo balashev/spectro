@@ -1836,7 +1836,7 @@ class Spectrum():
                 t.time('convolve')
 
             # >>> correct for artificial continuum:
-            if self.parent.fit.cont_fit:
+            if self.parent.fit.cont_fit and self.parent.fit.cont_num > 0:
                 flux = flux * self.correctContinuum(x)
 
             # >>> correct for dispersion:
@@ -1950,7 +1950,7 @@ class Spectrum():
                 print('calcFit_fft', x, flux)
 
             # >>> correct for artificial continuum:
-            if self.parent.fit.cont_fit:
+            if self.parent.fit.cont_fit and self.parent.fit.cont_num > 0:
                 flux = flux * self.correctContinuum(x)
 
 
@@ -2046,7 +2046,7 @@ class Spectrum():
                 t.time('convolve')
 
             # >>> correct for artificial continuum:
-            if self.parent.fit.cont_fit:
+            if self.parent.fit.cont_fit and self.parent.fit.cont_num > 0:
                 flux = flux * self.correctContinuum(x)
 
             # >>> correct for dispersion:
@@ -2524,3 +2524,85 @@ class VerticalRegionItem(pg.UIGraphicsItem):
         p.drawRect(self.boundingRect())
 
 
+class CompositeSpectrum():
+    def __init__(self, parent, z=0.0):
+        self.parent = parent
+        self.z = z
+        self.f = 1
+        self.color = pg.mkColor(243, 193, 58)
+        self.parent.composite_status += 1
+        if self.parent.composite_status == 1:
+            self.spec = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
+            self.spec[1] = smooth(self.spec[1], mode='same')
+        if self.parent.composite_status == 3:
+            self.spec = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
+        elif self.parent.composite_status == 5:
+            self.spec = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
+        self.calc_scale()
+        self.draw()
+
+    def draw(self):
+        #self.gline = pg.PlotCurveItem(x=self.spec[0] * (1 + self.z), y=self.spec[1] * (1 + self.f), pen=pg.mkPen(color=self.color, width=2), clickable=True)
+        self.gline = CompositeGraph(self, x=self.spec[0] * (1 + self.z), y=self.spec[1] * self.f, pen=pg.mkPen(color=self.color, width=5, alpha=0.8), clickable=True)
+        self.gline.sigClicked.connect(self.lineClicked)
+        self.parent.vb.addItem(self.gline)
+
+    def redraw(self):
+        self.gline.setData(x=self.spec[0] * (1 + self.z), y=self.spec[1] * self.f)
+        #self.label.redraw()
+
+    def calc_scale(self):
+        s = self.parent.s[self.parent.s.ind]
+        mc = (self.spec[0] * (1 + self.z) > s.spec.x()[0]) * (self.spec[0] * (1 + self.z) < s.spec.x()[-1])
+        ms = (s.spec.x() > self.spec[0][0] * (1 + self.z)) * (s.spec.x() < self.spec[0][-1] * (1 + self.z))
+        #print(np.sum(mc), np.sum(ms))
+        #print(np.nanmean(s.spec.y()[ms]), np.nanmean(self.spec[1][mc]))
+        if np.sum(mc) > 10 and np.sum(ms) > 10:
+            self.f = np.nanmean(s.spec.y()[ms]) / np.nanmean(self.spec[1][mc])
+        print(self.f)
+
+    def remove(self):
+        self.parent.composite_status += 1
+        if self.parent.composite_status == 6:
+            self.parent.composite_status = 0
+        self.parent.vb.removeItem(self.gline)
+        del self
+
+    def lineClicked(self):
+        if QApplication.keyboardModifiers() == Qt.ControlModifier:
+            self.remove()
+
+class CompositeGraph(pg.PlotCurveItem):
+    def __init__(self, parent, **kwargs):
+        super().__init__(**kwargs)
+        self.parent = parent
+
+    def mouseDragEvent(self, ev):
+        if QApplication.keyboardModifiers() == Qt.ShiftModifier:
+            if ev.button() != Qt.LeftButton:
+                ev.ignore()
+                return
+
+            if ev.isStart():
+                self.start = ev.buttonDownPos()
+            elif ev.isFinish():
+                self.start = None
+                return
+            else:
+                self.redraw(start=self.start, finish=ev.pos())
+                self.start = ev.pos()
+                if self.start is None:
+                    ev.ignore()
+                    return
+
+            ev.accept()
+
+    def redraw(self, start, finish):
+        self.parent.z = finish.x() / start.x() * (1 + self.parent.z) - 1
+        self.parent.f = self.parent.f * finish.y() / start.y()
+        self.parent.redraw()
+
+    def mouseClickEvent(self, ev):
+
+        if QApplication.keyboardModifiers() == Qt.ControlModifier and ev.button() == Qt.LeftButton:
+            self.parent.remove()

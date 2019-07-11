@@ -310,7 +310,11 @@ class fitPars:
         if 'res' in name:
             setattr(self, name, par(self, name, 45000, 1000, 60000, 1, addinfo='exp_0'))
         if 'cont' in name:
-            setattr(self, name, par(self, name, 0, -0.5, 0.5, 0.01))
+            print(name)
+            if name == 'cont_0':
+                setattr(self, name, par(self, name, 1, 0, 2, 0.01))
+            else:
+                setattr(self, name, par(self, name, 0, -0.5, 0.5, 0.01))
         if 'cf' in name:
             setattr(self, name, par(self, name, 0.1, 3000, 9000, 0.01, addinfo='all'))
         if 'dispz' in name:

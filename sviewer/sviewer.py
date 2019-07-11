@@ -331,7 +331,10 @@ class plotSpectrum(pg.PlotWidget):
                         self.parent.fitResults.close()
 
             if event.key() == Qt.Key_Q:
-                self.parent.calc_cont()
+                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+                    pass
+                else:
+                    self.parent.calc_cont()
 
             if event.key() == Qt.Key_U:
                 self.u_status += 1
@@ -1338,7 +1341,8 @@ class showLinesWidget(QWidget):
                     ('font', int), ('xlabel', str), ('ylabel', str),
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
                     ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
-                    ('plotfile', str), ('show_cont', int), ('show_H2', str), ('pos_H2', float),
+                    ('plotfile', str), ('show_cont', int), ('corr_cheb', int),
+                    ('show_H2', str), ('pos_H2', float),
                     ('show_cf', int),
                     ])
         for opt, func in self.opts.items():
@@ -1478,6 +1482,11 @@ class showLinesWidget(QWidget):
         self.showcont.clicked[bool].connect(self.setCont)
         grid.addWidget(self.showcont, 17, 1)
 
+        self.corrcheb = QCheckBox('cheb. applied')
+        self.corrcheb.setChecked(self.corr_cheb)
+        self.corrcheb.clicked[bool].connect(self.setCheb)
+        grid.addWidget(self.corrcheb, 17, 2)
+
         self.showcf = QCheckBox('show')
         self.showcf.setChecked(self.show_cf)
         self.showcf.clicked[bool].connect(self.setCf)
@@ -1575,6 +1584,9 @@ class showLinesWidget(QWidget):
     def setCont(self, b):
         self.show_cont = int(self.showcont.isChecked())
 
+    def setCheb(self, b):
+        self.corr_cheb = int(self.corrcheb.isChecked())
+
     def setFilename(self):
         self.plotfile = self.file.text()
 
@@ -1631,18 +1643,24 @@ class showLinesWidget(QWidget):
                     ind = self.parent.s.ind
                 print(p.name, ind)
                 s = self.parent.s[ind]
+
+                if self.corr_cheb and self.parent.fit.cont_fit:
+                    cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
+                else:
+                    cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1)
+
                 if s.fit.n() > 0:
-                    fit = np.array([s.fit.x(), s.fit.y()])
+                    fit = np.array([s.fit.x(), s.fit.y()/cheb(s.fit.x())])
                     if self.show_comps:
                         fit_comp = []
                         for c in s.fit_comp:
-                            fit_comp.append(np.array([c.x(), c.y()]))
+                            fit_comp.append(np.array([c.x(), c.y()/cheb(s.fit.x())]))
                     else:
                         fit_comp = None
                 else:
                     fit = None
                     fit_comp = None
-                p.loaddata(d=np.array([s.spec.x(), s.spec.y(), s.spec.err(), s.mask.x()]), f=fit, fit_comp=fit_comp)
+                p.loaddata(d=np.array([s.spec.x(), s.spec.y()/cheb(s.spec.x()), s.spec.err()/cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp)
                 if len(self.parent.lines[self.ps.index(p)].split()) == 4:
                     p.y_min, p.y_max = (float(l) for l in self.parent.lines[self.ps.index(p)].split()[2:])
                 for l in self.parent.abs.lines:
@@ -1698,19 +1716,25 @@ class showLinesWidget(QWidget):
                     ind = self.parent.s.ind
                 print(ind)
                 s = self.parent.s[ind]
+
+                if self.corr_cheb and self.parent.fit.cont_fit:
+                    cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
+                else:
+                    cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1)
+
                 if s.fit.n() > 0:
-                    fit = np.array([s.fit.x(), s.fit.y()])
+                    fit = np.array([s.fit.x(), s.fit.y()/cheb(s.fit.x())])
                     if self.show_comps:
                         fit_comp = []
                         for c in s.fit_comp:
-                            fit_comp.append(np.array([c.x(), c.y()]))
+                            fit_comp.append(np.array([c.x(), c.y()/cheb(s.fit.x())]))
                     else:
                         fit_comp = None
                 else:
                     fit = None
                     fit_comp = None
 
-                p.loaddata(d=np.array([s.spec.x(), s.spec.y(), s.spec.err(), s.mask.x()]), f=fit, fit_comp=fit_comp)
+                p.loaddata(d=np.array([s.spec.x(), s.spec.y()/cheb(s.spec.x()), s.spec.err()/cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp)
                 #p.name = self.parent.regions[ps.index(p)]
                 p.show_comps = self.show_comps
                 p.name_pos = [self.name_x_pos, self.name_y_pos]
@@ -4838,6 +4862,7 @@ class sviewer(QMainWindow):
         self.extract2dwindow = None
         self.fitContWindow = None
         self.rescale_ind = 0
+        self.composite_status = False
 
     def initUI(self):
         
@@ -5177,6 +5202,11 @@ class sviewer(QMainWindow):
         fitCont.setStatusTip('Construct continuum using various methods')
         fitCont.setShortcut('Ctrl+C')
         fitCont.triggered.connect(partial(self.fitCont))
+
+        fitCont = QAction('&QSO composite', self)
+        fitCont.setStatusTip('Show composite qso spectrum')
+        fitCont.setShortcut('Ctrl+Q')
+        fitCont.triggered.connect(partial(self.showComposite))
 
         rescaleErrs = QAction('&Adjust errors', self)
         rescaleErrs.setStatusTip('Adjust uncertainties to dispersion in the spectrum')
@@ -7102,6 +7132,12 @@ class sviewer(QMainWindow):
             self.fitContWindow.show()
         else:
             self.fitContWindow.close()
+
+    def showComposite(self):
+        if self.composite_status % 2 == 0:
+            self.composite = CompositeSpectrum(self, self.z_abs)
+        else:
+            self.composite.remove()
 
     def rescale(self):
 
