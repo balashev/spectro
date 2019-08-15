@@ -135,12 +135,13 @@ class plot_spec(list):
     def specify_comps(self, *args):
         self.comps = np.array(args)
                 
-    def specify_styles(self, color=None, ls=None, lw=None, lw_total=1.5, lw_spec=1.0):
+    def specify_styles(self, num=10, color=None, ls=None, lw=None, lw_total=1.5, lw_spec=1.0):
         if color is None:
-            index = [0, 1, 2, 4, 5, 6, 7, 8, 9]
-            color = col.tableau10
-            color = ['tab:blue', 'tab:green', 'tab:orange', 'tab:purple', 'tab:cyan', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:brown', 'tab:red']
-            color = [color[i] for i in index]
+            index = np.arange(num) #[0, 1, 2, 4, 5, 6, 7, 8, 9, 10]
+            color = ['navy'] * num
+            color_add = ['tab:blue', 'tab:green', 'tab:orange', 'tab:purple', 'tab:cyan', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:brown', 'tab:red', 'navy']
+            for i in range(num):
+                color[i] = color_add[i]
         self.color = color[:len(self.comps+1)]
         
         if ls is None:

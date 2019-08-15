@@ -170,7 +170,6 @@ class par:
             else:
                 return '{0:.{1}f}'.format(self.val, dec)
 
-
 class fitSpecies:
     def __init__(self, parent, name=None):
         self.parent = parent
@@ -545,11 +544,9 @@ class fitPars:
 
         for attr, val in zip(reversed(attrs), reversed(s[1:])):
             self.setValue(s[0], val, attr)
-            if attr == 'step':
-                self.setValue(s[0], float(val), 'unc')
+            if attr == 'val':
+                self.setValue(s[0], float(s[4]), 'unc')
 
-        if 'res' in s[0]:
-            self.parent.s[int(s[0][4:])].resolution = getattr(self, s[0]).val
         if 'cf' in s[0]:
             self.parent.plot.pcRegions[-1].updateFromFit()
 

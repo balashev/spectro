@@ -1,21 +1,2 @@
-show H2 0 1
-show CI*
-show CI**
-stats
-stats
-stats
-stats
-stats
-SII
-scale y 1e14
-rescale y 1e14
-rescale err 1e14
-show HD
-show CI
-show CI
-show CI*
-show CI**
-y 0 1
-show H2 0 1
-show H2 2 3 4
-show ClI
+PII
+show PII

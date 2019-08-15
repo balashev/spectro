@@ -14,8 +14,9 @@ b: b-splain:
    b + <select region>            :  remove all b-splain points in selected region
   
 c: component mode:
+   c + CTRL                       :  continuum fit options window
    c                              :  show/select next component
-   c + CTRL                       :  change show component mode (none, one, all)
+   c + SHIFT                      :  change show component mode (none, one, all)
    c + <mouse left click>         :  shift comnonent center at the position (line indicator have to be selected)
    c + mouse wheel                :  increase/decrease b parameter of the component
    c + <mouse drag>               :  increase/decrease column density of the component 

@@ -21,8 +21,8 @@ from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget, QD
                              QGridLayout, QTabWidget, QFormLayout, QHBoxLayout, QRadioButton,
                              QTreeWidget, QComboBox, QTreeWidgetItem, QAbstractItemView,
                              QStatusBar, QMenu, QButtonGroup, QMessageBox)
-from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl
-from PyQt5.QtGui import QDesktopServices
+from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl, QTimer, pyqtSignal, QObject, QPropertyAnimation
+from PyQt5.QtGui import QDesktopServices, QPainter, QFont, QColor
 from scipy.special import erf
 from scipy.stats import gaussian_kde
 import subprocess
@@ -478,6 +478,32 @@ class plotSpectrum(pg.PlotWidget):
 
         self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
 
+        if self.c_status:
+            #try:
+            if self.parent.line_reper.name in self.parent.fit.sys[self.parent.comp].sp:
+                if self.check_line():
+                    self.parent.fit.sys[self.parent.comp].z.set(self.mousePoint.x() / self.parent.line_reper.l() - 1)
+                    if self.mousePoint.y() != self.mousePoint_saved.y():
+                        sp = self.parent.fit.sys[self.parent.comp].sp[self.parent.line_reper.name]
+                        # sp.b.set(sp.b.val + (self.mousePoint_saved.x() / self.mousePoint.x() - 1) * 299794.26)
+                        sp.N.set(sp.N.val + np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * np.log10(
+                                 1 + np.abs((self.mousePoint_saved.y() - self.mousePoint.y()) / 0.1)))
+                    try:
+                        self.parent.fitModel.refresh()
+                    except:
+                        pass
+                    self.c_status = 2
+                else:
+                    self.parent.sendMessage('select line within window wavelength range', 2000)
+                    self.vb.setMouseMode(self.vb.PanMode)
+                    self.c_status = 0
+            #except:
+            #    pass
+
+            self.parent.s.prepareFit(self.parent.comp, all=self.showfullfit)
+            self.parent.s.calcFit(self.parent.comp, recalc=True, redraw=True)
+            self.parent.s.calcFit(recalc=True, redraw=True)
+
         if self.r_status:
             self.r_status = 2
             self.regions.add()
@@ -520,27 +546,7 @@ class plotSpectrum(pg.PlotWidget):
                 self.parent.s[self.parent.s.ind].del_spline(arg=ind)
                 event.accept()
 
-        if self.c_status:
-            try:
-                print('c_status:', self.parent.line_reper.name, self.parent.fit.sys[self.parent.comp].sp.keys())
-                if self.parent.line_reper.name in self.parent.fit.sys[self.parent.comp].sp:
-                    self.parent.fit.sys[self.parent.comp].z.set(self.mousePoint.x() / self.parent.line_reper.l() - 1)
-                    if self.mousePoint.y() != self.mousePoint_saved.y():
-                        sp = self.parent.fit.sys[self.parent.comp].sp[self.parent.line_reper.name]
-                        # sp.b.set(sp.b.val + (self.mousePoint_saved.x() / self.mousePoint.x() - 1) * 299794.26)
-                        sp.N.set(sp.N.val + np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * np.log10(
-                                 1 + np.abs((self.mousePoint_saved.y() - self.mousePoint.y()) / 0.1)))
-                    try:
-                        self.parent.fitModel.refresh()
-                    except:
-                        pass
-                    self.c_status = 2
-            except:
-                pass
 
-            self.parent.s.prepareFit(self.parent.comp, all=self.showfullfit)
-            self.parent.s.calcFit(self.parent.comp, recalc=True, redraw=True)
-            self.parent.s.calcFit(recalc=True, redraw=True)
 
         if self.h_status:
             self.parent.console.exec_command('show HI')
@@ -651,17 +657,26 @@ class plotSpectrum(pg.PlotWidget):
 
     def wheelEvent(self, event):
         if self.c_status:
-            sp = self.parent.fit.sys[self.parent.comp].sp[self.parent.line_reper.name]
-            sp.b.set(sp.b.val * np.power(1.2, np.sign(event.angleDelta().y())))
-            self.parent.s.prepareFit(self.parent.comp, all=self.showfullfit)
-            self.parent.s.calcFit(self.parent.comp, recalc=True, redraw=True)
-            self.parent.s.calcFit(recalc=True, redraw=True)
-            self.c_status = 2
-            try:
-                self.parent.fitModel.refresh()
-            except:
-                pass
-            event.accept()
+            if self.check_line():
+                sp = self.parent.fit.sys[self.parent.comp].sp[self.parent.line_reper.name]
+                if sp.b.addinfo == '':
+                    sp.b.set(sp.b.val * np.power(1.2, np.sign(event.angleDelta().y())))
+                else:
+                    self.parent.fit.sys[self.parent.comp].sp[sp.b.addinfo].b.set(sp.b.val * np.power(1.2, np.sign(event.angleDelta().y())))
+                self.parent.s.prepareFit(self.parent.comp, all=self.showfullfit)
+                self.parent.s.calcFit(self.parent.comp, recalc=True, redraw=True)
+                self.parent.s.calcFit(recalc=True, redraw=True)
+                try:
+                    self.parent.fitModel.refresh()
+                except:
+                    pass
+                event.accept()
+                self.c_status = 2
+            else:
+                self.parent.sendMessage('select line within window wavelength range', 2000)
+                self.vb.setMouseMode(self.vb.PanMode)
+                self.c_status = 0
+
         elif self.m_status:
             #self.m_status =
             self.parent.s[self.parent.s.ind].rebinning(np.power(2.0, np.sign(event.angleDelta().y())))
@@ -700,6 +715,9 @@ class plotSpectrum(pg.PlotWidget):
                     pass
                     #print(r.size_full)
             self.parent.s.apply_regions()
+
+    def check_line(self):
+        return (self.vb.getState()['viewRange'][0][0] < self.parent.line_reper.l() * (1 + self.parent.z_abs)) * (self.parent.line_reper.l() * (1 + self.parent.z_abs) < self.vb.getState()['viewRange'][0][1])
 
     def add_line(self, x, y):
         if self.addline is not None:
@@ -1630,7 +1648,7 @@ class showLinesWidget(QWidget):
             self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
-            self.ps.specify_styles(lw=1.0, lw_total=self.fit_lw, lw_spec=self.spec_lw)
+            self.ps.specify_styles(num=len(self.parent.fit.sys), lw=1.0, lw_total=self.fit_lw, lw_spec=self.spec_lw)
             if len(self.parent.fit.sys) > 0:
                 self.ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
             else:
@@ -1720,7 +1738,7 @@ class showLinesWidget(QWidget):
                 if self.corr_cheb and self.parent.fit.cont_fit:
                     cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
                 else:
-                    cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1)
+                    cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1, bounds_error=False)
 
                 if s.fit.n() > 0:
                     fit = np.array([s.fit.x(), s.fit.y()/cheb(s.fit.x())])
@@ -4708,6 +4726,68 @@ class infoWidget(QWidget):
 
         self.text.setText(text)
 
+
+class messageWindow(QWidget):
+    def __init__(self, parent, text='', timer=2000):
+        super().__init__(parent=None)
+        # make the window frameless
+        self.setWindowFlags(Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.parent = parent
+        self.text = text
+
+        if 0:
+            l = QHBoxLayout()
+            l.addWidget(QLabel(text))
+            self.setLayout(l)
+
+        self.pos = [QApplication.desktop().screenGeometry().width() / 2, QApplication.desktop().screenGeometry().height() / 2]
+        self.resize(400 + len(self.text) * 12, 50)
+        self.move(self.pos[0] - self.size().width() / 2 , self.pos[1] - self.size().height() / 2)
+
+        self.fillColor = QColor(83, 148, 83, 105)
+        self.penColor = QColor(70, 70, 70, 255)
+
+        self.animation = QPropertyAnimation(self, b"windowOpacity")
+        self.animation.setStartValue(1)
+        self.animation.setEndValue(0)
+        self.animation.setDuration(timer)
+        self.animation.finished.connect(self._onclose)
+        self.animStarted = False
+
+        if timer not in [None, 0]:
+            QTimer.singleShot(timer, self._onclose)
+
+        self.show()
+
+    def paintEvent(self, event):
+        qp = QPainter()
+        qp.begin(self)
+        qp.setRenderHint(QPainter.Antialiasing, True)
+        qp.setPen(self.penColor)
+        qp.setBrush(self.fillColor)
+        qp.drawRoundedRect(0, 0, self.size().width(), self.size().height(), 5, 5)
+
+        font = QFont()
+        font.setPixelSize(22)
+        font.setBold(True)
+        qp.setFont(font)
+        qp.setPen(QColor(200, 200, 200))
+        qp.drawText(self.size().width() / 2 - len(self.text) * 5, self.size().height() / 2 + 8, self.text)
+        qp.end()
+
+    def _onclose(self):
+
+        if not self.animStarted:
+            self.animation.start()
+            self.animStarted = True
+        #    event.ignore()
+        else:
+            #QWidget.closeEvent(self, event)
+            self.hide()
+            self.close()
+            self.parent.message = None
+
 class buttonpanel(QFrame):
     def __init__(self, parent):
         super().__init__()
@@ -4789,6 +4869,8 @@ class buttonpanel(QFrame):
 
     def getESO(self):
         print(self.parent.s[self.parent.s.ind].filename)
+
+
 class sviewer(QMainWindow):
     
     def __init__(self):
@@ -4863,6 +4945,7 @@ class sviewer(QMainWindow):
         self.fitContWindow = None
         self.rescale_ind = 0
         self.composite_status = False
+        self.message = None
 
     def initUI(self):
         
@@ -5203,16 +5286,17 @@ class sviewer(QMainWindow):
         fitCont.setShortcut('Ctrl+C')
         fitCont.triggered.connect(partial(self.fitCont))
 
-        fitCont = QAction('&QSO composite', self)
-        fitCont.setStatusTip('Show composite qso spectrum')
-        fitCont.setShortcut('Ctrl+Q')
-        fitCont.triggered.connect(partial(self.showComposite))
+        Composite = QAction('&QSO composite', self)
+        Composite.setStatusTip('Show composite qso spectrum')
+        Composite.setShortcut('Ctrl+Q')
+        Composite.triggered.connect(partial(self.showComposite))
 
         rescaleErrs = QAction('&Adjust errors', self)
         rescaleErrs.setStatusTip('Adjust uncertainties to dispersion in the spectrum')
         rescaleErrs.triggered.connect(partial(self.rescale))
 
         spec1dMenu.addAction(fitCont)
+        spec1dMenu.addAction(Composite)
         spec1dMenu.addAction(rescaleErrs)
 
         # >>> create 2d spec Menu items
@@ -5574,6 +5658,18 @@ class sviewer(QMainWindow):
             self.zeroline.setHoverPen(color=(214, 39, 40), width=3)
         self.vb.addItem(self.zeroline)
 
+    def sendMessage(self, text='', timer=2000):
+        if self.message is not None:
+            self.message.animation.stop()
+            self.message.animStarted = True
+            self.message.close()
+
+        self.message = messageWindow(self, text=text, timer=timer)
+
+    #def closeMessage(self):
+    #    self.message.close()
+    #    self.message = None
+
     def absLines(self, status='', sig=True, value=None, verbose=False):
 
         if verbose:
@@ -5796,6 +5892,8 @@ class sviewer(QMainWindow):
         self.options('work_folder', self.work_folder)
         self.options('filename_saved', filename)
         self.s.redraw(self.s.ind)
+
+        self.sendMessage(f'File {filename} was opened')
 
     def saveFile(self, filename, save_name=True):
         if not filename.endswith('.spv'):
@@ -7911,7 +8009,7 @@ class sviewer(QMainWindow):
 
     def closeEvent(self, event):
         
-        if 0:
+        if 1:
             reply = QMessageBox.question(self, 'Message',
                 "Are you sure want to quit?", QMessageBox.Yes | 
                 QMessageBox.No, QMessageBox.No)

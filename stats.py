@@ -399,7 +399,7 @@ class distr2d():
             ax.set_title(title, fontdict={'fontsize': font})
         return ax
 
-    def plot(self, fig=None, frac=0.2, indent=0.15, color_marg='dodgerblue',
+    def plot(self, fig=None, frac=0.1, indent=0.15, color_marg='dodgerblue',
              conf_levels=None, xlabel='', ylabel='', limits=None, ls=None,
              color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False,
              font=14, title=None, zorder=1):

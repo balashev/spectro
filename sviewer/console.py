@@ -361,6 +361,7 @@ class Console(QTextEdit):
             N = a(0,0,0, 'd')
             for i in c:
                 if args[1] in self.parent.fit.sys[i].sp:
+                    print(self.parent.fit.sys[i].sp[args[1]].N.unc)
                     self.parent.fit.sys[i].sp[args[1]].N.unc.val = self.parent.fit.sys[i].sp[args[1]].N.val
                     N += self.parent.fit.sys[i].sp[args[1]].N.unc
                 if args[1] in ['H2', 'HD', 'CO']:
