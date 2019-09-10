@@ -1,2 +1,16 @@
 PII
 show PII
+NiII
+TiII
+FeII
+ZnII
+show H2 0 1
+show CI
+rescale y 1e17
+rescale err 1e17
+rescale y 1e17
+rescale err 1e17
+y 0 1
+show HDj1
+show H2 0 1
+show H2 2 3 4

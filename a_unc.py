@@ -448,27 +448,34 @@ class a:
         
     def lnL(self, x, ind=2):
         alpha = x - self.val
-        if self.plus != self.minus:
-            # Barlow 2003
-            if ind == 1:
-                beta = self.plus/self.minus
-                gamma = self.plus * self.minus / (self.plus + self.minus)
-                return -0.5 * (np.log(1+alpha/gamma)/np.log(beta))**2
-            # two parabola
-            if ind == 2:
-                if alpha > 0:
-                    return -0.5 * (alpha/self.plus)**2
-                else:
-                    return -0.5 * (alpha/self.minus)**2
-            # Another from Barlow arXiv:physics/0406120
-            if ind == 3:
-                return -0.5 * (alpha * (self.plus + self.minus)/(2*self.plus*self.minus + (self.plus - self.minus)*alpha))**2
-            # Another from Barlow arXiv:physics/0406120
-            if ind == 4:
-                return -0.5 * alpha**2/(self.plus * self.minus + (self.plus - self.minus) * alpha)
-        else:
-            #print (((x-n[0])/n[1])**2)
-            return -0.5 * (alpha/self.plus)**2
+        if self.type == 'm':
+            if self.plus != self.minus:
+                # Barlow 2003
+                if ind == 1:
+                    beta = self.plus/self.minus
+                    gamma = self.plus * self.minus / (self.plus + self.minus)
+                    return -0.5 * (np.log(1+alpha/gamma)/np.log(beta))**2
+                # two parabola
+                if ind == 2:
+                    if alpha > 0:
+                        return -0.5 * (alpha/self.plus)**2
+                    else:
+                        return -0.5 * (alpha/self.minus)**2
+                # Another from Barlow arXiv:physics/0406120
+                if ind == 3:
+                    return -0.5 * (alpha * (self.plus + self.minus)/(2*self.plus*self.minus + (self.plus - self.minus)*alpha))**2
+                # Another from Barlow arXiv:physics/0406120
+                if ind == 4:
+                    return -0.5 * alpha**2/(self.plus * self.minus + (self.plus - self.minus) * alpha)
+            else:
+                #print (((x-n[0])/n[1])**2)
+                return -0.5 * (alpha/self.plus)**2
+
+        elif self.type in ['l', 'u']:
+            d = {'l': -1, 'u': 1}
+            return np.log(np.abs((np.sign(alpha) - d[self.type]) / 2))
+
+
 
     def L(self, x, ind=2):
         return np.exp(self.lnL(x, ind=ind))
@@ -510,7 +517,7 @@ if __name__ == '__main__':
 
     #print(a(2,4,4, 'd').log())
 
-    if 1:
+    if 0:
         x = a("$11.37\pm0.03", 'l')
         x = a(13.28, 0.05, 0.04, 'l')
         y = a("$14.90\pm0.15", 'l')
@@ -520,7 +527,7 @@ if __name__ == '__main__':
         #y = a('$2\pm0.3$', 'd')
         z = x + y
         print(z.log())
-    if 1:
+    if 0:
         x = a("1.06^{+0.44}_{-0.10}")
         print(x.dec())
         x = a('2.42^{+0.34}_{-0.07}')
@@ -567,11 +574,12 @@ if __name__ == '__main__':
         x.append(a(11,1,2,'d'))
         for y in x:
             print(y, y.type)
-    if 0:
+    if 1:
         u = a('<19.0', 'l')
-        l = a('>2.0', 'd')
+        l = a('<2.0', 'l')
+        print(l.lnL(3), l.lnL(1))
         m = a('18.04^{+0.17}_{-0.14}', 'd')
-        #print(m.latex(f=3, base=0))
-        #print(u * m, u * u, m * u, l * m)
+        print(m.latex(f=3, base=0))
+        print(u * m, u * u, m * u, l * m)
         
 

@@ -478,31 +478,6 @@ class plotSpectrum(pg.PlotWidget):
 
         self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
 
-        if self.c_status:
-            #try:
-            if self.parent.line_reper.name in self.parent.fit.sys[self.parent.comp].sp:
-                if self.check_line():
-                    self.parent.fit.sys[self.parent.comp].z.set(self.mousePoint.x() / self.parent.line_reper.l() - 1)
-                    if self.mousePoint.y() != self.mousePoint_saved.y():
-                        sp = self.parent.fit.sys[self.parent.comp].sp[self.parent.line_reper.name]
-                        # sp.b.set(sp.b.val + (self.mousePoint_saved.x() / self.mousePoint.x() - 1) * 299794.26)
-                        sp.N.set(sp.N.val + np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * np.log10(
-                                 1 + np.abs((self.mousePoint_saved.y() - self.mousePoint.y()) / 0.1)))
-                    try:
-                        self.parent.fitModel.refresh()
-                    except:
-                        pass
-                    self.c_status = 2
-                else:
-                    self.parent.sendMessage('select line within window wavelength range', 2000)
-                    self.vb.setMouseMode(self.vb.PanMode)
-                    self.c_status = 0
-            #except:
-            #    pass
-
-            self.parent.s.prepareFit(self.parent.comp, all=self.showfullfit)
-            self.parent.s.calcFit(self.parent.comp, recalc=True, redraw=True)
-            self.parent.s.calcFit(recalc=True, redraw=True)
 
         if self.r_status:
             self.r_status = 2
@@ -525,15 +500,14 @@ class plotSpectrum(pg.PlotWidget):
                     self.parent.fit.sys[-1].z.val = self.mousePoint.x() / self.parent.line_reper.l() - 1
                     self.parent.fit.sys[-1].zrange(200)
                     self.parent.comp = len(self.parent.fit.sys) - 1
-                    try:
-                        sys = fitModelSysWidget(self.parent.fitModel, len(self.parent.fitModel.fit.sys) - 1)
-                        self.parent.fitModel.tab.addTab(sys, "sys {:}".format(self.parent.fitModel.tabNum + 1))
-                        self.parent.fitModel.tab.setCurrentIndex(len(self.parent.fitModel.fit.sys) - 1)
-                    except:
-                        pass
+                    if self.parent.fitModel is not None:
+                        sys = fitModelSysWidget(self.parent.fitModel, len(self.parent.fit.sys) - 1)
+                        self.parent.fitModel.tab.addTab(sys, "sys {:}".format(self.parent.fitModel.tabNum))
+                        self.parent.fitModel.tab.setCurrentIndex(len(self.parent.fit.sys) - 1)
                     self.parent.s.refreshFitComps()
                     self.parent.showFit(all=self.showfullfit)
-
+                else:
+                    self.parent.sendMessage("Select the reference absorption line")
         if self.b_status:
             if event.button() == Qt.LeftButton:
                 if self.mousePoint == self.mousePoint_saved:
@@ -546,7 +520,34 @@ class plotSpectrum(pg.PlotWidget):
                 self.parent.s[self.parent.s.ind].del_spline(arg=ind)
                 event.accept()
 
+        if self.c_status:
+            #try:
+            if self.parent.line_reper.name in self.parent.fit.sys[self.parent.comp].sp:
+                if self.check_line():
+                    self.parent.fit.sys[self.parent.comp].z.set(self.mousePoint.x() / self.parent.line_reper.l() - 1)
+                    if self.mousePoint.y() != self.mousePoint_saved.y():
+                        sp = self.parent.fit.sys[self.parent.comp].sp[self.parent.line_reper.name]
+                        print(sp)
+                        # sp.b.set(sp.b.val + (self.mousePoint_saved.x() / self.mousePoint.x() - 1) * 299794.26)
+                        sp.N.set(sp.N.val + np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * np.log10(
+                                 1 + np.abs((self.mousePoint_saved.y() - self.mousePoint.y()) / 0.1)))
+                        print(sp.N.val + np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * np.log10(
+                                 1 + np.abs((self.mousePoint_saved.y() - self.mousePoint.y()) / 0.1)))
+                    try:
+                        self.parent.fitModel.refresh()
+                    except:
+                        pass
+                    self.c_status = 2
+                else:
+                    self.parent.sendMessage('select line within window wavelength range', 3500)
+                    self.vb.setMouseMode(self.vb.PanMode)
+                    self.c_status = 0
+            #except:
+            #    pass
 
+            self.parent.s.prepareFit(self.parent.comp, all=self.showfullfit)
+            self.parent.s.calcFit(self.parent.comp, recalc=True, redraw=True)
+            self.parent.s.calcFit(recalc=True, redraw=True)
 
         if self.h_status:
             self.parent.console.exec_command('show HI')
@@ -673,7 +674,7 @@ class plotSpectrum(pg.PlotWidget):
                 event.accept()
                 self.c_status = 2
             else:
-                self.parent.sendMessage('select line within window wavelength range', 2000)
+                self.parent.sendMessage('select line within window wavelength range', 3500)
                 self.vb.setMouseMode(self.vb.PanMode)
                 self.c_status = 0
 
@@ -5658,7 +5659,7 @@ class sviewer(QMainWindow):
             self.zeroline.setHoverPen(color=(214, 39, 40), width=3)
         self.vb.addItem(self.zeroline)
 
-    def sendMessage(self, text='', timer=2000):
+    def sendMessage(self, text='', timer=3500):
         if self.message is not None:
             self.message.animation.stop()
             self.message.animStarted = True
@@ -8010,10 +8011,13 @@ class sviewer(QMainWindow):
     def closeEvent(self, event):
         
         if 1:
-            reply = QMessageBox.question(self, 'Message',
-                "Are you sure want to quit?", QMessageBox.Yes | 
-                QMessageBox.No, QMessageBox.No)
-    
+            msgBox = QMessageBox(self)
+            msgBox.setText("Are you sure want to quit?")
+            msgBox.setIcon(QMessageBox.Question)
+            msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msgBox.setStyleSheet("QLabel{min-width:500 px; font-size: 22px;} QPushButton{width:200px; font-size:22px;}")
+            msgBox.setBaseSize(QSize(900, 120))
+            reply = msgBox.exec()
             if reply == QMessageBox.Yes:
                 event.accept()
             else:

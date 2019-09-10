@@ -1705,7 +1705,7 @@ if __name__ == '__main__':
         print('G_0 of Mathis:',  np.trapz(pr.uv(nu, kind='Mathis')/l)*abs(l[1]-l[0])/5.29e-14)
         
         
-    if 1:
+    if 0:
         fig, ax = plt.subplots()
         
         import H2_summary
@@ -1801,3 +1801,10 @@ if __name__ == '__main__':
             out = pr.calc_grid(grid_num=10, plot=2, verbose=1, alpha=0.5, color='dodgerblue')
             plt.show()
 
+    if 1:
+        pr = pyratio(z=3.0)
+        l = np.linspace(900, 1500, 100)
+        plt.plot(l, np.log10(pr.uv(ac.c.cgs.value / l / 1e-8, kind='Draine')), label='Draine')
+        plt.plot(l, np.log10(pr.uv(ac.c.cgs.value / l / 1e-8, kind='UVB')), label='UVB')
+        plt.legend()
+        plt.show()
