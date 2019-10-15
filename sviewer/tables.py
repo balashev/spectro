@@ -190,8 +190,8 @@ class QSOlistTable(pg.TableWidget):
         self.format = None
         if 'SDSS' == self.cat:
             self.setWindowTitle('SDSS list of files')
-            self.format = {'SDSS_NAME': '%s', 'PLATE': '%5d', 'MJD': '%5d', 'FIBERID': '%4d',
-                           'f5': '%.6f'}
+            self.format = {'SDSS_NAME': '%s', 'PLATE': '%5d', 'MJD': '%5d', 'FIBERID': '%4d'}
+                           #'f5': '%.6f'}
         if 'SDSSLee' == self.cat:
             self.setWindowTitle('SDSS DR9 Lee list of files')
         if 'XQ100' in self.cat:

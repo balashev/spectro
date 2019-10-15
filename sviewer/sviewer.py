@@ -1,7 +1,9 @@
 from adjustText import adjust_text
-from astropy import coordinates as coords
-from astropy.io import fits
+import astroplan
+import astropy.coordinates
+from astropy.io import ascii, fits
 from astropy.table import Table
+import astropy.time
 from chainconsumer import ChainConsumer
 from collections import OrderedDict
 from copy import deepcopy, copy
@@ -3571,7 +3573,7 @@ class SDSSentry():
         
     def __str__(self):
         return self.name
-       
+
 class loadSDSSwidget(QWidget):
     
     def __init__(self, parent):
@@ -3904,6 +3906,265 @@ class SDSSPhotWidget(QWidget):
         self.setGeometry(100, 100, 2000, 1100)
         self.setStyleSheet(open('config/styles.ini').read())
         self.show()
+
+
+class observabilityWidget(QWidget):
+
+    def __init__(self, parent):
+        super(observabilityWidget, self).__init__()
+        self.parent = parent
+        self.setStyleSheet(open('config/styles.ini').read())
+        self.initUI()
+
+    def initUI(self):
+
+        layout = QVBoxLayout(self)
+        l = QHBoxLayout(self)
+        l.addWidget(QLabel('site:'))
+        self.siteBox = QComboBox(self)
+        self.siteBox.setFixedSize(150, 30)
+        self.siteBox.addItems(astropy.coordinates.EarthLocation.get_site_names())
+        self.siteBox.setCurrentText('Paranal Observatory')
+        l.addWidget(self.siteBox)
+        l.addStretch(1)
+        layout.addLayout(l)
+
+        l = QHBoxLayout(self)
+        l.addWidget(QLabel('dates:  from '))
+        self.datefrom = QLineEdit('2020-04-01 00:00')
+        self.datefrom.setFixedSize(120, 30)
+        l.addWidget(self.datefrom)
+        l.addWidget(QLabel(' to '))
+        self.dateto = QLineEdit('2020-10-01 23:59')
+        self.dateto.setFixedSize(90, 30)
+        l.addWidget(self.dateto)
+        l.addStretch(1)
+        layout.addLayout(l)
+
+        l = QHBoxLayout(self)
+        l.addWidget(QLabel('airmass:'))
+        self.airmass = QLineEdit('1.3')
+        self.airmass.setFixedSize(60, 30)
+        l.addWidget(self.airmass)
+        l.addStretch(1)
+        layout.addLayout(l)
+
+        l = QHBoxLayout()
+        self.loadSDSS = QCheckBox('load SDSS')
+        l.addWidget(self.loadSDSS)
+        l.addStretch(1)
+        layout.addLayout(l)
+
+        l = QHBoxLayout(self)
+        self.loadList = QCheckBox('Load list:')
+        l.addWidget(self.loadList)
+        self.filename = QLineEdit(self)
+        self.filename.setMaxLength(100)
+        self.filename.setFixedSize(600, 30)
+        l.addWidget(self.filename)
+        self.choosefile = QPushButton('Choose', self)
+        self.choosefile.setFixedSize(100, 30)
+        self.choosefile.clicked.connect(self.chooseFile)
+        l.addWidget(self.choosefile)
+        l.addStretch(1)
+        layout.addLayout(l)
+
+        grp = QButtonGroup(self)
+        for attr in ['loadSDSS', 'loadList']:
+            grp.addButton(getattr(self, attr))
+        self.loadSDSS.setChecked(True)
+
+        layout.addLayout(l)
+
+        vl = QVBoxLayout(self)
+        self.preview = QTextEdit()
+        self.preview.setFixedHeight(500)
+        vl.addWidget(self.preview)
+
+        l = QHBoxLayout(self)
+        l.addWidget(QLabel('Name:'))
+        self.name_col = QLineEdit()
+        self.name_col.setFixedSize(40, 30)
+        l.addWidget(self.name_col)
+
+        l.addWidget(QLabel('RA:'))
+        self.ra_col = QLineEdit()
+        self.ra_col.setFixedSize(40, 30)
+        l.addWidget(self.ra_col)
+
+        l.addWidget(QLabel('Dec:'))
+        self.dec_col = QLineEdit()
+        self.dec_col.setFixedSize(40, 30)
+        l.addWidget(self.dec_col)
+
+        l.addWidget(QLabel('Plate:'))
+        self.plate_col = QLineEdit('2')
+        self.plate_col.setFixedSize(40, 30)
+        l.addWidget(self.plate_col)
+
+        l.addWidget(QLabel('Fiber:'))
+        self.fiber_col = QLineEdit('4')
+        self.fiber_col.setFixedSize(40, 30)
+        l.addWidget(self.fiber_col)
+
+        l.addWidget(QLabel('Header:'))
+        self.header = QLineEdit()
+        self.header.setText('1')
+        self.header.setFixedSize(40, 30)
+        l.addWidget(self.header)
+        l.addStretch(1)
+        vl.addLayout(l)
+
+        layout.addLayout(vl)
+
+        l = QHBoxLayout(self)
+        self.calculateObs = QPushButton('Calculate', self)
+        self.calculateObs.setFixedSize(150, 30)
+        # self.load.resize(self.load.sizeHint())
+        self.calculateObs.clicked.connect(self.calculate)
+        l.addWidget(self.calculateObs)
+
+        self.exportObs = QPushButton('Export', self)
+        self.exportObs.setFixedSize(100, 30)
+        # self.load.resize(self.load.sizeHint())
+        self.exportObs.clicked.connect(self.export)
+        l.addWidget(self.exportObs)
+        l.addStretch(1)
+        layout.addLayout(l)
+
+        layout.addStretch(1)
+
+        self.setLayout(layout)
+
+        self.setGeometry(300, 300, 950, 900)
+        self.setWindowTitle('calculate Observability')
+        self.show()
+
+    def chooseFile(self):
+        fname = QFileDialog.getOpenFileName(self, 'Import SDSS list', self.parent.SDSSfolder)
+
+        if fname[0]:
+            self.filename.setText(fname[0])
+            self.parent.options('SDSSfolder', os.path.dirname(fname[0]))
+            with open(fname[0], 'r') as f:
+                try:
+                    self.header.setText('1')
+                    data = np.genfromtxt(self.filename.text(), names=True)
+                    names = [n.lower() for n in data.dtype.names]
+                    self.plate_col.setText(str(data.dtype.names.index(names.index('plate'))))
+                    ind = names.index('fiber') if 'fiber' in names else names.index('fiberid')
+                    self.fiber_col.setText(str(ind))
+                except:
+                    t = f.readlines()
+                    self.preview.setPlainText(''.join(t))
+                    ind = [len(s.split()) for s in t]
+                    print(ind)
+                    self.header.setText(str(np.argmax(ind)))
+            self.loadList.setChecked(True)
+
+    def click(self, s):
+        self.saved[s] = getattr(self, s).isChecked()
+
+    def loadList(self):
+        pars = [k for k, v in self.saved.items() if v]
+
+        self.parent.SDSSdata = None
+        inds, add_inds = [], []
+        if self.filename.text().strip() == '':
+            data = np.recarray((0,), dtype=[('plate', int), ('fiber', int)])
+            for line in self.sdsslist.toPlainText().splitlines():
+                if not line.startswith('#'):
+                    data = np.append(data, np.array([(int(line.split()[0]), int(line.split()[1]))], dtype=data.dtype))
+            if data.shape[0] > 0:
+                plate, fiber = data['plate'], data['fiber']
+            else:
+                inds = np.arange(len(self.data['PLATE']))
+        else:
+            data = np.genfromtxt(self.filename.text(), dtype=None, skip_header=int(self.header.text()), encoding=None)
+            if len(self.name_col.text().strip()) == 0:
+                for p, f, i in zip(data['f{:d}'.format(int(self.plate_col.text()) - 1)],
+                                   data['f{:d}'.format(int(self.fiber_col.text()) - 1)], range(len(data['f0']))):
+                    print(p, f)
+                    ind = np.where((self.data['PLATE'] == p) * (self.data['FIBERID'] == f))[0]
+                    if len(ind) > 0:
+                        inds.append(ind[0])
+                        add_inds.append(i)
+                    else:
+                        print('missing:', p, f)
+            else:
+                for i, name in enumerate(data['f{:d}'.format(int(self.name_col.text()) - 1)]):
+                    name = name.replace('J', '').replace('SDSS', '')
+                    ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (
+                        name[:name.index('-')], name[name.index('-'):])
+                    ra, dec = hms_to_deg(ra), dms_to_deg(dec)
+                    if 'RA' in self.data.dtype.names:
+                        RA, DEC = self.data['RA'], self.data['DEC']
+                    elif 'RA_GROUP' in self.data.dtype.names:
+                        RA, DEC = self.data['RA_GROUP'], self.data['DEC_GROUP']
+                    ind = np.argmin((RA - ra) ** 2 + (DEC - dec) ** 2)
+                    if (RA[ind] - ra) ** 2 + (DEC[ind] - dec) ** 2 < 0.3:
+                        inds.append(ind)
+                        add_inds.append(i)
+                    # print(self.data['RA'], self.data['DEC'])
+            if len(self.addcolumns.text().split()) > 0:
+                add = data[:][['f{:d}'.format(int(i) - 1) for i in self.addcolumns.text().split()]]
+            else:
+                add = None
+        if len(self.data[pars][inds]) > 0:
+            self.parent.SDSSdata = np.array(self.data[pars][inds])
+            if add is not None:
+                self.parent.SDSSdata = np.lib.recfunctions.merge_arrays([self.parent.SDSSdata, add[add_inds]],
+                                                                        flatten=True, usemask=False)
+
+        if self.parent.SDSSdata is not None:
+            self.parent.SDSSlist = QSOlistTable(self.parent, 'SDSS')
+            self.parent.SDSSlist.setdata(self.parent.SDSSdata)
+
+    def calculate(self):
+        observer = astroplan.Observer.at_site(self.siteBox.currentText())
+        print(observer)
+        time_range = astropy.time.Time([self.datefrom.text(), self.dateto.text()])
+        print(time_range)
+        constraints = [astroplan.AirmassConstraint(float(self.airmass.text()), 1.0), astroplan.AtNightConstraint.twilight_civil()]
+        print(constraints)
+        targets = []
+        if self.loadSDSS.isChecked():
+            for name in self.parent.SDSSdata['SDSS_NAME']:
+                name = name.replace('J', '').replace('SDSS', '').replace(':', '').replace('−', '-').strip()
+                ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (name[:name.index('-')], name[name.index('-'):])
+                ra, dec = hms_to_deg(ra), dms_to_deg(dec)
+                print(ra, dec)
+                targets.append(FixedTarget(name=name, coord=astropy.coordinates.SkyCoord(float(ra) * u.deg, float(dec) * u.deg, frame='icrs')))
+        else:
+            pass
+
+        if 1:
+            table = astroplan.observability_table(constraints, observer, targets, time_range=time_range)
+        else:
+            table = np.ones([len(targets), 4])
+        print(table[1][:])
+        if 'obs' not in self.parent.SDSSdata.dtype.names:
+            self.parent.SDSSdata = add_field(self.parent.SDSSdata, [('obs', bool)], table[1][:])
+        else:
+            self.parent.SDSSdata['obs'] = table[1][:]
+        if 'time1.3' not in self.parent.SDSSdata.dtype.names:
+            self.parent.SDSSdata = add_field(self.parent.SDSSdata, [('time1.3', float)], table[3][:])
+        else:
+            self.parent.SDSSdata['time1.3'] = table[3][:]
+
+        self.parent.SDSSlist.close()
+        self.parent.show_SDSS_list()
+
+    def export(self, filename=None):
+        #self.calculate()
+        filename = QFileDialog.getSaveFileName(self, 'Export list', self.parent.SDSSfolder)
+        with open(filename[0], 'w') as file:
+            ascii.write(self.parent.SDSSdata, output=file, format='fixed_width_two_line')
+
+
+    def closeEvent(self, event):
+        self.parent.observability = None
+        event.accept()
 
 class ShowListImport(QWidget):
     def __init__(self, parent, cat=''):
@@ -4938,6 +5199,7 @@ class sviewer(QMainWindow):
         self.fitModel = None
         self.chooseFit = None
         self.preferences = None
+        self.observability = None
         self.exp = None
         self.fitResults = None
         self.fitres = None
@@ -5370,9 +5632,13 @@ class sviewer(QMainWindow):
             SDSSLeelist.setStatusTip('load SDSS DR9 Lee database')
             SDSSLeelist.triggered.connect(self.loadSDSSLee)
 
-            SDSSlist = QAction('&SDSS list', self)
-            SDSSlist.setStatusTip('SDSS list')
-            SDSSlist.triggered.connect(self.show_SDSS_list)
+            importSDSSlist = QAction('&import SDSS list', self)
+            importSDSSlist.setStatusTip('import SDSS list from file')
+            importSDSSlist.triggered.connect(partial(self.importSDSSlist, filename=None))
+
+            showSDSSlist = QAction('&show SDSS list', self)
+            showSDSSlist.setStatusTip('show SDSS list')
+            showSDSSlist.triggered.connect(self.show_SDSS_list)
 
             SDSSSearchH2 = QAction('&Search H2', self)
             SDSSSearchH2.setStatusTip('Search H2 absorption systems')
@@ -5402,7 +5668,8 @@ class sviewer(QMainWindow):
             SDSSMenu.addAction(loadSDSS)
             SDSSMenu.addSeparator()
             SDSSMenu.addAction(SDSSLeelist)
-            SDSSMenu.addAction(SDSSlist)
+            SDSSMenu.addAction(importSDSSlist)
+            SDSSMenu.addAction(showSDSSlist)
             SDSSMenu.addSeparator()
             SDSSMenu.addAction(SDSSSearchH2)
             SDSSMenu.addAction(SDSSH2cand)
@@ -5531,7 +5798,7 @@ class sviewer(QMainWindow):
 
         observability = QAction('&Observability', self)
         observability.setStatusTip('&Calculate observability for given targets')
-        observability.triggered.connect(self.observability)
+        observability.triggered.connect(self.showObservability)
 
         obsMenu.addSeparator()
         obsMenu.addAction(observability)
@@ -5762,7 +6029,6 @@ class sviewer(QMainWindow):
             if '%' in d[i] or any([x in d[i] for x in ['spect', 'Bcont', 'fitting']]):
                 if '%' in d[i]:
                     specname = d[i][1:].strip()
-                    print(specname)
                     try:
                         ind = [s.filename for s in self.s].index(specname)
                     except:
@@ -5770,7 +6036,6 @@ class sviewer(QMainWindow):
                         try:
                             if all([slash not in specname for slash in ['/', '\\']]):
                                 specname = folder + '/' + specname
-
                             if not self.importSpectrum(specname, append=True):
                                 st = re.findall(r'spec-\d{4}-\d{5}-\d+', specname)
                                 if len(st) > 0:
@@ -5831,6 +6096,8 @@ class sviewer(QMainWindow):
                                 self.s[ind].add_exact_points(w, redraw=False, bad=True)
                                 i += n - 1
                                 self.s[ind].bad_mask.normalize()
+                        if '2d' in d[i]:
+                            self.import2dSpectrum(d[i].split()[1], ind=ind)
 
                         if 'resolution' in d[i]:
                             self.s[ind].resolution = int(float(d[i].split()[1]))
@@ -5944,6 +6211,11 @@ class sviewer(QMainWindow):
                     if 'others' in self.save_opt:
                         if s.resolution not in [0, None]:
                             f.write('resolution:   {}\n'.format(s.resolution))
+
+                    # >>> save 2d spectrum:
+                    if 'others' in self.save_opt:
+                        if s.spec2d is not None:
+                            f.write('2d:   {}\n'.format(s.spec2d.filename))
 
                     f.write('-------------------------\n')
 
@@ -6173,8 +6445,10 @@ class sviewer(QMainWindow):
                         s.set_data([wave, flux])
                 elif filename.endswith('.spec'):
                     data = np.genfromtxt(filename, comments='#', unpack=True)
-                    print(data)
-                    s.set_data([data[0], data[1] * 1e17, data[2] * 1e17])
+                    if np.median(data[1]) < 1e-15:
+                        s.set_data([data[0], data[1] * 1e17, data[2] * 1e17])
+                    else:
+                        s.set_data([data[0], data[1], data[2]])
                 else:
                     try:
                         args = line.split()
@@ -6225,7 +6499,6 @@ class sviewer(QMainWindow):
 
         for line in filelist:
             filename = line.split()[0]
-            print(filename)
             if ind is not None:
                 self.s.ind = ind
             else:
@@ -6294,6 +6567,9 @@ class sviewer(QMainWindow):
 
             else:
                 s.spec2d.set(x=spec[0], y=spec[1], z=spec[2])
+
+        if s.spec2d is not None:
+            s.spec2d.filename = filename
 
         self.s.redraw()
 
@@ -6542,11 +6818,11 @@ class sviewer(QMainWindow):
         self.s.append(s)
         self.s.redraw()
 
-    def observability(self):
-        cand = []
-        for s in self.SDSSdata:
-            cand.append(obsobject(s['name'], s['ra'], s['dec']))
-        observability(cand)
+    def showObservability(self):
+        if self.observability is None:
+            self.observability = observabilityWidget(self)
+        else:
+            self.observability.close()
 
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -7457,7 +7733,7 @@ class sviewer(QMainWindow):
                 from astroquery.sdss import SDSS
                 self.SDSSquery = SDSS
             if name is not None and len(name) > 0:
-                qso = self.SDSSquery.get_spectra(coordinates=coords.SkyCoord(ra, dec, frame='icrs', unit='deg'))[0]
+                qso = self.SDSSquery.get_spectra(coordinates=astropy.coordinates.SkyCoord(ra, dec, frame='icrs', unit='deg'))[0]
             else:
                 qso = self.SDSSquery.get_spectra(plate=plate, fiberID=fiber, mjd=MJD)[0]
             #mask = qso[1].data['ivar'] > 0
@@ -7488,9 +7764,12 @@ class sviewer(QMainWindow):
         self.load_SDSS = loadSDSSwidget(self)
         self.load_SDSS.show()
 
-    def importSDSSlist(self, filename):
+    def importSDSSlist(self, filename=None):
+        if filename is None:
+            filename = QFileDialog.getOpenFileName(self, 'Load SDSS list...', self.SDSSfolder)[0]
+            print(filename)
         if 1:
-            if any([s in filename for s in ['.dat', '.txt', '.list']]):
+            if any([s in filename for s in ['.dat', '.txt', '.list', '.tsv']]):
                 with open(filename) as f:
                     n = np.min([len(line.split()) for line in f])
                 print(n)
@@ -7509,7 +7788,9 @@ class sviewer(QMainWindow):
                     SDSSunit.add_attr(attr)
                     setattr(SDSSunit, attr, d[attr])
                 self.SDSSdata.append(SDSSunit)
-        
+
+        self.show_SDSS_list()
+
     def show_SDSS_list(self):
         if hasattr(self, 'SDSSdata'):
             self.SDSSlist = QSOlistTable(self, 'SDSS')

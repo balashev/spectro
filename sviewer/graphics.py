@@ -638,6 +638,7 @@ class image():
 class spec2d():
     def __init__(self, parent):
         self.parent = parent
+        self.filename = ''
         self.raw = image()
         self.cr = None
         self.sky = None

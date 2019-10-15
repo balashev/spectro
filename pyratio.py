@@ -1704,32 +1704,23 @@ if __name__ == '__main__':
         print('G_0 of Draine:', np.trapz(pr.uv(nu, kind='Draine')/l)*abs(l[1]-l[0])/5.29e-14)
         print('G_0 of Mathis:',  np.trapz(pr.uv(nu, kind='Mathis')/l)*abs(l[1]-l[0])/5.29e-14)
         
-        
-    if 0:
+
+    # CI calculation
+    if 1:
         fig, ax = plt.subplots()
-        
-        import H2_summary
-        QSO = H2_summary.load_QSO()
-        q = QSO.get('J0000')
-        pr = pyratio(z=q.z_dla)
+        z_dla = 1.70465
+        pr = pyratio(z=z_dla)
         pr.set_pars(['T', 'n', 'f', 'UV'])
         pr.set_prior('f', a(0, 0, 0))
-        #pr.set_prior('T', a(2.04,0,0))
-        pr.set_prior('T', a(q.e['T01'].col.log().val, 0, 0))
-        print(q.e['T01'].col.log())
+        pr.set_prior('T', a(2.0, 0, 0))
         pr.pars['n'].range = [0, 5]
         pr.pars['n'].value = 2
-        pr.pars['UV'].range = [0, 3]
-        #pr.set_prior('T', q.e['T01'].col.log())
-        pr.add_spec('CI', [q.e['CI'].col, q.e['CI*'].col, q.e['CI**'].col])
-        if 0:
-            fig, ax = plt.subplots()
-        #pr.calc_dep('UV', ax=ax)
-        if 1:
-            out = pr.calc_grid(grid_num=50, verbose=1, ax=ax)
-            for o in out:
-                print("q.el(\'{:}\', {:.2f}, {:.2f}, {:.2f})".format(o[0], o[1].val, o[1].plus, o[1].minus))
-                
+        pr.pars['UV'].range = [0, 5]
+        CIj0, CIj1, CIj2 = a(14.30, 0.1, 0.1), a(14.76, 0.1, 0.1), a(14.74, 0.1, 0.1)
+        pr.add_spec('CI', [CIj0, CIj1, CIj2])
+        CI = pr.calc_grid(grid_num=20, plot=1, verbose=1, marginalize=True,
+                           alpha=1, color='greenyellow', cmap=None, color_point='gold', zorder=10)
+        print(CI)
         #plt.savefig('pyratio.png', bbox_inches='tight', transparent=True)
         plt.show()
 
@@ -1801,7 +1792,7 @@ if __name__ == '__main__':
             out = pr.calc_grid(grid_num=10, plot=2, verbose=1, alpha=0.5, color='dodgerblue')
             plt.show()
 
-    if 1:
+    if 0:
         pr = pyratio(z=3.0)
         l = np.linspace(900, 1500, 100)
         plt.plot(l, np.log10(pr.uv(ac.c.cgs.value / l / 1e-8, kind='Draine')), label='Draine')
