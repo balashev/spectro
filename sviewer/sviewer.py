@@ -7173,12 +7173,11 @@ class sviewer(QMainWindow):
                 mean = self.line_reper.l() * (1 + self.z_abs)
                 x, y, err = np.array(s.spec.x()[s.mask.x()], dtype=np.float), np.array(s.spec.y()[s.mask.x()], dtype=np.float), np.array(s.spec.err()[s.mask.x()], dtype=np.float)
                 if self.normview:
-                    cont = np.ones_like(x, dtype=np.float)
+                    cont = np.zeros_like(x, dtype=np.float)
                 else:
                     cont = np.array(s.cont.y[s.mask.x()[s.cont_mask]], dtype=np.float)
-                #np.savetxt('C:/temp/data.dat', np.c_[x, y, err, cont])
-                ymax = np.max(y) - 1
-                m = y - 1 > ymax / 2
+                ymax = np.max(y - cont)
+                m = y - cont > ymax / 2
                 if len(x[m]) > 1:
                     fwhm = (x[m][-1] - x[m][0])
                 else:
@@ -7186,7 +7185,7 @@ class sviewer(QMainWindow):
                 sigma = fwhm / 2 / np.sqrt(2 * np.log(2))
                 amp = ymax * np.sqrt(2 * np.pi) * sigma
                 mean = np.mean(x)
-                print(amp, sigma, mean, y / cont)
+                print(amp, sigma, mean, y - cont)
 
                 def gaussian(x, amp, cen, disp):
                     """1-d gaussian: gaussian(x, amp, cen, disp)"""
@@ -7228,7 +7227,7 @@ class sviewer(QMainWindow):
 
                     ndim, nwalkers, nsteps = 3, 100, 1000
                     p0 = np.asarray([result.params[par].value + np.random.randn(nwalkers) * result.params[par].stderr for par in params]).transpose()
-                    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[x_bin, y / cont, err, cont])
+                    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[x_bin, y - cont, err, cont])
                     sampler.run_mcmc(p0, nsteps)
                     samples = sampler.chain[:, int(nsteps/2):, :].reshape((-1, ndim))
                     samples[:, 2] = samples[:, 0] / (2 * np.pi)**0.5 / samples[:, 2]

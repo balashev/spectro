@@ -521,7 +521,7 @@ class specline():
         self.current().interpolate()
 
     def normalize(self, norm=True, cont_mask=True, inter=False, action='normalize'):
-        
+
         if cont_mask:
             if norm:
                 self.norm.x = self.raw.x[self.parent.cont_mask]
