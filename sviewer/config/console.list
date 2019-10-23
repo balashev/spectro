@@ -1,21 +1,21 @@
-show NIII
-show NiII
-show MnI
-show MnII
-MnII
-2d levels 0 0.1
-2d levels 0 0.1
-2d levels 0 0.01
-2d levels -0.01 0.01
-2d levels -0.1 0.1
-2d levels -1 1
-2d levels -1 0.1
-2d levels -1 0.01
-2d levels --0.01 0.01
-2d levels -0.01 0.01
-2d levels 0 0.01
-2d levels 0 0.01
-2d levels 0 0.01
-2d levels 0 1
-2d levels 0 1 
-2d levels 0 2
+show CaII
+show HeI*
+show HeI*
+show CaI
+show CaII
+show FeII*
+show FeII**
+show FeII***
+show FeII****
+show FeII*
+show FeII*8
+show FeII**
+show FeII***
+show FeII****
+show FeII*****
+show HeI*
+stats
+stats
+stats
+0.6 * 1.4
+0.6 * 1.7

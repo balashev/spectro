@@ -126,9 +126,9 @@ class Speclist(list):
             for f in self.parent.sdss_filters:
                 f.update(m)
 
-    def normalize(self):
+    def normalize(self, action='normalize'):
         for i, s in enumerate(self):
-            s.normalize()
+            s.normalize(action=action)
         self.redraw()
 
     def prepareFit(self, ind=-1, all=True):
@@ -520,21 +520,28 @@ class specline():
     def interpolate(self):
         self.current().interpolate()
 
-    def normalize(self, norm=True, cont_mask=True, inter=False):
+    def normalize(self, norm=True, cont_mask=True, inter=False, action='normalize'):
+        if action == 'normalize':
+            forward = 'divide'
+            backward = 'multiply'
+        elif action == 'subtract':
+            forward = 'subtract'
+            backward = 'add'
+
         if cont_mask:
             if norm:
                 self.norm.x = self.raw.x[self.parent.cont_mask]
                 if len(self.raw.y) > 0:
-                    self.norm.y = self.raw.y[self.parent.cont_mask] / self.parent.cont.y
+                    self.norm.y = getattr(np, forward)(self.raw.y[self.parent.cont_mask], self.parent.cont.y)
                 if len(self.raw.err) > 0:
-                    self.norm.err = self.raw.err[self.parent.cont_mask] / self.parent.cont.y
+                    self.norm.err = getattr(np, forward)(self.raw.err[self.parent.cont_mask], self.parent.cont.y)
                 self.norm.n = len(self.norm.x)
             else:
                 self.raw.x[self.parent.cont_mask] = self.norm.x
                 if len(self.raw.y) > 0:
-                    self.raw.y[self.parent.cont_mask] = self.norm.y * self.parent.cont.y
+                    self.raw.y[self.parent.cont_mask] = getattr(np, backward)(self.norm.y, self.parent.cont.y)
                 if len(self.raw.err) > 0:
-                    self.raw.err[self.parent.cont_mask] = self.norm.err * self.parent.cont.y
+                    self.raw.err[self.parent.cont_mask] = getattr(np, backward)(self.norm.err, self.parent.cont.y)
         else:
             if (norm and len(self.raw.y)>0) or (not norm and len(self.norm.y)>0):
                 if not inter:
@@ -548,12 +555,12 @@ class specline():
             if norm:
                 self.norm.x = self.raw.x[:]
                 if len(self.raw.y) > 0:
-                    self.norm.y = self.raw.y / cont
+                    self.norm.y = getattr(np, forward)(self.raw.y, cont)
                 self.norm.n = len(self.norm.x)
             else:
                 self.raw.x = self.norm.x[:]
                 if len(self.norm.y) > 0:
-                    self.raw.y = self.norm.y * cont
+                    self.raw.y = getattr(np, backward)(self.norm.y, cont)
 
     def inter(self, x):
         return self.current().inter(x)
@@ -1637,25 +1644,24 @@ class Spectrum():
     def set_fit_mask(self):
         self.fit_mask.set(x=np.logical_and(self.mask.x(), np.logical_not(self.bad_mask.x())))
 
-    def normalize(self):
+    def normalize(self, action='normalize'):
         if self.parent.normview and self.cont_mask is not None:
-            self.spec.normalize(True)
+            self.spec.normalize(True, action=action)
             self.spec.norm.interpolate()
         else:
             if len(self.fit_comp) > 0:
                 for comp in self.fit_comp:
-                    comp.normalize(norm=False, cont_mask=False, inter=True)
-        self.mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None)
-        self.bad_mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None)
+                    comp.normalize(norm=False, cont_mask=False, inter=True, action=action)
+        self.mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
+        self.bad_mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
         self.set_fit_mask()
 
         if self.fit.norm.n > 0 and not self.parent.normview:
-            self.fit.normalize(self.parent.normview, cont_mask=False, inter=True)
+            self.fit.normalize(self.parent.normview, cont_mask=False, inter=True, action=action)
             self.fit.raw.interpolate()
 
-        #self.set_fit_mask()
-        #self.rewrite_mask()
-
+        # self.set_fit_mask()
+        # self.rewrite_mask()
 
     def calcCont(self, method='SG', xl=None, xr=None, iter=5, window=201, clip=2.5, sg_order=5, filter='flat', new=True, cont=False, sign=1):
         if self.spec.raw.n > 0:

@@ -5078,6 +5078,12 @@ class buttonpanel(QFrame):
         self.normalize.move(180, 20)
         self.normalize.resize(110, 30)
 
+        self.subtract = QPushButton('Subtract', self)
+        self.subtract.setCheckable(True)
+        self.subtract.clicked[bool].connect(partial(self.parent.normalize, action='subtract'))
+        self.subtract.move(180, 60)
+        self.subtract.resize(110, 30)
+
         self.fitbutton = QPushButton('Fit', self)
         self.fitbutton.setCheckable(True)
         self.fitbutton.clicked.connect(self.parent.fitLM)
@@ -6214,7 +6220,7 @@ class sviewer(QMainWindow):
 
                     # >>> save 2d spectrum:
                     if 'others' in self.save_opt:
-                        if s.spec2d is not None:
+                        if s.spec2d is not None and s.spec2d.filename not in [None, '']:
                             f.write('2d:   {}\n'.format(s.spec2d.filename))
 
                     f.write('-------------------------\n')
@@ -6834,14 +6840,25 @@ class sviewer(QMainWindow):
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    def normalize(self, state=None):
+    def normalize(self, state=None, action='normalize'):
         if self.normview != state:
             if state == None:
                 self.normview = not self.normview
             else:
                 self.normview = state
-            self.panel.normalize.setChecked(self.normview)
-            self.s.normalize()
+            #getattr(self.s, action)()
+            #getattr(self.panel, action).setChecked(self.normview)
+            #l = ['normalize', 'subtract']
+            #l.remove(action)
+            #getattr(self.panel, l[0]).setEnabled(not self.normview)
+            self.s.normalize(action=action)
+            if action == 'normalize':
+                self.panel.normalize.setChecked(self.normview)
+                self.panel.subtract.setEnabled(not self.normview)
+            elif action == 'subtract':
+                self.panel.subtract.setChecked(self.normview)
+                self.panel.normalize.setEnabled(not self.normview)
+
             # self.parent.abs.redraw()
             x = self.plot.vb.getState()['viewRange'][0]
             self.plot.vb.enableAutoRange()

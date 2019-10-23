@@ -671,13 +671,23 @@ class atomicData(OrderedDict):
         for l in HF:
             self['HF'].lines.append(line(l[4].decode('UTF-8'), l[6], l[7], l[8], ref='', j_l=l[0], nu_l=l[1], j_u=l[2], nu_u=l[3]))
 
+    def readBAL(self):
+        BAL = np.genfromtxt(r'data/BAL.dat', skip_header=1, names=True, unpack=True, dtype=None, comments='-')
+        for l in BAL:
+            print(l)
+            name = l['species'].decode('UTF-8')
+            if name not in self.keys():
+                self[name] = e(name)
+            self[name].lines.append(line(name+ str(l['lambda']), l['lambda'], l['f'], 1e-9, ref=''))
+
     def makedatabase(self):
         self.readMorton()
-        #self.readCashman()
+        self.readCashman()
         self.readH2(j=[0, 1, 2, 3, 4, 5, 6, 7, 8])
         self.readHD()
         self.readCO()
         self.readHF()
+        self.readBAL()
         self.read_Molecular()
         self.read_EmissionSF()
 
