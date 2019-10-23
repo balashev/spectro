@@ -521,27 +521,34 @@ class specline():
         self.current().interpolate()
 
     def normalize(self, norm=True, cont_mask=True, inter=False, action='normalize'):
-        if action == 'normalize':
-            forward = 'divide'
-            backward = 'multiply'
-        elif action == 'subtract':
-            forward = 'subtract'
-            backward = 'add'
-
+        
         if cont_mask:
             if norm:
                 self.norm.x = self.raw.x[self.parent.cont_mask]
                 if len(self.raw.y) > 0:
-                    self.norm.y = getattr(np, forward)(self.raw.y[self.parent.cont_mask], self.parent.cont.y)
+                    if action == 'normalize':
+                        self.norm.y = self.raw.y[self.parent.cont_mask] / self.parent.cont.y
+                    elif action == 'subtract':
+                        self.norm.y = self.raw.y[self.parent.cont_mask] - self.parent.cont.y
                 if len(self.raw.err) > 0:
-                    self.norm.err = getattr(np, forward)(self.raw.err[self.parent.cont_mask], self.parent.cont.y)
+                    if action == 'normalize':
+                        self.norm.err = self.raw.err[self.parent.cont_mask] / self.parent.cont.y
+                    elif action == 'subtract':
+                        self.norm.err = self.raw.err[self.parent.cont_mask]
                 self.norm.n = len(self.norm.x)
             else:
                 self.raw.x[self.parent.cont_mask] = self.norm.x
                 if len(self.raw.y) > 0:
-                    self.raw.y[self.parent.cont_mask] = getattr(np, backward)(self.norm.y, self.parent.cont.y)
+                    if action == 'normalize':
+                        self.raw.y[self.parent.cont_mask] = self.norm.y * self.parent.cont.y
+                    elif action == 'subtract':
+                        self.raw.y[self.parent.cont_mask] = self.norm.y + self.parent.cont.y
+
                 if len(self.raw.err) > 0:
-                    self.raw.err[self.parent.cont_mask] = getattr(np, backward)(self.norm.err, self.parent.cont.y)
+                    if action == 'normalize':
+                        self.raw.err[self.parent.cont_mask] = self.norm.err * self.parent.cont.y
+                    elif action == 'subtract':
+                        self.raw.err[self.parent.cont_mask] = self.norm.err
         else:
             if (norm and len(self.raw.y)>0) or (not norm and len(self.norm.y)>0):
                 if not inter:
@@ -555,12 +562,18 @@ class specline():
             if norm:
                 self.norm.x = self.raw.x[:]
                 if len(self.raw.y) > 0:
-                    self.norm.y = getattr(np, forward)(self.raw.y, cont)
+                    if action == 'normalize':
+                        self.norm.y = self.raw.y / cont
+                    elif action == 'subtract':
+                        self.norm.y = self.raw.y - cont
                 self.norm.n = len(self.norm.x)
             else:
                 self.raw.x = self.norm.x[:]
                 if len(self.norm.y) > 0:
-                    self.raw.y = getattr(np, backward)(self.norm.y, cont)
+                    if action == 'normalize':
+                        self.raw.y = self.norm.y * cont
+                    elif action == 'subtract':
+                        self.raw.y = self.norm.y + cont
 
     def inter(self, x):
         return self.current().inter(x)
