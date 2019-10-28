@@ -135,25 +135,25 @@ class plot_spec(list):
     def specify_comps(self, *args):
         self.comps = np.array(args)
                 
-    def specify_styles(self, num=10, color=None, ls=None, lw=None, lw_total=1.5, lw_spec=1.0):
+    def specify_styles(self, num=20, color=None, ls=None, lw=None, lw_total=1.5, lw_spec=1.0):
         if color is None:
             index = np.arange(num) #[0, 1, 2, 4, 5, 6, 7, 8, 9, 10]
             color = ['navy'] * num
-            color_add = ['tab:blue', 'tab:green', 'tab:orange', 'tab:purple', 'tab:cyan', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:brown', 'tab:red', 'navy']
-            for i in range(num):
+            color_add = ['tab:blue', 'tab:green', 'tab:orange', 'tab:purple', 'tab:cyan', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:brown', 'tab:red', 'dodgerblue']
+            for i in range(len(color_add)):
                 color[i] = color_add[i]
         self.color = color[:len(self.comps+1)]
         
         if ls is None:
-            ls = ['-'] * 10
+            ls = ['-'] * num
         if isinstance(ls, (str)):
-            ls = [ls] * 10
+            ls = [ls] * num
         self.ls = ls[:len(self.comps+1)]
         
         if lw is None:
-            lw = [0.5]*10
+            lw = [0.5] * num
         if isinstance(lw, (float, int)):
-            lw = [lw]*10
+            lw = [lw] * num
         self.lw = lw[:len(self.comps+1)]
 
         self.lw_total = lw_total

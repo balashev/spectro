@@ -35,10 +35,10 @@ class Timer:
     def restart(self):
         self.start = time.time()
     
-    def time(self, st=''):
+    def time(self, st=None):
         s = self.start
         self.start = time.time()
-        if self.verbose:
+        if st is not None and self.verbose:
             print(self.name + str(st) + ':', self.start - s)
         return self.start - s
         

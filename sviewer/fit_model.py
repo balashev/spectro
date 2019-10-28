@@ -834,11 +834,18 @@ class fitModelSysWidget(QFrame):
         root.removeChild(self.species[species])
         del self.species[species]
         del self.fit.sys[self.ind].sp[species]
+        for sp in self.fit.sys[self.ind].sp.keys():
+            if self.fit.sys[self.ind].sp[sp].b.addinfo == species:
+                setattr(getattr(self.fit.sys[self.ind].sp[sp], 'b'), 'addinfo', '')
+                setattr(getattr(self.fit.sys[self.ind].sp[sp], 'b'), 'vary', True)
+            print(species, sp, self.fit.sys[self.ind].sp[sp].b.addinfo)
+
         try:
             self.parent.parent.chooseFit.update()
         except:
             pass
         self.updateTieds()
+        self.refresh()
         #del self.species[species]
 
     def zshift(self):

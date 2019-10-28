@@ -14,6 +14,27 @@ if __name__ == '__main__':
 else:
     from .a_unc import a
 
+def vactoair(vac):
+    """
+    Convert vacuum wavelengths to air wavelengths
+    :param vac: vaccum wavelengths in A
+    :return: air wavelengths in A
+    """
+    return vac / (1.0 + 2.735182e-4 + 131.4182 / vac ** 2 + 2.76249e8 / vac ^ 4)
+
+def airtovac(air):
+    """
+    Convert vacuum wavelengths to air wavelengths
+    :param air: air wavelengths in A
+    :return: vac wavelengths in A
+    """
+    n = 1.0
+    for i in range(5):
+        n_it = n
+        sig2 = 1.0e8 / (air * n_it) ** 2
+        n = 1.0e-8 * (15997.0 / (38.90 - sig2) + 2406030.0 / (130.0 - sig2) + 8342.13) + 1.0
+    return air * n
+
 class e():
     """
     Class for species: 
@@ -494,19 +515,22 @@ class atomicData(OrderedDict):
                 if l[:3] == '***':
                     ind = 1
 
-    def readCashman(self):
+    def readCashman(self, add=True):
+        add_names = []
         with open('data/Cashman2017.dat', 'r') as f:
             for l in f:
                 name = ''.join(l[3:10].split())
                 if name not in self.keys():
                     self[name] = e(name)
                     self[name].lines = []
-                lam = float(l[90:99]) if l[78:89] else float(l[78:89])
-                lin = line(name, lam, float(l[105:113]), 1e+8, ref='Cashman2017')
-                if lin not in self[name].lines:
-                    self[name].lines.append(lin)
-                else:
-                    self[name].lines[self[name].lines.index(lin)].add(lam, float(l[105:113]), 1e+8, ref='Cashman2017')
+                    add_names.append(name)
+                if name in add_names or not add:
+                    lam = float(l[90:99]) if l[78:89] else float(l[78:89])
+                    lin = line(name, lam, float(l[105:113]), 1e+8, ref='Cashman2017')
+                    if lin not in self[name].lines:
+                        self[name].lines.append(lin)
+                    else:
+                        self[name].lines[self[name].lines.index(lin)].add(lam, float(l[105:113]), 1e+8, ref='Cashman2017')
 
     def readH2(self, nu=0, j=[0,1], energy=None):
         if 0:
@@ -985,29 +1009,29 @@ class atomicData(OrderedDict):
             return linelist
 
     def EmissionSF_list(self, lines=True):
-        linelist = ['HI 6562',
-                    'HI 4861',
+        linelist = ['HI 6564',
+                    'HI 4862',
                     'HI 4340',
                     'HI 4101',
                     'HI 3970',
                     'HI 3889',
-                    'OIII 5006',
-                    'OIII 4958',
+                    'OIII 5008',
+                    'OIII 4960',
                     'OIII 4363',
                     'OIII 2320',
                     'OIII 2331',
                     'OII 3726',
                     'OII 3728',
-                    'NII 6548',
-                    'NII 6583',
+                    'NII 6549',
+                    'NII 6585',
                     'HeI 7065',
                     'HeI 6678',
                     'HeI 5875',
                     'HeI 4471',
                     'HeI 4026',
                     'HeI 3888',
-                    'SII 6716',
-                    'SII 6730'
+                    'SII 6718',
+                    'SII 6732'
                     ]
         if lines:
             return self.list(linelist=linelist)

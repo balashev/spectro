@@ -105,8 +105,7 @@ class DLA():
     def add(self, spec):
         self.el.append(spec)
         self.__setattr__(spec.name, spec)
-        
-        
+
 class HI():
     """
     Simple class for HI absorber
@@ -118,6 +117,16 @@ class HI():
     
     def __repr__(self):
         return str(self.z)
+
+def deltaV(z_em, z_abs):
+    """
+    return the doppler shift, between emission and absorption redshift
+    :param z_em: emission redshift
+    :param z_abs: ansorption redshift
+    :return: deltaV in km/s
+    """
+    R = (1 + z_abs) / (1 + z_em)
+    return (R**2 - 1) / (R**2 + 1) * 299792.46
 
 if __name__ == '__main__':
     d = DLA(2.543)

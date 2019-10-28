@@ -14,6 +14,7 @@ from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
 from multiprocessing import Process
+import numdifftools as nd
 import pickle
 import os
 import platform
@@ -27,6 +28,7 @@ from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl, QTimer, pyqtSignal, Q
 from PyQt5.QtGui import QDesktopServices, QPainter, QFont, QColor
 from scipy.special import erf
 from scipy.stats import gaussian_kde
+from shutil import copyfile
 import subprocess
 import tarfile
 
@@ -1202,6 +1204,17 @@ class preferencesWidget(QWidget):
             self.tau_limit.textChanged[str].connect(self.setTauLimit)
             self.grid.addWidget(self.tau_limit, ind, 1)
 
+            self.grid.addWidget(QLabel('Fit method:'), ind, 0)
+            self.fitmethod = QComboBox()
+            self.fitmethod.addItems(['leastsq', 'least_squares', 'differential_evolution', 'brute', 'basinhopping',
+                                     'ampgo', 'nelder', 'lbfgsb', 'powell', 'cg', 'newton', 'cobyla', 'bfgs',
+                                     'tnc', 'trust-ncg', 'trust-exact', 'trust-krylov', 'trust-constr', 'dogleg',
+                                     'slsqp', 'shgo', 'dual_annealing'])
+            self.fitmethod.setCurrentText(self.parent.fit_method)
+            self.fitmethod.currentIndexChanged.connect(self.setMethod)
+            self.fitmethod.setFixedSize(120, 30)
+            self.grid.addWidget(self.fitmethod, ind, 1)
+
             ind += 1
             self.grid.addWidget(QLabel('fit components:'), ind, 0)
             self.compGroup = QButtonGroup(self)
@@ -1325,6 +1338,9 @@ class preferencesWidget(QWidget):
                 self.parent.options('tau_limit', self.parent.tau_limit)
         except:
             pass
+
+    def setMethod(self):
+        self.parent.fit_method = self.fitmethod.currentText()
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_F11:
@@ -1700,6 +1716,7 @@ class showLinesWidget(QWidget):
                         attr = 'cf_' + str(i)
                         if hasattr(self.parent.fit, attr):
                             cf = getattr(self.parent.fit, attr)
+                            print(i, cf.addinfo.split('_'), cf.val, [np.max([(cf.min / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_min]), np.min([(cf.max / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_max])])
                             if (len(cf.addinfo.split('_'))>1 and cf.addinfo.split('_')[1]=='all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
                                 ax.plot([np.max([(cf.min / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_min]), np.min([(cf.max / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_max])], [cf.val, cf.val], '--', color='orangered')
 
@@ -5007,7 +5024,7 @@ class messageWindow(QWidget):
         self.resize(400 + len(self.text) * 12, 50)
         self.move(self.pos[0] - self.size().width() / 2 , self.pos[1] - self.size().height() / 2)
 
-        self.fillColor = QColor(83, 148, 83, 105)
+        self.fillColor = QColor(229, 23, 80, 120) #QColor(83, 148, 83, 105)
         self.penColor = QColor(70, 70, 70, 255)
 
         self.animation = QPropertyAnimation(self, b"windowOpacity")
@@ -5065,6 +5082,7 @@ class buttonpanel(QFrame):
         self.z_panel = QLineEdit(self)
         self.z_panel.move(55, 20)
         self.z_panel.textChanged[str].connect(self.zChanged)
+        self.z_panel.returnPressed.connect(partial(self.zChanged, text=None))
         self.z_panel.setMaxLength(12)
         self.z_panel.resize(120, 30)
         validator = QDoubleValidator()
@@ -5116,7 +5134,9 @@ class buttonpanel(QFrame):
     def refresh(self):
         self.z_panel.setText(str(self.parent.z_abs))
     
-    def zChanged(self, text):
+    def zChanged(self, text=None):
+        if text is None:
+            text = self.z_panel.text()
         self.parent.z_abs = float(text)
         try:
             if self.parent.plot.restframe:
@@ -5196,6 +5216,7 @@ class sviewer(QMainWindow):
         self.export2d_opt = ['spectrum', 'err', 'mask', 'cr', 'sky', 'trace']
         self.num_between = int(self.options('num_between'))
         self.tau_limit = float(self.options('tau_limit'))
+        self.fit_method = str(self.options('fit_method'))
         self.comp_view = self.options('comp_view')
         self.animateFit = self.options('animateFit')
         self.polyDeg = int(self.options('polyDeg'))
@@ -6173,6 +6194,9 @@ class sviewer(QMainWindow):
         if not filename.endswith('.spv'):
             filename += '.spv'
 
+        if os.path.isfile(filename):
+            copyfile(filename, os.path.dirname(os.path.realpath(__file__)) + '/temp/savedfile.spv')
+
         with open(filename, 'w') as f:
 
             if any([opt in self.save_opt for opt in ['spectrum', 'cont', 'points']]):
@@ -6922,14 +6946,14 @@ class sviewer(QMainWindow):
 
         if self.animateFit:
             if 1:
-                self.thread = threading.Thread(target=self.LM, args=(), kwargs={'comp': comp}, daemon=True)
+                self.thread = threading.Thread(target=self.fitAbs, args=(), kwargs={'comp': comp}, daemon=True)
                 self.thread.start()
             else:
-                self.fitprocess = Process(target=self.LM) #s, args=(comp,))
+                self.fitprocess = Process(target=self.fitAbs) #s, args=(comp,))
                 self.fitprocess.daemon = True
                 self.fitprocess.start()
         else:
-            self.LM(comp=comp)
+            self.fitAbs(comp=comp)
         self.panel.fitbutton.setChecked(False)
         QApplication.restoreOverrideCursor()
 
@@ -6994,16 +7018,16 @@ class sviewer(QMainWindow):
         plt.show()
 
 
-    def LM(self, comp=-1, timer=True, redraw=True):
+    def fitAbs(self, comp=-1, timer=True, redraw=True):
         t = Timer(verbose=True) if 1 else False
 
         def fcn2min(params):
             for p in params:
-                name = params[p].name.replace('l2', '**').replace('l1', '*') #this line is added since lmfit doesn't recognize '*' mark\
+                name = params[p].name.replace('l4', '****').replace('l3', '***').replace('l2', '**').replace('l1', '*') #this line is added since lmfit doesn't recognize '*' mark\
                 self.fit.setValue(name, self.fit.pars()[name].ref(params[p].value))
             self.fit.update(redraw=False)
             if timer:
-                t.time('in')
+                t.time(None)
 
             self.s.prepareFit(ind=comp, all=False)
             self.s.calcFit(recalc=True, redraw=self.animateFit)
@@ -7021,19 +7045,43 @@ class sviewer(QMainWindow):
             if not par.fit or not par.vary:
                 par.unc = None
         for par in self.fit.list_fit():
-            p = str(par).replace('**', 'l2').replace('*', 'l1')  #this line is added since lmfit doesn't recognize '*' mark
-            print(p)
+            p = str(par).replace('****', 'l4').replace('***', 'l3').replace('**', 'l2').replace('*', 'l1')  #this line is added since lmfit doesn't recognize '*' mark
             value, pmin, pmax = par.ref()  #par.val, par.min, par.max
-            print(par.ref())
             if 'cf' in p:
                 pmin, pmax = 0, 1
             params.add(p, value=value, min=pmin, max=pmax)
 
         # do fit, here with leastsq model
-        minner = Minimizer(fcn2min, params)
-        kws = {'options': {'maxiter': 10}}
-        result = minner.minimize(maxfev=200)
+        minner = Minimizer(fcn2min, params,  nan_policy='propagate', calc_covar=True)
+        #kws = {'options': {'maxiter': 2000}}
+        if 0:
+            chi0 = fcn2min(params)
+            print('chi0', np.sum(chi0**2))
+            for p in params.keys():
+                params[p].value += (params[p].max - params[p].min) / 1000
+                chi = fcn2min(params)
+                print(p, (params[p].max - params[p].min) / 1000, np.sum(chi**2))
+                if np.allclose(chi0, chi):
+                    print('not shifted', p)
 
+        if 1:
+            result = minner.minimize(method=self.fit_method)
+        else:
+            result = minner.prepare_fit(params=params)
+            minner.result.method = 'leastsq'
+            pvals = [p.value for p in params.values()]
+            Hfun = nd.Hessian(minner.penalty, full_output=True, step=0.01)
+            #Gfun = nd.Gradient(minner.penalty, full_output=True, step=0.01)
+            #print(Gfun(pvals))
+            print(Hfun(pvals))
+            #print(nd.Jacobian(minner.penalty)(pvals))
+            print([p.name for p in params.values()])
+            #print(minner._calculate_covariance_matrix([p.value for p in params.values()]))
+
+        print(result.message)
+        self.console.set(result.message)
+        print(dir(result))
+        print(vars(result))
         # calculate final result
         #print(result.success, result.var_names, result.params, result.covar, result.errorbars, result.message)
         #final = data + result.residual
@@ -7143,7 +7191,7 @@ class sviewer(QMainWindow):
                 self.fit.setValue(p, priors[p].rvs(repr='dec')[0])
             for r in reg:
                 self.s[r[0]].spec.norm.y[r[1][0]:r[1][1]] = r[2] + r[3] * np.random.randn()
-            self.LM(timer=False)
+            self.fitAbs(timer=False)
             res.append([self.fit.sys[0].sp['HDj0'].N.val]) #, self.fit.sys[1].sp['HDj0'].N.val])
 
         x = np.asarray([r[0] for r in res])
@@ -7557,8 +7605,11 @@ class sviewer(QMainWindow):
             s0 = self.s[self.s.find('error_0')]
             s1 = self.s[self.s.find('error_1')]
 
-            inter0 = interp1d(s0.cont.x, s0.cont.y, fill_value='extrapolate')
             inter1 = interp1d(s1.cont.x, s1.cont.y, fill_value='extrapolate')
+            if s0.cont.n > 0:
+                inter0 = interp1d(s0.cont.x, s0.cont.y, fill_value='extrapolate')
+            else:
+                inter0 = inter1
             s = self.s[self.s.ind]
             y = s.spec.raw.y / s.cont.y
             s.spec.raw.err = s.cont.y * (inter0(s.spec.raw.x) * (1 - np.abs(y)) + inter1(s.spec.raw.x) * np.abs(y))

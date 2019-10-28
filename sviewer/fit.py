@@ -560,7 +560,7 @@ class fitPars:
     def fromLMfit(self, result):
         for p in result.params.keys():
             par = result.params[p]
-            name = str(par.name).replace('l2', '**').replace('l1', '*')
+            name = str(par.name).replace('l4', '****').replace('l3', '***').replace('l2', '**').replace('l1', '*')
             self.setValue(name, self.pars()[name].ref(par.value), 'val')
             print(p, par.stderr)
             if isinstance(self.pars()[name].ref(par.stderr, attr='unc'), float):

@@ -1877,7 +1877,6 @@ class Spectrum():
             if timer:
                 t.time('set_fit')
 
-
     def calcFit_fft(self, ind=-1, recalc=True, redraw=True, debug=False, tau_limit=0.01):
         """
 

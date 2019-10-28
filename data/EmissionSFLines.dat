@@ -1,26 +1,26 @@
 Major emission lines from starforming regions/galaxies
 ion  lambda    Aik      Gamma     comment
 -------------------------------------------------------
-HI   6562.79   4.410E+7 0.000E0
-HI   4861.35   8.419E+6 0.000E0
-HI   4340.472  2.530E+6 0.000E0
+HI   6564.614  4.410E+7 0.000E0   !vaccum
+HI   4862.721  8.419E+6 0.000E0   !vaccum
+HI   4340.472  2.530E+6 0.000E0   
 HI   4101.734  9.732E+5 0.000E0
 HI   3970.075  4.389E+5 0.000E0
 HI   3889.064  2.215E+5 0.000E0
-OIII 5006.843  1.810E-2 0.000E0    !Ritz_wavelenghts
-OIII 4958.911  6.210E-3 0.000E0    !Ritz_wavelenghts
-OIII 4363.209  1.710E-0 0.000E0    !Ritz_wavelenghts
-OIII 2320.951  2.150E-1 0.000E0    !Ritz_wavelenghts
-OIII 2331.398  6.340E-4 0.000E0    !Ritz_wavelenghts
-OII  3726.040  1.590E-4 0.000E0
+OIII 5008.239  1.810E-2 0.000E0   !vacuum
+OIII 4960.295  6.210E-3 0.000E0   !vacuum
+OIII 4363.209  1.710E-0 0.000E0   !Ritz_wavelenghts
+OIII 2320.951  2.150E-1 0.000E0   !Ritz_wavelenghts
+OIII 2331.398  6.340E-4 0.000E0   !Ritz_wavelenghts
+OII  3726.040  1.590E-4 0.000E0   
 OII  3728.880  2.860E-5 0.000E0
-NII  6548.050  9.840E-4 0.000E0    !Ritz_wavelenghts
-NII  6583.450  2.910E-3 0.000E0    !Ritz_wavelenghts  
-HeI  7065.190  1.547E+7 0.000E0    !obs_wavelengths_and_max(Aik)
-HeI  6678.151  6.371E+7 0.000E0    !obs_wavelengths_and_max(Aik)
-HeI  5875.621  7.071E+7 0.000E0    !obs_wavelengths_and_max(Aik)
-HeI  4471.4802 2.458E+7 0.000E0    !obs_wavelengths_and_max(Aik)
-HeI  4026.1914 1.160E+7 0.000E0    !obs_wavelengths_and_max(Aik)
-HeI  3888.648  9.475E+6 0.000E0    !obs_wavelengths
-SII  6716.440  1.880E-4 0.000E0  
-SII  6730.815  5.630E-4 0.000E0 
+NII  6549.86   9.840E-4 0.000E0   !vacuum
+NII  6585.27   2.910E-3 0.000E0   !vacuum
+HeI  7065.190  1.547E+7 0.000E0   !obs_wavelengths_and_max(Aik)
+HeI  6678.151  6.371E+7 0.000E0   !obs_wavelengths_and_max(Aik)
+HeI  5875.621  7.071E+7 0.000E0   !obs_wavelengths_and_max(Aik)
+HeI  4471.4802 2.458E+7 0.000E0   !obs_wavelengths_and_max(Aik)
+HeI  4026.1914 1.160E+7 0.000E0   !obs_wavelengths_and_max(Aik)
+HeI  3888.648  9.475E+6 0.000E0   !obs_wavelengths
+SII  6718.29   1.880E-4 0.000E0   !vaccum
+SII  6732.68   5.630E-4 0.000E0   !vaccum
