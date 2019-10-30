@@ -140,7 +140,7 @@ class plot_spec(list):
             index = np.arange(num) #[0, 1, 2, 4, 5, 6, 7, 8, 9, 10]
             color = ['navy'] * num
             color_add = ['tab:blue', 'tab:green', 'tab:orange', 'tab:purple', 'tab:cyan', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:brown', 'tab:red', 'dodgerblue']
-            for i in range(len(color_add)):
+            for i in range(min(len(color_add), num)):
                 color[i] = color_add[i]
         self.color = color[:len(self.comps+1)]
         

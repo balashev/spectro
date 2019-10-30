@@ -1,26 +1,46 @@
 Major emission lines from starforming regions/galaxies
-ion  lambda    Aik      Gamma     comment
+ion   lambda     Aik      Gamma     comment
 -------------------------------------------------------
-HI   6564.614  4.410E+7 0.000E0   !vaccum
-HI   4862.721  8.419E+6 0.000E0   !vaccum
-HI   4340.472  2.530E+6 0.000E0   
-HI   4101.734  9.732E+5 0.000E0
-HI   3970.075  4.389E+5 0.000E0
-HI   3889.064  2.215E+5 0.000E0
-OIII 5008.239  1.810E-2 0.000E0   !vacuum
-OIII 4960.295  6.210E-3 0.000E0   !vacuum
-OIII 4363.209  1.710E-0 0.000E0   !Ritz_wavelenghts
-OIII 2320.951  2.150E-1 0.000E0   !Ritz_wavelenghts
-OIII 2331.398  6.340E-4 0.000E0   !Ritz_wavelenghts
-OII  3726.040  1.590E-4 0.000E0   
-OII  3728.880  2.860E-5 0.000E0
-NII  6549.86   9.840E-4 0.000E0   !vacuum
-NII  6585.27   2.910E-3 0.000E0   !vacuum
-HeI  7065.190  1.547E+7 0.000E0   !obs_wavelengths_and_max(Aik)
-HeI  6678.151  6.371E+7 0.000E0   !obs_wavelengths_and_max(Aik)
-HeI  5875.621  7.071E+7 0.000E0   !obs_wavelengths_and_max(Aik)
-HeI  4471.4802 2.458E+7 0.000E0   !obs_wavelengths_and_max(Aik)
-HeI  4026.1914 1.160E+7 0.000E0   !obs_wavelengths_and_max(Aik)
-HeI  3888.648  9.475E+6 0.000E0   !obs_wavelengths
-SII  6718.29   1.880E-4 0.000E0   !vaccum
-SII  6732.68   5.630E-4 0.000E0   !vaccum
+HI    6564.614   4.410E+7   0.000E0   
+HI    4862.721   8.419E+6   0.000E0   
+HI    4341.690   2.530E+6   0.000E0   
+HI    4102.920   9.732E+5   0.000E0
+HI    3971.190   4.389E+5   0.000E0
+HI    3890.150   2.215E+5   0.000E0
+HI    3836.480   0.000E+5   0.000E0
+HI    3798.980   0.000E+5   0.000E0
+HI    3771.700   0.000E+5   0.000E0
+HI    3751.220   2.215E+5   0.000E0
+OIII  5008.239   1.810E-2   0.000E0   
+OIII  4960.295   6.210E-3   0.000E0   
+OIII  4364.440   1.710E-0   0.000E0   
+#OIII  2320.951   2.150E-1   0.000E0   !Ritz_wavelenghts
+#OIII  2331.398   6.340E-4   0.000E0   !Ritz_wavelenghts
+OII   3726.040   1.590E-4   0.000E0   
+OII   3728.880   2.860E-5   0.000E0
+NII   6549.86    9.840E-4   0.000E0   
+NII   6585.27    2.910E-3   0.000E0   
+NII   5756.24    0.000E-3   0.000E0
+#HeI   7065.190   1.547E+7   0.000E0   !obs_wavelengths_and_max(Aik)
+HeI   6679.996   6.371E+7   0.000E0   
+HeI   5877.300   7.071E+7   0.000E0   
+#HeI   4471.4802  2.458E+7   0.000E0   !obs_wavelengths_and_max(Aik)
+#HeI   4026.1914  1.160E+7   0.000E0   !obs_wavelengths_and_max(Aik)
+HeI   3889.750   9.475E+6   0.000E0   
+SII   6718.29    1.880E-4   0.000E0   
+SII   6732.68    5.630E-4   0.000E0 
+SIII  6313.800   0.000E-0   0.000E0  
+NeII  6585.230   0.000E-0   0.000E0
+NeII  6549.840   0.000E-0   0.000E0
+NeII  5756.240   0.000E-0   0.000E0
+ArIII 7135.800   0.000E-0   0.000E0
+ArIII 7753.200   0.000E-0   0.000E0
+SIII  9068.600   0.000E-0   0.000E0
+HI    8865.217   0.000E-0   0.000E0
+HI    9017.385   0.000E-0   0.000E0
+HI    9231.547   0.000E-0   0.000E0
+HI    9548.590   0.000E-0   0.000E0
+HI    10052.128  0.000E-0   0.000E0
+HI    10941.091  0.000E-0   0.000E0
+HI    12821.59   0.000E-0   0.000E0
+HI    18756.13   0.000E-0   0.000E0  
