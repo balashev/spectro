@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (QApplication, QAction, QCheckBox, QComboBox, QFrame
                              QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton,
                              QTabBar, QTabWidget, QTextEdit, QTreeWidget,
                              QTreeWidgetItem, QScrollArea, QVBoxLayout,
-                             QWidget
+                             QWidget, QToolButton
                              )
 import pyqtgraph as pg
 from .utils import Timer
@@ -88,6 +88,74 @@ class fitTabBar(QTabBar):
                 cycle.append(c)
         return cycle
 
+class chooseSystemPC(QToolButton):
+    def __init__(self, parent, name):
+        super(chooseSystemPC, self).__init__()
+        self.parent = parent
+        self.name = name
+        self.setFixedSize(90, 30)
+        self.toolmenu = QMenu(self)
+        self.sys = []
+        self.update()
+        self.setText(self.currentText())
+
+        self.setMenu(self.toolmenu)
+        self.setPopupMode(QToolButton.InstantPopup)
+
+    def update(self):
+        try:
+            self.toolmenu.removeAction(self.setall)
+        except:
+            pass
+        try:
+            for i in reversed(range(len(self.sys))):
+                self.toolmenu.removeAction(self.sys[i])
+                self.sys.remove(self.sys[i])
+        except:
+            pass
+        if self.parent.parent.fit.cf_num == 1:
+            self.setall = QAction("all", self.toolmenu)
+            self.setall.setCheckable(True)
+            self.setall.triggered.connect(partial(self.set, sys=None))
+            self.toolmenu.addAction(self.setall)
+
+        for i in range(len(self.parent.parent.fit.sys)):
+            self.sys.append(QAction("sys " + str(i), self.toolmenu))
+            self.sys[i].triggered.connect(partial(self.set, sys=i))
+            self.toolmenu.addAction(self.sys[i])
+            self.sys[i].setCheckable(True)
+            if str(i) in self.parent.parent.fit.getValue(self.name, 'addinfo').split('_')[0].split('sys'):
+                self.sys[i].setChecked(True)
+            #print(self.parent.parent.fit.getValue(self.name, 'addinfo'), self.parent.parent.fit.getValue(self.name, 'addinfo').startswith('all'))
+            if self.parent.parent.fit.getValue(self.name, 'addinfo').startswith('all') and hasattr(self, 'setall'):
+                self.setall.setChecked(True)
+            self.setText(self.currentText())
+
+    def currentText(self):
+        if hasattr(self, 'setall') and self.setall.isChecked():
+            return 'all'
+        else:
+            return ''.join([f'sys{i}' for i, s in enumerate(self.sys) if s.isChecked()])
+
+    def set(self, sys=None):
+        if sys == None:
+            if self.setall.isChecked():
+                for s in self.sys:
+                    s.setChecked(False)
+            else:
+                self.setall.setChecked(True)
+        else:
+            #for i in range(self.parent.parent.fit.cf_num):
+            #    if self.name != 'cf_'+str(i):
+            #        self.parent.parent.fit.setValue('cf_'+str(i), self.parent.parent.fit.getValue('cf_'+str(i), 'addinfo').replace('sys'+str(sys), ''), 'addinfo'),
+            #        getattr(self.parent, 'cf_' + str(i) + '_applied').update()
+            if hasattr(self, 'setall'):
+                self.setall.setChecked(False)
+
+        self.setText(self.currentText())
+        exp = self.parent.parent.fit.getValue(self.name, 'addinfo').split('_')
+        exp = '_'+exp[1] if len(exp) > 1 else '_all'
+        self.parent.parent.fit.setValue(self.name, self.currentText() + exp, 'addinfo')
 
 class fitModelWidget(QWidget):
     def __init__(self, parent):
@@ -101,16 +169,16 @@ class fitModelWidget(QWidget):
         self.tab.setTabBar(self.tabBar)
         self.tabBar.setMouseTracking(False)
         self.tabBar.setMovable(True)
-        self.tab.setGeometry(0, 0, 1050, 900)
-        self.tab.setMinimumSize(1050, 300)
+        self.tab.setGeometry(0, 0, 800, 900)
+        self.tab.setMinimumSize(900, 300)
         self.tabIndex = 1
-        t = Timer('fitmodel')
+        #t = Timer('fitmodel')
         self.tabNum = len(self.parent.fit.sys)
         for i in range(self.tabNum):
             sys = fitModelSysWidget(self, i)
-            t.time(i)
+            #t.time(i)
             self.tab.addTab(sys, "sys {:}".format(i))
-            t.time(i)
+            #t.time(i)
 
         self.tab.currentChanged.connect(self.onTabChanged)
         self.tab.setCurrentIndex(self.parent.comp)
@@ -121,18 +189,41 @@ class fitModelWidget(QWidget):
         lbl = QLabel('type: ')
         speciesbox.addWidget(lbl)
         self.inputSpecies = QLineEdit()
-        self.inputSpecies.setFixedSize(100, 30)
+        self.inputSpecies.setFixedSize(60, 30)
         self.inputSpecies.returnPressed.connect(self.addSpec)
         speciesbox.addWidget(self.inputSpecies)
-        lbl = QLabel('  or  ')
+        lbl = QLabel(' or ')
         speciesbox.addWidget(lbl)
         self.chooseSpecies = QComboBox()
-        self.chooseSpecies.setFixedSize(100, 30)
-
+        self.chooseSpecies.setFixedSize(80, 30)
         self.chooseSpecies.addItems(['choose...'] + list(self.parent.atomic.keys()))
-
         self.chooseSpecies.activated[str].connect(self.selectSpecies)
         speciesbox.addWidget(self.chooseSpecies)
+
+        self.addall = QCheckBox('add to all')
+        self.addall.setChecked(False)
+        speciesbox.addWidget(self.addall)
+
+        self.tied = QComboBox()
+        self.tied.setFixedSize(80, 30)
+        sp = set([sp for sys in self.parent.fit.sys for sp in sys.sp.keys()])
+        print(sp)
+        self.tied.addItems(['tied...'] + list(sp))
+        speciesbox.addWidget(self.tied)
+
+        self.btied = QCheckBox('b')
+        self.btied.setChecked(False)
+        speciesbox.addWidget(self.btied)
+
+        self.Ntied = QCheckBox('log N')
+        self.Ntied.setChecked(False)
+        speciesbox.addWidget(self.Ntied)
+
+        self.Nscale = QLineEdit("")
+        self.Nscale.setFixedSize(60, 30)
+        self.Nscale.returnPressed.connect(self.addSpec)
+        speciesbox.addWidget(self.Nscale)
+
         speciesbox.addStretch(1)
         # self.setLayout(layout)
 
@@ -164,7 +255,7 @@ class fitModelWidget(QWidget):
 
         self.setLayout(l)
 
-        self.setGeometry(200, 200, 2050, 900)
+        self.setGeometry(100, 100, 1900, 900)
         self.setWindowTitle('Fit model')
         self.show()
         self.refresh()
@@ -175,7 +266,7 @@ class fitModelWidget(QWidget):
         self.treeWidget.move(0, 0)
         self.treeWidget.setHeaderHidden(True)
         self.treeWidget.setColumnCount(12)
-        for i, w in enumerate([150, 30, 40, 70, 110, 90, 110, 20, 110, 70, 80, 10]):
+        for i, w in enumerate([170, 10, 30, 70, 80, 70, 80, 10, 80, 70, 100, 60]):
             self.treeWidget.setColumnWidth(i, w)
 
         attr = ['val', 'min', 'max', 'step']
@@ -278,12 +369,10 @@ class fitModelWidget(QWidget):
                 getattr(self, name + '_' + attr[k]).textChanged[str].connect(partial(self.onChanged, name, attr[k]))
                 self.treeWidget.setItemWidget(getattr(self, name), 2 * k + 4, getattr(self, name + '_' + attr[k]))
             else:
-                setattr(self, name + '_applied', QComboBox(self))
-                combo = getattr(self, name + '_applied')
-                combo.setFixedSize(70, 30)
-                # print('create combo:', species)
-                combo.activated.connect(partial(self.setApplied, name=name))
-                self.treeWidget.setItemWidget(getattr(self, name), 10, combo)
+                setattr(self, name + '_applied', chooseSystemPC(self, name))
+                #getattr(self, name + '_applied').triggered.connect(partial(self.setApplied, name=name))
+                self.treeWidget.setItemWidget(getattr(self, name), 10, getattr(self, name + '_applied'))
+
             if any([x in name for x in ['res', 'cf', 'dispz']]) and k > 2:
                 setattr(self, name + '_applied_exp', QComboBox(self))
                 combo = getattr(self, name + '_applied_exp')
@@ -300,17 +389,18 @@ class fitModelWidget(QWidget):
     def setApplied(self, name):
         combo = getattr(self, name + '_applied_exp')
         sp1 = combo.currentText()
+        print(sp1)
         if 'applied' in sp1:
             sp1 = ''
 
         if 'cf' in name:
-            combo = getattr(self, name + '_applied')
-            sp = combo.currentText()
-            if 'applied' in sp:
-                sp = ''
-            setattr(getattr(self.parent.fit, name), 'addinfo', sp + '_' + sp1)
+            sp = getattr(self, name + '_applied').currentText()
+            print(sp + '_' + sp1)
+            self.parent.fit.setValue(name, sp + '_' + sp1, 'addinfo')
+            self.parent.fit.getValue(name, 'addinfo')
         else:
-            setattr(getattr(self.parent.fit, name), 'addinfo', sp1)
+            self.parent.fit.setValue(name, 'addinfo', sp1)
+        print('setApplied', self.parent.fit.getValue(name, 'addinfo'))
         self.refresh()
 
     def updateRes(self, excl=''):
@@ -352,14 +442,7 @@ class fitModelWidget(QWidget):
                                 getattr(self, str(cf) + '_' + attr).setText(str(getattr(cf, attr)))
 
                         combo = getattr(self, cf.name + '_applied')
-                        combo.clear()
-                        sp = list(['sys'+ str(i) for i in range(len(self.parent.fit.sys))])
-                        combo.addItems(['all']+sp)
-                        s = getattr(cf, 'addinfo').split('_')[0]
-                        if s != '' and s in sp:
-                            combo.setCurrentText(s)
-                        else:
-                            combo.setCurrentIndex(0)
+                        combo.update()
                         combo = getattr(self, cf.name + '_applied_exp')
                         combo.clear()
                         sp = list(['exp' + str(i) for i in range(len(self.parent.s))])
@@ -619,9 +702,19 @@ class fitModelWidget(QWidget):
                 pass
 
         if s in self.parent.atomic.keys() and self.tab.currentIndex() > -1:
-            if self.parent.fit.sys[self.tab.currentIndex()].addSpecies(s):
-                self.tab.currentWidget().addSpecies(s)
-                self.tab.currentWidget().refresh()
+            for i, sys in enumerate(self.parent.fit.sys):
+                if self.addall.isChecked() or self.tab.currentIndex() == sys.ind:
+                    self.tab.setCurrentIndex(i)
+                    if sys.addSpecies(s):
+                        self.tab.currentWidget().addSpecies(s)
+                        self.tab.currentWidget().refresh()
+                        if self.tied.currentText().strip() != 'tied...':
+                            if self.btied.isChecked():
+                                self.parent.fit.sys[i].sp[s].b.addinfo = self.tied.currentText().strip()
+                                self.tab.currentWidget().updateTieds()
+                            if self.Ntied.isChecked() and self.Nscale.text().strip() != '':
+                                self.parent.fit.sys[i].sp[s].N.val = self.parent.fit.sys[i].sp[self.tied.currentText().strip()].N.val + float(self.Nscale.text().strip())
+                        self.tab.currentWidget().refresh()
                 self.parent.fit.showLines([s])
 
     def upIndex(self):
@@ -668,7 +761,7 @@ class fitModelSysWidget(QFrame):
 
         self.species = {}
         self.treeWidget.setColumnCount(13)
-        for i, w in enumerate([150, 30, 40, 70, 110, 90, 110, 20, 110, 70, 80, 50, 50, 50]):
+        for i, w in enumerate([110, 10, 30, 60, 80, 70, 80, 10, 80, 70, 80, 30, 50]):
             self.treeWidget.setColumnWidth(i, w)
 
         # ------------------ z --------------------------------

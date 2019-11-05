@@ -1,4 +1,5 @@
 import astropy.constants as const
+from astropy.table import Table
 from collections import OrderedDict
 from functools import wraps
 import h5py
@@ -108,6 +109,7 @@ class e():
         self.J = None
         if 'j' in self.name:
             self.J = int(self.name[int(self.name.index('j'))+1:])
+        self.energy = None
         self.b = None
         
         for k in kwargs.items():
@@ -702,11 +704,24 @@ class atomicData(OrderedDict):
             name = l['species'].decode('UTF-8')
             if name not in self.keys():
                 self[name] = e(name)
-            self[name].lines.append(line(name+ str(l['lambda']), l['lambda'], l['f'], 1e-9, ref=''))
+            self[name].lines.append(line(name, l['lambda'], l['f'], 1e-9, ref=''))
+
+    def readFeII(self, J=13):
+        t = Table.read('data/FeII.csv', format='csv')
+        for j in np.arange(J):
+            name = f'FeIIj{j}'
+            print(name)
+            if name not in self.keys():
+                self[name] = e(name)
+            self[name].energy = np.unique(t['Ei'])[j]
+            mask = (t['Ei'] == np.unique(t['Ei'])[j])
+            for l in t[mask]:
+                self[name].lines.append(line(name, l['lambda'], l['fik'], 1e-9, ref=''))
 
     def makedatabase(self):
         self.readMorton()
         self.readCashman()
+        self.readFeII(J=15)
         self.readH2(j=[0, 1, 2, 3, 4, 5, 6, 7, 8])
         self.readHD()
         self.readCO()

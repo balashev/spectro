@@ -150,8 +150,8 @@ class plotSpectrum(pg.PlotWidget):
         if self.restframe:
             AuxPlotXMin, AuxPlotXMax = MainPlotXMin / (self.parent.z_abs + 1), MainPlotXMax / (self.parent.z_abs + 1)
         else:
-            AuxPlotXMin = (MainPlotXMin / (self.parent.z_abs + 1) / self.parent.line_reper.l() - 1) * ac.c.to('km/s').value
-            AuxPlotXMax = (MainPlotXMax / (self.parent.z_abs + 1) / self.parent.line_reper.l() - 1) * ac.c.to('km/s').value
+            AuxPlotXMin = (MainPlotXMin / (self.parent.z_abs + 1) / self.parent.abs.reference.line.l() - 1) * ac.c.to('km/s').value
+            AuxPlotXMax = (MainPlotXMax / (self.parent.z_abs + 1) / self.parent.abs.reference.line.l() - 1) * ac.c.to('km/s').value
         self.v_axis.setXRange(AuxPlotXMin, AuxPlotXMax, padding=0)
 
     def raiseContextMenu(self, ev):
@@ -315,6 +315,11 @@ class plotSpectrum(pg.PlotWidget):
                     #self.parent.showResidualsPanel()
                 elif (QApplication.keyboardModifiers() == Qt.ShiftModifier):
                     self.restframe = 1 - self.restframe
+                    if self.restframe:
+                        self.parent.abs.set_reference()
+                    else:
+                        self.parent.abs.set_reference(self.parent.abs.reference)
+
                     self.updateVelocityAxis()
                 else:
                     self.vb.setMouseMode(self.vb.RectMode)
@@ -499,9 +504,9 @@ class plotSpectrum(pg.PlotWidget):
 
         if self.a_status:
             if self.mousePoint == self.mousePoint_saved:
-                if self.parent.line_reper.name in self.parent.fit.sys[-1].sp:
+                if self.parent.abs.reference.line.name in self.parent.fit.sys[-1].sp:
                     self.parent.fit.addSys(self.parent.comp)
-                    self.parent.fit.sys[-1].z.val = self.mousePoint.x() / self.parent.line_reper.l() - 1
+                    self.parent.fit.sys[-1].z.val = self.mousePoint.x() / self.parent.abs.reference.line.l() - 1
                     self.parent.fit.sys[-1].zrange(200)
                     self.parent.comp = len(self.parent.fit.sys) - 1
                     if self.parent.fitModel is not None:
@@ -526,11 +531,11 @@ class plotSpectrum(pg.PlotWidget):
 
         if self.c_status:
             #try:
-            if self.parent.line_reper.name in self.parent.fit.sys[self.parent.comp].sp:
+            if self.parent.abs.reference.line.name in self.parent.fit.sys[self.parent.comp].sp:
                 if self.check_line():
-                    self.parent.fit.sys[self.parent.comp].z.set(self.mousePoint.x() / self.parent.line_reper.l() - 1)
+                    self.parent.fit.sys[self.parent.comp].z.set(self.mousePoint.x() / self.parent.abs.reference.line.l() - 1)
                     if self.mousePoint.y() != self.mousePoint_saved.y():
-                        sp = self.parent.fit.sys[self.parent.comp].sp[self.parent.line_reper.name]
+                        sp = self.parent.fit.sys[self.parent.comp].sp[self.parent.abs.reference.line.name]
                         print(sp)
                         # sp.b.set(sp.b.val + (self.mousePoint_saved.x() / self.mousePoint.x() - 1) * 299794.26)
                         sp.N.set(sp.N.val + np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * np.log10(
@@ -625,9 +630,9 @@ class plotSpectrum(pg.PlotWidget):
                 w = np.trapz(1.0 - y / cont(x), x=x)
                 err_w = np.sqrt(np.sum((s.spec.err()[mask] / cont(x)[:-1:2] * np.diff(x)[::2])**2))
                 print(w, err_w, w / (1+self.parent.z_abs))
-                print(self.parent.line_reper.l(), 1 + self.parent.z_abs, (s.spec.x()[mask] / self.parent.line_reper.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value)
+                print(self.parent.abs.reference.line.l(), 1 + self.parent.z_abs, (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value)
                 dv = np.cumsum(np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])))
-                dv90 = interp1d(dv/dv[-1], (s.spec.x()[mask] / self.parent.line_reper.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value, fill_value='extrapolate')
+                dv90 = interp1d(dv/dv[-1], (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value, fill_value='extrapolate')
                 self.w_region = pg.FillBetweenItem(curve1, curve2, brush=pg.mkBrush(44, 160, 44, 150))
                 self.vb.addItem(self.w_region)
                 text = 'w = {:0.5f}+/-{:0.5f}, log(w/l)={:0.2f}, w_r = {:0.5f}+/-{:0.5f}, dv90 = {:0.2f}'.format(w, err_w, np.log10(2 * w / (x[0]+x[-1])), w / (1+self.parent.z_abs), err_w / (1+self.parent.z_abs), dv90(0.95) - dv90(0.05))
@@ -663,7 +668,7 @@ class plotSpectrum(pg.PlotWidget):
     def wheelEvent(self, event):
         if self.c_status:
             if self.check_line():
-                sp = self.parent.fit.sys[self.parent.comp].sp[self.parent.line_reper.name]
+                sp = self.parent.fit.sys[self.parent.comp].sp[self.parent.abs.reference.line.name]
                 if sp.b.addinfo == '':
                     sp.b.set(sp.b.val * np.power(1.2, np.sign(event.angleDelta().y())))
                 else:
@@ -722,7 +727,7 @@ class plotSpectrum(pg.PlotWidget):
             self.parent.s.apply_regions()
 
     def check_line(self):
-        return (self.vb.getState()['viewRange'][0][0] < self.parent.line_reper.l() * (1 + self.parent.z_abs)) * (self.parent.line_reper.l() * (1 + self.parent.z_abs) < self.vb.getState()['viewRange'][0][1])
+        return (self.vb.getState()['viewRange'][0][0] < self.parent.abs.reference.line.l() * (1 + self.parent.z_abs)) * (self.parent.line.l() * (1 + self.parent.z_abs) < self.vb.getState()['viewRange'][0][1])
 
     def add_line(self, x, y):
         if self.addline is not None:
@@ -4344,6 +4349,18 @@ class ExportDataWidget(QWidget):
             layout.addLayout(hbox)
 
             hbox = QHBoxLayout()
+            hbox.addWidget(QLabel('range:  '))
+            self.exp_range = ['full', 'window']
+            self.range = 'full'
+            for s in self.exp_range:
+                setattr(self, s, QCheckBox(s))
+                getattr(self, s).clicked[bool].connect(partial(self.rangeChanged, s))
+                hbox.addWidget(getattr(self, s))
+            self.rangeChanged(self.range)
+            hbox.addStretch(1)
+            layout.addLayout(hbox)
+
+            hbox = QHBoxLayout()
             self.cheb_applied = QCheckBox('chebyshev applied?')
             self.cheb_applied.setChecked(True)
             hbox.addWidget(self.cheb_applied)
@@ -4397,6 +4414,12 @@ class ExportDataWidget(QWidget):
             getattr(self, s).setChecked(False)
         getattr(self, unit).setChecked(True)
 
+    def rangeChanged(self, unit):
+        self.range = unit
+        for s in self.exp_range:
+            getattr(self, s).setChecked(False)
+        getattr(self, unit).setChecked(True)
+
     def export(self):
         s = self.parent.s[self.parent.s.ind]
         kwargs = {'fmt':'%.5f', 'delimiter': ' '}
@@ -4404,21 +4427,29 @@ class ExportDataWidget(QWidget):
         if self.waveunit == 'nm':
             unit = 10
 
+        if self.range == 'window':
+            print(s.spec.x())
+            print(self.parent.plot.vb.getState()['viewRange'][0][0], self.parent.plot.vb.getState()['viewRange'][0][-1])
+            mask = (s.spec.x() > self.parent.plot.vb.getState()['viewRange'][0][0]) * (s.spec.x() < self.parent.plot.vb.getState()['viewRange'][0][-1])
+        else:
+            mask = np.isfinite(s.spec.x())
+        print(np.sum(mask))
+
         if self.cheb_applied.isChecked() and self.parent.fit.cont_fit:
             cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
         else:
             cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1)
 
         if self.spectrum.isChecked():
-            np.savetxt(self.filename, np.c_[s.spec.x() / unit, s.spec.y() / cheb(s.spec.x()), s.spec.err()], **kwargs)
+            np.savetxt(self.filename, np.c_[s.spec.x()[mask] / unit, s.spec.y()[mask] / cheb(s.spec.x()[mask]), s.spec.err()[mask]], **kwargs)
         if self.cont.isChecked():
-            np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x / unit, s.cont.y / cheb(s.spec.x())], **kwargs)
+            np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x[mask] / unit, s.cont.y[mask] / cheb(s.spec.x()[mask])], **kwargs)
         if self.fit.isChecked():
-            np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x() / unit, s.fit.y() / cheb(s.fit.x())], **kwargs)
+            np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x()[mask] / unit, s.fit.y()[mask] / cheb(s.fit.x()[mask])], **kwargs)
         if self.fit.isChecked():
-            np.savetxt('_fit_regions.'.join(self.filename.rsplit('.', 1)), np.c_[s.spec.x()[s.fit_mask.x()] / unit, (s.spec.y() / cheb(s.spec.x()))[s.fit_mask.x()]], **kwargs)
+            np.savetxt('_fit_regions.'.join(self.filename.rsplit('.', 1)), np.c_[s.spec.x()[np.logical_and(mask, s.fit_mask.x())] / unit, (s.spec.y() / cheb(s.spec.x()))[np.logical_and(mask, s.fit_mask.x())]], **kwargs)
         if self.lines.isChecked():
-            np.savetxt('_fit_comps.'.join(self.filename.rsplit('.', 1)), np.column_stack([s.fit.x() / unit] + [c.y() / cheb(s.fit.x()) for c in s.fit_comp]), **kwargs)
+            np.savetxt('_fit_comps.'.join(self.filename.rsplit('.', 1)), np.column_stack([s.fit.x()[mask] / unit] + [c.y()[mask] / cheb(s.fit.x()[mask]) for c in s.fit_comp]), **kwargs)
 
     def save(self):
         self.parent.save_opt = self.opt
@@ -5109,6 +5140,13 @@ class buttonpanel(QFrame):
         self.fitbutton.move(300, 20)
         self.fitbutton.resize(70, 30)
 
+        self.aod = QPushButton('AOD', self)
+        self.aod.setCheckable(True)
+        self.aod.clicked.connect(self.parent.aod) #partial(self.parent.normalize, action='aod'))
+        self.aod.setStyleSheet('QPushButton::checked { background-color: rgb(168,66,195);}')
+        self.aod.move(300, 60)
+        self.aod.resize(70, 30)
+
         self.SAS = QPushButton('SAS', self)
         self.SAS.clicked.connect(partial(self.openURL, 'SAS'))
         self.SAS.move(450, 20)
@@ -5182,6 +5220,7 @@ class sviewer(QMainWindow):
         self.abs_Molec_status = 0
         self.abs_SF_status = 1
         self.normview = False
+        self.aodview = False
         if platform.system() == 'Windows':
             self.config = 'config/options.ini'
         elif platform.system() == 'Linux':
@@ -5207,7 +5246,7 @@ class sviewer(QMainWindow):
         self.IGMspecfile = self.options('IGMspecfile', config=self.config)
         self.z_abs = 0
         self.lines = lineList(self)
-        self.line_reper = line('HI', 1215.6701, 0.4164, 6.265e8, ref='???')
+        #self.line_reper = line('HI', 1215.6701, 0.4164, 6.265e8, ref='???')
         self.regions = []
         self.show_residuals = self.options('show_residuals')
         self.show_2d = self.options('show_2d')
@@ -5851,7 +5890,6 @@ class sviewer(QMainWindow):
 
     def initData(self):
         self.fit = fitPars(self)
-        #self.atomic = atomic_data()
         self.atomic = atomicData()
         self.atomic.readdatabase()
         self.abs = absSystemIndicator(self)
@@ -5953,7 +5991,7 @@ class sviewer(QMainWindow):
             self.zeroline.setHoverPen(color=(214, 39, 40), width=3)
         self.vb.addItem(self.zeroline)
 
-    def sendMessage(self, text='', timer=3500):
+    def sendMessage(self, text='', timer=2000):
         if self.message is not None:
             self.message.animation.stop()
             self.message.animStarted = True
@@ -6870,19 +6908,21 @@ class sviewer(QMainWindow):
                 self.normview = not self.normview
             else:
                 self.normview = state
-            #getattr(self.s, action)()
-            #getattr(self.panel, action).setChecked(self.normview)
-            #l = ['normalize', 'subtract']
-            #l.remove(action)
-            #getattr(self.panel, l[0]).setEnabled(not self.normview)
             self.s.normalize(action=action)
             if action == 'normalize':
                 self.panel.normalize.setChecked(self.normview)
                 self.panel.subtract.setEnabled(not self.normview)
+                #self.panel.aod.setEnabled(not self.normview)
             elif action == 'subtract':
                 self.panel.subtract.setChecked(self.normview)
                 self.panel.normalize.setEnabled(not self.normview)
-
+                self.panel.aod.setEnabled(not self.normview)
+                self.panel.fitbutton.setEnabled(not self.normview)
+            elif action == 'aod':
+                self.panel.aod.setChecked(self.normview)
+                self.panel.normalize.setEnabled(not self.normview)
+                self.panel.subtract.setEnabled(not self.normview)
+                self.panel.fitbutton.setEnabled(not self.normview)
             # self.parent.abs.redraw()
             x = self.plot.vb.getState()['viewRange'][0]
             self.plot.vb.enableAutoRange()
@@ -7124,6 +7164,17 @@ class sviewer(QMainWindow):
         else:
             self.fitResults.refresh()
 
+    def aod(self):
+        self.aodview = 1 - self.aodview
+        if self.aodview:
+            self.savenormview = self.normview
+            if self.normview:
+                self.normview = False
+        self.normalize(action='aod')
+        if not self.aodview:
+            if self.savenormview:
+                self.normalize()
+
     def calc_cont(self):
         x = self.plot.vb.getState()['viewRange'][0]
         self.s[self.s.ind].calcCont(method='Smooth', xl=x[0], xr=x[-1], iter=3, clip=3, filter='hanning',
@@ -7218,7 +7269,7 @@ class sviewer(QMainWindow):
         for s in self.s:
             n = np.sum(s.mask.x())
             if n > 0:
-                mean = self.line_reper.l() * (1 + self.z_abs)
+                mean = self.abs.reference.line.l() * (1 + self.z_abs)
                 x, y, err = np.array(s.spec.x()[s.mask.x()], dtype=np.float), np.array(s.spec.y()[s.mask.x()], dtype=np.float), np.array(s.spec.err()[s.mask.x()], dtype=np.float)
                 if self.normview:
                     cont = np.zeros_like(x, dtype=np.float)

@@ -350,11 +350,16 @@ class fitPars:
             for i in range(self.cf_num):
                 if hasattr(self, 'cf_' + str(i)):
                     p = getattr(self, 'cf_' + str(i))
-                    if p.addinfo.find('sys') > -1:
-                        if int(p.addinfo[p.addinfo.find('sys')+3:p.addinfo.find('_')]) == i1:
-                            p.addinfo = p.addinfo[:p.addinfo.find('sys')+3]+str(i2)+p.addinfo[p.addinfo.find('_'):]
-                        elif int(p.addinfo[p.addinfo.find('sys')+3:p.addinfo.find('_')]) == i2:
-                            p.addinfo = p.addinfo[:p.addinfo.find('sys')+3]+str(i1)+p.addinfo[p.addinfo.find('_'):]
+                    cf = p.addinfo.split('_')
+                    if cf[0].find('sys') > -1:
+                        if i1 in [int(s) for s in cf[0].split('sys')[1:]]:
+                            self.setValue('cf_' + str(i), 'sys'.join([s if int(s) != i1 else str(i2) for s in cf[0].split('sys')[1:]])+'_'+cf[1], 'addinfo')
+                        if i2 in [int(s) for s in cf[0].split('sys')[1:]]:
+                            self.setValue('cf_' + str(i), 'sys'.join([s if int(s) != i2 else str(i1) for s in cf[0].split('sys')[1:]]) + '_' + cf[1], 'addinfo')
+                        #if int(p.addinfo[p.addinfo.find('sys')+3:p.addinfo.find('_')]) == i1:
+                        #    p.addinfo = p.addinfo[:p.addinfo.find('sys')+3]+str(i2)+p.addinfo[p.addinfo.find('_'):]
+                        #elif int(p.addinfo[p.addinfo.find('sys')+3:p.addinfo.find('_')]) == i2:
+                        #    p.addinfo = p.addinfo[:p.addinfo.find('sys')+3]+str(i1)+p.addinfo[p.addinfo.find('_'):]
         self.sys[i1], self.sys[i2] = self.sys[i2], self.sys[i1]
         self.refreshSys()
         print(i1, i2)

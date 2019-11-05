@@ -65,18 +65,21 @@ class Speclist(list):
         if ind is None:
             ind = self.ind
         if ind > -1:
-            self[ind].remove()
-            del self[ind]
-            if ind == len(self):
-                ind -= 1
-            if len(self) == 0:
-                self.ind = None
-            self.ind = ind
-            self.redraw()
-            try:
-                self.parent.exp.update()
-            except:
-                pass
+            if len(self) > 0:
+                self[ind].remove()
+                del self[ind]
+                if ind == len(self):
+                    ind -= 1
+                if len(self) == 0:
+                    self.ind = None
+                self.ind = ind
+                self.redraw()
+                try:
+                    self.parent.exp.update()
+                except:
+                    pass
+            else:
+                self.parent.sendMessage('There is nothing to remove')
 
     def rearrange(self, inds):
         if len(inds) == len(self):
@@ -530,11 +533,15 @@ class specline():
                         self.norm.y = self.raw.y[self.parent.cont_mask] / self.parent.cont.y
                     elif action == 'subtract':
                         self.norm.y = self.raw.y[self.parent.cont_mask] - self.parent.cont.y
+                    elif action == 'aod':
+                        self.norm.y = - np.log(self.raw.y[self.parent.cont_mask] / self.parent.cont.y)
                 if len(self.raw.err) > 0:
                     if action == 'normalize':
                         self.norm.err = self.raw.err[self.parent.cont_mask] / self.parent.cont.y
                     elif action == 'subtract':
                         self.norm.err = self.raw.err[self.parent.cont_mask]
+                    elif action == 'aod':
+                        self.norm.err = - np.log(1 + self.raw.err[self.parent.cont_mask] / self.raw.y[self.parent.cont_mask])
                 self.norm.n = len(self.norm.x)
             else:
                 self.raw.x[self.parent.cont_mask] = self.norm.x
@@ -543,14 +550,17 @@ class specline():
                         self.raw.y[self.parent.cont_mask] = self.norm.y * self.parent.cont.y
                     elif action == 'subtract':
                         self.raw.y[self.parent.cont_mask] = self.norm.y + self.parent.cont.y
-
+                    elif action ==  'aod':
+                        self.raw.y[self.parent.cont_mask] = np.exp(-self.norm.y) * self.parent.cont.y
                 if len(self.raw.err) > 0:
                     if action == 'normalize':
                         self.raw.err[self.parent.cont_mask] = self.norm.err * self.parent.cont.y
                     elif action == 'subtract':
                         self.raw.err[self.parent.cont_mask] = self.norm.err
+                    elif action == 'aod':
+                        self.raw.err[self.parent.cont_mask] = (np.exp(-self.norm.err) - 1) * self.norm.y
         else:
-            if (norm and len(self.raw.y)>0) or (not norm and len(self.norm.y)>0):
+            if (norm and len(self.raw.y) > 0) or (not norm and len(self.norm.y) > 0):
                 if not inter:
                     cont = self.parent.cont.y
                 else:
@@ -566,6 +576,8 @@ class specline():
                         self.norm.y = self.raw.y / cont
                     elif action == 'subtract':
                         self.norm.y = self.raw.y - cont
+                    elif action == 'aod':
+                        self.norm.y = - np.log(self.raw.y / cont)
                 self.norm.n = len(self.norm.x)
             else:
                 self.raw.x = self.norm.x[:]
@@ -574,6 +586,8 @@ class specline():
                         self.raw.y = self.norm.y * cont
                     elif action == 'subtract':
                         self.raw.y = self.norm.y + cont
+                    elif action == 'aod':
+                        self.raw.y = np.exp(-self.norm.y) * cont
 
     def inter(self, x):
         return self.current().inter(x)
@@ -1661,17 +1675,22 @@ class Spectrum():
         if self.parent.normview and self.cont_mask is not None:
             self.spec.normalize(True, action=action)
             self.spec.norm.interpolate()
-        else:
-            if len(self.fit_comp) > 0:
-                for comp in self.fit_comp:
-                    comp.normalize(norm=False, cont_mask=False, inter=True, action=action)
+
+        if len(self.fit_comp) > 0:
+            for comp in self.fit_comp:
+                comp.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
+        if self.fit.norm.n > 0:
+            self.fit.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
+            if not self.parent.normview:
+                self.fit.raw.interpolate()
+
         self.mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
         self.bad_mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
         self.set_fit_mask()
 
-        if self.fit.norm.n > 0 and not self.parent.normview:
-            self.fit.normalize(self.parent.normview, cont_mask=False, inter=True, action=action)
-            self.fit.raw.interpolate()
+        #if self.fit.norm.n > 0 and not self.parent.normview or self.parent.aodview:
+        #    self.fit.normalize(self.parent.normview, cont_mask=False, inter=True, action=action)
+        #    self.fit.raw.interpolate()
 
         # self.set_fit_mask()
         # self.rewrite_mask()
@@ -1729,7 +1748,7 @@ class Spectrum():
                 self.cont.set_data(self.spec.raw.x[self.cont_mask], y[self.cont_mask])
             self.redraw()
 
-    def findFitLines(self, ind=-1, tlim=0.01, all=True, debug=False):
+    def findFitLines(self, ind=-1, tlim=0.01, all=True, debug=True):
         """
         Function to prepare lines to fit.
           - ind         : specify component to fit
@@ -1768,8 +1787,12 @@ class Spectrum():
                                 for i in range(self.parent.fit.cf_num):
                                     cf = getattr(self.parent.fit, 'cf_'+str(i))
                                     cf_sys = cf.addinfo.split('_')[0]
+                                    if cf_sys == 'all':
+                                        cf_sys = np.arange(len(self.parent.fit.sys))
+                                    else:
+                                        cf_sys = [int(s) for s in cf_sys.split('sys')[1:]]
                                     cf_exp = cf.addinfo.split('_')[1] if len(cf.addinfo.split('_')) > 1 else 'all'
-                                    if (cf_sys == 'all' or sys.ind == int(cf_sys[3:])) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l()*(1+l.z) > cf.min and l.l()*(1+l.z) < cf.max:
+                                    if (sys.ind in cf_sys) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l()*(1+l.z) > cf.min and l.l()*(1+l.z) < cf.max:
                                         l.cf = i
                             if all:
                                 if l.range[0] < x[-1] and l.range[1] > x[0]:
@@ -1824,24 +1847,9 @@ class Spectrum():
                         line.recalc = False
                     if not self.parent.fit.cf_fit:
                         flux += line.profile
-
-            # >>> include partial covering:
-            if self.parent.fit.cf_fit:
-                cfs, inds = [], []
-                for i, line in enumerate(self.fit_lines):
-                    if ind == -1 or ind == line.sys:
-                        cfs.append(line.cf)
-                        inds.append(i)
-                cfs = np.array(cfs)
-                for i in np.unique(cfs):
-                    if i > -1:
-                        cf = getattr(self.parent.fit, 'cf_' + str(i)).val
                     else:
-                        cf = 0
-                    profile = np.zeros_like(x)
-                    for k in np.where(cfs == i)[0]:
-                        profile += self.fit_lines[inds[k]].profile
-                    flux += - np.log(np.exp(-profile) * (1 - cf) + cf)
+                        cf = np.min([1, np.sum([getattr(self.parent.fit, 'cf_' + str(i)).val for i in line.cf])])
+                        flux += - np.log(np.exp(-line.profile) * (1 - cf) + cf)
 
             flux = np.exp(-flux)
 
@@ -1937,20 +1945,9 @@ class Spectrum():
                         line.recalc = False
                     if not self.parent.fit.cf_fit:
                         flux += line.profile
-
-            # >>> include partial covering:
-            if self.parent.fit.cf_fit:
-                cfs = []
-                for line in self.fit_lines:
-                    if ind == -1 or ind == line.sys:
-                        cfs.append(line.cf)
-                cfs = np.array(cfs)
-                for i in np.unique(cfs[cfs > -1]):
-                    cf = getattr(self.parent.fit, 'cf_' + str(i)).val
-                    profile = np.zeros_like(x)
-                    for k in np.where(cfs == i)[0]:
-                        profile += self.fit_lines[k].profile
-                    flux += - np.log(np.exp(-profile) * (1 - cf) + cf)
+                    else:
+                        cf = np.min([1, np.sum([getattr(self.parent.fit, 'cf_' + str(i)).val for i in line.cf])])
+                        flux += - np.log(np.exp(-line.profile) * (1 - cf) + cf)
 
             flux = np.exp(-flux)
 
@@ -2042,15 +2039,20 @@ class Spectrum():
                         cfs.append(line.cf)
                         inds.append(i)
                 cfs = np.array(cfs)
-                for i in np.unique(cfs):
-                    if i > -1:
-                        cf = getattr(self.parent.fit, 'cf_' + str(i)).val
+                for l in np.unique(cfs):
+                    if l > -1:
+                        cf = self.parent.fit.getValue('cf_' + str(l))
                     else:
-                        cf = 0
+                        cf = 1
                     profile = np.zeros_like(x)
-                    for k in np.where(cfs == i)[0]:
-                        profile += self.fit_lines[inds[k]].profile
-                    flux += - np.log(np.exp(-profile) * (1 - cf) + cf)
+                    for i, c in zip(inds, cfs):
+                        if c == l:
+                            profile += self.fit_lines[i].profile
+
+                    flux += - np.log(np.exp(-profile) * cf + (1 - cf))
+
+                #cf = np.min([1, np.sum([getattr(self.parent.fit, 'cf_' + str(i)).val for i in line.cf])])
+                #flux += - np.log(np.exp(-line.profile) * (1 - cf) + cf)
 
             flux = np.exp(-flux)
 

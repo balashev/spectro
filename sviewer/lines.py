@@ -13,204 +13,6 @@ from ..profiles import tau
 from .fit import par
 from .utils import Timer
 
-class atomic_data(OrderedDict):
-    def __init__(self):
-        super().__init__()
-        t = Timer()
-        #self.readMorton()
-        t.time('Morton')
-        #self.readCashman()
-        t.time('Cashman')
-        #self.readH2(j=[0,1,2,3,4,5,6])
-        t.time('H2')
-        #self.readHD()
-        #.compareH2()
-
-    def readMorton(self):
-        with open('data/Morton2003.dat', 'r') as f:
-            ind = 0
-            while True:
-                l = f.readline()
-                if l == '':
-                    break
-                if ind == 1:
-                    name = l.split()[0].replace('_', '')
-                    self[name] = e(name)
-                    block = []
-                    while l[:3] != '***':
-                        l = f.readline()
-                        block.append(l)
-                    levels = set()
-                    for l in block:
-                        if l[34:35] == '.' and 'MltMean' not in l:
-                            levels.add(float(l[31:38]))
-                    levels = sorted(levels)
-                    for i, lev in enumerate(levels):
-                        if i>0:
-                            name = name+'*'
-                            self[name] = e(name)
-                        for l in block:
-                            add = 0
-                            if l[23:24] == '.':
-                                #print(l)
-                                if name == 'HI' or name == 'DI':
-                                    if 'MltMean' in l:
-                                        add = 1
-                                elif 'MltMean' not in l:
-                                    add = 1
-                                if add == 1 and l[79:88].strip() != '' and l[59:68].strip() != '' and float(l[31:38]) == lev:
-                                    self[name].lines.append(line(name, float(l[19:29]), float(l[79:88]), float(l[59:68]), ref='Morton2003'))
-                    ind = 0
-
-                if l[:3] == '***':
-                    ind = 1
-
-    def readCashman(self):
-        with open('data/Cashman2017.dat', 'r') as f:
-            for l in f:
-                name = ''.join(l[3:10].split())
-                if name not in self.keys():
-                    self[name] = e(name)
-                lam = float(l[90:99]) if l[78:89] else float(l[78:89])
-                self[name].lines.append(line(name, lam, float(l[105:113]), 1e+8, ref='Cashman2017'))
-
-    def readH2(self, nu=0, j=[0,1], energy=None):
-        if 0:
-            self.readH2Abgrall(nu=nu, j=j, energy=energy)
-        else:
-            if nu == 0:
-                self.readH2Malec(j=j)
-
-    def readH2Malec(self, j=[0,1]):
-        """
-        read Malec calalogue 2010 data for H2
-
-        parameters:
-            - n    : if list - specify rotational levels to read
-                     if int - read J_l<=n
-        """
-        x = np.genfromtxt(r'data/H2/energy_X.dat', comments='#', unpack=True)
-
-        if isinstance(j, int) or isinstance(j, float):
-            j = [j]
-        mask = np.zeros_like(x[1], dtype=bool)
-        for j in j:
-            mask = np.logical_or(mask, x[1]==j)
-        mask = np.logical_and(mask, x[0] <= 0)
-
-        with open(os.path.dirname(os.path.realpath(__file__)) + r'/data/H2/H2MalecCat.dat', newline='') as f:
-            f.readline()
-            data = f.readlines()
-
-        x = x[:, mask]
-        x = np.transpose(x)
-        for xi in x:
-            nu_l, j_l = int(xi[0]), int(xi[1])
-            name = 'H2' + 'j' +  str(j_l)
-            if xi[0] > 0:
-                name += 'n' + str(nu_l)
-            print(name)
-            self[name] = e(name)
-            self[name].energy = float(xi[2])
-            self[name].stats = (2 * (j_l % 2) + 1) * (2 * j_l + 1)
-            self[name].lines = AtomicList.Malec(n=[j_l])
-
-    def readH2Abgrall(self, nu=0, j=[0,1], energy=None):
-        """
-        read data of H2 transitions from file.
-        parameters:
-            - nu       :   threshold of vibrational level
-            - j        :   threshold of rotational level
-            - energy   :   threshold of energy
-
-            any H2 level specified as
-            H2_j_nu, e.g. H2_3_1
-            if nu is not given then nu=0
-        """
-        x = np.genfromtxt(r'data/H2/energy_X.dat', comments='#', unpack=True)
-        B = np.genfromtxt(r'data/H2/energy_B.dat', comments='#', unpack=True)
-        Cp = np.genfromtxt(r'data/H2/energy_C_plus.dat', comments='#', unpack=True)
-        Cm = np.genfromtxt(r'data/H2/energy_C_minus.dat', comments='#', unpack=True)
-        B_t = np.genfromtxt(r'data/H2/transprob_B.dat', comments='#', unpack=True)
-        Cp_t = np.genfromtxt(r'data/H2/transprob_C_plus.dat', comments='#', unpack=True)
-        Cm_t = np.genfromtxt(r'data/H2/transprob_C_minus.dat', comments='#', unpack=True)
-        e2_me_c = const.e.gauss.value ** 2 / const.m_e.cgs.value / const.c.cgs.value
-        if energy is None:
-            if isinstance(j, int) or isinstance(j, float):
-                mask = np.logical_and(x[0] <= nu, x[1] == j)
-            if isinstance(j, list):
-                mask = np.logical_and(x[0] <= nu, np.logical_and(x[1] >= j[0], x[1] <= j[1]))
-        else:
-            mask = x[2] < energy
-        x = x[:,mask]
-        x = np.transpose(x)
-        fout = open(r'data/H2/lines.dat', 'w')
-        for xi in x:
-            nu_l, j_l = int(xi[0]), int(xi[1])
-            name = 'H2' + 'j' +  str(j_l)
-            if xi[0] > 0:
-                name += 'n' + str(nu_l)
-            self[name] = e(name)
-            self[name].energy = float(xi[2])
-            self[name].stats = (2 * (j_l % 2) + 1) * (2 * j_l + 1)
-            print(name, self[name].energy, self[name].stats)
-            for t, en, note in zip([B_t, Cm_t, Cp_t], [B, Cm, Cp], ['L', 'W', 'W']):
-                m = np.logical_and(t[4] == nu_l, t[5] == j_l)
-                for ti in t[:,m].transpose():
-                    nu_u, j_u = int(ti[1]), int(ti[2])
-                    m1 = np.logical_and(en[0] == nu_u, en[1] == j_u)
-                    l = 1e8 / (en[2, m1][0] - self[name].energy)
-                    g_u = (2 * (j_l % 2) + 1) * (2 * j_u + 1)
-                    f = (l * 1e-8) ** 2 / 8 / np.pi ** 2 / e2_me_c * ti[6] * g_u / self[name].stats
-                    m = np.logical_and(t[1] == nu_u, t[2] == j_u)
-                    g = np.sum(t[6, m])
-                    self[name].lines.append(line(name, l, f, g, ref='Abgrall', j_l=j_l, nu_l=nu_l, j_u=j_u, nu_u=nu_u))
-                    self[name].lines[-1].band = note
-                    if j_l >= 0:
-                        fout.write("{:8s} {:2d} {:2d} {:2d} {:2d} {:10.5f} {:.2e} {:.2e} \n".format(str(self[name].lines[-1]).split()[1], nu_l, j_l, nu_u, j_u, l, f, g))
-                        #print(str(self[name].lines[-1]), nu_l, j_l, nu_u, j_u, l, f, g)
-
-        fout.close()
-
-    def compareH2(self):
-        if 0:
-            mal = Atomiclist.Malec()
-            for line in mal:
-                for l1 in self['H2j'+str(line)[-1]].lines:
-                    #print(line)
-                    #print(l1)
-                    if str(line) == str(l1): #and np.abs(l1.f/line.f-1) > 0.2:
-                        print(line, l1.f()/line.f(), line.f(), l1.f())
-            input()
-        else:
-            out = open(r'C:/Users/Serj/Desktop/H2MalecCat_comparison.dat', 'w')
-            with open(r'C:/science/python/spectro/data/H2MalecCat.dat', 'r') as f:
-                for line in f.readlines()[1:]:
-                    m = line.split()
-                    for l1 in self['H2j' + m[4]].lines:
-                        if l1.nu_u == int(m[2]) and m[3] in str(l1) and m[1] in str(l1):
-                            #out.write(line[:54] + '{0:12.10f}   {1:6.1e} '.format(l1.f, l1.g) + line[77:])
-                            out.write(line[:-1] + '{0:12.10f}   {1:6.1e}\n'.format(l1.f, l1.g))
-            out.close()
-
-    def readHD(self):
-        HD = np.genfromtxt(r'data/molec/HD.dat', skip_header=2, usecols=[0,1,2,3,4,5,6], unpack=True, dtype=None)
-        j_u = {'R': 1, 'Q': 0, 'P': -1}
-        for j in range(3):
-            name = 'HDj'+str(j)
-            self[name] = e(name)
-            for l in HD:
-                if l[0] == j:
-                    #name = 'HD ' + l[1].decode('UTF-8') + str(l[2]) + '-0' + l[3].decode('UTF-8') + '(' + str(int(l[0])) + ')'
-                    self[name].lines.append(line(name, l[4], l[5], l[6], ref='', j_l=l[0], nu_l=0, j_u=l[0] + j_u[l[3].decode('UTF-8')], nu_u=l[2]))
-                    self[name].lines[-1].band = l[1].decode('UTF-8')
-
-    def readHF(self):
-        HF = np.genfromtxt(r'data/molec/HF.dat', skip_header=1, unpack=True, dtype=None)
-        self['HF'] = e('HF')
-        for l in HF:
-            self['HF'].lines.append(line(l[4].decode('UTF-8'), l[6], l[7], l[8], ref='', j_l=l[0], nu_l=l[1], j_u=l[2], nu_u=l[3]))
-
 class absSystemIndicator():
     def __init__(self, parent):
         self.parent = parent
@@ -272,12 +74,22 @@ class absSystemIndicator():
             self.parent.panel.z_panel.setText(str(z))
         if hasattr(self.parent, 's') and len(self.parent.s) > 0:
             for line in self.lines:
-                line.setActive()
+                #print(line.line.name, line.active)
+                #line.setActive()
                 line.redraw(self.parent.z_abs)
+
+    def set_reference(self, line=None):
+        if hasattr(self, 'reference'):
+            self.reference.set_reference(not self.reference.reference)
+        if line is not None:
+            if not hasattr(self, 'reference') or self.reference != line:
+                self.reference = line
+                self.reference.set_reference(True)
 
 class LineLabel(pg.TextItem):
     def __init__(self, parent, line, graphicType, **kwrds):
         self.parent = parent
+        self.line = line
         self.saved_color = kwrds['color']
         if 'va' in kwrds:
             self.va = kwrds['va']
@@ -288,56 +100,97 @@ class LineLabel(pg.TextItem):
                 anchor, angle, tailLen, pos = [0.5, 2], -90, 30, (0, -10)
             pg.TextItem.__init__(self, text='', anchor=anchor, fill=pg.mkBrush(0, 0, 0, 0), **kwrds)
         self.graphicType = graphicType
-        if self.graphicType == 'short':
-            anchor[0] = anchor[1] - 1 if self.va == 'down' else anchor[1] + 1
-            self.arrow = pg.ArrowItem(angle=angle, headWidth=0, headLen=0, tailLen=tailLen, tailWidth=2,
-                                      brush=pg.mkBrush(kwrds['color']), pen=pg.mkPen(0, 0, 0, 0), pos=pos)
-        elif self.graphicType == 'infinite':
-            self.arrow = pg.InfiniteLine(angle=90, pen=pg.mkPen(color=kwrds['color'], width=.5, style=Qt.SolidLine), label='') #style=Qt.DashLine
-        self.arrow.setParentItem(self)
+        self.reference = False
+        self.info = False
+        self.setPointer()
         font = QFont("SansSerif", 10)
         font.setBold(True)
         font.setWeight(75)
         self.setFont(font)
-        self.line = line
         self.setActive()
-        self.info = False
+
+    def setPointer(self):
+        if hasattr(self, 'arrow'):
+            self.parent.parent.plot.vb.removeItem(self.arrow)
+        if self.reference:
+            pen = pg.mkPen(color=(180, 190, 30, 255), width=1.5, style=Qt.SolidLine)
+        else:
+            pen = pg.mkPen(color=self.saved_color, width=.5, style=Qt.SolidLine)
+        if self.va == 'down':
+            anchor, angle, tailLen, pos = [0.5, -2], 90, 30, (0, 5)
+        elif self.va == 'up':
+            anchor, angle, tailLen, pos = [0.5, 2], -90, 30, (0, -10)
+        if self.graphicType == 'short':
+            anchor[0] = anchor[1] - 1 if self.va == 'down' else anchor[1] + 1
+            self.arrow = pg.ArrowItem(angle=angle, headWidth=0, headLen=0, tailLen=tailLen, tailWidth=2,
+                                      brush=pg.mkBrush(self.saved_color), pen=pg.mkPen(0, 0, 0, 0), pos=pos)
+        elif self.graphicType == 'infinite':
+            self.arrow = pg.InfiniteLine(angle=90, pen=pen, label='') #style=Qt.DashLine
+        self.arrow.setParentItem(self)
 
     def setActive(self, bool=None):
         if bool is not None:
             self.active = bool
         else:
             self.active = True if str(self.line) in self.parent.parent.lines else False
-        if self.parent.parent.show_osc:
-            self.setText(str(self.line)+' {:.4f}'.format(self.line.f()))
+
+        if self.info:
+            text = str(self.line)
+            text += ', l={:.3f}, f={:.4f}, g={:.2E}'.format(self.line.l(), self.line.f(), self.line.g())
+            if self.line.name in self.parent.parent.fit.sys[self.parent.parent.comp].sp.keys():
+                self.line.logN = self.parent.parent.fit.sys[self.parent.parent.comp].sp[self.line.name].N.val
+                self.line.b = self.parent.parent.fit.sys[self.parent.parent.comp].sp[self.line.name].b.val
+                t = tau(line=self.line)
+                text += ', logN={: .2f}, b={: .2f}, tau_0={:.2f}'.format(self.line.logN, self.line.b, t.calctau0())
+            self.setText(text)
         else:
-            self.setText(str(self.line))
+            if self.parent.parent.show_osc:
+                self.setText(str(self.line)+' {:.4f}'.format(self.line.f()))
+            else:
+                self.setText(str(self.line))
 
         if self.active:
-            self.border = pg.mkPen(255, 255, 255, 255, width=1)
-            self.fill = pg.mkBrush(46, 150, 61, 255)
-            self.setColor(pg.mkColor(255, 255, 255, 255))
-            if self.graphicType == 'infinite':
-                self.arrow.setPen(pg.mkPen(color=self.fill.color(), width=1, style=Qt.SolidLine))
-            #self.setColor(pg.mkColor(255, 69, 0, 255))
-            self.setZValue(11)
+            self.color = (255, 255, 255)
+            self.fill = pg.mkBrush(85, 130, 20, 255)
+            self.zvalue = 11
         else:
-            self.border = pg.mkPen(0, 0, 0, 0, width=0)
-            self.fill = pg.mkBrush(0, 0, 0, 0)
-            self.setColor(self.saved_color)
-            if self.graphicType == 'infinite':
-                self.arrow.setPen(pg.mkPen(color=self.saved_color, width=.5, style=Qt.SolidLine))
-            self.setZValue(10)
+            self.color = self.saved_color
+            self.fill = pg.mkBrush(0, 0, 0, 0, width=0)
+            self.zvalue = 10
+
+        if self.reference:
+            self.color = (255, 255, 0)
+            self.zvalue = 11
+
+        if self.info:
+            self.color = (255, 255, 200)
+            self.zvalue = 11
+
+        self.border = pg.mkPen(color=self.color + (0,), width=self.active + self.reference)
+        self.setColor(pg.mkColor(*self.color))
+        self.setZValue(self.zvalue)
+
         #self.paint()
 
-    def redraw(self, z):
-        ypos = self.parent.parent.s[self.parent.parent.s.ind].spec.inter(self.line.l() * (1 + z))
-        if ypos == 0:
-            for s in self.parent.parent.s:
-                ypos = s.spec.inter(self.line.l() * (1 + z))
-                if ypos != 0:
-                    break
+    def set_reference(self, bool):
+        self.reference = bool
+        if self.reference:
+            self.graphicType = 'infinite'
+        else:
+            self.graphicType = self.parent.parent.linelabels
+        self.setPointer()
+        self.setActive()
 
+    def redraw(self, z):
+        if len(self.parent.parent.s) > 0:
+            ypos = self.parent.parent.s[self.parent.parent.s.ind].spec.inter(self.line.l() * (1 + z))
+            if ypos == 0:
+                for s in self.parent.parent.s:
+                    ypos = s.spec.inter(self.line.l() * (1 + z))
+                    if ypos != 0:
+                        break
+        else:
+            ypos = self.parent.parent.vb.mapSceneToView(self.scenePos()).y()
         self.setPos(self.line.l() * (1 + z), ypos)
         return self.line.l() * (1 + z), ypos
 
@@ -358,10 +211,11 @@ class LineLabel(pg.TextItem):
             pos = self.parent.parent.vb.mapSceneToView(ev.pos())
             self.parent.parent.z_abs += (pos.x() - self.st_pos) / self.line.l()
             self.parent.parent.panel.refresh()
-            self.parent.parent.line_reper = self.line
+            #self.parent.parent.line_reper = self.line
             self.parent.parent.plot.updateVelocityAxis()
             self.parent.redraw()
             ev.accept()
+
         elif QApplication.keyboardModifiers() == Qt.AltModifier or self.info:
             self.showInfo()
             ev.accept()
@@ -383,24 +237,10 @@ class LineLabel(pg.TextItem):
             ev.accept()
         else:
             if QApplication.keyboardModifiers() == Qt.ShiftModifier:
-                self.parent.parent.line_reper = self.line
+                self.parent.set_reference(self)
                 self.parent.parent.plot.restframe = False
                 self.parent.parent.plot.updateVelocityAxis()
-                try:
-                    print(self.parent.reperLabel)
-                    self.parent.parent.plot.vb.removeItem(self.parent.reperLabel)
-                    del self.reperLabel
-                except:
-                    pass
-                self.parent.reperLabel = pg.TextItem(text=self.textItem.toPlainText(), color=(255, 215, 0, 255), anchor=self.anchor,
-                                              fill=pg.mkColor(0, 0, 0, 0), border=(255, 215, 0, 255))
-                font = QFont("SansSerif", 10)
-                font.setBold(True)
-                font.setWeight(75)
-                self.parent.reperLabel.setFont(font)
-                self.parent.reperLabel.setZValue(15)
-                self.parent.parent.plot.vb.addItem(self.parent.reperLabel)
-                self.parent.reperLabel.setPos(*self.redraw(self.parent.parent.z_abs))
+
                 ev.accept()
             elif QApplication.keyboardModifiers() == Qt.ControlModifier:
                 self.parent.remove(self.line)
@@ -410,7 +250,6 @@ class LineLabel(pg.TextItem):
                 ev.accept()
 
     def showInfo(self, show=None):
-        print('showInfo', show)
         if show is not None:
             self.info = show
         else:
@@ -418,43 +257,8 @@ class LineLabel(pg.TextItem):
                 if l.info and l is not self:
                     l.showInfo(show=False)
             self.info = not self.info
-            print(self.info)
-        if self.info:
-            self.border = pg.mkPen(255, 255, 255, 255, width=1)
-            #self.fill = pg.mkBrush(229, 43, 80, 255)
-            print(self.color)
-            if self.graphicType == 'infinite':
-                self.arrow.setPen(pg.mkPen(color=self.fill.color(), width=1, style=Qt.SolidLine))
-            #self.setColor(pg.mkColor(255, 69, 0, 255))
-            self.setZValue(11)
-            text = str(self.line)
-            text += ', l={:.3f}, f={:.4f}, g={:.2E}'.format(self.line.l(), self.line.f(), self.line.g())
-            if self.line.name in self.parent.parent.fit.sys[self.parent.parent.comp].sp.keys():
-                self.line.logN = self.parent.parent.fit.sys[self.parent.parent.comp].sp[self.line.name].N.val
-                self.line.b = self.parent.parent.fit.sys[self.parent.parent.comp].sp[self.line.name].b.val
-                t = tau(line=self.line)
-                text += ', logN={: .2f}, b={: .2f}, tau_0={:.2f}'.format(self.line.logN, self.line.b, t.calctau0())
-                #text += '\na={:.5f}'.format(t.a)
-                #print(text)
-            self.infoLabel = pg.TextItem(text=text, color=(255, 255, 255), anchor=self.anchor, fill=self.color, border=self.border)
-            font = QFont("SansSerif", 10)
-            font.setBold(True)
-            font.setWeight(75)
-            self.infoLabel.setFont(font)
-            self.infoLabel.setZValue(12)
-            self.parent.parent.plot.vb.addItem(self.infoLabel)
-            self.infoLabel.setPos(*self.redraw(self.parent.parent.z_abs))
-            self.setColor(pg.mkColor(255, 255, 255, 255))
-            #self.setText(text)
-            #self.redraw(self.parent.parent.z_abs)
-        else:
-            self.setActive(self.active)
-            try:
-                self.parent.parent.plot.vb.removeItem(self.infoLabel)
-                del self.infoLabel
-            except:
-                pass
-            #self.setText(str(self.line))
+
+        self.setActive(self.active)
 
 
     def clicked(self, pts):
@@ -477,7 +281,13 @@ class lineList(list):
 
     def check(self, line):
         if line in self:
-            return self.index(line)
+            for i, l in enumerate(self):
+                if line == ' '.join(l.split()[:2]):
+                    return i
+            else:
+                return None
+        else:
+            return None
 
     def add(self, line=None):
         if line is not None and self.check(line) is None:
@@ -486,6 +296,7 @@ class lineList(list):
 
     def remove(self, line):
         i = self.check(line)
+        print(i)
         if i is not None:
             self.setActive(line, False)
             del self[i]
@@ -499,6 +310,9 @@ class lineList(list):
             self.remove(self[i])
         for line in text.splitlines():
             self.add(line)
+
+    def __contains__(self, item):
+        return any(item == ' '.join(x.split()[:2]) for x in self)
 
     def __str__(self):
         return '\n'.join([str(l) for l in self])
@@ -816,14 +630,14 @@ class pcRegion():
         self.labelname = 'LFR ' + str(ind)
 
     def updateFromFit(self):
-        self.value = getattr(self.parent.parent.fit, self.name).val
+        self.value = 1 - getattr(self.parent.parent.fit, self.name).val
         self.x1 = getattr(self.parent.parent.fit, self.name).min
         self.x2 = getattr(self.parent.parent.fit, self.name).max
         self.redraw()
 
     def updateFitModel(self):
         #print(self.name, self.value, self.x1, self.x2)
-        self.parent.parent.fit.setValue(self.name, self.value)
+        self.parent.parent.fit.setValue(self.name, 1-self.value)
         self.parent.parent.fit.setValue(self.name, self.x1, 'min')
         self.parent.parent.fit.setValue(self.name, self.x2, 'max')
         try:
