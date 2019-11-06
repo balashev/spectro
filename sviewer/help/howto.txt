@@ -140,29 +140,37 @@ There is a console in the right bottom part of the main window.
 This console is used to input/output. 
 
 The list of commands:
->>> y <min> <max>         :  set scale y axis to (<min>, <max>) values
->>> x <min> <max>         :  set scale y axis to (<min>, <max>) values
->>> rescale y <factor>    :  rescale y of the spectrum by <factor>. It rescaling spectrum only in shown window  
->>> rescale err <factor>  :  rescale err of the spectrum by <factor>. It rescaling spectrum only in shown window
->>> z <value>             :  set the absorption redshift to <value>
->>> load <name>           :  load file with <name>.sss from the data/template folder
->>> save <name>           :  save file with <name>.sss from the data/template folder
->>> <species>             :  print in the console the atomic lines of <species>, eg FeII, OI, HI, etc
->>> show FeII             :  show indicators of FeII lines in plot window
->>> show H2 <x>           :  show spectral lines of H2. if <x> < 100 then show J=<x> level. if <x> > 100 from J with E_J (in K) < <x>
->>> show all              :  show all atomic data loaded in spectral line database, including atomic data from the ground levels only
->>> show full             :  show all atomic data loaded in spectral line database, including all levels
->>> hide FeII             :  remove indicators of FeII lines in plot window
->>> hide all              :  remove all indicators of spectral lines   
->>> fit                   :  fit using Levenberg-Marquardt algorithm
->>> fitcomp               :  fit only selected component in the fit model
->>> fitmcmc               :  fit using MCMC
->>> fitcont               :  fit only continuum, specified by chebyshev polinomials
->>> logN <species> <list> :  summed column densities of given <species>. If <list> is given use only component in the list, else summed over all components in fit model
->>> lines save            :  save highlighted lines indicators to data/lines/saved.dat file
->>> lines load <name>     :  save highlighted lines indicators to 'data/lines/<name>.dat'. If name is not specified use data/lines/saved.dat file
->>> lines all             :  highlight all lines with shown indicators
->>> lines none            :  unhighlight all lines      
->>> ston                  :  return ston ratios in the selected regions. (how to select regions see Key command 'r')   
->>> stats                 :  return ston, dispesrion of uncertainties and ... for the selected regions. (how to select regions see Key command 'r')
->>> level                 :  return estimate of the flux level for the selected regions. (how to select regions see Key command 'r')                                       
+>>> y <min> <max>            :  set scale y axis to (<min>, <max>) values
+>>> x <min> <max>            :  set scale y axis to (<min>, <max>) values
+>>> rescale y <factor>       :  rescale y of the spectrum by <factor>. It rescaling spectrum only in shown window  
+>>> rescale err <factor>     :  rescale err of the spectrum by <factor>. It rescaling spectrum only in shown window
+>>> z <value>                :  set the absorption redshift to <value>
+>>> load <name>              :  load file with <name>.sss from the data/template folder
+>>> save <name>              :  save file with <name>.sss from the data/template folder
+>>> <species>                :  print in the console the atomic lines of <species>, eg FeII, OI, HI, etc
+>>> show FeII                :  show indicators of FeII lines in plot window        
+>>> show H2 <x>              :  show spectral lines of H2. if <x> < 100 then show J=<x> level. if <x> > 100 from J with E_J (in K) < <x>
+>>> show all                 :  show all atomic data loaded in spectral line database, including atomic data from the ground levels only
+>>> show full                :  show all atomic data loaded in spectral line database, including all levels
+>>> high FeII                :  highlight indicators of FeII lines.
+>>> hide FeII                :  remove indicators of FeII lines in plot window
+>>> hide all                 :  remove all indicators of spectral lines   
+>>> fit                      :  fit using Levenberg-Marquardt algorithm
+>>> fitcomp                  :  fit only selected component in the fit model
+>>> fitmcmc                  :  fit using MCMC
+>>> fitcont                  :  fit only continuum, specified by chebyshev polinomials
+>>> logN <species> <list>    :  summed column densities of given <species>. If <list> is given use only component in the list, else summed over all components in fit model
+>>> lines save               :  save highlighted lines indicators to data/lines/saved.dat file
+>>> lines load <name>        :  save highlighted lines indicators to 'data/lines/<name>.dat'. If name is not specified use data/lines/saved.dat file
+>>> lines all                :  highlight all lines with shown indicators
+>>> lines none               :  unhighlight all lines      
+>>> ston                     :  return ston ratios in the selected regions. (how to select regions see Key command 'r')   
+>>> stats                    :  return ston, dispesrion of uncertainties and ... for the selected regions. (how to select regions see Key command 'r')
+>>> level                    :  return estimate of the flux level for the selected regions. (how to select regions see Key command 'r')    
+
+a list of command for 2d plotting:
+>>> 2d scale <factor>         :  scale 2d image by <factor> 
+>>> 2d levels <min> <max>     :  set levels of the colorscale of 2d image to <min> <max>
+>>> 2d levels err <min> <max> :  set levels of the colorscale of 2d uncertainties image to <min> <max>
+>>> 2d levels sky <min> <max> :  set levels of the colorscale of 2d sky image to <min> <max>
+                                  

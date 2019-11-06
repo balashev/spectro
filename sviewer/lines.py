@@ -60,6 +60,7 @@ class absSystemIndicator():
         self.linelist = [l.line for l in self.lines]
         self.linenames = [str(l.line) for l in self.lines]
         self.activelist = [l for l in self.lines if l.active]
+        self.highlightlist = [l for l in self.lines if l.highlight]
 
     def index(self, linename):
         if linename in self.linenames:
@@ -86,6 +87,18 @@ class absSystemIndicator():
                 self.reference = line
                 self.reference.set_reference(True)
 
+    def highlight(self, lines):
+        for line in self.highlightlist:
+            line.highlight = False
+            if self.index(line.line) is not None:
+                self.lines[self.index(line.line)].setActive()
+        for line in lines:
+            if self.index(line) is not None:
+                self.lines[self.index(line)].highlight = True
+                self.lines[self.index(line)].setActive()
+        #self.redraw()
+
+
 class LineLabel(pg.TextItem):
     def __init__(self, parent, line, graphicType, **kwrds):
         self.parent = parent
@@ -101,6 +114,7 @@ class LineLabel(pg.TextItem):
             pg.TextItem.__init__(self, text='', anchor=anchor, fill=pg.mkBrush(0, 0, 0, 0), **kwrds)
         self.graphicType = graphicType
         self.reference = False
+        self.highlight = False
         self.info = False
         self.setPointer()
         font = QFont("SansSerif", 10)
@@ -158,13 +172,20 @@ class LineLabel(pg.TextItem):
             self.fill = pg.mkBrush(0, 0, 0, 0, width=0)
             self.zvalue = 10
 
+        if self.highlight and not self.active:
+            self.color = (255, 255, 0)
+            self.fill = pg.mkBrush(200, 80, 20, 255)
+            self.zvalue = 12
+
         if self.reference:
             self.color = (255, 255, 0)
-            self.zvalue = 11
+            self.zvalue = 12
 
         if self.info:
             self.color = (255, 255, 200)
-            self.zvalue = 11
+            if not self.active:
+                self.fill = pg.mkBrush(20, 30, 60, 255)
+            self.zvalue = 13
 
         self.border = pg.mkPen(color=self.color + (0,), width=self.active + self.reference)
         self.setColor(pg.mkColor(*self.color))

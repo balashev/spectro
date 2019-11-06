@@ -118,6 +118,11 @@ class HI():
     def __repr__(self):
         return str(self.z)
 
+def vel_offset(x, line):
+    R = x / line
+    return (R ** 2 - 1) / (R ** 2 + 1) * 299792.46
+    # return (x / (1 + z_qso) / lines['CaII_0'][0] - 1) * 299792.458
+
 def deltaV(z_em, z_abs):
     """
     return the doppler shift, between emission and absorption redshift

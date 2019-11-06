@@ -175,8 +175,8 @@ class fitSpecies:
         self.parent = parent
         self.name = name
         #self.mass = self.setmass(name)
-        self.b = par(self, 'b', 4, 0.5, 50, 0.05)
-        self.N = par(self, 'N', 15, 11, 22, 0.01)
+        self.b = par(self, 'b', 4, 0.5, 200, 0.05)
+        self.N = par(self, 'N', 14, 10, 22, 0.01)
 
     def duplicate(self, other):
         attrs = ['b', 'N']

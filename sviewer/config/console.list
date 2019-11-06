@@ -1,3 +1,21 @@
-lines
-hide all
-show CaII
+FeIIj2
+show FeIIj2
+show FeIIj3
+show FeIIj4
+show FeIIj9
+hide FeIIj2
+FeII***
+FeII****
+show FeII****
+hide FeIIj4
+show FeIIj9
+show MnII
+high FeII**
+high FeII***
+high FeIIj9
+show FeIIj9
+show FeII***
+show FeII****
+show FeIIj9
+show FeIIj9
+high FeII***

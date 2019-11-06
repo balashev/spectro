@@ -32,11 +32,12 @@ from shutil import copyfile
 import subprocess
 import tarfile
 
-from ..XQ100 import load_QSO
+from ..a_unc import a
+from ..absorption_systems import vel_offset
 from ..plot_spec import *
 from ..profiles import add_LyaForest, add_ext, add_ext_bump, add_LyaCutoff, convolveflux, tau
-from ..a_unc import a
 from ..stats import distr1d, distr2d
+from ..XQ100 import load_QSO
 from .console import *
 from .external import spectres
 from .fit_model import *
@@ -396,6 +397,16 @@ class plotSpectrum(pg.PlotWidget):
 
         if not event.isAutoRepeat():
 
+            if event.key() == Qt.Key_Left:
+                if self.c_status:
+                    self.switch_component(-1)
+                    self.c_status = 2
+
+            if event.key() == Qt.Key_Right:
+                if self.c_status:
+                    self.switch_component(1)
+                    self.c_status = 2
+
             if event.key() == Qt.Key_A:
                 self.a_status = False
 
@@ -407,17 +418,7 @@ class plotSpectrum(pg.PlotWidget):
             if event.key() == Qt.Key_C:
                 if (QApplication.keyboardModifiers() != Qt.ShiftModifier):
                     if self.c_status == 1:
-                        self.parent.comp += 1
-                        if self.parent.comp > len(self.parent.fit.sys) - 1:
-                            self.parent.comp = 0
-                        self.parent.statusBar.setText("Show {:d} component".format(self.parent.comp))
-                        try:
-                            self.parent.fitModel.tab.setCurrentIndex(self.parent.comp)
-                        except:
-                            pass
-                        #self.parent.s.redraw()
-                        self.parent.s.redrawFitComps()
-                        self.parent.abs.redraw(z=self.parent.fit.sys[self.parent.comp].z.val)
+                        self.switch_component(1)
                     self.c_status = False
 
             if event.key() == Qt.Key_D:
@@ -717,6 +718,21 @@ class plotSpectrum(pg.PlotWidget):
                 self.dataSelection(MouseRectCoords)      
             else:
                 self.updateScaleBox(ev.buttonDownPos(), ev.pos())
+
+    def switch_component(self, n):
+        self.parent.comp += n
+        if self.parent.comp > len(self.parent.fit.sys) - 1:
+            self.parent.comp = 0
+        if self.parent.comp < 0:
+            self.parent.comp = len(self.parent.fit.sys) - 1
+        self.parent.componentBar.setText("{:d} component".format(self.parent.comp))
+        try:
+            self.parent.fitModel.tab.setCurrentIndex(self.parent.comp)
+        except:
+            pass
+        # self.parent.s.redraw()
+        self.parent.s.redrawFitComps()
+        self.parent.abs.redraw(z=self.parent.fit.sys[self.parent.comp].z.val)
 
     def updateRegions(self):
         if len(self.regions) > 0:
@@ -5321,12 +5337,16 @@ class sviewer(QMainWindow):
         self.statusBar = QLabel()
         self.statusBar.setFixedSize(600, 30)
         self.statusBarWidget.addWidget(self.statusBar)
+        self.componentBar = QLabel('')
+        self.componentBar.setFixedSize(100, 30)
+        self.statusBarWidget.addWidget(self.componentBar)
         self.chiSquare = QLabel('')
-        self.chiSquare.setFixedSize(300, 30)
+        self.chiSquare.setFixedSize(200, 30)
         self.statusBarWidget.addWidget(self.chiSquare)
         self.MCMCprogress = QLabel('')
-        self.MCMCprogress.setFixedSize(400, 30)
+        self.MCMCprogress.setFixedSize(300, 30)
         self.statusBarWidget.addWidget(self.MCMCprogress)
+
         self.statusBar.setText('Ready')
 
         self.draw()
@@ -7174,6 +7194,30 @@ class sviewer(QMainWindow):
         if not self.aodview:
             if self.savenormview:
                 self.normalize()
+
+    def aod_ratios(self):
+        print('aod_ratios')
+        if self.normview and len(self.plot.regions) == 1:
+            range = self.plot.regions[0].getRegion()
+            mask = (self.s[self.s.ind].spec.x() > range[0]) * (self.s[self.s.ind].spec.x() < range[1])
+            v = vel_offset(self.s[self.s.ind].spec.x()[mask], self.abs.reference.line.l() * (self.z_abs + 1))
+            print(v)
+
+            for line in self.abs.activelist:
+                print(line.line, line.line != self.abs.reference.line)
+                if line.line != self.abs.reference.line:
+                    v_1 = vel_offset(self.s[self.s.ind].spec.x(), line.line.l() * (self.z_abs + 1))
+                    y_1 = spectres.spectres(v_1, self.s[self.s.ind].spec.y(), v)
+                    if 1:
+                        plt.step(v, np.log(self.s[self.s.ind].spec.y()[mask]) / np.log(y_1), where='mid')
+                    else:
+                        plt.step(v, -np.log(self.s[self.s.ind].spec.y()[mask]), where='mid')
+                        plt.step(v, -np.log(y_1), where='mid')
+                    print(self.abs.reference.line.f(), line.line.f())
+                    plt.axhline(self.abs.reference.line.f() / line.line.f(), ls='--', color='k')
+                    plt.axhline(1, ls='--', color='tab:red')
+                    #plt.ylim([-0.1, max(1, self.abs.reference.line.f() / line.line.f()) * 1.3])
+                    plt.show()
 
     def calc_cont(self):
         x = self.plot.vb.getState()['viewRange'][0]

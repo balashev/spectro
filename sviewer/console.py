@@ -191,7 +191,7 @@ class Console(QTextEdit):
             if len(args) == 2:
                 self.parent.saveFile('data/templates/'+args[1]+'.spv')
 
-        elif args[0] == 'show':
+        elif args[0] in ['show', 'high']:
 
             lines, color = [], (23, 190, 207)
             if args[1] == 'all':
@@ -267,9 +267,11 @@ class Console(QTextEdit):
                 for l in reversed(lines):
                     if l.f() > f:
                         del l
-            self.parent.abs.add(lines, color=color)
 
-            return ''
+            if args[0] == 'show':
+                self.parent.abs.add(lines, color=color)
+
+            self.parent.abs.highlight(lines)
 
         elif args[0] == 'hide':
 
@@ -610,6 +612,9 @@ class Console(QTextEdit):
                     if np.sum(mask) > 0:
                         s += '  ' + str(np.trapz(1 - fit.y()[mask], x=fit.x()[mask])) + '\n'
             return s
+
+        elif args[0] == 'aod':
+            self.parent.aod_ratios()
 
         elif args[0] == '2d':
             s = self.parent.s[self.parent.s.ind].spec2d

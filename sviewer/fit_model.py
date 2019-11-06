@@ -182,6 +182,7 @@ class fitModelWidget(QWidget):
 
         self.tab.currentChanged.connect(self.onTabChanged)
         self.tab.setCurrentIndex(self.parent.comp)
+        self.parent.componentBar.setText("{:d} component".format(self.parent.comp))
 
         self.addFixedTreeWidget()
 
@@ -515,6 +516,7 @@ class fitModelWidget(QWidget):
     def onTabChanged(self):
         self.tab.currentWidget().refresh()
         self.parent.comp = self.tab.currentIndex()
+        self.parent.componentBar.setText("{:d} component".format(self.parent.comp))
         self.parent.s.redrawFitComps()
         self.parent.abs.redraw(z=self.parent.fit.sys[self.parent.comp].z.val)
 
