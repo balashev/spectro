@@ -76,6 +76,8 @@ class speci:
             self.readFlowerHD()
         elif name == 'CO':
             self.readCO()
+        elif name == 'FeII':
+            self.readFeII()
         else:    
             self.read_popratio()
 
@@ -249,6 +251,23 @@ class speci:
         """
         #self.Lambda_read('data/pyratio/co_data_old.dat')
         self.Lambda_read(self.parent.folder + '/data/pyratio/co_data.dat')
+
+    def readFeII(self):
+        """
+        read atomic data for FeII: einstein coefficients, branching ratios, electron collisional excitation rates.
+        """
+        E = np.genfromtxt('data/pyratio/FeII/table3.dat', unpack=True, delimiter='|')
+        self.E = E[3][:num]
+        print(self.E)
+        Ai = np.genfromtxt('data/pyratio/FeII/apj516563t4_ascii.txt', comments='#', unpack=True)
+        Ai = np.insert(Ai[25] * 10 ** (- Ai[27]), 0, 0)
+        print(Ai)
+        br = np.genfromtxt('data/pyratio/FeII/table10.dat', dtype=[('Ju', 'i4'), ('Jl', 'i4'), ('l', '<f8'), ('br', '<f8'), ('br_e', '<f8')])
+        self.A = np.zeros([self.num, self.num])
+        for tr in br:
+            if tr['Ju'] < self.num and tr['Jl'] < self.num:
+                self.A[tr['Ju']-1, tr['Jl']-1] = Ai[tr['Ju']-1] * tr['br']
+        print(self.A)
 
     def Lambda_pars(self, line):
         remove = ['!', '\n', '(cm^-1)']
@@ -587,7 +606,7 @@ class pyratio():
         self.timer = Timer()
 
     def add_spec(self, name, n=None, num=None):
-        d = {'OI': 3, 'CI': 3, 'CII': 2, 'SiII': 2, 'HD': 3, 'CO': 15}
+        d = {'OI': 3, 'CI': 3, 'CII': 2, 'SiII': 2, 'HD': 3, 'CO': 15, 'FeII': 13}
         if n is not None:
             n += [None] * (d[name]- len(n))
         else:
@@ -1706,7 +1725,7 @@ if __name__ == '__main__':
         
 
     # CI calculation
-    if 1:
+    if 0:
         fig, ax = plt.subplots()
         z_dla = 1.70465
         pr = pyratio(z=z_dla)
@@ -1799,3 +1818,7 @@ if __name__ == '__main__':
         plt.plot(l, np.log10(pr.uv(ac.c.cgs.value / l / 1e-8, kind='UVB')), label='UVB')
         plt.legend()
         plt.show()
+
+    if 1:
+        pr = pyratio()
+        pr.add_spec('FeII')

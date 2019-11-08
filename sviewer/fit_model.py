@@ -390,7 +390,7 @@ class fitModelWidget(QWidget):
     def setApplied(self, name):
         combo = getattr(self, name + '_applied_exp')
         sp1 = combo.currentText()
-        print(sp1)
+        print(name, sp1, self.parent.fit.getValue(name, 'addinfo'))
         if 'applied' in sp1:
             sp1 = ''
 
@@ -400,7 +400,7 @@ class fitModelWidget(QWidget):
             self.parent.fit.setValue(name, sp + '_' + sp1, 'addinfo')
             self.parent.fit.getValue(name, 'addinfo')
         else:
-            self.parent.fit.setValue(name, 'addinfo', sp1)
+            self.parent.fit.setValue(name, sp1, 'addinfo')
         print('setApplied', self.parent.fit.getValue(name, 'addinfo'))
         self.refresh()
 

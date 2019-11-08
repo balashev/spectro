@@ -92,11 +92,12 @@ class absSystemIndicator():
             line.highlight = False
             if self.index(line.line) is not None:
                 self.lines[self.index(line.line)].setActive()
+        names = [str(line.line) for line in self.highlightlist]
         for line in lines:
-            if self.index(line) is not None:
+            if line not in names and self.index(line) is not None:
                 self.lines[self.index(line)].highlight = True
                 self.lines[self.index(line)].setActive()
-        #self.redraw()
+        self.update()
 
 
 class LineLabel(pg.TextItem):

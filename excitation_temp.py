@@ -8,7 +8,7 @@ import numpy as np
 import scipy.optimize as opt
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 from scipy.optimize import minimize
-import os, sys
+import sys
 sys.path.append('C:/science/python/')
 from .a_unc import a
 from .stats import distr1d, distr2d
@@ -36,8 +36,9 @@ class ExcitationTemp():
         Temp.calcTemp(n, plot=1, verbose=1)
         Temp.latex()
     """
-    def __init__(self, species):
+    def __init__(self, species, debug=False):
         self.species = species
+        self.debug = debug
 
     def calcTemp(self, n, calc='boot', plot=0, verbose=0):
         """
@@ -85,7 +86,7 @@ class ExcitationTemp():
 
 
 
-    def set_data(self, num=None, verbose=0):
+    def set_data(self, num=None):
         """
         set atomic data
         """
@@ -113,7 +114,13 @@ class ExcitationTemp():
             self.E = np.arange(self.num)*(np.arange(self.num)+1)*2.77
             print('E', self.E)
 
-        if verbose:
+        if self.species == 'FeII':
+            self.g = np.asarray([9/2, 7/2, 5/2, 3/2, 1/2, 9/2, 7/2, 5/2, 3/2, 7/2, 5/2, 3/2, 1/2])[:num]
+            self.E = np.asarray([0, 384.7872, 667.6829, 862.6118, 977.0498, 1872.5998, 2430.1369, 2837.9807, 3117.4877, 7955.3186, 8391.9554, 8680.4706, 8846.7837])
+            # transform energy from cm^-1 to Kelvins
+            self.E = self.E[:self.num] / 0.695
+
+        if self.debug:
             print('stat weights:', self.g)
             print('Energies, K:', self.E)
     
@@ -365,7 +372,6 @@ class ExcitationTemp():
             plt.show()
 
     def boot(self, iter=1000):
-
         y_rvs = np.empty([self.num, iter], dtype=np.float)
         for i, y in enumerate(self.y):
             y_rvs[i] = y.rvs(iter)
@@ -413,7 +419,6 @@ class ExcitationTemp():
         else:
             return self.temp
 
-
     def col_dens(self, num=3, Temp=50, Ntot=None):
         """
         return column densities of <num> first levels with given <Temp> excitation and total column density <Ntot>
@@ -435,22 +440,26 @@ class ExcitationTemp():
 if __name__ == '__main__':
 
     n = []
-    
-    if 1:
-        species = 'H2'
+
+    species = 'FeII'
+    Temp = ExcitationTemp(species, debug=True)
+
+    if species == 'H2':
         n.append(a(17.57, 0.12, 0.12))
         n.append(a(17.53, 0.22, 0.22))
-    else:
+        Temp.calcTemp(n, calc='boot', plot=1, verbose=1)
+
+    elif species == 'CO':
         species = 'CO'
         n.append(a(14.43, 0.12, 0.12))
         n.append(a(14.52, 0.08, 0.08))
         n.append(a(14.33, 0.06, 0.06))
         n.append(a(13.73, 0.05, 0.05))
         #n.append(a(13.14, 0.13, 0.13))
-        
-    Temp = ExcitationTemp(species)
-    #print(Temp.col_dens(num=4, Temp=92, Ntot=21.3))
-    Temp.calcTemp(n, calc='boot', plot=1, verbose=1)
+        Temp.calcTemp(n, calc='boot', plot=1, verbose=1)
+
+    elif species == 'FeII':
+        print(Temp.col_dens(num=13, T=15000))
     #Temp.plot_temp(temp=9.9, Ntot=14.94, color='b')
     #Temp.latex()
     

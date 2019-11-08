@@ -4846,7 +4846,6 @@ class rebinWidget(QWidget):
             n = int(self.binnum.text())
             x = self.rebin_arr(self.parent.s[self.exp_ind].spec.x(), n)
             y = self.rebin_arr(self.parent.s[self.exp_ind].spec.y(), n)
-            print(self.parent.s[self.exp_ind].spec.err()/self.parent.s[self.exp_ind].spec.y())
             err = y / self.rebin_err(self.parent.s[self.exp_ind].spec.y()/self.parent.s[self.exp_ind].spec.err(), n)
             
             self.parent.s.append(Spectrum(self.parent, name='rebinned '+str(self.exp_ind+1), data=[x, y, err]))
@@ -4855,26 +4854,32 @@ class rebinWidget(QWidget):
             zero, binsize = float(self.zeropoint_bin.text()), float(self.binsize.text())
             num = int((self.parent.s[self.exp_ind].spec.x()[-1] - zero) / binsize)
             x = np.linspace(zero, zero + (num+1) * binsize, num)
-            y, err = spectres.spectres(self.parent.s[self.exp_ind].spec.raw.x, self.parent.s[self.exp_ind].spec.raw.y, x,
-                                                         spec_errs=self.parent.s[self.exp_ind].spec.raw.err)
+            x = x[(x - binsize > self.parent.s[self.exp_ind].spec.raw.x[0]) * (x + binsize < self.parent.s[self.exp_ind].spec.raw.x[-1])]
+            if self.parent.s[self.exp_ind].spec.raw.x[0] > x[0] - binsize or self.parent.s[self.exp_ind].spec.raw.x[-1] < x[-1] + binsize:
+                self.parent.sendMessage('New wavelenght scale beyond the initial spectrum range. Please select appropriate zero point')
+            else:
+                y, err = spectres.spectres(self.parent.s[self.exp_ind].spec.raw.x, self.parent.s[self.exp_ind].spec.raw.y, x,
+                                           spec_errs=self.parent.s[self.exp_ind].spec.raw.err)
 
-            self.parent.s.append(Spectrum(self.parent, name='rebinned '+str(self.exp_ind+1), data=[x, y, err]))
-            self.parent.s[-1].Resolution = np.median(self.parent.s[-1])/(float(self.binsize.text()) * 2.5)
+                self.parent.s.append(Spectrum(self.parent, name='rebinned '+str(self.exp_ind+1), data=[x, y, err]))
+                self.parent.s[-1].Resolution = np.median(self.parent.s[-1].spec.raw.x)/(float(self.binsize.text()) * 2.5)
 
         elif self.fixedres_item.isExpanded():
             print('fixed res')
             zero = np.log10(float(self.zeropoint_res.text()))
             step = np.log10(1 + 1 / float(self.resolution.text()) / float(self.pp_fwhm.text()))
-            print(zero, step)
             num = int((np.log10(self.parent.s[self.exp_ind].spec.x()[-1]) - zero) / step)
-            print(num)
             x = np.logspace(zero, zero+step*(num-1), num)
-            y, err = spectres.spectres(self.parent.s[self.exp_ind].spec.raw.x, self.parent.s[self.exp_ind].spec.raw.y, x,
-                              spec_errs=self.parent.s[self.exp_ind].spec.raw.err)
+            x = x[(x - (x[1] - x[0]) > self.parent.s[self.exp_ind].spec.raw.x[0]) * (x + (x[-1] - x[-2]) < self.parent.s[self.exp_ind].spec.raw.x[-1])]
+            if self.parent.s[self.exp_ind].spec.raw.x[0] > x[0] - (x[1] - x[0]) / 2 or self.parent.s[self.exp_ind].spec.raw.x[-1] < x[-1] + (x[-1] - x[-2]) / 2:
+                self.parent.sendMessage('New wavelenght scale beyond the initial spectrum range. Please select appropriate zero point')
+            else:
+                y, err = spectres.spectres(self.parent.s[self.exp_ind].spec.raw.x, self.parent.s[self.exp_ind].spec.raw.y, x,
+                                           spec_errs=self.parent.s[self.exp_ind].spec.raw.err)
 
-            self.parent.s.append(Spectrum(self.parent, name='rebinned '+str(self.exp_ind+1)))
-            self.parent.s[-1].set_data([x, y, err])
-            self.parent.s[-1].resolution = float(self.resolution.text())
+                self.parent.s.append(Spectrum(self.parent, name='rebinned '+str(self.exp_ind+1)))
+                self.parent.s[-1].set_data([x, y, err])
+                self.parent.s[-1].resolution = float(self.resolution.text())
 
         elif self.loglinear_item.isExpanded():
             print('loglinear')
@@ -4887,11 +4892,15 @@ class rebinWidget(QWidget):
             mask = np.logical_and(self.parent.s[self.exp_ind].spec.raw.x >= lmin, self.parent.s[self.exp_ind].spec.raw.x <= lmax)
             mask_r = np.logical_and(self.parent.s[ind].spec.raw.x >= self.parent.s[self.exp_ind].spec.raw.x[mask][0],
                                     self.parent.s[ind].spec.raw.x <= self.parent.s[self.exp_ind].spec.raw.x[mask][-1])
-            x = self.parent.s[ind].spec.raw.x[mask_r][1:-1]
-            y, err = spectres(self.parent.s[self.exp_ind].spec.raw.x[mask], self.parent.s[self.exp_ind].spec.raw.y[mask],
-                                       x, spec_errs=self.parent.s[self.exp_ind].spec.raw.err[mask])
-            self.parent.s.append(Spectrum(self.parent, name='rebinned '+str(self.exp_ind+1)))
-            self.parent.s[-1].set_data([x, y, err])
+            x = self.parent.s[ind].spec.raw.x[mask_r]
+            x = x[(x - (x[1] - x[0]) > self.parent.s[self.exp_ind].spec.raw.x[0]) * (x + (x[-1] - x[-2]) < self.parent.s[self.exp_ind].spec.raw.x[-1])]
+            if self.parent.s[self.exp_ind].spec.raw.x[0] > x[0] - (x[1] - x[0]) / 2 or self.parent.s[self.exp_ind].spec.raw.x[-1] < x[-1] + (x[-1] - x[-2]) / 2:
+                self.parent.sendMessage('New wavelenght scale beyond the initial spectrum range. Please select appropriate zero point')
+            else:
+                y, err = spectres(self.parent.s[self.exp_ind].spec.raw.x[mask], self.parent.s[self.exp_ind].spec.raw.y[mask],
+                                           x, spec_errs=self.parent.s[self.exp_ind].spec.raw.err[mask])
+                self.parent.s.append(Spectrum(self.parent, name='rebinned '+str(self.exp_ind+1)))
+                self.parent.s[-1].set_data([x, y, err])
 
         elif self.fromfile_item.isExpanded():
             print('from file')
