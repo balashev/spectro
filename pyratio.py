@@ -49,8 +49,8 @@ class speci:
         self.B = np.zeros([self.num, self.num])
         self.n = n
         self.mask = [n is not None for n in self.n]
-        self.const2 = (ac.h.cgs**2/(2*ac.m_e.cgs*np.pi)**(1.5)/(ac.k_B.cgs)**0.5).value
-        
+        self.const2 = (ac.hbar.cgs ** 2 * (2 * np.pi / ac.m_e.cgs ** 3 / ac.k_B.cgs) ** 0.5).value
+
         # >> set population ratios
         self.y = [None] * (np.sum(self.mask) - 1)
         ind = np.where(self.mask)[0]
@@ -97,10 +97,10 @@ class speci:
             self.g = [i*2 for i in range(self.num)]
 
     def set_names(self):
-        if self.name in ['CI', 'CII', 'SiII', 'OI']:
-            self.names = [self.name + '*'*k for k in range(self.num)]
+        if self.name in ['CI', 'CII', 'SiII', 'OI', 'FeII']:
+            self.names = [self.name] + [self.name + f'j{k}' for k in range(1, self.num)]
         elif self.name in ['HD', 'CO']:
-            self.names = [self.name + 'j'+ str(k) for k in range(self.num)]
+            self.names = [self.name + 'j' + str(k) for k in range(self.num)]
 
     def coll_rate(self, part, i, j, T):
         l = self.coll[part].rate(i, j)
@@ -256,18 +256,44 @@ class speci:
         """
         read atomic data for FeII: einstein coefficients, branching ratios, electron collisional excitation rates.
         """
-        E = np.genfromtxt('data/pyratio/FeII/table3.dat', unpack=True, delimiter='|')
-        self.E = E[3][:num]
-        print(self.E)
-        Ai = np.genfromtxt('data/pyratio/FeII/apj516563t4_ascii.txt', comments='#', unpack=True)
+        folder = self.parent.folder + '/data/pyratio/'
+        E = np.genfromtxt(folder + 'FeII/table3.dat', unpack=True, delimiter='|', dtype=[('J', 'i4'), ('term', '|S14'), ('name', '|S10'), ('energy', '<f8')])
+        self.E = E['energy'][:self.num] * 109737.31568160
+        self.g = [2 * float(e.decode().split('_')[1].split('/')[0]) / float(e.decode().split('_')[1].split('/')[1]) + 1 for e in E['name']][:self.num]
+        Ai = np.genfromtxt(folder + 'FeII/apj516563t4_ascii.txt', comments='#', unpack=True)
         Ai = np.insert(Ai[25] * 10 ** (- Ai[27]), 0, 0)
-        print(Ai)
-        br = np.genfromtxt('data/pyratio/FeII/table10.dat', dtype=[('Ju', 'i4'), ('Jl', 'i4'), ('l', '<f8'), ('br', '<f8'), ('br_e', '<f8')])
+        br = np.genfromtxt(folder + 'FeII/table10.dat', dtype=[('Ju', 'i4'), ('Jl', 'i4'), ('l', '<f8'), ('br', '<f8'), ('br_e', '<f8')])
         self.A = np.zeros([self.num, self.num])
         for tr in br:
-            if tr['Ju'] < self.num and tr['Jl'] < self.num:
+            if tr['Ju'] < self.num + 1 and tr['Jl'] < self.num + 1:
                 self.A[tr['Ju']-1, tr['Jl']-1] = Ai[tr['Ju']-1] * tr['br']
-        print(self.A)
+        coll = coll_list()
+        source = 'Bautista'
+        if source == 'Bautista':
+            c = np.genfromtxt(folder + 'FeII/table12.dat', unpack=False)
+            temp = [5000, 7000, 10000, 15000, 20000]
+            for l in c:
+                if l[0] < self.num+1 and l[1] < self.num+1:
+                    coll.append(collision(self, 'e', int(l[0]) - 1, int(l[1]) - 1, np.array(
+                                [np.log10(temp), [np.log10(float(l[k])) for k in range(2, 7)]])))
+        elif source == 'Ramsbottom':
+            c = np.genfromtxt(folder + 'FeII/Ramsbottom/table3.dat', unpack=False)
+            temp = [30, 100, 300, 500, 750, 1000, 1300, 1500, 1800, 2000, 2300, 2500, 5000, 7500, 10000, 13000, 15000, 18000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000]
+            for l in c:
+                #print(int(l[0]), l[1], [np.log10(float(l[k])) for k in range(2, len(temp)+2)])
+                if l[0] < self.num+1 and l[1] < self.num+1:
+                    coll.append(collision(self, 'e', int(l[0]) - 1, int(l[1]) - 1, np.array(
+                                [np.log10(temp), [np.log10(float(l[k])) for k in range(2, len(temp)+2)]])))
+        elif source == 'chianti':
+            c = np.genfromtxt(folder + r'FeII/fe_2.splups', comments='%', delimiter=(3, 3, 3, 3, 3, 10, 10, 10, 10, 10, 10, 10, 10))
+            temp = np.linspace(3.7, 4.7, 6)
+            for l in c:
+                #print(l[2]-1, l[3]-1, [np.log10(float(l[k])) for k in range(7, len(temp)+7)])
+                if l[2] < self.num+1 and l[3] < self.num+1:
+                    coll.append(collision(self, 'e', int(l[2]) - 1, int(l[3]) - 1, np.array(
+                                [temp, [np.log10(float(l[k])) for k in range(7, len(temp)+7)]])))
+        self.coll['e'] = coll
+        self.coll['e'].make_table(self.num+1)
 
     def Lambda_pars(self, line):
         remove = ['!', '\n', '(cm^-1)']
@@ -368,18 +394,36 @@ class coll_list(list):
     Class that contains lists of collisional data for specific collisional partner
     """
     def __init__(self):
-        self = []
+        self.c = []
+        self.f = None
+
+    def append(self, object):
+        self.c.append(object)
+
+    def make_table(self, num):
+        self.f = np.empty([num, num])
+        for i in range(num):
+            self.f[i, i] = 0
+        for k, s in enumerate(self.c):
+            self.f[s.i, s.j] = k + 1
+            self.f[s.j, s.i] = -(k + 1)
+        #print(self.f)
 
     def find(self, i, j):
-        for s in self:
-            if s.i == i and s.j == j:
-                return s, 1
-            elif s.i == j and s.j == i:
-                return s, -1
+        if self.f is None:
+            for s in self.c:
+                if s.i == i and s.j == j:
+                    return s, 1
+                elif s.i == j and s.j == i:
+                    return s, -1
+        else:
+            if self.f[i, j] != 0:
+                return self.c[int(np.abs(self.f[i, j])-1)], np.sign(self.f[i, j])
+
         return None, 0
 
     def rate(self, i, j, T):
-        s, l =  self.find(i, j)
+        s, l = self.find(i, j)
         if l != 0:
             r = s.rate(T, sign=l)
             return r
@@ -394,7 +438,7 @@ class coll_list(list):
     def plot_all(self, ax=None):
         if ax is None:
             fig, ax = plt.subplots(1)
-        for s in self:
+        for s in self.c:
             self.plot(s.i, s.j, ax=ax)
         return ax
 
@@ -428,20 +472,23 @@ class collision():
         if self.rates is None:
             return 0
 
-        rate = self.rate_int(T)
-        if self.parent.name == 'e':
-            c1 = self.const2 * T ** (-0.5) / self.g[min(self.i, self.j)]
+        #l, u = max(self.i, self.j), min(self.i, self.j)
+        #if self.i > self.j:
+        #    u, l = l, u
+
+        if self.part == 'e':
+            #print(np.exp(-(self.parent.E[u] - self.parent.E[l]) / 0.695 / 10**T))
+            c1 = self.parent.const2 * 10 ** (- T * 0.5) / self.parent.g[self.i] * np.exp(-(self.parent.E[self.j] - self.parent.E[self.i]) / 0.695 / 10**T)
         else:
             c1 = 1
 
         if sign == 1:
             Bf = 1
         else:
-            l, u = max(self.i, self.j), min(self.i, self.j)
-            if self.i > self.j:
-                u, l = l, u
-            Bf = self.parent.g[u] / self.parent.g[l] * np.exp(-(self.parent.E[u] - self.parent.E[l]) / 0.695 / 10**T)
-        return 10 ** rate * c1 * Bf
+            Bf = self.parent.g[self.i] / self.parent.g[self.j] * np.exp(-(self.parent.E[self.i] - self.parent.E[self.j]) / 0.695 / 10 ** T)
+            #Bf = self.parent.g[u] / self.parent.g[l] * np.exp(-(self.parent.E[u] - self.parent.E[l]) / 0.695 / 10**T)
+
+        return 10 ** self.rate_int(T) * c1 * Bf
 
     def plot(self, ax=None, label=None, sign=1):
         if self.rates is not None:
@@ -655,12 +702,12 @@ class pyratio():
                 print('{1}/{0} level: {2}'.format(i[0], i[1], i[2]))
             
         # some checking calculations
-        if 0==1:
+        if 0:
             T = 3
             print(sp.coll_rate('e',0,1,T), sp.coll_rate('e',1,0,T), np.exp(-(sp.E[1]-sp.E[0])/0.695/10**T)*sp.g[0]/sp.g[1])
             input()
 
-        if 0==1:
+        if 0:
             fig, ax0 = plt.subplots()
             plot_CollCrossSect(sp, 'oH2', 1, 0, ax0)
             plot_CollCrossSect(sp, 'pH2', 1, 0, ax0)
@@ -767,7 +814,7 @@ class pyratio():
             print(speci.name, set(['e', 'H', 'H2', 'n']).intersection(self.pars))
         for p in self.pars:
             if p in ['e', 'H']:
-                coll += 10 ** self.pars[p].value*speci.coll[p].rate(u, l, self.pars['T'].value)
+                coll += 10 ** self.pars[p].value * speci.coll[p].rate(u, l, self.pars['T'].value)
             if p in ['H2']:
                 otop = 9 * np.exp(-170. /10 ** (self.pars['T']))
                 coll += 10 ** self.pars[p].value / (1+otop) * speci.coll['pH2'].rate(u, l, self.pars['T'].value)
@@ -1038,7 +1085,7 @@ class pyratio():
              fig, ax = plt.subplots(len(self.species), figsize=(10, 10*len(self.species)))
        
         x = np.linspace(self.pars[par].range[0], self.pars[par].range[1], grid_num)
-        for i, s in enumerate(self.species):
+        for i, s in enumerate(self.species.values()):
             if ax is not None:
                 axi = ax
             else:
@@ -1057,7 +1104,7 @@ class pyratio():
                     #yg.plus = (s.E[k+1] - s.E[0]) / 0.685 / np.log(10 ** (yg.val - yg.minus)) - yg.val
                 else:
                     yg = y/(s.g[k+1]/s.g[0]) if stats else y
-                axi.axhline(yg.val , ls='--', c=colors[2*k])
+                axi.axhline(yg.val, ls='--', c=colors[2*k])
                 axi.axhspan(yg.val + yg.plus, yg.val - yg.minus, facecolor=colors[2*k], alpha=0.5, zorder=0)
 
             # calc theoretical curves:
@@ -1819,6 +1866,98 @@ if __name__ == '__main__':
         plt.legend()
         plt.show()
 
+    # >>> FeII calcualtions and comparison with Bautista+2015
     if 1:
         pr = pyratio()
-        pr.add_spec('FeII')
+        pr.add_spec('FeII', num=50)
+        pr.set_pars(['T', 'UV'])
+        pr.pars['T'].range = [3, 5]
+        pr.pars['UV'].range = [2, 6]
+        pr.pars['T'].value = np.log10(10000)
+        print(pr.balance('FeII', debug='B'))
+        UV_range = np.linspace(2, 6, 5)
+
+        if 1:
+            fig, ax = plt.subplots()
+            n = []
+            for uv in UV_range:
+                pr.pars['UV'].value = uv
+                n.append(pr.predict())
+            for ni in np.transpose(n)[1:6]:
+                ax.plot(UV_range, 10**ni, ls='-')
+
+            ax.set_xlim(UV_range)
+            ax.set_ylim([0, 0.8])
+            ax.set_xlabel('log UV')
+            ax.legend(frameon=False, fontsize=14)
+            if i == 0:
+                ax.set_ylabel('relative population to the ground level')
+
+            plt.tight_layout()
+            plt.savefig('C:/users/serj/desktop/UV.png')
+            plt.show()
+
+    # >>> OI calculations
+    if 0:
+
+        pr = pyratio()
+        pr.add_spec('OI', num=3)
+        pr.set_pars(['T', 'n', 'f', 'UV'])
+        pr.pars['T'].range = [1, 4]
+        pr.pars['n'].range = [1, 4]
+        pr.pars['UV'].range = [0, 4]
+        pr.pars['n'].value = 2
+        pr.pars['UV'].value = 2
+        pr.pars['T'].value = np.log10(100)
+        pr.set_prior('f', a(-3, 0, 0))
+        print(pr.balance('OI', debug='A'))
+        print(pr.balance('OI', debug='C'))
+        print(pr.balance('OI', debug='UV'))
+        print(pr.predict())
+        n_range = np.linspace(1, 10, 30)
+        UV_range = np.linspace(0, 4, 30)
+        fig, ax = plt.subplots(ncols=3, figsize=(20, 8))
+
+        if 0:
+            for i, T in enumerate([100, 1000, 5000]):
+                ax[i].set_prop_cycle(None)
+                pr.pars['T'].value = np.log10(T)
+                n = []
+                ax[i].set_prop_cycle(None)
+                for ni in n_range:
+                    pr.pars['n'].value = ni
+                    n.append(pr.predict())
+                for k, ni in enumerate(np.transpose(n)[1:3]):
+                    ax[i].plot(n_range, ni, ls='-', label=f'{k+1} level')
+
+                ax[i].set_title(f"T={T}K")
+
+                ax[i].set_xlim([1, 10])
+                ax[i].set_ylim([-5, 0])
+                ax[i].set_xlabel('log n')
+                ax[i].legend(frameon=False, fontsize=14)
+                if i == 0:
+                    ax[i].set_ylabel(r'log(n$_i$/n$_0$)')
+        else:
+            for i, T in enumerate([100, 1000, 5000]):
+                ax[i].set_prop_cycle(None)
+                pr.pars['T'].value = np.log10(T)
+                n = []
+                ax[i].set_prop_cycle(None)
+                for uv in UV_range:
+                    pr.pars['UV'].value = uv
+                    n.append(pr.predict())
+                for k, ni in enumerate(np.transpose(n)[1:3]):
+                    ax[i].plot(UV_range, ni, ls='-', label=f'{k+1} level')
+
+                ax[i].set_title(f"T={T}K")
+
+                ax[i].set_xlim([0, 4])
+                ax[i].set_ylim([-5, 0])
+                ax[i].set_xlabel('log UV')
+                ax[i].legend(frameon=False, fontsize=14)
+                if i == 0:
+                    ax[i].set_ylabel(r'log(n$_i$/n$_0$)')
+        plt.tight_layout()
+        plt.savefig('C:/users/serj/desktop/OI.png')
+        plt.show()

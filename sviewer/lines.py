@@ -304,7 +304,8 @@ class lineList(list):
     def check(self, line):
         if line in self:
             for i, l in enumerate(self):
-                if line == ' '.join(l.split()[:2]):
+                print(i, ' '.join(line.split()[:2]), ' '.join(l.split()[:2]))
+                if ' '.join(line.split()[:2]) == ' '.join(l.split()[:2]):
                     return i
             else:
                 return None
@@ -318,7 +319,6 @@ class lineList(list):
 
     def remove(self, line):
         i = self.check(line)
-        print(i)
         if i is not None:
             self.setActive(line, False)
             del self[i]
@@ -334,7 +334,7 @@ class lineList(list):
             self.add(line)
 
     def __contains__(self, item):
-        return any(item == ' '.join(x.split()[:2]) for x in self)
+        return any(' '.join(item.split()[:2]) == ' '.join(x.split()[:2]) for x in self)
 
     def __str__(self):
         return '\n'.join([str(l) for l in self])

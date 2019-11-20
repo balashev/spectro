@@ -1,6 +1,10 @@
-import sys, os
-from .a_unc import a
-from mendeleev import element
+if __name__ == '__main__':
+    import sys
+    sys.path.append('C:/science/python')
+    from spectro.a_unc import a
+else:
+    from .a_unc import a
+
 
 class species():
     """
@@ -134,6 +138,6 @@ def deltaV(z_em, z_abs):
     return (R**2 - 1) / (R**2 + 1) * 299792.46
 
 if __name__ == '__main__':
-
-    print(deltaV(0.3494, 0.34292))
+    print(18180 / 5007 - 1, 18190 / 5007 - 1)
+    print(deltaV(18180 / 5007 - 1, 18190 / 5007 - 1))
     

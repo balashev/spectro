@@ -2,6 +2,7 @@ from copy import copy
 from collections import OrderedDict
 import gc
 import numpy as np
+from .utils import Timer
 from ..a_unc import a
 from ..atomic import abundance, doppler
 from ..pyratio import pyratio
@@ -249,30 +250,41 @@ class fitSystem:
                 return self.sp[sp].N.val
 
     def pyratio(self, init=False):
+        #t = Timer('pyratio '+ str(self.parent.sys.index(self)))
         if init or self.pr is None:
             self.pr = pyratio(z=self.z.val)
-            d = {'CO': [-1, 10], 'CI': [-1, 3]}
+            d = {'CO': [-1, 10], 'CI': [-1, 3], 'FeII': [-1, 13]}
             for s in self.sp.keys():
                 if 'CO' in s:
-                    d['CO'][0] = max(d['CO'][0], int(s[3:4]))
+                    d['CO'][0] = 0 if s[3:4].strip() == '' else max(d['CO'][0], int(s[3:4]))
+                    pars = ['T', 'n', 'f']
                 if 'CI' in s:
-                    d['CI'][0] = max(d['CI'][0], len(s[2:].strip())+1)
+                    d['CO'][0] = 0 if s[3:4].strip() == '' else max(d['CO'][0], int(s[3:4]))
+                    pars = ['T', 'n', 'f']
+                if 'FeII' in s:
+                    d['FeII'][0] = 0 if s[5:6].strip() == '' else max(d['FeII'][0], int(s[5:6]))
+                    pars = ['T', 'e']
             for k, v in d.items():
                 if v[0] > -1:
                     self.pr.add_spec(k, num=v[1])
-            self.pr.set_pars(['T', 'n', 'f'])
+            self.pr.set_pars(pars)
             #self.pr.set_prior('f', 0)
 
+        #t.time('init')
         if self.pr is not None:
             self.pr.pars['T'].value = self.logT.val
-            self.pr.pars['n'].value = self.logn.val
-            self.pr.pars['f'].value = self.logf.val
+            if 'n' in self.pr.pars.keys():
+                self.pr.pars['n'].value = self.logn.val
+            if 'e' in self.pr.pars.keys():
+                self.pr.pars['e'].value = self.logn.val
+            if 'f' in self.pr.pars.keys():
+                self.pr.pars['f'].value = self.logf.val
             for k in self.pr.species.keys():
                 col = self.pr.predict(name=k, level=-1, logN=self.Ntot.val)
                 for s in self.sp.keys():
-                    if k in s:
+                    if k in s and 'Ntot' in self.sp[s].N.addinfo:
                         self.sp[s].N.val = col[self.pr.species[k].names.index(s)]
-
+            #t.time('predict')
 
     def __str__(self):
         return '{:.6f} '.format(self.z.val) + str(self.sp)
@@ -299,7 +311,6 @@ class fitPars:
         #self.setSpecific()
 
     def add(self, name):
-        print('add', name)
         if name in 'mu':
             self.mu = par(self, 'mu', 1e-6, 1e-7, 5e-6, 1e-8)
         if name in 'me':
@@ -309,7 +320,6 @@ class fitPars:
         if 'res' in name:
             setattr(self, name, par(self, name, 45000, 1000, 60000, 1, addinfo='exp_0'))
         if 'cont' in name:
-            print(name)
             if name == 'cont_0':
                 setattr(self, name, par(self, name, 1, 0, 2, 0.01))
             else:
@@ -403,31 +413,38 @@ class fitPars:
 
         return res
 
-    def update(self, redraw=True):
-        for sys in self.sys:
-            for k, s in sys.sp.items():
-                if s.b.addinfo != '' and s.b.addinfo != 'consist':
-                    s.b.val = sys.sp[s.b.addinfo].b.val
-                elif s.b.addinfo == 'consist':
-                    s.b.val = doppler(k, sys.turb.val, sys.kin.val)
-                if s.N.addinfo == 'me' and 'HI' in sys.sp.keys():
-                    if 'DI' not in k and hasattr(self, 'me'):
-                        s.N.val = abundance(k, sys.sp['HI'].N.val, self.me.val)
-                    elif 'DI' in k and hasattr(self, 'dtoh'):
-                        s.N.val = sys.sp['HI'].N.val + self.dtoh.val
+    def update(self, what='all', ind='all', redraw=True):
+        for i, sys in enumerate(self.sys):
+            if ind == 'all' or i == ind:
+                for k, s in sys.sp.items():
+                    if what in ['all', 'b', 'turb', 'kin']:
+                        if s.b.addinfo != '' and s.b.addinfo != 'consist':
+                            s.b.val = sys.sp[s.b.addinfo].b.val
+                        elif s.b.addinfo == 'consist':
+                            s.b.val = doppler(k, sys.turb.val, sys.kin.val)
+                    if what in ['all', 'me', 'dtoh']:
+                        if s.N.addinfo == 'me' and 'HI' in sys.sp.keys():
+                            if 'DI' not in k and hasattr(self, 'me'):
+                                s.N.val = abundance(k, sys.sp['HI'].N.val, self.me.val)
+                            elif 'DI' in k and hasattr(self, 'dtoh'):
+                                s.N.val = sys.sp['HI'].N.val + self.dtoh.val
 
-            if hasattr(sys, 'Ntot'):
-                sys.pyratio()
-        if self.res_fit and self.res_num > 0:
-            for i in range(self.res_num):
-                if i < len(self.parent.s):
-                    self.parent.s[int(getattr(self, 'res_'+str(i)).addinfo[4:])].resolution = self.getValue('res_'+str(i))
-        if redraw and self.cf_fit:
-            for i in range(self.cf_num):
-                try:
-                    self.parent.plot.pcRegions[i].updateFromFit()
-                except:
-                    pass
+                if what in ['all', 'Ntot', 'logn', 'logT', 'logf']:
+                    if hasattr(sys, 'Ntot'):
+                        sys.pyratio()
+        if what in ['all', 'res']:
+            if self.res_fit and self.res_num > 0:
+                for i in range(self.res_num):
+                    if i < len(self.parent.s):
+                        self.parent.s[int(getattr(self, 'res_'+str(i)).addinfo[4:])].resolution = self.getValue('res_'+str(i))
+
+        if what in ['all', 'cf']:
+            if redraw and self.cf_fit:
+                for i in range(self.cf_num):
+                    try:
+                        self.parent.plot.pcRegions[i].updateFromFit()
+                    except:
+                        pass
 
     def getPar(self, name):
         s = name.split('_')
@@ -529,6 +546,8 @@ class fitPars:
         return pars
 
     def readPars(self, name):
+        if name.count('*') > 0:
+            name = name.replace('*' * name.count('*'), 'j' + str(name.count('*')))
         s = name.split()
         attrs = ['val', 'min', 'max', 'step', 'vary', 'addinfo']
         if len(s) == len(attrs):

@@ -1774,7 +1774,7 @@ class Spectrum():
             for sys in self.parent.fit.sys:
                 if ind == -1 or sys.ind == ind:
                     for sp in sys.sp.keys():
-                        lin = self.parent.atomic.list(sp)
+                        lin = self.parent.atomic.list(sp, simplified=True)
                         for l in lin:
                             l.b = sys.sp[sp].b.val
                             l.logN = sys.sp[sp].N.val

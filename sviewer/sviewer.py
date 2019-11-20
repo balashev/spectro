@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget, QD
                              QSplitter, QFrame, QLineEdit, QLabel, QPushButton, QCheckBox,
                              QGridLayout, QTabWidget, QFormLayout, QHBoxLayout, QRadioButton,
                              QTreeWidget, QComboBox, QTreeWidgetItem, QAbstractItemView,
-                             QStatusBar, QMenu, QButtonGroup, QMessageBox)
+                             QStatusBar, QMenu, QButtonGroup, QMessageBox, QToolButton)
 from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl, QTimer, pyqtSignal, QObject, QPropertyAnimation
 from PyQt5.QtGui import QDesktopServices, QPainter, QFont, QColor
 from scipy.special import erf
@@ -743,7 +743,7 @@ class plotSpectrum(pg.PlotWidget):
             self.parent.s.apply_regions()
 
     def check_line(self):
-        return (self.vb.getState()['viewRange'][0][0] < self.parent.abs.reference.line.l() * (1 + self.parent.z_abs)) * (self.parent.line.l() * (1 + self.parent.z_abs) < self.vb.getState()['viewRange'][0][1])
+        return (self.vb.getState()['viewRange'][0][0] < self.parent.abs.reference.line.l() * (1 + self.parent.z_abs)) * (self.parent.abs.reference.line.l() * (1 + self.parent.z_abs) < self.vb.getState()['viewRange'][0][1])
 
     def add_line(self, x, y):
         if self.addline is not None:
@@ -1371,6 +1371,71 @@ class preferencesWidget(QWidget):
         self.parent.preferences = None
         event.accept()
 
+class choosePC(QToolButton):
+    def __init__(self, parent):
+        super(choosePC, self).__init__()
+        self.parent = parent
+        self.setFixedSize(90, 30)
+        self.toolmenu = QMenu(self)
+        self.cf = []
+        self.update()
+        self.setText('choose:')
+
+        self.setMenu(self.toolmenu)
+        self.setPopupMode(QToolButton.InstantPopup)
+
+    def update(self):
+        try:
+            self.toolmenu.removeAction(self.setall)
+        except:
+            pass
+        try:
+            for i in reversed(range(len(self.cf))):
+                self.toolmenu.removeAction(self.cf[i])
+                self.cf.remove(self.cf[i])
+        except:
+            pass
+        if self.parent.parent.fit.cf_num > 0:
+            self.setall = QAction("all", self.toolmenu)
+            self.setall.setCheckable(True)
+            self.setall.triggered.connect(partial(self.set, cf=None))
+            self.toolmenu.addAction(self.setall)
+
+            for i in range(self.parent.parent.fit.cf_num):
+                self.cf.append(QAction("cf_" + str(i), self.toolmenu))
+                self.cf[i].triggered.connect(partial(self.set, cf=i))
+                self.toolmenu.addAction(self.cf[i])
+                self.cf[i].setCheckable(True)
+
+    def currentText(self):
+        if hasattr(self, 'setall') and self.setall.isChecked():
+            return 'all'
+        else:
+            return '_'.join([f'cf{i}' for i, s in enumerate(self.cf) if s.isChecked()])
+
+    def fromtext(self, text):
+        print(text)
+        if 'all' in text:
+            if hasattr(self, 'setall'):
+                self.setall.setChecked(True)
+                self.set(cf=None)
+        else:
+            for c in text.split('_'):
+                self.cf[int(c.replace('cf', ''))].setChecked(True)
+                self.set(int(c.replace('cf', '')))
+
+    def set(self, cf=None):
+        if cf == None:
+            if self.setall.isChecked():
+                for cf in self.cf:
+                    cf.setChecked(False)
+            else:
+                self.setall.setChecked(True)
+        else:
+            if hasattr(self, 'setall'):
+                self.setall.setChecked(False)
+        self.parent.cfs = self.currentText()
+
 class showLinesWidget(QWidget):
     def __init__(self, parent):
         super().__init__()
@@ -1401,7 +1466,7 @@ class showLinesWidget(QWidget):
                     ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
                     ('plotfile', str), ('show_cont', int), ('corr_cheb', int),
                     ('show_H2', str), ('pos_H2', float),
-                    ('show_cf', int),
+                    ('show_cf', int), ('cfs', str),
                     ])
         for opt, func in self.opts.items():
             #print(opt, self.parent.options(opt), func(self.parent.options(opt)))
@@ -1550,6 +1615,10 @@ class showLinesWidget(QWidget):
         self.showcf.clicked[bool].connect(self.setCf)
         grid.addWidget(self.showcf, 19, 1)
 
+        self.cf = choosePC(self)
+        self.cf.fromtext(self.cfs)
+        grid.addWidget(self.cf, 19, 2)
+
         layout.addStretch(1)
         l = QHBoxLayout()
         self.showButton = QPushButton("Show")
@@ -1654,6 +1723,7 @@ class showLinesWidget(QWidget):
             self.numRegions.setText('Regions: ' + str(len(self.parent.plot.regions)))
         else:
             self.parent.lines.fromText(self.lines.toPlainText())
+            print(self.parent.lines)
             self.numLines.setText('Lines: '+str(len(self.parent.lines)))
 
     def selectLine(self, line):
@@ -1688,7 +1758,7 @@ class showLinesWidget(QWidget):
             self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
-            self.ps.specify_styles(num=len(self.parent.fit.sys), lw=1.0, lw_total=self.fit_lw, lw_spec=self.spec_lw)
+            self.ps.specify_styles(lw=1.0, lw_total=self.fit_lw, lw_spec=self.spec_lw)
             if len(self.parent.fit.sys) > 0:
                 self.ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
             else:
@@ -1731,15 +1801,17 @@ class showLinesWidget(QWidget):
                 p.name_pos = [self.name_x_pos, self.name_y_pos]
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 p.y_formatter = self.y_formatter
+
                 ax = p.plot_line()
+
                 if self.show_cf and self.parent.fit.cf_fit:
-                    for i in range(self.parent.fit.cf_num):
-                        attr = 'cf_' + str(i)
-                        if hasattr(self.parent.fit, attr):
-                            cf = getattr(self.parent.fit, attr)
-                            print(i, cf.addinfo.split('_'), cf.val, [np.max([(cf.min / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_min]), np.min([(cf.max / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_max])])
-                            if (len(cf.addinfo.split('_'))>1 and cf.addinfo.split('_')[1]=='all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
-                                ax.plot([np.max([(cf.min / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_min]), np.min([(cf.max / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_max])], [cf.val, cf.val], '--', color='orangered')
+                    for k in range(self.parent.fit.cf_num):
+                        if self.cfs == 'all' or 'cf' + str(k) in self.cfs:
+                            attr = 'cf_' + str(k)
+                            if hasattr(self.parent.fit, attr):
+                                cf = getattr(self.parent.fit, attr)
+                                if (len(cf.addinfo.split('_')) > 1 and cf.addinfo.split('_')[1] == 'all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
+                                    ax.plot([np.max([(cf.min / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_min]), np.min([(cf.max / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_max])], [1-cf.val, 1-cf.val], '--', lw=0.5, color='rebeccapurple')
 
         else:
             self.ps = plot_spec(len(self.parent.plot.regions), font=self.font, font_labels=self.font_labels,
@@ -1802,11 +1874,12 @@ class showLinesWidget(QWidget):
                 ax = p.plot_line()
                 if self.show_cf and self.parent.fit.cf_fit:
                     for i in range(self.parent.fit.cf_num):
-                        attr = 'cf_' + str(i)
-                        if hasattr(self.parent.fit, attr):
-                            cf = getattr(self.parent.fit, attr)
-                            if (len(cf.addinfo.split('_'))>1 and cf.addinfo.split('_')[1]=='all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
-                                ax.plot([np.max([cf.min, p.x_min]), np.min([cf.max, p.x_max])], [cf.val, cf.val], '--', color='orangered')
+                        if self.cfs.currentText() == 'all' or 'cf' + str(i) in self.cfs.currentText():
+                            attr = 'cf_' + str(i)
+                            if hasattr(self.parent.fit, attr):
+                                cf = getattr(self.parent.fit, attr)
+                                if (len(cf.addinfo.split('_'))>1 and cf.addinfo.split('_')[1]=='all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
+                                    ax.plot([np.max([cf.min, p.x_min]), np.min([cf.max, p.x_max])], [1-cf.val, 1-cf.val], '--', color='orangered')
 
                 if self.show_H2.strip() != '':
                     p.showH2(ax, levels=[int(s) for s in self.show_H2.split()], pos=self.pos_H2)
@@ -6242,7 +6315,7 @@ class sviewer(QMainWindow):
                 num = int(d[i].split()[1])
                 for k in range(num):
                     i += 1
-                    self.fit.setValue(d[i].split()[0], d[i].split()[2], 'unc')
+                    self.fit.setValue(self.atomic.correct_name(d[i].split()[0]), d[i].split()[2], 'unc')
 
         if zoom:
             try:

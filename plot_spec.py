@@ -135,26 +135,31 @@ class plot_spec(list):
     def specify_comps(self, *args):
         self.comps = np.array(args)
                 
-    def specify_styles(self, num=20, color=None, ls=None, lw=None, lw_total=1.5, lw_spec=1.0):
+    def specify_styles(self, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0):
+        num = len(self.comps+1)
         if color is None:
-            index = np.arange(num) #[0, 1, 2, 4, 5, 6, 7, 8, 9, 10]
-            color = ['navy'] * num
-            color_add = ['tab:blue', 'tab:green', 'tab:orange', 'tab:purple', 'tab:cyan', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:brown', 'tab:red', 'dodgerblue']
-            for i in range(min(len(color_add), num)):
-                color[i] = color_add[i]
-        self.color = color[:len(self.comps+1)]
+            cmap = plt.get_cmap('rainbow')
+            color = cmap(np.linspace(0, 0.85, num))
+            if 1:
+                for i in range(num):
+                    color[i] = [max(0, c-0.20) for c in color[i][:3]]+[1.]
+            if 0:
+                color_add = ['tab:blue', 'tab:green', 'tab:orange', 'tab:purple', 'tab:cyan', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:brown', 'tab:red', 'dodgerblue']
+                for i in range(min(len(color_add), num)):
+                    color[i] = color_add[i]
+        self.color = color[:]
         
         if ls is None:
             ls = ['-'] * num
         if isinstance(ls, (str)):
             ls = [ls] * num
-        self.ls = ls[:len(self.comps+1)]
+        self.ls = ls[:]
         
         if lw is None:
             lw = [0.5] * num
         if isinstance(lw, (float, int)):
             lw = [lw] * num
-        self.lw = lw[:len(self.comps+1)]
+        self.lw = lw[:]
 
         self.lw_total = lw_total
         self.lw_spec = lw_spec
@@ -500,13 +505,13 @@ class plotline():
         ax.plot([self.x_min, self.x_max], [0.0, 0.0], 'k--', lw=0.5)
         if self.show_comps and self.show_fit:
             for k in range(self.num_comp):
-                v = (self.parent.comps[k] - self.parent.z_ref)*299794.26/(1+self.parent.z_ref)
-                ax.plot([v, v], [self.y_min, self.y_max], color=self.parent.color[k], linestyle='--', lw=1)
+                v = (self.parent.comps[k] - self.parent.z_ref) * 299794.26 / (1 + self.parent.z_ref)
+                ax.plot([v, v], [self.y_min, self.y_max], color=self.parent.color[k], linestyle=':', lw=self.parent.lw[k])
                 if self.parent.comp_names is not None:
                     ax.text(v, null_res-1.5*delt_res, self.parent.comp_names[k], fontsize=self.font_labels-2,
                     color=self.parent.color[k], backgroundcolor='w', clip_on=True, ha='center', va='top', zorder=21)
                 if 0 and 'HI' in self.name:
-                    ax.plot([v-81.6, v-81.6], [self.y_min, self.y_max], color=self.parent.color[k], linestyle='-', lw=1.5)
+                    ax.plot([v-81.6, v-81.6], [self.y_min, self.y_max], color=self.parent.color[k], linestyle=':', lw=self.parent.lw[k])
 
         # >>> add text
         ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font_labels, transform=ax.transAxes)

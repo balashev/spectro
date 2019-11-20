@@ -198,6 +198,7 @@ class Console(QTextEdit):
                 for s in self.parent.atomic.keys():
                     if '*' not in s:
                         lines += self.parent.atomic.list(s)
+
             elif args[1] == 'full':
                 lines = self.parent.atomic.list(s)
                 #for s in self.parent.atomic.keys():
@@ -256,9 +257,13 @@ class Console(QTextEdit):
                         lines += self.parent.atomic.list('HF')
                 color = (255, 69, 69)
             else:
-                if args[1] in self.parent.atomic.keys():
-                    lines += self.parent.atomic.list(args[1])
-
+                if self.parent.atomic.find(args[1]):
+                    lines += self.parent.atomic.list(self.parent.atomic.find(args[1]))
+                else:
+                    print(args)
+                    self.parent.atomic.getfromNIST(args[1], add=True)
+                    lines += self.parent.atomic.list(self.parent.atomic.find(args[1]))
+                    print(lines)
             if args[1] != 'H2':
                 try:
                     f = float(args[2])
@@ -293,12 +298,12 @@ class Console(QTextEdit):
 
             return ''
 
-        elif args[0] in self.parent.atomic.keys():
+        elif self.parent.atomic.find(args[0]):
 
-            print(args[0])
+            name = args[0].replace('*', '')
             try:
-                el = element(roman.ion(args[0])[0])
-                s = '{:.3f} eV \n'.format(el.ionenergies[roman.int(roman.ion(args[0])[1])])
+                el = element(roman.ion(name)[0])
+                s = '{:.3f} eV \n'.format(el.ionenergies[roman.int(roman.ion(name)[1])])
             except:
                 s = ''
             try:
@@ -307,6 +312,7 @@ class Console(QTextEdit):
                 f = 0
             lines, lf = [], []
 
+            print('list', args[0], self.parent.atomic.list(args[0]))
             for l in self.parent.atomic.list(args[0]):
                 if l.f() > f:
                     lines.append(l)

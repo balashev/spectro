@@ -1,12 +1,14 @@
 import astropy.constants as const
 from astropy.table import Table
 from collections import OrderedDict
+import copy
 from functools import wraps
 import h5py
+from mendeleev import element
 import numpy as np
 import re
 import os
-from mendeleev import element
+import urllib.request
 
 if __name__ == '__main__':
     import sys
@@ -14,6 +16,7 @@ if __name__ == '__main__':
     from spectro.a_unc import a
 else:
     from .a_unc import a
+    from .sviewer.utils import Timer
 
 def vactoair(vac):
     """
@@ -211,7 +214,7 @@ class e():
         m = re.search(r"[IXV]", self.name)
         if m:
             string = self.name[m.start():]
-            roman = [['X',10], ['IX',9], ['V',5], ['IV',4], ['I',1]]
+            roman = [['X', 10], ['IX', 9], ['V', 5], ['IV', 4], ['I', 1]]
             for letter, value in roman:
                 while string.startswith(letter):
                     self.ioniz += value
@@ -409,9 +412,11 @@ class atomicData(OrderedDict):
     """
     def __init__(self):
         super().__init__()
+        self.folder = os.path.dirname(os.path.realpath(__file__))
+        self.lines = {}
         #self.readdatabase()
 
-    def list(self, els=None, linelist=None):
+    def list(self, els=None, linelist=None, simplified=False):
         lines = []
 
         if els is not None and isinstance(els, str):
@@ -421,35 +426,45 @@ class atomicData(OrderedDict):
         if els is None and linelist is not None:
             els = np.unique([l.split()[0] for l in linelist])
 
-        if self.data is None:
-            if els is not None:
-                for e in els:
-                    if e in self.keys():
-                        for l in self[e].lines:
-                            lines.append(l)
-                    else:
-                        print(e, 'is not found in atomic data')
-            else:
-                for e in self.values():
-                    for l in e.lines:
-                        if linelist is None or str(l) in linelist:
-                            lines.append(l)
-
-        else:
+        with h5py.File(self.folder + r'/data/atomic.hdf5', 'r') as data:
             for e in els:
-                if e in self.data.keys():
-                    for i, ref in enumerate(self.data[e]['ref']):
-                        l = self.data[e]['lines'][str(i)][0]
-                        l = line(e, l[0], l[1], l[2], ref=l[3])
-                        for attr in ['j_l', 'nu_l', 'j_u', 'nu_u']:
-                            if 'None' not in ref[attr]:
-                                setattr(l, attr, int(ref[attr]))
-                        if 'None' not in ref['band']:
-                            setattr(l, 'band', ref['band'])
-                        if linelist is None or any([str(l) in lin or lin in str(l) for lin in linelist]):
-                            lines.append(l)
-
+                if e not in self.lines.keys():
+                    self.lines[e] = []
+                    t = Timer(e)
+                    name = self.correct_name(e)
+                    print(name, name in self.keys())
+                    if name in self.keys():
+                        #print('ref', self.data[name]['ref'])
+                        for i, ref in enumerate(data[name]['ref']):
+                            #t.time('in')
+                            lin = data[name]['lines'][str(i)]
+                            l = line(name, lin[0][0], lin[0][1], lin[0][2], ref=lin[0][3])
+                            for attr in ['j_l', 'nu_l', 'j_u', 'nu_u']:
+                                if 'None' not in ref[attr]:
+                                    setattr(l, attr, int(ref[attr]))
+                            if 'None' not in ref['band']:
+                                setattr(l, 'band', ref['band'])
+                            if linelist is None or any([str(l) in lin or lin in str(l) for lin in linelist]):
+                                self.lines[e].append(l)
+                            #t.time('out')
+                lines += copy.deepcopy(self.lines[e])
         return lines
+
+
+    def check(self, name):
+        return self.correct_name(name) in self.keys()
+
+    def find(self, name):
+        if self.check(name):
+            return self.correct_name(name)
+        else:
+            return False
+
+    def correct_name(self, name):
+        if name.count('*') > 0:
+            return name.replace('*' * name.count('*'), 'j' + str(name.count('*')))
+        else:
+            return name
 
     def set_specific(self, linelist):
         s = []
@@ -464,7 +479,7 @@ class atomicData(OrderedDict):
         return s
 
     def read_DLA(self):
-        with open(os.path.dirname(os.path.realpath(__file__))+r'/data/DLA.dat', newline='') as f:
+        with open(self.folder + r'/data/DLA.dat', newline='') as f:
             f.readline()
             n = int(f.readline())
             data = f.readlines()
@@ -474,14 +489,14 @@ class atomicData(OrderedDict):
         #print(l[-1])
 
     def readMorton(self):
-        with open('data/Morton2003.dat', 'r') as f:
+        with open(self.folder + '/data/Morton2003.dat', 'r') as f:
             ind = 0
             while True:
                 l = f.readline()
                 if l == '':
                     break
                 if ind == 1:
-                    name = l.split()[0].replace('_', '')
+                    name_el = l.split()[0].replace('_', '')
                     block = []
                     while l[:3] != '***':
                         l = f.readline()
@@ -492,8 +507,10 @@ class atomicData(OrderedDict):
                             levels.add(float(l[31:38]))
                     levels = sorted(levels)
                     for i, lev in enumerate(levels):
-                        if i>0:
-                            name = name+'*'
+                        if i > 0:
+                            name = name_el + f'j{i}'
+                        else:
+                            name = name_el
                         if name not in self.keys():
                             self[name] = e(name)
                             self[name].lines = []
@@ -519,7 +536,7 @@ class atomicData(OrderedDict):
 
     def readCashman(self, add=True):
         add_names = []
-        with open('data/Cashman2017.dat', 'r') as f:
+        with open(self.folder + '/data/Cashman2017.dat', 'r') as f:
             for l in f:
                 name = ''.join(l[3:10].split())
                 if name not in self.keys():
@@ -550,7 +567,7 @@ class atomicData(OrderedDict):
                           if int - read J_l<=n
             - cat     :   name of the catalogue to read. Can be 'Malec' or 'Ubachs'
         """
-        x = np.genfromtxt(os.path.dirname(os.path.realpath(__file__))+r'/data/H2/energy_X.dat', comments='#', unpack=True)
+        x = np.genfromtxt(self.folder + r'/data/H2/energy_X.dat', comments='#', unpack=True)
 
         if isinstance(j, int) or isinstance(j, float):
             j = [j]
@@ -587,13 +604,13 @@ class atomicData(OrderedDict):
             H2_j_nu, e.g. H2_3_1
             if nu is not given then nu=0
         """
-        x = np.genfromtxt(r'data/H2/energy_X.dat', comments='#', unpack=True)
-        B = np.genfromtxt(r'data/H2/energy_B.dat', comments='#', unpack=True)
-        Cp = np.genfromtxt(r'data/H2/energy_C_plus.dat', comments='#', unpack=True)
-        Cm = np.genfromtxt(r'data/H2/energy_C_minus.dat', comments='#', unpack=True)
-        B_t = np.genfromtxt(r'data/H2/transprob_B.dat', comments='#', unpack=True)
-        Cp_t = np.genfromtxt(r'data/H2/transprob_C_plus.dat', comments='#', unpack=True)
-        Cm_t = np.genfromtxt(r'data/H2/transprob_C_minus.dat', comments='#', unpack=True)
+        x = np.genfromtxt(self.folder + r'/data/H2/energy_X.dat', comments='#', unpack=True)
+        B = np.genfromtxt(self.folder + r'/data/H2/energy_B.dat', comments='#', unpack=True)
+        Cp = np.genfromtxt(self.folder + r'/data/H2/energy_C_plus.dat', comments='#', unpack=True)
+        Cm = np.genfromtxt(self.folder + r'/data/H2/energy_C_minus.dat', comments='#', unpack=True)
+        B_t = np.genfromtxt(self.folder + r'/data/H2/transprob_B.dat', comments='#', unpack=True)
+        Cp_t = np.genfromtxt(self.folder + r'/data/H2/transprob_C_plus.dat', comments='#', unpack=True)
+        Cm_t = np.genfromtxt(self.folder + r'/data/H2/transprob_C_minus.dat', comments='#', unpack=True)
         e2_me_c = const.e.gauss.value ** 2 / const.m_e.cgs.value / const.c.cgs.value
         if energy is None:
             if isinstance(j, int) or isinstance(j, float):
@@ -604,7 +621,7 @@ class atomicData(OrderedDict):
             mask = x[2] < energy
         x = x[:,mask]
         x = np.transpose(x)
-        fout = open(r'data/H2/lines.dat', 'w')
+        fout = open(self.folder + r'/data/H2/lines.dat', 'w')
         for xi in x:
             nu_l, j_l = int(xi[0]), int(xi[1])
             name = 'H2' + 'j' +  str(j_l)
@@ -668,7 +685,7 @@ class atomicData(OrderedDict):
             out.close()
 
     def readHD(self):
-        HD = np.genfromtxt(r'data/molec/HD.dat', skip_header=1, usecols=[0,1,2,3,4,5,6], unpack=True, names=True, dtype=None)
+        HD = np.genfromtxt(self.folder + r'/data/molec/HD.dat', skip_header=1, usecols=[0,1,2,3,4,5,6], unpack=True, names=True, dtype=None)
         j_u = {'R': 1, 'Q': 0, 'P': -1}
         for j in range(3):
             name = 'HDj'+str(j)
@@ -681,7 +698,7 @@ class atomicData(OrderedDict):
                 self[name].lines[-1].band = l['LW'].decode('UTF-8')
 
     def readCO(self):
-        CO = np.genfromtxt(r'data/CO_data_Dapra.dat', skip_header=1, unpack=True, names=True, dtype=None)
+        CO = np.genfromtxt(self.folder + r'/data/CO_data_Dapra.dat', skip_header=1, unpack=True, names=True, dtype=None)
         for i in np.unique(CO['level']):
             name = 'COj'+str(i)
             self[name] = e(name)
@@ -692,13 +709,13 @@ class atomicData(OrderedDict):
                 self[name].lines[-1].band = l['name'].decode()
 
     def readHF(self):
-        HF = np.genfromtxt(r'data/molec/HF.dat', skip_header=1, unpack=True, dtype=None)
+        HF = np.genfromtxt(self.folder + r'/data/molec/HF.dat', skip_header=1, unpack=True, dtype=None)
         self['HF'] = e('HF')
         for l in HF:
             self['HF'].lines.append(line(l[4].decode('UTF-8'), l[6], l[7], l[8], ref='', j_l=l[0], nu_l=l[1], j_u=l[2], nu_u=l[3]))
 
     def readBAL(self):
-        BAL = np.genfromtxt(r'data/BAL.dat', skip_header=1, names=True, unpack=True, dtype=None, comments='-')
+        BAL = np.genfromtxt(self.folder + r'/data/BAL.dat', skip_header=1, names=True, unpack=True, dtype=None, comments='-')
         for l in BAL:
             print(l)
             name = l['species'].decode('UTF-8')
@@ -706,11 +723,18 @@ class atomicData(OrderedDict):
                 self[name] = e(name)
             self[name].lines.append(line(name, l['lambda'], l['f'], 1e-9, ref=''))
 
-    def readFeII(self, J=13):
-        t = Table.read('data/FeII.csv', format='csv')
+    def readFeII(self, J=13, clean=True):
+        if clean:
+            sp = []
+            for k in self.keys():
+                if k.startswith('FeII'):
+                    sp.append(k)
+            for s in sp:
+                self.pop(s, None)
+
+        t = Table.read(self.folder + r'/data/FeII.csv', format='csv')
         for j in np.arange(J):
-            name = f'FeIIj{j}'
-            print(name)
+            name = f'FeIIj{j}' if j > 0 else 'FeII'
             if name not in self.keys():
                 self[name] = e(name)
             self[name].energy = np.unique(t['Ei'])[j]
@@ -718,10 +742,50 @@ class atomicData(OrderedDict):
             for l in t[mask]:
                 self[name].lines.append(line(name, l['lambda'], l['fik'], 1e-9, ref=''))
 
+    def getfromNIST(self, species, level=None, refresh=False, clean=True, add=False):
+        if level is None:
+            if '*' in species:
+                species = self.correct_name(species)
+            if 'j' in species:
+                species, level = species[:species.find('j')], int(species[species.find('j')+1:])+1
+        name = f'{species}j{level-1}' if level > 1 else 'species'
+        print(name)
+        if clean:
+            self.pop(name, None)
+        filename = self.folder + f'/data/nist/{species}_{level}.dat'
+        if not os.path.isfile(filename) or refresh:
+            el = e(species)
+            el.mendeleev()
+            url = "https://physics.nist.gov/cgi-bin/ASD/lines1.pl?spectra={0:s}+{1:s}&limits_type=0&low_w=&upp_w=&unit=0&de=0&format=3&line_out=1&remove_js=on&no_spaces=on&en_unit=0&output=0&page_size=15&show_obs_wl=1&order_out=0&max_low_enrg=&show_av=3&max_upp_enrg=&tsb_value=0&min_str=&A_out=0&f_out=on&max_str=&allowed_out=1&forbid_out=1&min_accur=&min_intens=&enrg_out=on&submit=Retrieve+Data&level_id={2:03d}{3:03d}.{4:06d}".format(el.name, species.replace(el.get_element_name(), ''), el.mend.atomic_number, el.ionstate(), level)
+            print(name, url)
+            #urllib.request.urlretrieve(url, filename)
+            response = urllib.request.urlopen(url)
+            data = response.read()  # a `bytes` object
+            text = data.decode('utf-8').replace('"', '').replace('Type', '')
+            with open(filename, 'w') as f:
+                f.write(text)
+
+        data = np.genfromtxt(filename, names=True)
+        if len(data) > 0:
+            if name not in self.keys():
+                self[name] = e(name)
+            self[name].energy = np.unique(data['Eicm1'])[0]
+            for l in data:
+                self[name].lines.append(line(name, l['obs_wl_vacA'], l['fik'], 1e-9, ref=''))
+        if add:
+            self.adddatabase(name)
+
+    def fromNIST(self):
+        for s in [('MnII', 2)]:
+            self.getfromNIST(s[0], s[1])
+        for j in range(13):
+            self.getfromNIST('FeII', j+2)
+
     def makedatabase(self):
         self.readMorton()
         self.readCashman()
-        self.readFeII(J=15)
+        #self.readFeII(J=15)
+        self.fromNIST()
         self.readH2(j=[0, 1, 2, 3, 4, 5, 6, 7, 8])
         self.readHD()
         self.readCO()
@@ -733,27 +797,46 @@ class atomicData(OrderedDict):
         self.writedatabase()
 
     def writedatabase(self):
-        f = h5py.File('data/atomic.hdf5', 'w')
-        for el in self.keys():
+        with h5py.File(self.folder + '/data/atomic.hdf5', 'w') as f:
+            for el in self.keys():
+                grp = f.create_group(el)
+                dt = h5py.special_dtype(vlen=str)
+                ds = grp.create_dataset('ref', shape=(len(self[el].lines),),
+                                        dtype=np.dtype([('l', float), ('ind', int), ('descr', dt), ('j_l', dt),
+                                                           ('nu_l', dt), ('j_u', dt), ('nu_u', dt), ('band', dt)]))
+                lines = grp.create_group('lines')
+                #ref = np.empty(len(self[el].lines), dtype=[('l', float), ('ind', int), ('descr', 'S')])
+                for i, l in enumerate(self[el].lines):
+                    print(str(l), l.band)
+                    ds[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u), str(l.band))
+                    lin = lines.create_dataset(str(i), shape=(len(l.ref),), dtype=np.dtype([('l', float), ('f', float), ('g', float), ('ref', dt)]))
+                    for k in range(len(l.ref)):
+                        lin[k] = (l.wavelength[k], l.oscillator[k], l.gamma[k], l.ref[k])
+                    #ref[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u)) #.encode("ascii", "ignore"))
+
+    def adddatabase(self, el):
+        with h5py.File(self.folder + '/data/atomic.hdf5', 'a') as f:
             grp = f.create_group(el)
             dt = h5py.special_dtype(vlen=str)
             ds = grp.create_dataset('ref', shape=(len(self[el].lines),),
                                     dtype=np.dtype([('l', float), ('ind', int), ('descr', dt), ('j_l', dt),
-                                                       ('nu_l', dt), ('j_u', dt), ('nu_u', dt), ('band', dt)]))
+                                                    ('nu_l', dt), ('j_u', dt), ('nu_u', dt), ('band', dt)]))
             lines = grp.create_group('lines')
-            #ref = np.empty(len(self[el].lines), dtype=[('l', float), ('ind', int), ('descr', 'S')])
+            # ref = np.empty(len(self[el].lines), dtype=[('l', float), ('ind', int), ('descr', 'S')])
             for i, l in enumerate(self[el].lines):
                 print(str(l), l.band)
                 ds[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u), str(l.band))
-                lin = lines.create_dataset(str(i), shape=(len(l.ref),), dtype = np.dtype([('l', float), ('f', float), ('g', float), ('ref', dt)]))
+                lin = lines.create_dataset(str(i), shape=(len(l.ref),),
+                                           dtype=np.dtype([('l', float), ('f', float), ('g', float), ('ref', dt)]))
                 for k in range(len(l.ref)):
                     lin[k] = (l.wavelength[k], l.oscillator[k], l.gamma[k], l.ref[k])
-                #ref[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u)) #.encode("ascii", "ignore"))
+                # ref[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u)) #.encode("ascii", "ignore"))
+            self[el] = f[el]
 
     def readdatabase(self):
-        self.data = h5py.File(os.path.dirname(os.path.realpath(__file__)) + r'/data/atomic.hdf5', 'r')
-        for el in self.data.keys():
-            self[el] = e(el)
+        with h5py.File(self.folder + r'/data/atomic.hdf5', 'r') as f:
+            for el in f.keys():
+                self[el] = e(el)
 
     def read_maleccat(self, n=-1):
         """
@@ -763,7 +846,7 @@ class atomicData(OrderedDict):
             - n    : if list - specify rotational levels to read
                      if int - read J_l <= n
         """
-        with open(os.path.dirname(os.path.realpath(__file__)) + r'/data/H2/H2MalecCat.dat', newline='') as f:
+        with open(self.folder + r'/data/H2/H2MalecCat.dat', newline='') as f:
             f.readline()
             data = f.readlines()
         for d in data:
@@ -788,7 +871,7 @@ class atomicData(OrderedDict):
             - n    : if list - specify rotational levels to read
                      if int - read J_l<=n
         """
-        data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r'/data/H2/H2UbachsComp.dat', comments='#', dtype=str)
+        data = np.genfromtxt(self.folder + r'/data/H2/H2UbachsComp.dat', comments='#', dtype=str)
         for words in data:
             d = re.split('(\d+)', words[0])
             if (isinstance(n, list) and int(d[3]) in n) or (isinstance(n, int) and int(d[3]) <= n) or n == -1:
@@ -803,7 +886,7 @@ class atomicData(OrderedDict):
                 self['H2j'+d[3]].lines.append(l)
 
     def read_Molecular(self):
-        with open(os.path.dirname(os.path.realpath(__file__))+r'/data/Molecular_data.dat', newline='') as f:
+        with open(self.folder + r'/data/Molecular_data.dat', newline='') as f:
             for i in range(3):
                 f.readline()
             data = f.readlines()
@@ -814,7 +897,7 @@ class atomicData(OrderedDict):
             self[words[0]].lines.append(line(words[0], words[1], words[2], words[3], descr=' '.join(words[4:])))
 
     def read_EmissionSF(self):
-        with open(os.path.dirname(os.path.realpath(__file__))+r'/data/EmissionSFLines.dat', newline='') as f:
+        with open(self.folder + r'/data/EmissionSFLines.dat', newline='') as f:
             for i in range(3):
                 f.readline()
             data = f.readlines()
@@ -825,7 +908,7 @@ class atomicData(OrderedDict):
             self[words[0]].lines.append(line(words[0], words[1], words[2], words[3], descr=' '.join(words[4:])))
 
     def Molecular_list(self):
-        data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r'/data/Molecular_data.dat', skip_header=3, usecols=(0), dtype=(str))
+        data = np.genfromtxt(self.folder + r'/data/Molecular_data.dat', skip_header=3, usecols=(0), dtype=(str))
         return self.list(np.unique(data))
 
     def DLA_list(self, lines=True):
@@ -1340,10 +1423,10 @@ if __name__ == '__main__':
         for line in HI:
             print(line, line.l, line.f, line.g)
     if 0:
-        N = a('14.47^{+0.09}_{-0.07}', 'l')
+        N = a('15.39^{+0.08}_{-0.08}', 'l')
         print(N)
-        HI = a('19.88^{+0.01}_{-0.01}', 'l')
-        print(metallicity('O_I', N, HI))
+        HI = a('20.71^{+0.03}_{-0.03}', 'l')
+        print(metallicity('S', N, HI))
 
     if 0:
         HI = a('19.88^{+0.01}_{-0.01}', 'l')
@@ -1352,8 +1435,9 @@ if __name__ == '__main__':
 
     if 1:
         A = atomicData()
+        #A.getfromNIST('MnII', 3)
         #A.readCO()
-        #print(A.list('SiII'))
+        #print(A.list('MnII'))
         A.makedatabase()
         #A.makedatabase()
 
