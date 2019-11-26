@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import astropy.constants as ac
+from astropy.cosmology import FlatLambdaCDM
 import astropy.units as au
 from chainconsumer import ChainConsumer
 import collections
@@ -11,6 +12,7 @@ import glob
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
+from scipy.optimize import bisect
 import pickle
 from scipy import interpolate, optimize
 from scipy.stats import chi2
@@ -19,7 +21,7 @@ sys.path.append('C:/Science/python')
 from spectro import colors as col
 from spectro.a_unc import a
 from spectro.stats import distr1d, distr2d
-from spectro.sviewer.utils import printProgressBar, Timer
+from spectro.sviewer.utils import printProgressBar, Timer, flux_to_mag
 
 def smooth_step(x, delta):
     x = np.clip(x/delta, 0, 1)
@@ -83,6 +85,7 @@ class speci:
 
         self.fullnum = self.E.shape[0] # full number of levels
 
+        print(self.num, self.fullnum)
         self.setEij()
         self.setBij()
         self.setAij()
@@ -257,26 +260,63 @@ class speci:
         read atomic data for FeII: einstein coefficients, branching ratios, electron collisional excitation rates.
         """
         folder = self.parent.folder + '/data/pyratio/'
-        E = np.genfromtxt(folder + 'FeII/table3.dat', unpack=True, delimiter='|', dtype=[('J', 'i4'), ('term', '|S14'), ('name', '|S10'), ('energy', '<f8')])
-        self.E = E['energy'][:self.num] * 109737.31568160
-        self.g = [2 * float(e.decode().split('_')[1].split('/')[0]) / float(e.decode().split('_')[1].split('/')[1]) + 1 for e in E['name']][:self.num]
-        Ai = np.genfromtxt(folder + 'FeII/apj516563t4_ascii.txt', comments='#', unpack=True)
-        Ai = np.insert(Ai[25] * 10 ** (- Ai[27]), 0, 0)
-        br = np.genfromtxt(folder + 'FeII/table10.dat', dtype=[('Ju', 'i4'), ('Jl', 'i4'), ('l', '<f8'), ('br', '<f8'), ('br_e', '<f8')])
-        self.A = np.zeros([self.num, self.num])
-        for tr in br:
-            if tr['Ju'] < self.num + 1 and tr['Jl'] < self.num + 1:
-                self.A[tr['Ju']-1, tr['Jl']-1] = Ai[tr['Ju']-1] * tr['br']
+        source = 'nist' #'bautista'
+        if source == 'nist':
+            lines = np.genfromtxt(folder + 'FeII/nist_lines.dat', skip_header=1, delimiter='|', dtype=[('l', '<f8'), ('A_ki', '<f8'), ('acc', 'S5'), ('E_i', '<f8'), ('E_k', '<f8'), ('conf_i', 'S20'), ('term_i', 'S10'), ('J_i', 'S5'), ('conf_k', 'S20'), ('term_k', 'S10'), ('J_k', 'S5') , ('t', 'S')])
+            self.E = np.sort(np.unique(np.append(lines['E_i'], lines['E_k'])))
+            #print(self.E, len(self.E))
+            self.g = []
+            for e in self.E:
+                if len(np.argwhere(e == lines['E_i'])) > 0:
+                    name = lines['J_i'][np.argwhere(e == lines['E_i'])[0][0]]
+                else:
+                    name = lines['J_k'][np.argwhere(e == lines['E_k'])[0][0]]
+                self.g.append(float(name.decode().split('/')[0]) / float(name.decode().split('/')[1]))
+                #self.g = [2 * float(e.decode().split('_')[1].split('/')[0]) / float(e.decode().split('_')[1].split('/')[1]) + 1 for e in self.E]
+            self.fullnum = len(self.E)
+            self.A = np.zeros([self.fullnum, self.fullnum])
+            for l in lines:
+                #print(l['E_i'], np.argwhere(self.E==l['E_k']), np.argwhere(self.E==l['E_i']))
+                self.A[np.argwhere(self.E==l['E_k'])[0], np.argwhere(self.E==l['E_i'])[0]] = l['A_ki']
+
+            if 1:
+                E = np.genfromtxt(folder + 'FeII/table3.dat', unpack=True, delimiter='|', dtype=[('J', 'i4'), ('term', '|S14'), ('name', '|S10'), ('energy', '<f8')])
+                inds = [np.argmin(np.abs(self.E - e)) for e in E['energy'] * 109737.31568160]
+                Ai = np.genfromtxt(folder + 'FeII/apj516563t4_ascii.txt', comments='#', unpack=True)
+                Ai = np.insert(Ai[25] * 10 ** (- Ai[27]), 0, 0)
+                br = np.genfromtxt(folder + 'FeII/table10.dat', dtype=[('Ju', 'i4'), ('Jl', 'i4'), ('l', '<f8'), ('br', '<f8'), ('br_e', '<f8')])
+                for tr in br:
+                    if tr['Ju'] < self.fullnum + 1 and tr['Jl'] < self.fullnum + 1:
+                        if self.A[inds[tr['Ju'] - 1], inds[tr['Jl'] - 1]] == 0:
+                            self.A[inds[tr['Ju'] - 1], inds[tr['Jl'] - 1]] = Ai[tr['Ju'] - 1] * tr['br']
+                        else:
+                            print(inds[tr['Ju'] - 1], tr['Jl'] - 1, self.A[inds[tr['Ju'] - 1], inds[tr['Jl'] - 1]], Ai[tr['Ju'] - 1] * tr['br'])
+
+        elif source == 'bautista':
+            E = np.genfromtxt(folder + 'FeII/table3.dat', unpack=True, delimiter='|', dtype=[('J', 'i4'), ('term', '|S14'), ('name', '|S10'), ('energy', '<f8')])
+            self.E = E['energy'] * 109737.31568160
+            for e1, e2 in zip(np.sort(np.unique(lines['E_i'])), np.sort(self.E)):
+                print(e1/e2 - 1, e1, np.argmin(np.abs(np.sort(self.E) - e1)))
+            self.g = [2 * float(e.decode().split('_')[1].split('/')[0]) / float(e.decode().split('_')[1].split('/')[1]) + 1 for e in E['name']]
+
+            self.fullnum = len(self.E)
+            Ai = np.genfromtxt(folder + 'FeII/apj516563t4_ascii.txt', comments='#', unpack=True)
+            Ai = np.insert(Ai[25] * 10 ** (- Ai[27]), 0, 0)
+            br = np.genfromtxt(folder + 'FeII/table10.dat', dtype=[('Ju', 'i4'), ('Jl', 'i4'), ('l', '<f8'), ('br', '<f8'), ('br_e', '<f8')])
+            self.A = np.zeros([self.fullnum, self.fullnum])
+            for tr in br:
+                if tr['Ju'] < self.fullnum + 1 and tr['Jl'] < self.fullnum + 1:
+                    self.A[tr['Ju']-1, tr['Jl']-1] = Ai[tr['Ju']-1] * tr['br']
         coll = coll_list()
-        source = 'Bautista'
-        if source == 'Bautista':
+        coll_source = 'Bautista'
+        if coll_source == 'Bautista':
             c = np.genfromtxt(folder + 'FeII/table12.dat', unpack=False)
             temp = [5000, 7000, 10000, 15000, 20000]
             for l in c:
                 if l[0] < self.num+1 and l[1] < self.num+1:
-                    coll.append(collision(self, 'e', int(l[0]) - 1, int(l[1]) - 1, np.array(
+                    coll.append(collision(self, 'e', inds[int(l[0]) - 1], inds[int(l[1]) - 1], np.array(
                                 [np.log10(temp), [np.log10(float(l[k])) for k in range(2, 7)]])))
-        elif source == 'Ramsbottom':
+        elif coll_source == 'Ramsbottom':
             c = np.genfromtxt(folder + 'FeII/Ramsbottom/table3.dat', unpack=False)
             temp = [30, 100, 300, 500, 750, 1000, 1300, 1500, 1800, 2000, 2300, 2500, 5000, 7500, 10000, 13000, 15000, 18000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000]
             for l in c:
@@ -284,7 +324,7 @@ class speci:
                 if l[0] < self.num+1 and l[1] < self.num+1:
                     coll.append(collision(self, 'e', int(l[0]) - 1, int(l[1]) - 1, np.array(
                                 [np.log10(temp), [np.log10(float(l[k])) for k in range(2, len(temp)+2)]])))
-        elif source == 'chianti':
+        elif coll_source == 'chianti':
             c = np.genfromtxt(folder + r'FeII/fe_2.splups', comments='%', delimiter=(3, 3, 3, 3, 3, 10, 10, 10, 10, 10, 10, 10, 10))
             temp = np.linspace(3.7, 4.7, 6)
             for l in c:
@@ -504,13 +544,15 @@ class par():
     """
     class for parameters handle:
         - name         : name of parameter, can be:
-                            'n' - number density 
-                            'T' - temperature 
-                            'f' - molecular fraction
-                            'UV' - UV flux in the units of Habing? field value
-                            'H' - atomic hydrogen density
-                            'e' - electron density
-                            'H2' - molecular hydrogen density 
+                            'n'    - number density
+                            'T'    - temperature
+                            'f'    - molecular fraction
+                            'rad'  - Scaling constant of radiation filed iether:
+                                        flux in the units of standard field (in case of sed_type: 'Habing', 'Draine', 'Mathis')
+                                        flux at 1kpc distance for source specified by agn keyword (in case of sed_type: 'AGN', 'QSO', 'GRB')
+                            'H'    - atomic hydrogen density
+                            'e'    - electron density
+                            'H2'   - molecular hydrogen density
         - label        : label on plot
         - init         : init value
         - range        : range of parameter values, 2 element array
@@ -551,11 +593,11 @@ class par():
             self.range = [-3, 0]
             self.init_range = 0.3
         
-        # >>> UV flux
-        if name == 'UV':
+        # >>> Radiation field
+        if name == 'rad':
             self.label = r'$\log\,\xi$'
             self.init = 0
-            self.range = [-1, 2]
+            self.range = [-4, 6]
             self.init_range = 0.3
             
        # >>> electron number density
@@ -586,7 +628,7 @@ class par():
             self.init = 2.72548 * (1 + self.parent.z)
             self.range = [1, 20]
             self.init_range = 2
-       
+
         self.value = self.init
         
     def show(self):
@@ -631,20 +673,41 @@ class pyratio():
 
             
     """
-    def __init__(self, z=0, f_He=0.085, UVB=True, pars=None, conf_levels=[0.68269], logs=1, calctype='popratios'):
+    def __init__(self,
+                 z=0,
+                 f_He=0.085,
+                 pars=None,
+                 EBL=True,
+                 CMB=True,
+                 pumping='full',
+                 radiation='full',
+                 conf_levels=[0.68269],
+                 logs=1,
+                 calctype='popratios',
+                 sed_type='Draine',
+                 agn={'filter': 'r', 'mag': 20}
+                 ):
+        self.folder = os.path.dirname(os.path.realpath(__file__))
         self.species = collections.OrderedDict()
         self.pars = collections.OrderedDict()
-        self.Planck1 = 8*np.pi*ac.h.cgs.value
-        self.Planck2 = (ac.h.cgs/ac.k_B.cgs*ac.c.cgs).value
+        self.pumping = pumping
+        self.radiation = radiation
+        self.Planck1 = 8 * np.pi * ac.h.cgs.value
+        self.Planck2 = (ac.h.cgs / ac.k_B.cgs * ac.c.cgs).value
         self.z = z
         self.logs = logs
         self.f_He = f_He
         self.theta_range = []
         self.calctype = calctype
-        self.folder = os.path.dirname(os.path.realpath(__file__))
-        self.UVB = UVB
-        if self.UVB:
-            self.set_UVB()
+        self.sed_type = sed_type
+        #if isinstance(self.sed_type, str):
+        #    self.sed_type = [self.sed_type]
+        self.agn_pars = agn
+        self.load_sed()
+        self.EBL = EBL
+        if self.EBL:
+            self.set_EBL()
+        self.CMB = CMB
         if self.calctype == 'numbdens':
             self.set_pars(['Ntot'])
         elif pars is not None:
@@ -661,6 +724,12 @@ class pyratio():
 
         #print('add_spec:', n)
         self.species[name] = speci(self, name, n, num)
+        if self.pumping == 'simple':
+            self.pars['rad'].value = 0
+            self.pump_matrix(name)
+        if self.radiation == 'simple':
+            self.pars['rad'].value = 0
+            self.rad_matrix(name)
 
     def set_pars(self, parlist):
         for p in parlist:
@@ -720,22 +789,72 @@ class pyratio():
         for p in self.pars.values():
             p.show()
 
-    def set_UVB(self):
+    def flux_to_mag_solve(self, c, flux, x, b, inter, mag):
+        m = - 2.5 / np.log(10) * (np.arcsinh(flux * 10 ** c * x ** 2 / ac.c.to('Angstrom/s').value / 3.631e-20 / 2 / b) + np.log(b))
+        return mag - np.trapz(m * inter(x), x=x) / np.trapz(inter(x), x=x)
+
+    def load_sed(self):
+        """
+        """
+        if 'Mathis' in self.sed_type:
+            l = np.linspace(912, 2460, 100)
+            uv = np.zeros_like(l)
+            mask = np.logical_and(912 <= l, l <= 1100)
+            uv[mask] = 1.287e-9 * (l[mask] / 1e4) ** 4.4172
+            mask = np.logical_and(1110 < l, l <= 1340)
+            uv[mask] = 6.825e-13 * (l[mask] / 1e4)
+            mask = np.logical_and(1340 < l, l <= 2460)
+            uv[mask] = 2.373e-14 * (l[mask] / 1e4) ** (-0.6678)
+            self.mathis = interpolate.interp1d(1e8 / l, uv / (ac.c.cgs.value / l), bounds_error=0, fill_value=0)
+
+        if self.sed_type in ['QSO', 'AGN', 'GRB']:
+            self.DL = FlatLambdaCDM(70, 0.3, Tcmb0=2.725, Neff=0).luminosity_distance(self.z).to('cm').value
+            print(self.DL)
+
+        if 'QSO' in self.sed_type:
+            from astroquery.sdss import SDSS
+            qso = SDSS.get_spectral_template('qso')
+            x, flux = 10 ** (np.arange(len(qso[0][0].data[0])) * 0.0001 + qso[0][0].header['CRVAL1']) * (1 + self.z), qso[0][0].data[0] * 1e-17
+            cosmo = FlatLambdaCDM(70, 0.3, Tcmb0=2.725, Neff=0)
+            b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
+            fil = np.genfromtxt(self.folder + r'/data/SDSS/' + self.agn_pars['filter'] + '.dat', skip_header=6, usecols=(0, 1), unpack=True)
+            mask = (x > fil[0][0]) * (x < fil[0][-1])
+            fil = interpolate.interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
+            scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux[mask], x[mask], b[self.agn_pars['filter']], fil, self.agn_pars['mag']))
+            print(scale, flux_to_mag(flux * scale, x, self.agn_pars['filter']), self.agn_pars['mag'])
+            print(flux[flux != 0] * scale * (self.DL / ac.kpc.cgs.value) ** 2 * x[flux != 0] ** 2 / 1e8 / ac.c.cgs.value ** 2)
+            self.qso = interpolate.interp1d(1e8 / x, flux * scale * (self.DL / ac.kpc.cgs.value) ** 2 * x ** 2/ 1e8 / ac.c.cgs.value ** 2, bounds_error=False, fill_value=0)
+
+        if 'AGN' in self.sed_type:
+            data = np.genfromtxt(self.folder + '/data/pyratio/Richards2006.dat', unpack=True, comments='#')
+
+            if 1:
+                b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
+                fil = np.genfromtxt(self.folder + r'/data/SDSS/' + self.agn_pars['filter'] + '.dat', skip_header=6, usecols=(0, 1), unpack=True)
+                x = 1e8 * ac.c.cgs.value / 10 ** data[0]
+                mask = (x > fil[0][0]) * (x < fil[0][-1])
+                filter = interpolate.interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
+                flux = 10**data[1][mask] / 4 / np.pi / self.DL ** 2 / (ac.c.to('Angstrom/s').value / 10**data[0][mask]) * (1 + self.z)
+                scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux, x[mask], b[self.agn_pars['filter']], filter, self.agn_pars['mag']))
+                print(scale, flux_to_mag(flux * scale, x[mask], self.agn_pars['filter']), self.agn_pars['mag'])
+            else:
+                scale = 1.
+            self.agn = interpolate.interp1d(10 ** data[0] / ac.c.cgs.value, 10 ** data[1] / 4 / np.pi / (ac.kpc.cgs.value) ** 2 / 10 ** data[0] * (1 + self.z) * scale / ac.c.cgs.value, bounds_error=False, fill_value=0)
+
+    def set_EBL(self):
+        """
+        set EBL model radiation specific intensity J_nu (erg/s/cm^2/Hz/Sr) as a function of energy in cm^{-1}
+        """
         files = glob.glob(self.folder+'/data/pyratio/KS18_Fiducial_Q18/*.txt')
         z = [float(f[-8:-4]) for f in files]
-        try:
-            ind = z.index(self.z)
-            data = np.genfromtxt(files[ind], comments='#', unpack=True)
-            self.uvb = interpolate.interp1d(data[0], data[1], fill_value='extrapolate')
-        except:
-            ind = np.searchsorted(z, self.z)
-            data_min = np.genfromtxt(files[ind - 1], comments='#', unpack=True)
-            data_max = np.genfromtxt(files[ind], comments='#', unpack=True)
-            self.uvb = interpolate.interp1d(data_min[0], data_min[1] + (data_max[1] - data_max[1]) * (self.z - z[ind]) / (z[ind+1] - z[ind]), fill_value='extrapolate')
+        ind = np.searchsorted(z, self.z)
+        data_min = np.genfromtxt(files[ind - 1], comments='#', unpack=True)
+        data_max = np.genfromtxt(files[ind], comments='#', unpack=True)
+        self.ebl = interpolate.interp1d(1e8 / data_min[0], data_min[1] + (data_max[1] - data_max[1]) * (self.z - z[ind]) / (z[ind+1] - z[ind]), fill_value='extrapolate')
 
     def u_CMB(self, nu):
         """
-        calculate CMB flux density at given wavelenght array frequencies
+        calculate CMB flux density at given wavelength array frequencies
         parameters:
             - nu      : array of energies [in cm^-1] where u_CMB is calculated
         """
@@ -749,7 +868,7 @@ class pyratio():
         R[ind] = self.Planck1 * nu[ind]**3 / (np.exp(self.Planck2 / temp * nu[ind])-1)
 
         return R
-    
+
     def balance(self, name, debug=None):
         """
         calculate balance matrix for population of levels
@@ -763,9 +882,8 @@ class pyratio():
                               'UV'   -  by uv pumping
 
         """
-        for speci in self.species.values():
-            if speci.name == name:
-                break
+        speci = self.species[name]
+
         W = np.zeros([speci.num, speci.num])
         #self.timer.time('rates in')
 
@@ -775,7 +893,7 @@ class pyratio():
 
         #self.timer.time('CMB')
         if debug in [None, 'CMB']:
-            W += self.u_CMB(speci.Eij) * speci.Bij
+            W += speci.Bij * self.rad_field(speci.Eij, sed_type='CMB')
 
         #self.timer.time('Coll')
         if debug in [None, 'C']:
@@ -785,11 +903,21 @@ class pyratio():
                         W[u, l] += self.collision_rate(speci, u, l)
 
         if debug in [None, 'UV']:
-            for u in range(speci.num):
-                for l in range(speci.num):
-                    if 'UV' in self.pars:
-                        W[u, l] += self.pumping_rate(speci, u, l, x=10**self.pars['UV'].value)
-                        #print('Ratio:',  self.pumping_rate(speci, u, l, x=0) / self.pumping_rate(speci, u, l, x=0.15))
+            if self.pumping == 'full':
+                for u in range(speci.num):
+                    for l in range(speci.num):
+                        if 'UV' in self.pars:
+                            W[u, l] += self.pumping_rate(speci, u, l)
+            elif self.pumping == 'simple':
+                W += self.species[name].pump_rate * 10 ** self.pars['rad'].value
+
+        if debug in [None, 'IR']:
+            if self.radiation == 'full':
+                for u in range(speci.num):
+                    for l in range(speci.num):
+                        W[u, l] = speci.Bij[u, l] * self.rad_field(speci.Eij[u, l])
+            if self.radiation == 'simple':
+                W += self.species[name].rad_rate * 10 ** self.pars['rad'].value
 
         #self.timer.time('solve')
         if debug is None:
@@ -799,7 +927,7 @@ class pyratio():
                     K[i, i] -= W[i, k]
             return np.insert(np.abs(np.linalg.solve(K[1:, 1:], -K[1:, 0])), 0, 1)
 
-        elif debug in ['A', 'CMB', 'C', 'UV']:
+        elif debug in ['A', 'CMB', 'C', 'UV', 'IR']:
             return W
 
         else:
@@ -835,8 +963,8 @@ class pyratio():
                     #print(coll, 10 ** self.pars['n'].value, self.f_He, speci.coll['He4'].rate(u, l, self.pars['T'].value))
 
         return coll
-    
-    def pumping_rate(self, speci, u, l, x=1):
+
+    def pumping_rate(self, speci, u, l):
         """
         calculates fluorescence excitattion rates for l -> u transition of given species
         x is the
@@ -846,58 +974,98 @@ class pyratio():
             if speci.A[k,l] != 0:
                 s = 0
                 for i in range(speci.num):
-                    s += speci.A[k,i] + self.exc_rate(speci, k, i, galactic=x)
-                pump += self.exc_rate(speci, u, k, galactic=x) * (speci.A[k,l] + self.exc_rate(speci, k, l, galactic=x)) / s
+                    s += speci.A[k,i] + self.exc_rate(speci, k, i)
+                pump += self.exc_rate(speci, u, k) * (speci.A[k,l] + self.exc_rate(speci, k, l)) / s
         return pump
     
-    def exc_rate(self, speci, u, l, galactic=1):
+    def exc_rate(self, speci, u, l):
         """
         calculates excitation rates (B_ul * u(\nu)) in specified field (by u), 
                             for l -> u transition of given species 
         """
-        nu = abs(speci.E[u]-speci.E[l])*ac.c.cgs.value
-        #print('exc rates', ac.c.cgs.value / nu * 1e8, galactic, self.uv(nu, kind='Draine') * galactic / self.uv(nu, kind='UVB'))
-        return speci.B[u,l] * (self.uv(nu, kind='Draine') * galactic + self.uv(nu, kind='UVB')) / nu
-        
-    def uv(self, nu, kind='Draine'):
+        return speci.B[u, l] * self.rad_field(np.abs(speci.E[u]-speci.E[l]))
+
+    def pump_matrix(self, name):
         """
-        UV field density in [erg/cm^3]
+        calculates the pumping matrix for <speci> in simple case:
+        1. optically thin limit
+        2. spontangeous transitions (for higher levels) dominate
+        3. background radiation is negligible.
+        """
+        speci = self.species[name]
+        pump = np.zeros([speci.num, speci.num])
+        for u in range(speci.num):
+            for l in range(speci.num):
+                for k in range(speci.num, speci.fullnum):
+                    if speci.A[k, l] != 0:
+                        pump[u, l] += self.exc_rate(speci, u, k) * speci.A[k, l] / np.sum(speci.A[k, :speci.num])
+        self.species[name].pump_rate = pump
+
+    def rad_matrix(self, name):
+        """
+        calculates the radiation matrix for <speci> in simple case:
+        1. optical thin limit
+        """
+        speci = self.species[name]
+        CMB, EBL = self.CMB, self.EBL
+        self.CMB, self.EBL = False, False
+        self.species[name].rad_rate = speci.Bij * self.rad_field(speci.Eij)
+        self.CMB, self.EBL = CMB, EBL
+        #print(self.species[name].rad_rate, self.species[name].Aij)
+
+    def rad_field(self, e, sed_type=None):
+        """
+        radiation field density in [erg/cm^3/Hz]
         parameters:
-            - nu      :      frequency in [Hz]
-            - kind    :      type of interstellar field: 
+            - e       :      energy of the transition in [cm^-1]
+            - sed     :      type of interstellar field:
                                     - Habing (Habing 1968)
                                     - Draine (Draine 1978)
                                     - Mathis (Mathis 1983)
+                                    - AGN (based on Richards+2006)
+                                    - GRB (some model)
         return:
             uv       : energy density of UV field in [erg/cm^3]
         """
+        if sed_type is None:
+            s = self.sed_type
+        else:
+            s = sed_type
 
-        if kind=='UVB':
-            if self.UVB:
-                #print(ac.c.cgs.value / nu * 1e8, self.uvb(ac.c.cgs.value / nu * 1e8))
-                return self.uvb(ac.c.cgs.value / nu * 1e8) * 4 * np.pi / ac.c.cgs.value * nu
-            else:
-                return 0
+        e = np.asarray(e)
+        field = np.zeros_like(e)
+        m = e != 0
 
-        if kind == 'Habing':
-            return 4e-14 * np.ones_like(nu)
+        if sed_type is None and self.CMB or 'CMB' == s:
+            temp = self.pars['CMB'].value if 'CMB' in self.pars.keys() else 2.72548 * (1 + self.z)
+            field[m] += self.Planck1 * e[m] ** 3 / (np.exp(self.Planck2 / temp * e[m]) - 1)
+
+        if sed_type is None and self.EBL or 'EBL' == s:
+            field[m] += self.ebl(e[m]) * 4 * np.pi / ac.c.cgs.value
+
+        if s == 'Habing':
+            m = (e > 6 * 8065.5) * (e < 13.6 * 8065.5)
+            field[m] += 4e-14 / (ac.c.cgs.value * e[m]) * 10 ** self.pars['rad'].value
+
+        if s == 'Draine':
+            m = (e > 4 * 8065.5) * (e < 13.6 * 8065.5)
+            l = 1e5 / e[m]  # in 100 nm
+            field[m] += 6.84e-14 * l**(-5) * (31.016 * l**2 - 49.913 * l + 19.897) / (ac.c.cgs.value * e[m]) * 10 ** self.pars['rad'].value
             
-        if kind == 'Draine':
-            l = ac.c.cgs.value / nu / 1e-5  # in 100 nm
-            return 6.84e-14 * l**(-5) * (31.016 * l**2 - 49.913 * l + 19.897)
-            
-        if kind == 'Mathis':
-            l = ac.c.cgs.value / nu / 1e-4 # in 1 mkm
-            if isinstance(l, float):
-                l = np.array(l)
-            uvm = np.zeros_like(l)
-            mask = np.logical_and(0.134 < l, l < 0.245)
-            uvm[mask] = 2.373e-14 * l[mask]**(-0.6678)
-            mask = np.logical_and(0.110 < l, l < 0.134)
-            uvm[mask] = 6.825e-13 * l[mask]
-            mask = np.logical_and(0.091 < l, l < 0.110)
-            uvm[mask] = 1.287e-9 * l[mask]**4.4172
-            return uvm
+        if s == 'Mathis':
+            field[m] += self.mathis(e[m]) * 10 ** self.pars['rad'].value
+
+        if s == 'AGN':
+            field[m] += self.agn(e[m]) * 10 ** self.pars['rad'].value
+
+        if s == 'QSO':
+            field[m] += self.qso(e[m]) * 10 ** self.pars['rad'].value
+
+        if s == 'GRB':
+            t_obs, alpha, beta, z = 393, -1.1, -0.5, 1.5
+            field[m] += 1.12e-25 * (t_obs / 393) ** alpha * (1e8 / e[m] / 5439) ** (-beta) * 1.083e+7 ** 2 / (1 + z) / ac.c.cgs.value * 10 ** self.pars['rad'].value
+
+        return field
 
     def lnpops(self):
         """
@@ -1154,7 +1322,7 @@ class pyratio():
         parameters:
             - grid_num     :  number of points in the grid for each parameter
             - plot         :  specify graphs to plot: 1 is for contour, 2 is for filled contours
-            - output       :  name of output file for probalbility
+            - output       :  name of output file for probability
             - marginalize  :  provide 1d estimates of parameters by marginalization
             - limits       :  show upper of lower limits: 0 for not limits, >0 for lower, <0 for upper
             - title        :  title name for the plot
@@ -1541,7 +1709,7 @@ class pyratio():
         return: L
             - L      :  coollinf rate in erg/s/cm^3 
         """
-        hu = (s.E[u]-s.E[l])/au.cm*ac.c.cgs*ac.h.cgs  # in ergs
+        hu = (s.E[u] - s.E[l]) / au.cm * ac.c.cgs * ac.h.cgs  # in ergs
         if 0:
             stat = s.g[u]/s.g[l]*np.exp(-hu/(ac.k_B.cgs*10**self.pars['T'].value*au.K))
             #print(u, l, s.A[u,l], stat, s.A[u,l]/self.collision_rate(s, u, l)/10**self.pars['n'].value)
@@ -1549,7 +1717,7 @@ class pyratio():
                 stat / (1 + stat + s.A[u,l]/self.collision_rate(s, u, l)) 
         else:
             x = self.balance(s.name)
-            L = s.A[u,l]/au.s * hu * x[u]
+            L = s.A[u,l] / au.s * hu * x[u]
         #L *= 10**self.pars['n'].value * au.cm**3
         return L
         
@@ -1764,11 +1932,11 @@ if __name__ == '__main__':
         else:
             l = np.linspace(1e8 / (13.6*8065.54), 1e8 / (6*8065.54), 1000)
         nu = ac.c.cgs.value / l / 1e-8
-        ax.plot(l, pr.uv(nu, kind='Habing'))
-        ax.plot(l, pr.uv(nu, kind='Draine'))
-        ax.plot(l, pr.uv(nu, kind='Mathis'))
-        print('G_0 of Draine:', np.trapz(pr.uv(nu, kind='Draine')/l)*abs(l[1]-l[0])/5.29e-14)
-        print('G_0 of Mathis:',  np.trapz(pr.uv(nu, kind='Mathis')/l)*abs(l[1]-l[0])/5.29e-14)
+        ax.plot(l, pr.uv(nu, sed_type='Habing'))
+        ax.plot(l, pr.uv(nu, sed_type='Draine'))
+        ax.plot(l, pr.uv(nu, sed_type='Mathis'))
+        print('G_0 of Draine:', np.trapz(pr.uv(nu, sed_type='Draine')/l)*abs(l[1]-l[0])/5.29e-14)
+        print('G_0 of Mathis:',  np.trapz(pr.uv(nu, sed_type='Mathis')/l)*abs(l[1]-l[0])/5.29e-14)
         
 
     # CI calculation
@@ -1776,12 +1944,12 @@ if __name__ == '__main__':
         fig, ax = plt.subplots()
         z_dla = 1.70465
         pr = pyratio(z=z_dla)
-        pr.set_pars(['T', 'n', 'f', 'UV'])
+        pr.set_pars(['T', 'n', 'f', 'rad'])
         pr.set_prior('f', a(0, 0, 0))
         pr.set_prior('T', a(2.0, 0, 0))
         pr.pars['n'].range = [0, 5]
         pr.pars['n'].value = 2
-        pr.pars['UV'].range = [0, 5]
+        pr.pars['rad'].range = [0, 5]
         CIj0, CIj1, CIj2 = a(14.30, 0.1, 0.1), a(14.76, 0.1, 0.1), a(14.74, 0.1, 0.1)
         pr.add_spec('CI', [CIj0, CIj1, CIj2])
         CI = pr.calc_grid(grid_num=20, plot=1, verbose=1, marginalize=True,
@@ -1840,74 +2008,92 @@ if __name__ == '__main__':
         plt.savefig('C:/Users/Serj/Desktop/W_CO.pdf')
         plt.show()
 
+    # >>> check SiII
     if 0:
-        pr = pyratio(z=2.5)
-        pr.set_pars(['T', 'n', 'f', 'UV'])
+        pr = pyratio(z=2.5, pumping='simple', radiation='simple', sed_type='AGN', agn={'filter': 'r', 'mag': 18})
+        pr.set_pars(['T', 'n', 'f', 'rad'])
         pr.pars['T'].range = [1.5, 5]
         pr.set_prior('T', a(4, 0, 0))
-        pr.pars['UV'].range = [2, 5]
+        pr.pars['rad'].range = [-3, 4]
         pr.pars['n'].range = [1, 5]
         pr.pars['f'].range = [-6, 0]
         pr.set_fixed('f', -3)
-        pr.add_spec('SiII', [a(15, 0.1), a(14, 0.1)])
-        if 0:
-            pr.pars['n'].value = 7
-            pr.pars['UV'].value = 3
+        species = 'SiII'
+        pr.add_spec(species)
+        pr.pars['n'].value = 5
+        pr.pars['rad'].value = 0
+        if 1:
+            print('IR:', pr.balance(species, debug='IR'))
+            print('UV:', pr.balance(species, debug='UV'))
+            print('coll:', pr.balance(species, debug='C'))
             print(pr.predict())
         else:
             out = pr.calc_grid(grid_num=10, plot=2, verbose=1, alpha=0.5, color='dodgerblue')
             plt.show()
 
+    # >>> check radiation fields
     if 0:
-        pr = pyratio(z=3.0)
-        l = np.linspace(900, 1500, 100)
-        plt.plot(l, np.log10(pr.uv(ac.c.cgs.value / l / 1e-8, kind='Draine')), label='Draine')
-        plt.plot(l, np.log10(pr.uv(ac.c.cgs.value / l / 1e-8, kind='UVB')), label='UVB')
+        pr = pyratio(z=2.0, sed_type='Draine', agn={'filter': 'r', 'mag': 18})
+        pr.set_pars(['T', 'rad'])
+        e = np.logspace(-1, 5, 10000)
+        plt.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='CMB')), label='CMB')
+        plt.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='EBL')), label='EBL')
+        plt.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='Draine')), label='Draine')
+        for sed, label in zip(['AGN', 'QSO', 'GRB'], ['AGN, r=20, z=2, d=1kpc', 'QSO, r=20, z=2, d=1kpc', 'GRB, d=1kpc']):
+            pr.sed_type = sed
+            pr.load_sed()
+            plt.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type=sed)), label=label)
+        plt.ylim([-39, -18])
+        plt.ylabel(r'log u$_{\nu}$ [$\rm erg\,cm^{-3}\,Hz^{-1}$]')
+        plt.xlabel(r'log E [$\rm cm^{-1}$]')
         plt.legend()
         plt.show()
 
-    # >>> FeII calcualtions and comparison with Bautista+2015
+    # >>> FeII calculations
     if 1:
-        pr = pyratio()
-        pr.add_spec('FeII', num=50)
-        pr.set_pars(['T', 'UV'])
+        pr = pyratio(z=0.34, pumping='simple', radiation='simple', sed_type='AGN', agn={'filter': 'r', 'mag': 18})
+        pr.set_pars(['T', 'rad', 'e'])
         pr.pars['T'].range = [3, 5]
-        pr.pars['UV'].range = [2, 6]
+        pr.add_spec('FeII', num=13)
         pr.pars['T'].value = np.log10(10000)
-        print(pr.balance('FeII', debug='B'))
-        UV_range = np.linspace(2, 6, 5)
+        pr.pars['e'].value = np.log10(5)
+        pr.pars['rad'].value = np.log10(1)
+        print('IR:', pr.balance('FeII', debug='IR')[:3, :3])
+        print('UV:', pr.balance('FeII', debug='UV')[:3, :3])
+        print('coll:', pr.balance('FeII', debug='C')[:3, :3])
+        #input()
+        rad_range = np.linspace(-4, 8, 50)
 
         if 1:
             fig, ax = plt.subplots()
             n = []
-            for uv in UV_range:
-                pr.pars['UV'].value = uv
+            for rad in rad_range:
+                pr.pars['rad'].value = rad
                 n.append(pr.predict())
-            for ni in np.transpose(n)[1:6]:
-                ax.plot(UV_range, 10**ni, ls='-')
+            for i, ni in enumerate(np.transpose(n)[1:13]):
+                ax.plot(rad_range/-2, 10**ni, ls='-', label=str(i+1))
 
-            ax.set_xlim(UV_range)
-            ax.set_ylim([0, 0.8])
-            ax.set_xlabel('log UV')
+            ax.set_xlim([rad_range[0]/-2, rad_range[-1]/-2])
+            ax.set_ylim([0, 1.2])
+            ax.set_xlabel('log d, [1 kpc]')
             ax.legend(frameon=False, fontsize=14)
-            if i == 0:
-                ax.set_ylabel('relative population to the ground level')
+
+            ax.set_ylabel('relative population to the ground level')
 
             plt.tight_layout()
-            plt.savefig('C:/users/serj/desktop/UV.png')
+            plt.savefig('C:/users/serj/desktop/AGN.png')
             plt.show()
 
     # >>> OI calculations
     if 0:
-
         pr = pyratio()
         pr.add_spec('OI', num=3)
-        pr.set_pars(['T', 'n', 'f', 'UV'])
+        pr.set_pars(['T', 'n', 'f', 'rad'])
         pr.pars['T'].range = [1, 4]
         pr.pars['n'].range = [1, 4]
-        pr.pars['UV'].range = [0, 4]
+        pr.pars['rad'].range = [0, 4]
         pr.pars['n'].value = 2
-        pr.pars['UV'].value = 2
+        pr.pars['rad'].value = 2
         pr.pars['T'].value = np.log10(100)
         pr.set_prior('f', a(-3, 0, 0))
         print(pr.balance('OI', debug='A'))
@@ -1945,7 +2131,7 @@ if __name__ == '__main__':
                 n = []
                 ax[i].set_prop_cycle(None)
                 for uv in UV_range:
-                    pr.pars['UV'].value = uv
+                    pr.pars['rad'].value = uv
                     n.append(pr.predict())
                 for k, ni in enumerate(np.transpose(n)[1:3]):
                     ax[i].plot(UV_range, ni, ls='-', label=f'{k+1} level')

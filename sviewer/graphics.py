@@ -1180,6 +1180,7 @@ class Spectrum():
             self.bad_brush = pg.mkBrush(252, 58, 38)
             self.region_brush = pg.mkBrush(147, 185, 69, 60)
             self.mask_region_brush = pg.mkBrush(0, 0, 0, 255)
+            self.fit_pixels_pen = pg.mkPen(145, 180, 29, width=4)
             cdict = cm.get_cmap('viridis')
             cmap = np.array(cdict.colors)
             #cmap[0] = [1,1,1]
@@ -1199,7 +1200,8 @@ class Spectrum():
                 self.points_size = 8 if self.parent.normview else 3
                 self.sm_pen = pg.mkPen(105, 30, 30, style=Qt.DashLine)
                 self.bad_brush = pg.mkBrush(252, 58, 38, 10)
-                self.region_brush = pg.mkBrush(92, 132, 232, 40)
+                self.region_brush = pg.mkBrush(72, 112, 202, 40)
+                self.fit_pixels_pen = pg.mkPen(70, 100, 20, width=0)
             else:
                 return None
 
@@ -1244,10 +1246,13 @@ class Spectrum():
                 if len(x) > 0:
                     y[np.logical_not(self.fit_mask.x())] = np.NaN
                 if 'line' in self.parent.specview:
-                    self.points = pg.PlotCurveItem(connect='finite', pen=pg.mkPen((145, 180, 29), width=5))
+                    self.points = pg.PlotCurveItem(connect='finite', pen=self.fit_pixels_pen)
                 else:
-                    self.points = plotStepSpectrum(connect='finite', pen=pg.mkPen((145, 180, 29), width=5))
-                self.points.setZValue(3)
+                    self.points = plotStepSpectrum(connect='finite', pen=self.fit_pixels_pen)
+                if self.active:
+                    self.points.setZValue(3)
+                else:
+                    self.points.setZValue(0)
                 self.points.setData(x=x, y=y)
                 self.parent.vb.addItem(self.points)
 
@@ -2495,7 +2500,7 @@ class SpectrumFilter():
             #self.value = 2.5 / np.log(10) * (np.arcsinh(flux / self.flux_0 / 2 / self.b) + np.log(self.b))
             flux = - 2.5 / np.log(10) * (np.arcsinh(y * 1e-17 * x**2 / ac.c.to('Angstrom/s').value / self.flux_0 / 2 / self.b) + np.log(self.b))
             print(flux)
-            self.value = np.trapz(flux * self.inter(x), x=x) / np.trapz( self.inter(x), x=x)
+            self.value = np.trapz(flux * self.inter(x), x=x) / np.trapz(self.inter(x), x=x)
         except:
             self.value = np.nan
         return self.value

@@ -362,8 +362,7 @@ class QSOlistTable(pg.TableWidget):
             self.parent.save_opt = ['cont', 'others']
             self.parent.saveFile(filename, save_name=False)
 
-    def saveNorm(self, row):
-        self.row_clicked(row)
+    def saveNorm(self):
         self.parent.normalize(True)
         x, y, err = self.parent.s[-1].spec.norm.x, self.parent.s[-1].spec.norm.y, self.parent.s[-1].spec.norm.err
         mask = (x > 1215.6701 * (1 + float(self.cell_value('z_min')))) * (x < 1215.6701 * (1 + float(self.cell_value('z_max'))))
@@ -375,7 +374,7 @@ class QSOlistTable(pg.TableWidget):
             y[inds] = np.zeros(len(inds))
             err[inds] = 0.01 * np.ones(len(inds))
             data = np.c_[x[mask], y[mask], err[mask]]
-            np.savetxt(self.folder+'/norm/'+self.cell_value('name')+'.dat', data, fmt='%10.4f %12.4f %12.4f')
+            np.savetxt(self.folder+'/norm/' + self.cell_value('name') + '.dat', data, fmt='%10.4f %12.4f %12.4f')
             return data
         else:
             print('norm not saved for: '+ self.cell_value('name'))
@@ -385,10 +384,11 @@ class QSOlistTable(pg.TableWidget):
             do = 'corr' if len(self.selectedIndexes()) > 1 else 'all'
         rows = set()
         for idx in self.selectedIndexes():
-            print(idx.row())
+            print('row', idx.row())
             if idx.row() not in rows:
                 rows.add(idx.row())
-                data = self.saveNorm(idx.row())
+                self.row_clicked(idx.row())
+                data = self.saveNorm()
                 Lyaforest_scan(self.parent, data.transpose(), do=do)
         plt.show()
 
@@ -801,8 +801,9 @@ class QSOlistTable(pg.TableWidget):
 
         if row is None:
             row = self.currentItem().row()
+            print(row)
 
-        cell = self.item(row,self.columnIndex(columnname)).text()   # get cell at row, col
+        cell = self.item(row, self.columnIndex(columnname)).text()   # get cell at row, col
 
         return cell
     

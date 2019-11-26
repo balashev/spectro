@@ -776,7 +776,7 @@ class fitModelSysWidget(QFrame):
         Ncons_vary = all([hasattr(self.fit.sys[self.ind], attr) for attr in ['Ntot', 'logT', 'logn']])
         self.cons = self.addParent(self.treeWidget, 'b tied', checkable=True, expanded=cons_vary)
         self.Ncons = self.addParent(self.treeWidget, 'N tied', checkable=True, expanded=Ncons_vary)
-        for s, name in zip(['z', 'turb', 'kin', 'Ntot', 'logT', 'logn', 'logf'], ['z','b_turb', 'Tkin, K', 'N_tot', 'logT', 'logn', 'logf']):
+        for s, name in zip(['z', 'turb', 'kin', 'Ntot', 'logT', 'logn', 'logf', 'rad'], ['z', 'b_turb', 'Tkin, K', 'N_tot', 'logT', 'logn', 'logf', 'UV/dist']):
             if s == 'z':
                 item = QTreeWidgetItem(self.z)
             elif s in ['turb', 'kin']:
@@ -798,7 +798,7 @@ class fitModelSysWidget(QFrame):
             setattr(self, s + '_vary', QCheckBox())
             getattr(self, s + '_vary').setChecked(getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
             getattr(self, s + '_vary').stateChanged.connect(self.varyChanged)
-            if (s in ['turb', 'kin'] and not cons_vary) or (s in ['Ntot', 'logT', 'logn', 'logf'] and not Ncons_vary):
+            if (s in ['turb', 'kin'] and not cons_vary) or (s in ['Ntot', 'logT', 'logn', 'logf', 'rad'] and not Ncons_vary):
                 self.fit.sys[self.ind].remove(s)
 
             self.treeWidget.setItemWidget(item, 2, getattr(self, s + '_vary'))

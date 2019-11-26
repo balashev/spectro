@@ -4,12 +4,14 @@ Created on Fri Dec 23 11:25:04 2016
 
 @author: Serj
 """
+import astropy.constants as ac
 from astropy.modeling.functional_models import Moffat1D
 import inspect
 from itertools import compress
 from math import atan2,degrees
 import numpy as np
 import os
+from scipy.interpolate import interp1d
 from scipy.stats import rv_continuous
 import sys
 sys.path.append('C:/science/python')
@@ -376,3 +378,20 @@ def smooth(x, window_len=11, window='hanning', mode='valid'):
 
     y = np.convolve(w / w.sum(), s, mode=mode)[window_len-1:-window_len+1]
     return y
+
+def flux_to_mag(flux, x, filter_name):
+    """
+    Calculate the flux at x in the filter given by filter_name
+    :param flux:  flux in 1e-17 erg/cm^2/s/Hz
+    :param x:     wavelengths in Angstrem
+    :param filter_name:
+    :return:    magnitude of the flux in corresponding filter
+    """
+    fil = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r'/data/SDSS/' + filter_name + '.dat', skip_header=6, usecols=(0, 1), unpack=True)
+    mask = np.logical_and(x > fil[0][0], x < fil[0][-1])
+    fil = interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
+    b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
+    m = - 2.5 / np.log(10) * (np.arcsinh(
+        flux[mask] * x[mask] ** 2 / ac.c.to('Angstrom/s').value / 3.631e-20 / 2 / b[filter_name]) + np.log(
+        b[filter_name]))
+    return np.trapz(m * fil(x[mask]), x=x[mask]) / np.trapz(fil(x[mask]), x=x[mask])

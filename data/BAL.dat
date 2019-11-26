@@ -1,0 +1,9 @@
+This file collects the data for typical BAL absorption lines.
+species  lambda     f      g_l  g_u
+----------------------------------------------
+HeIj1     2764.63    0.004  3    9 
+HeIj1     2829.91    0.007  3    9 
+HeIj1     2945.96    0.012  3    9 
+HeIj1     3188.67    0.028  3    9 
+HeIj1     3889.75    0.064  3    9 
+HeIj1     10833.1    0.539  3    9  

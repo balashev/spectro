@@ -1,0 +1,142 @@
+J/ApJ/808/174         FeII radiative transition rates         (Bautista+, 2015)
+================================================================================
+Atomic data and spectral model for Fe II.
+    Bautista M.A., Fivet V., Ballance C., Quinet P., Ferland G., Mendoza C.,
+    Kallman T.R.
+   <Astrophys. J., 808, 174 (2015)>
+   =2015ApJ...808..174B    (SIMBAD/NED BibCode)
+================================================================================
+ADC_Keywords: Atomic physics
+Keywords: atomic data; atomic processes; ISM: abundances; line: formation;
+          stars: massive; stars: variables: T Tauri, Herbig Ae/Be
+
+Abstract:
+    We present extensive calculations of radiative transition rates and
+    electron impact collision strengths for FeII. The data sets involve 52
+    levels from the 3d^7^, 3d^6^4s, and 3d^5^4s^2^ configurations.
+    Computations of A-values are carried out with a combination of
+    state-of-the-art multiconfiguration approaches, namely the
+    relativistic Hartree-Fock, Thomas-Fermi-Dirac potential, and
+    Dirac-Fock methods, while the R-matrix plus intermediate coupling
+    frame transformation, Breit-Pauli R-matrix, and Dirac R-matrix
+    packages are used to obtain collision strengths. We examine the
+    advantages and shortcomings of each of these methods, and estimate
+    rate uncertainties from the resulting data dispersion. We proceed to
+    construct excitation balance spectral models, and compare the
+    predictions from each data set with observed spectra from various
+    astronomical objects. We are thus able to establish benchmarks in the
+    spectral modeling of [FeII] emission in the IR and optical regions as
+    well as in the UV FeII absorption spectra. Finally, we provide
+    diagnostic line ratios and line emissivities for emission spectroscopy
+    as well as column densities for absorption spectroscopy.
+
+Description:
+    One hundred thirty-seven [FeII] lines are found in the Hubble Space
+    Telescope (HST)/STIS archived spectra of the Weigelt blobs of {eta}
+    Carinae. 55 [FeII] lines have been measured in the X-shooter
+    (3000-25000{AA}) spectrum of the jet of the pre-main-sequence star
+    SEO-H{alpha} 574 (Giannini et al. 2013ApJ...778...71G).
+    See sections 3 and 5.
+
+Objects:
+    -----------------------------------------------------------
+         RA   (ICRS)   DE        Designation(s)
+    -----------------------------------------------------------
+     10 45 03.55   -59 41 04.0   eta Carinae = * eta Car
+     11 16 02.88   -76 24 53.3   ESO-H{alpha} 574 = ESO-HA 574
+    -----------------------------------------------------------
+
+File Summary:
+--------------------------------------------------------------------------------
+ FileName    Lrecl  Records   Explanations
+--------------------------------------------------------------------------------
+ReadMe          80        .   This file
+table3.dat      38       52   Energy Levels of the 3d^6^4s, 3d^7^, and
+                               3d^5^4s^2^ configurations
+table10.dat     33      473   Fe II line branching ratios
+table11.dat     60      106  *Intensity ratios from lines from the same upper
+                               level in {eta} Carinea
+table12.dat     62     1953   Maxwellian averaged collision strengths for FeII
+                               vs temperature
+--------------------------------------------------------------------------------
+Note on table11.dat: Comparison between calculated and observed ratios in
+  the Weigelt blobs of {eta} Carinea and the ESO-H{alpha}574.
+--------------------------------------------------------------------------------
+
+See also:
+ J/A+A/554/A132  : Iron line list (FeI and FeII) (Genovali+, 2013)
+ J/A+A/536/A74   : FeII forbidden lines radiative transition rates (Deb+, 2011)
+ J/A+A/520/A57   : New FeII energy levels from stellar spectra (Castelli+, 2010)
+ J/ApJ/709/611   : The multi-component absorber QSO 0318-0600 (Dunn+, 2010)
+ J/A+A/508/1527  : SiII Radiative transition rates (Bautista+, 2009)
+ J/MNRAS/395/855 : Spectroscopy (310-1040nm) of HH 202 (Mesa-Delgado+, 2009)
+ J/A+A/475/765   : Fine structure forbidden lines in FeII (Ramsbottom+, 2007)
+ J/A+AS/120/361  : IRON Project. XIX. Fe II radiative transitions (Quinet+ 1996)
+ J/A+A/293/953   : IRON project VI. FeII collision strengths (Zhang+, 1995)
+ http://etacar.umn.edu/ : HST Treasury program on eta Carinae
+
+Byte-by-byte Description of file: table3.dat
+--------------------------------------------------------------------------------
+   Bytes Format Units   Label     Explanations
+--------------------------------------------------------------------------------
+   1-  2  I2    ---     Seq       [1/52] Index number
+   4- 17  A14   ---     Conf      Configuration
+  19- 28  A10   ---     Lev       Level
+  30- 38  F9.7  ---     E         [0/0.3] Energy (1)
+--------------------------------------------------------------------------------
+Note (1): From Ralchenko Y., Kramida A., Reader J. and NIST ASD Team 2011
+          NIST Atomic Spectra Database (version 4.1):
+          http://www.nist.gov/pml/data/asd.cfm
+--------------------------------------------------------------------------------
+
+Byte-by-byte Description of file: table10.dat
+--------------------------------------------------------------------------------
+   Bytes Format Units   Label     Explanations
+--------------------------------------------------------------------------------
+   1-  2  I2    ---     Up        [2/52] Upper level designation
+   4-  5  I2    ---     Low       [1/47] Lower level designation
+   7- 15  F9.2  0.1nm   lambda    [3175.3/873582.2] Line wavelength; Angstroms
+  17- 24  E8.3  ---     BR        Branching ratio
+  26- 33  E8.3  ---   e_BR        [0/0.3] Uncertainty in BR
+--------------------------------------------------------------------------------
+
+Byte-by-byte Description of file: table11.dat
+--------------------------------------------------------------------------------
+   Bytes Format Units   Label     Explanations
+--------------------------------------------------------------------------------
+   1-  2  I2    ---     Up        [10/51] Upper level 1 designation
+   4-  5  I2    ---     Low1      [1/14] Lower level numerator designation
+   7-  8  I2    ---     Low2      [2/16] Lower level denominator designation
+  10- 16  F7.1  0.1nm   lambda1   [3277.8/17971] Numerator wavelength
+  18- 24  F7.1  0.1nm   lambda2   [4080.4/18094] Denominator wavelength
+  26- 33  E8.2  ---     Obs       [0.6/116] Observed ratio
+  35- 42  E8.2  %     e_Obs       [0.01/70.5] Uncertainty in Obs
+  44- 51  E8.2  ---     Th        [0.009/72] Theoretical ratio
+  53- 60  E8.2  %     e_Th        [0.0003/8.5] Uncertainty in Th
+--------------------------------------------------------------------------------
+
+Byte-by-byte Description of file: table12.dat
+--------------------------------------------------------------------------------
+   Bytes Format Units   Label   Explanations
+--------------------------------------------------------------------------------
+   1-  2  I2    ---     Low     [1/62] Lower level designation (1)
+   4-  5  I2    ---     Up      [2/63] Upper level designation (1)
+   7- 15  E9.3  ---     CS5     [0/10.5] Effective collision strength at 5000K
+  17- 25  E9.3  ---     CS7     [0/10.2] Effective collision strength at 7000K
+  27- 35  E9.3  ---     CS10    [0/9.8] Effective collision strength at 10000K
+  37- 45  E9.3  ---     CS15    [0/9.3] Effective collision strength at 15000K
+  47- 55  E9.3  ---     CS20    [0/8.8] Effective collision strength at 20000K
+  57- 62  F6.2  %     e_CS10    [3.4/256] Uncertainty in CS10
+--------------------------------------------------------------------------------
+Note (1): According to author, levels 53-62 should be disregarded due to a
+          lower level of confidence in the calculation (note added by CDS).
+--------------------------------------------------------------------------------
+
+Acknowledgements:
+    Manuel Bautista [Western Michigan University]
+
+History:
+    From electronic version of the journal
+
+================================================================================
+(End)                  Prepared by [AAS], Emmanuelle Perret [CDS]    02-Dec-2015
