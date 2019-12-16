@@ -5257,8 +5257,13 @@ class buttonpanel(QFrame):
 
         self.ESO = QPushButton('ESO', self)
         self.ESO.clicked.connect(self.getESO)
-        self.ESO.move(630, 20)
+        self.ESO.move(450, 60)
         self.ESO.resize(70, 30)
+
+        self.NIST = QPushButton('NIST', self)
+        self.NIST.clicked.connect(self.getNIST)
+        self.NIST.move(630, 20)
+        self.NIST.resize(70, 30)
 
     def initStyle(self):
         self.setStyleSheet("""
@@ -5294,6 +5299,12 @@ class buttonpanel(QFrame):
     def getESO(self):
         print(self.parent.s[self.parent.s.ind].filename)
 
+    def getNIST(self):
+        for r in self.parent.plot.regions:
+            print(r.getRegion()[0], r.getRegion()[1])
+            url = QUrl("https://physics.nist.gov/cgi-bin/ASD/lines1.pl?spectra=&limits_type=0&low_w={0:.2f}&upp_w={1:.2f}&unit=0&submit=Retrieve+Data&de=0&format=0&line_out=0&en_unit=0&output=0&bibrefs=1&page_size=15&show_obs_wl=1&show_calc_wl=1&unc_out=1&order_out=0&max_low_enrg=&show_av=3&max_upp_enrg=&tsb_value=0&min_str=&A_out=0&f_out=on&intens_out=on&max_str=&allowed_out=1&forbid_out=1&min_accur=&min_intens=&conf_out=on&term_out=on&enrg_out=on&J_out=on".format(r.getRegion()[0]/(1+self.parent.z_abs), r.getRegion()[1]/(1+self.parent.z_abs)))
+            if not QDesktopServices.openUrl(url):
+                QMessageBox.warning(self, 'Open Url', 'Could not open url')
 
 class sviewer(QMainWindow):
     
@@ -6307,6 +6318,13 @@ class sviewer(QMainWindow):
                     self.setz_abs(self.fit.sys[0].z.val)
                 self.fit.showLines()
 
+            if 'fit_tieds' in d[i]:
+                self.fit.tieds = {}
+                num = int(d[i].split()[1])
+                for k in range(num):
+                    i += 1
+                    self.fit.addTieds(d[i].strip().split()[0], d[i].strip().split()[1])
+
             if 'cheb' in d[i]:
                 i += 1
                 self.fit.cont_left, self.fit.cont_right = float(d[i].split()[0]), float(d[i].split()[1])
@@ -6413,6 +6431,13 @@ class sviewer(QMainWindow):
                 f.write('fit_model: {0:}\n'.format(len(pars)))
                 for p in pars:
                     f.write(p.str() + '\n')
+
+            # >>> save fit model tieds:
+            if 'fit' in self.save_opt:
+                if len(self.fit.tieds.keys()) > 0:
+                    f.write('fit_tieds: {0:}\n'.format(len(self.fit.tieds.keys())))
+                    for k, v in self.fit.tieds.items():
+                        f.write(' '.join([k, v]) + '\n')
 
             # >>> save cheb parameters:
             if 'fit' in self.save_opt:
@@ -7450,7 +7475,7 @@ class sviewer(QMainWindow):
                     def lnprob(params, x_int, y, err, cont):
                         return -0.5 * np.sum((((y - cont) - gauss_integ(x_int, params[0], params[1], params[2])) / err )**2)
 
-                    ndim, nwalkers, nsteps = 3, 100, 1000
+                    ndim, nwalkers, nsteps = 3, 100, 2000
                     p0 = np.asarray([result.params[par].value + np.random.randn(nwalkers) * result.params[par].stderr for par in params]).transpose()
                     sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[x_bin, y - cont, err, cont])
                     sampler.run_mcmc(p0, nsteps)

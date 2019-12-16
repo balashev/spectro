@@ -9,6 +9,7 @@ import collections
 import corner
 import emcee
 import glob
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
@@ -823,11 +824,15 @@ class pyratio():
             scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux[mask], x[mask], b[self.agn_pars['filter']], fil, self.agn_pars['mag']))
             print(scale, flux_to_mag(flux * scale, x, self.agn_pars['filter']), self.agn_pars['mag'])
             print(flux[flux != 0] * scale * (self.DL / ac.kpc.cgs.value) ** 2 * x[flux != 0] ** 2 / 1e8 / ac.c.cgs.value ** 2)
-            self.qso = interpolate.interp1d(1e8 / x, flux * scale * (self.DL / ac.kpc.cgs.value) ** 2 * x ** 2/ 1e8 / ac.c.cgs.value ** 2, bounds_error=False, fill_value=0)
+            self.qso = interpolate.interp1d(1e8 / x * (1 + self.z), flux * scale * (self.DL / ac.kpc.cgs.value) ** 2 * x ** 2/ 1e8 / ac.c.cgs.value ** 2, bounds_error=False, fill_value=0)
 
         if 'AGN' in self.sed_type:
             data = np.genfromtxt(self.folder + '/data/pyratio/Richards2006.dat', unpack=True, comments='#')
-
+            if 0:
+                x = (ac.c.cgs.value * 1e4 / 10 ** data[0])
+                for k in range(1,8):
+                    plt.loglog(x, 10 ** (data[k] - data[k][np.argmin(np.abs(0.3 - x))]))
+                plt.show()
             if 1:
                 b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
                 fil = np.genfromtxt(self.folder + r'/data/SDSS/' + self.agn_pars['filter'] + '.dat', skip_header=6, usecols=(0, 1), unpack=True)
@@ -839,7 +844,7 @@ class pyratio():
                 print(scale, flux_to_mag(flux * scale, x[mask], self.agn_pars['filter']), self.agn_pars['mag'])
             else:
                 scale = 1.
-            self.agn = interpolate.interp1d(10 ** data[0] / ac.c.cgs.value, 10 ** data[1] / 4 / np.pi / (ac.kpc.cgs.value) ** 2 / 10 ** data[0] * (1 + self.z) * scale / ac.c.cgs.value, bounds_error=False, fill_value=0)
+            self.agn = interpolate.interp1d(10 ** data[0] / ac.c.cgs.value * (1 + self.z), 10 ** data[1] / 4 / np.pi / (ac.kpc.cgs.value) ** 2 / 10 ** data[0] * (1 + self.z) * scale / ac.c.cgs.value, bounds_error=False, fill_value='extrapolate')
 
     def set_EBL(self):
         """
@@ -1044,11 +1049,11 @@ class pyratio():
             field[m] += self.ebl(e[m]) * 4 * np.pi / ac.c.cgs.value
 
         if s == 'Habing':
-            m = (e > 6 * 8065.5) * (e < 13.6 * 8065.5)
+            m = (e > 6 * 8065.54) * (e < 13.5947 * 8065.54)
             field[m] += 4e-14 / (ac.c.cgs.value * e[m]) * 10 ** self.pars['rad'].value
 
         if s == 'Draine':
-            m = (e > 4 * 8065.5) * (e < 13.6 * 8065.5)
+            m = (e > 4 * 8065.54) * (e < 13.5947 * 8065.54)
             l = 1e5 / e[m]  # in 100 nm
             field[m] += 6.84e-14 * l**(-5) * (31.016 * l**2 - 49.913 * l + 19.897) / (ac.c.cgs.value * e[m]) * 10 ** self.pars['rad'].value
             
@@ -1066,6 +1071,11 @@ class pyratio():
             field[m] += 1.12e-25 * (t_obs / 393) ** alpha * (1e8 / e[m] / 5439) ** (-beta) * 1.083e+7 ** 2 / (1 + z) / ac.c.cgs.value * 10 ** self.pars['rad'].value
 
         return field
+
+    def ionization_parameter(self):
+        if self.sed_type == 'AGN':
+            x = np.logspace(np.log10(1e8/912), 8, 100)
+            return np.trapz(self.rad_field(x) / (ac.h.cgs.value * x), x) * 10**self.pars['rad'].value / 10**self.pars['e'].value
 
     def lnpops(self):
         """
@@ -2031,26 +2041,123 @@ if __name__ == '__main__':
             out = pr.calc_grid(grid_num=10, plot=2, verbose=1, alpha=0.5, color='dodgerblue')
             plt.show()
 
-    # >>> check radiation fields
+    # >>> check ionization parameter
     if 0:
-        pr = pyratio(z=2.0, sed_type='Draine', agn={'filter': 'r', 'mag': 18})
+        pr = pyratio(z=2.0, pumping='simple', radiation='simple', sed_type='AGN', agn={'filter': 'r', 'mag': 18})
+        pr.set_pars(['T', 'rad', 'e'])
+        pr.pars['T'].value = 4
+        pr.pars['e'].value = 0
+        pr.pars['rad'].value = 0
+        q = np.log10(pr.ionization_parameter())
+        print(q)
+
+        e = np.logspace(2, 6, 10000)
+        species = 'FeII'
+        pr.add_spec(species)
+
+        levels = [1, 2, 3, 4, 9]
+        fig, ax = plt.subplots(nrows=len(levels), ncols=3, figsize=(17, 5 * len(levels)))
+        n = np.linspace(2, 6, 15)
+        rad = np.linspace(-2, 2, 15)
+        d = {}
+        for l in levels:
+            d[l] = {'f': np.zeros([len(rad), len(n)]), 'r': np.zeros([len(rad), len(n)]), 'c': np.zeros([len(rad), len(n)])}
+        for i, ri in enumerate(rad):
+            for k, nk in enumerate(n):
+                pr.pars['e'].value = nk
+                pr.pars['rad'].value = ri
+                for l in levels:
+                    d[l]['f'][k, i] = pr.balance(species)[l]
+                pr.pars['e'].value = -8
+                for l in levels:
+                    d[l]['r'][k, i] = pr.balance(species)[l]
+                pr.pars['e'].value = nk
+                pr.pars['rad'].value = -8
+                for l in levels:
+                    d[l]['c'][k, i] = pr.balance(species)[l]
+                #print(ri, nk, d[l]['f'][k, i], d[l]['c'][k, i], d[l]['r'][k, i])
+
+        R, N = np.meshgrid(rad, n)
+        def plot_cont(axi, z, vmin=-2, vmax=0, xlabel=None, ylabel=None, cmap='viridis'):
+            cs = axi.contourf(R, N, z, vmin=vmin, vmax=vmax, levels=np.linspace(vmin, vmax, 6), cmap=cmap, alpha=0.8)
+            cbar = fig.colorbar(cs, ax=axi, shrink=0.9)
+            if xlabel is not None:
+                cbar.ax.set_xlabel(xlabel)
+            if ylabel is not None:
+                cbar.ax.set_ylabel(ylabel)
+            Q = np.linspace(-3, 1, 3)
+            xp, yp = [-1.7, 0, 1], [4.9, 4.6, 3.5]
+            for qi, x, y in zip(Q, xp, yp):
+                axi.plot(rad, q - qi + rad, '--k', lw=2, zorder=9)
+                text = axi.text(x, y, r'Q = {0:d}'.format(int(qi)), va='bottom', ha='left')
+                text.set_rotation(40)
+            axi.set_xlim([rad[0], rad[-1]-0.1])
+            axi.set_ylim([n[0], n[-1]])
+
+        for i, l in enumerate(levels):
+            plot_cont(ax[i, 0], np.log10(d[l]['f']), -2, 0, xlabel=f'$n_{l}/n_{0}$')
+            plot_cont(ax[i, 1], np.log10(d[l]['c'] / d[l]['f']), -2, 0, ylabel='collisions', cmap='RdBu_r')
+            plot_cont(ax[i, 2], np.log10(d[l]['r'] / d[l]['f']), -2, 0, ylabel='radiative', cmap='RdBu_r')
+        plt.show()
+
+
+    # >>> check radiation fields
+    if 1:
+        pr = pyratio(z=2.0, pumping='simple', radiation='simple', sed_type='Draine', agn={'filter': 'r', 'mag': 18})
         pr.set_pars(['T', 'rad'])
         e = np.logspace(-1, 5, 10000)
-        plt.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='CMB')), label='CMB')
-        plt.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='EBL')), label='EBL')
-        plt.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='Draine')), label='Draine')
+        fig = plt.figure(figsize=(10, 6))
+        add_lines = 1
+        if add_lines:
+            ax = plt.axes([0.10, 0.10, 0.90, 0.61])
+            ax2 = plt.axes([0.10, 0.71, 0.90, 0.25])
+        else:
+            ax = plt.axes([0.10, 0.10, 0.90, 0.90])
+
+        ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='CMB')), label='CMB, z=2')
+        ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='EBL')), label='EBL, z=2')
+        ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='Draine')), label='Draine')
         for sed, label in zip(['AGN', 'QSO', 'GRB'], ['AGN, r=20, z=2, d=1kpc', 'QSO, r=20, z=2, d=1kpc', 'GRB, d=1kpc']):
-            pr.sed_type = sed
-            pr.load_sed()
-            plt.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type=sed)), label=label)
-        plt.ylim([-39, -18])
-        plt.ylabel(r'log u$_{\nu}$ [$\rm erg\,cm^{-3}\,Hz^{-1}$]')
-        plt.xlabel(r'log E [$\rm cm^{-1}$]')
-        plt.legend()
+            if sed != 'GRB':
+                pr.sed_type = sed
+                pr.load_sed()
+                ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type=sed)), label=label)
+        ax.set_ylim([-39, -18])
+        ax.set_xlim(ax.get_xlim())
+        ax.set_ylabel(r'log u$_{\nu}$ [$\rm erg\,cm^{-3}\,Hz^{-1}$]')
+        ax.set_xlabel(r'log E [$\rm cm^{-1}$]')
+        ax.legend()
+
+        if 1:
+            qso = np.genfromtxt('C:/science/data/swire_library/QSO1_template_norm.sed', unpack=True)
+            ax.plot(np.log10(1e8 / qso[0]), np.log10(qso[1] * qso[0]**2 / ac.c.cgs.value / 1e8 / 1e10))
+            print(qso[1] * qso[0]**2 / ac.c.cgs.value / 1e8 / 1e10)
+        mpl.rcParams['hatch.linewidth'] = 5
+
+        if add_lines:
+            species = 'OI'
+            pr.add_spec(species)
+            inds = np.where(pr.species[species].A != 0)
+            E = np.abs(pr.species[species].E[inds[0]] - pr.species[species].E[inds[1]])
+            if 0:
+                ax2.scatter(np.log10(E), np.log10(pr.species[species].A[inds[0], inds[1]]))
+                ax2.set_ylabel(r'$\rm \log\,A_{ik}, s^{-1}$')
+            else:
+                ax2.scatter(np.log10(E), np.log10(pr.species[species].B[inds[0], inds[1]] * pr.rad_field(E)))
+                ax2.set_ylabel(r'$\rm \log\,B_{ik} \rho(E_{ik}), s^{-1}$')
+
+            ax2.set_xlim(ax.get_xlim())
+            ax2.axvspan(np.log10(1e8 / 912), ax2.get_xlim()[-1], facecolor='lightseagreen', edgecolor='k', alpha=0.1, hatch='/', zorder=0)
+            ax2.set_title(species, fontsize=16)
+
+
+        ax.axvspan(np.log10(1e8 / 912), ax.get_xlim()[-1], facecolor='lightseagreen', edgecolor='k', alpha=0.1, hatch='/', zorder=0)
+        ax.text(np.log10(1e8 / 912), np.mean(ax.get_ylim()), 'Ly cutoff', rotation=90, ha='left', va='center')
+        fig.savefig(r'C:/users/serj/desktop/' + species + '.png')
         plt.show()
 
     # >>> FeII calculations
-    if 1:
+    if 0:
         pr = pyratio(z=0.34, pumping='simple', radiation='simple', sed_type='AGN', agn={'filter': 'r', 'mag': 18})
         pr.set_pars(['T', 'rad', 'e'])
         pr.pars['T'].range = [3, 5]

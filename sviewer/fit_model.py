@@ -244,16 +244,27 @@ class fitModelWidget(QWidget):
         hbox.addStretch(1)
         hbox.addWidget(self.okButton)
 
-        layout = QVBoxLayout()
-        layout.addWidget(self.tab)
-        layout.addWidget(QLabel('add species: '))
-        layout.addLayout(speciesbox)
-        layout.addSpacing(50)
+        layout_left = QVBoxLayout()
+        layout_left.addWidget(self.tab)
+        layout_left.addWidget(QLabel('add species: '))
+        layout_left.addLayout(speciesbox)
+        layout_left.addSpacing(50)
         #layout.addStretch(1)
-        layout.addLayout(hbox)
+        layout_left.addLayout(hbox)
+        layout_right = QVBoxLayout()
+        layout_right.addWidget(QLabel('add additional tied: '))
+        self.tieWindow = QTextEdit()
+        self.tieWindow.setFixedSize(400, 120)
+        self.tieWindow.textChanged.connect(partial(self.updateTieWindow, init=False))
+        self.updateTieWindow(init=True)
+        layout_right.addWidget(self.tieWindow)
+        layout_right.addWidget(self.treeWidget)
+        #layout_right.addStretch(1)
+
         l = QHBoxLayout()
-        l.addLayout(layout)
-        l.addWidget(self.treeWidget)
+        l.addLayout(layout_left)
+        l.addLayout(layout_right)
+
 
         self.setLayout(l)
 
@@ -488,6 +499,20 @@ class fitModelWidget(QWidget):
                     except:
                         pass
 
+    def updateTieWindow(self, init=False):
+        if init == False:
+            text = self.tieWindow.toPlainText()
+            self.parent.fit.tieds = {}
+            for line in text.split('\n'):
+                if not line.startswith('#'):
+                    l = line.strip().split()
+                    if len(l) == 2:
+                        self.parent.fit.addTieds(l[0], l[1])
+            self.update()
+        else:
+            head = '# tie par1 to par2 by printing: <par1> <par2>'
+            self.tieWindow.setText('\n'.join([head] + [' '.join([k, v]) for k, v in self.parent.fit.tieds.items()]))
+
     def addSystem(self):
         self.tabNum += 1
         z = self.parent.z_abs if self.tab.currentIndex() == -1 else None
@@ -515,11 +540,12 @@ class fitModelWidget(QWidget):
         self.onTabChanged()
 
     def onTabChanged(self):
-        self.tab.currentWidget().refresh()
-        self.parent.comp = self.tab.currentIndex()
-        self.parent.componentBar.setText("{:d} component".format(self.parent.comp))
-        self.parent.s.redrawFitComps()
-        self.parent.abs.redraw(z=self.parent.fit.sys[self.parent.comp].z.val)
+        if self.tab.currentWidget() is not None:
+            self.tab.currentWidget().refresh()
+            self.parent.comp = self.tab.currentIndex()
+            self.parent.componentBar.setText("{:d} component".format(self.parent.comp))
+            self.parent.s.redrawFitComps()
+            self.parent.abs.redraw(z=self.parent.fit.sys[self.parent.comp].z.val)
 
     def varyChanged(self, name=''):
         if hasattr(self.parent.fit, name):
@@ -709,7 +735,6 @@ class fitModelWidget(QWidget):
                 if self.addall.isChecked() or self.tab.currentIndex() == sys.ind:
                     self.tab.setCurrentIndex(i)
                     if sys.addSpecies(s):
-                        print('addSpecies', sys.Ntot.val)
                         self.tab.currentWidget().addSpecies(s)
                         self.tab.currentWidget().refresh()
                         if self.tied.currentText().strip() != 'tied...':
@@ -828,7 +853,7 @@ class fitModelSysWidget(QFrame):
         self.treeWidget.itemExpanded.connect(self.stateChanged)
         self.treeWidget.itemCollapsed.connect(self.stateChanged)
         if self.Ncons.isExpanded():
-            self.fit.sys[self.ind].pyratio(init=True)
+            self.fit.sys[self.ind].pyratio(init=False)
         else:
             self.fit.sys[self.ind].pr = None
         self.setLayout(layout)
@@ -960,7 +985,7 @@ class fitModelSysWidget(QFrame):
         self.refresh()
 
     def varyChanged(self):
-        for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']:
+        for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
             if hasattr(self.fit.sys[self.ind], s):
                 setattr(getattr(self.fit.sys[self.ind], s), 'vary', getattr(self, s + '_vary').isChecked())
             #print('state:', getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
@@ -980,7 +1005,7 @@ class fitModelSysWidget(QFrame):
                 else:
                     self.fit.sys[self.ind].remove(s)
         if item == self.Ncons:
-            for s in ['Ntot', 'logn', 'logT', 'logf']:
+            for s in ['Ntot', 'logn', 'logT', 'logf', 'rad']:
                 if self.Ncons.isExpanded():
                     self.fit.sys[self.ind].add(s)
                 else:
@@ -996,7 +1021,7 @@ class fitModelSysWidget(QFrame):
         self.refresh()
 
     def onChanged(self, s, attr, species=None):
-        if s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']:
+        if s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
             setattr(getattr(self.fit.sys[self.ind], s), attr, float(getattr(self, s + '_' + attr).text()))
         if s in ['b', 'N']:
             setattr(getattr(self.fit.sys[self.ind].sp[species], s), attr, float(getattr(self, species + '_' + s + '_' + attr).text()))
@@ -1039,9 +1064,9 @@ class fitModelSysWidget(QFrame):
             self.fit.update(what=what, ind=ind)
 
             names = ['val', 'max', 'min', 'step']
-            for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf']:
+            for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
                 if hasattr(self.fit.sys[self.ind], s):
-                    getattr(self, s+'_vary').setChecked(getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
+                    getattr(self, s + '_vary').setChecked(getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
                     for attr in names:
                         if s + '_' + attr != excl:
                             getattr(self, s + '_' + attr).setText(getattr(self.fit.sys[self.ind], s).str(attr))

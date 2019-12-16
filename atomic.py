@@ -416,9 +416,7 @@ class atomicData(OrderedDict):
         self.lines = {}
         #self.readdatabase()
 
-    def list(self, els=None, linelist=None, simplified=False):
-        lines = []
-
+    def list(self, els=None, linelist=None):
         if els is not None and isinstance(els, str):
             els = [els]
         if els is None and linelist is None:
@@ -426,13 +424,16 @@ class atomicData(OrderedDict):
         if els is None and linelist is not None:
             els = np.unique([l.split()[0] for l in linelist])
 
+        lines = []
+
         with h5py.File(self.folder + r'/data/atomic.hdf5', 'r') as data:
             for e in els:
-                if e not in self.lines.keys():
-                    self.lines[e] = []
+                elist = []
+                if e not in self.lines.keys() or linelist is not None:
+                    if e not in self.lines.keys():
+                        self.lines[e] = []
                     t = Timer(e)
                     name = self.correct_name(e)
-                    print(name, name in self.keys())
                     if name in self.keys():
                         #print('ref', self.data[name]['ref'])
                         for i, ref in enumerate(data[name]['ref']):
@@ -446,8 +447,11 @@ class atomicData(OrderedDict):
                                 setattr(l, 'band', ref['band'])
                             if linelist is None or any([str(l) in lin or lin in str(l) for lin in linelist]):
                                 self.lines[e].append(l)
+                                elist.append(l)
                             #t.time('out')
-                lines += copy.deepcopy(self.lines[e])
+                else:
+                    elist = self.lines[e]
+                lines += copy.deepcopy(elist)
         return lines
 
 
@@ -793,7 +797,6 @@ class atomicData(OrderedDict):
         self.readBAL()
         self.read_Molecular()
         self.read_EmissionSF()
-
         self.writedatabase()
 
     def writedatabase(self):
@@ -807,7 +810,6 @@ class atomicData(OrderedDict):
                 lines = grp.create_group('lines')
                 #ref = np.empty(len(self[el].lines), dtype=[('l', float), ('ind', int), ('descr', 'S')])
                 for i, l in enumerate(self[el].lines):
-                    print(str(l), l.band)
                     ds[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u), str(l.band))
                     lin = lines.create_dataset(str(i), shape=(len(l.ref),), dtype=np.dtype([('l', float), ('f', float), ('g', float), ('ref', dt)]))
                     for k in range(len(l.ref)):
@@ -906,6 +908,7 @@ class atomicData(OrderedDict):
             if words[0] not in self:
                 self[words[0]] = e(words[0])
             self[words[0]].lines.append(line(words[0], words[1], words[2], words[3], descr=' '.join(words[4:])))
+
 
     def Molecular_list(self):
         data = np.genfromtxt(self.folder + r'/data/Molecular_data.dat', skip_header=3, usecols=(0), dtype=(str))
@@ -1109,17 +1112,17 @@ class atomicData(OrderedDict):
     def EmissionSF_list(self, lines=True):
         linelist = ['HI 6564',
                     'HI 4862',
-                    'HI 4340',
-                    'HI 4101',
-                    'HI 3970',
-                    'HI 3889',
+                    'HI 4341',
+                    'HI 4102',
+                    'HI 3971',
+                    'HI 3890',
                     'OIII 5008',
                     'OIII 4960',
                     'OIII 4363',
                     'OIII 2320',
                     'OIII 2331',
-                    'OII 3726',
-                    'OII 3728',
+                    'OII 3727',
+                    'OII 3729',
                     'NII 6549',
                     'NII 6585',
                     'HeI 7065',

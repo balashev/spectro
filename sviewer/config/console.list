@@ -1,21 +1,21 @@
-CrII
-CrIIj1
-show CrIIj2
-CrIIj2
-CrIIj3
-show CrIIj3
-show CrIIj3
-show CrIIj3
-CrIIj3
-high FeIIj10
-show CrIIj1
-CrIIj1
-show CrIIj2
-CrIIj2
-high HeI*
-show FeIIj1
-FeIIj1
-FeIIj3
-show HDj0
-show HDj1
-show FeIIj2
+show CII*
+show SiII*
+show HI
+HI
+show HI
+HI
+HI
+FeII
+stats
+stats
+stats
+stats
+stats
+stats
+high HeIj1
+show NaI
+scale 10
+rescale 10
+high MgII
+show DI
+show SiII

@@ -209,7 +209,7 @@ class fitSystem:
         if name in 'logf':
             self.logf = par(self, 'logf', 0, -6, 0, 0.05)
         if name in 'rad':
-            self.logf = par(self, 'rad', 0, -6, 6, 0.05)
+            self.rad = par(self, 'rad', 0, -6, 6, 0.05)
 
     def remove(self, name):
         if name in ['turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
@@ -254,7 +254,8 @@ class fitSystem:
     def pyratio(self, init=False):
         #t = Timer('pyratio '+ str(self.parent.sys.index(self)))
         if init or self.pr is None:
-            self.pr = pyratio(z=self.z.val)
+            self.pr = pyratio(z=self.z.val, pumping='simple', radiation='simple', sed_type=self.rad.addinfo)
+            #print('init', self.pr.pumping, self.pr.radiation,  self.pr.sed_type)
             d = {'CO': [-1, 10], 'CI': [-1, 3], 'FeII': [-1, 13]}
             for s in self.sp.keys():
                 if 'CO' in s:
@@ -266,11 +267,10 @@ class fitSystem:
                 if 'FeII' in s:
                     d['FeII'][0] = 0 if s[5:6].strip() == '' else max(d['FeII'][0], int(s[5:6]))
                     pars = ['T', 'e', 'rad']
+            self.pr.set_pars(pars)
             for k, v in d.items():
                 if v[0] > -1:
                     self.pr.add_spec(k, num=v[1])
-            print(pars, d)
-            self.pr.set_pars(pars)
             #self.pr.set_prior('f', 0)
 
         #t.time('init')
@@ -310,10 +310,7 @@ class fitPars:
         self.cf_num = 0
         self.disp_fit = False
         self.disp_num = 0
-        #self.mu = par(self, 'mu', 1e-6, 1e-7, 5e-6, 1e-8, vary=False, fit=False)
-        #self.me = par(self, 'me', 0, -3, 1, 0.01, vary=False, fit=False)
-        #self.dtoh = par(self, 'dtoh', -4.7, -5.4, -4, 0.01, vary=False, fit=False)
-        #self.setSpecific()
+        self.tieds = {}
 
     def add(self, name):
         if name in 'mu':
@@ -341,6 +338,16 @@ class fitPars:
             if hasattr(self, name):
                 delattr(self, name)
                 #gc.collect()
+
+    def addTieds(self, p1, p2):
+        try:
+            self.getPar(p1)
+            self.getPar(p2)
+            if not (p1 in self.tieds.keys() and self.tieds[p1] == p2):
+                self.tieds[p1] = p2
+                self.setValue(p1, False, 'vary')
+        except:
+            pass
 
     def addSys(self, ind=-1, z=None):
         if z is None:
@@ -377,9 +384,6 @@ class fitPars:
                         #    p.addinfo = p.addinfo[:p.addinfo.find('sys')+3]+str(i1)+p.addinfo[p.addinfo.find('_'):]
         self.sys[i1], self.sys[i2] = self.sys[i2], self.sys[i1]
         self.refreshSys()
-        print(i1, i2)
-        for i, s, in enumerate(self.sys):
-            print(i, s.z.val)
 
     def refreshSys(self):
         for i, s, in enumerate(self.sys):
@@ -419,6 +423,7 @@ class fitPars:
         return res
 
     def update(self, what='all', ind='all', redraw=True):
+
         for i, sys in enumerate(self.sys):
             if ind == 'all' or i == ind:
                 for k, s in sys.sp.items():
@@ -437,6 +442,7 @@ class fitPars:
                 if what in ['all', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
                     if hasattr(sys, 'Ntot'):
                         sys.pyratio()
+
         if what in ['all', 'res']:
             if self.res_fit and self.res_num > 0:
                 for i in range(self.res_num):
@@ -450,6 +456,9 @@ class fitPars:
                         self.parent.plot.pcRegions[i].updateFromFit()
                     except:
                         pass
+
+        for k, v in self.tieds.items():
+            self.setValue(k, self.getValue(v))
 
     def getPar(self, name):
         s = name.split('_')
