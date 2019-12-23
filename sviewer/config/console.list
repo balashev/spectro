@@ -1,4 +1,3 @@
-show CII*
 show SiII*
 show HI
 HI
@@ -19,3 +18,4 @@ rescale 10
 high MgII
 show DI
 show SiII
+hide all

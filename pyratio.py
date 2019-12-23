@@ -76,11 +76,13 @@ class speci:
 
         # read data from files
         if name == 'HD':
-            self.readFlowerHD()
+            self.read_HD()
         elif name == 'CO':
-            self.readCO()
+            self.read_CO()
         elif name == 'FeII':
-            self.readFeII()
+            self.read_FeII()
+        elif name == 'H2':
+            self.read_H2()
         else:    
             self.read_popratio()
 
@@ -103,7 +105,7 @@ class speci:
     def set_names(self):
         if self.name in ['CI', 'CII', 'SiII', 'OI', 'FeII']:
             self.names = [self.name] + [self.name + f'j{k}' for k in range(1, self.num)]
-        elif self.name in ['HD', 'CO']:
+        elif self.name in ['HD', 'CO', 'H2']:
             self.names = [self.name + 'j' + str(k) for k in range(self.num)]
 
     def coll_rate(self, part, i, j, T):
@@ -202,7 +204,7 @@ class speci:
                                     c.append(collision(self, coll, i, j, np.array([np.log10(Temp), [np.log10(float(line[k+2])) for k in range(n_2)]])))
                         self.coll[coll] = c
 
-    def readFlowerHD(self):
+    def read_HD(self):
         """
         read Flower data for HD molecule
         """
@@ -249,14 +251,7 @@ class speci:
                             if i < self.num and j < self.num:
                                 self.A[j, i] = float(line.split()[2])
 
-    def readCO(self):
-        """
-        read data for CO: einstein coefficients, collisional excitation rates
-        """
-        #self.Lambda_read('data/pyratio/co_data_old.dat')
-        self.Lambda_read(self.parent.folder + '/data/pyratio/co_data.dat')
-
-    def readFeII(self):
+    def read_FeII(self):
         """
         read atomic data for FeII: einstein coefficients, branching ratios, electron collisional excitation rates.
         """
@@ -317,6 +312,7 @@ class speci:
                 if l[0] < self.num+1 and l[1] < self.num+1:
                     coll.append(collision(self, 'e', inds[int(l[0]) - 1], inds[int(l[1]) - 1], np.array(
                                 [np.log10(temp), [np.log10(float(l[k])) for k in range(2, 7)]])))
+
         elif coll_source == 'Ramsbottom':
             c = np.genfromtxt(folder + 'FeII/Ramsbottom/table3.dat', unpack=False)
             temp = [30, 100, 300, 500, 750, 1000, 1300, 1500, 1800, 2000, 2300, 2500, 5000, 7500, 10000, 13000, 15000, 18000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000]
@@ -325,6 +321,7 @@ class speci:
                 if l[0] < self.num+1 and l[1] < self.num+1:
                     coll.append(collision(self, 'e', int(l[0]) - 1, int(l[1]) - 1, np.array(
                                 [np.log10(temp), [np.log10(float(l[k])) for k in range(2, len(temp)+2)]])))
+
         elif coll_source == 'chianti':
             c = np.genfromtxt(folder + r'FeII/fe_2.splups', comments='%', delimiter=(3, 3, 3, 3, 3, 10, 10, 10, 10, 10, 10, 10, 10))
             temp = np.linspace(3.7, 4.7, 6)
@@ -335,6 +332,40 @@ class speci:
                                 [temp, [np.log10(float(l[k])) for k in range(7, len(temp)+7)]])))
         self.coll['e'] = coll
         self.coll['e'].make_table(self.num+1)
+
+    def read_H2(self):
+        """
+        read data for H2 (for nu=0): einstein coefficients, collisional rates
+        :return:
+        """
+        self.fullnum = self.num
+        data = np.genfromtxt(self.parent.folder + r'/data/pyratio/H2/energy_X.dat', comments='#', unpack=True)
+        m = np.logical_and(data[0] == 0, data[1] < self.num)
+        self.E = data[2][m]
+
+        self.g = (2 * (np.arange(self.num) % 2) + 1) * (2 * np.arange(self.num) + 1)
+        data = np.genfromtxt(self.parent.folder + r'/data/pyratio/H2/transprob_X.dat', comments='#', unpack=True)
+        self.A = np.zeros([self.fullnum, self.fullnum])
+        for l in data:  
+            for i in range(self.num):
+                for k in range(self.num):
+                    m = (data[1] == 0) * (data[4] == 0) * (data[2] == i) * (data[5] == k)
+                    if np.sum(m) > 0:
+                        self.A[i, k] = data[6][m]
+
+        # make FAKE collisional rates
+        for partner in ['H', 'oH2', 'pH2', 'He']:
+            coll = coll_list()
+            for levels in [[1, 0], [2, 1], [2, 0]]:
+                coll.append(collision(self, partner, levels[0], levels[1], np.array([[10, 100, 1000], [1, 1, 1]])))
+            self.coll[partner] = coll
+
+    def read_CO(self):
+        """
+        read data for CO: einstein coefficients, collisional rates
+        """
+        # self.Lambda_read('data/pyratio/co_data_old.dat')
+        self.Lambda_read(self.parent.folder + '/data/pyratio/co_data.dat')
 
     def Lambda_pars(self, line):
         remove = ['!', '\n', '(cm^-1)']
@@ -717,9 +748,9 @@ class pyratio():
         self.timer = Timer()
 
     def add_spec(self, name, n=None, num=None):
-        d = {'OI': 3, 'CI': 3, 'CII': 2, 'SiII': 2, 'HD': 3, 'CO': 15, 'FeII': 13}
+        d = {'OI': 3, 'CI': 3, 'CII': 2, 'SiII': 2, 'H2': 7, 'HD': 3, 'CO': 15, 'FeII': 13}
         if n is not None:
-            n += [None] * (d[name]- len(n))
+            n += [None] * (d[name] - len(n))
         else:
             n = [a()] * d[name]
 
@@ -896,33 +927,33 @@ class pyratio():
         if debug in [None, 'A']:
             W += speci.Aij
 
-        #self.timer.time('CMB')
-        if debug in [None, 'CMB']:
-            W += speci.Bij * self.rad_field(speci.Eij, sed_type='CMB')
-
-        #self.timer.time('Coll')
         if debug in [None, 'C']:
             for u in range(speci.num):
                 for l in range(speci.num):
                     if any(x in self.pars.keys() for x in ['n', 'e', 'H2', 'H']):
                         W[u, l] += self.collision_rate(speci, u, l)
 
-        if debug in [None, 'UV']:
-            if self.pumping == 'full':
-                for u in range(speci.num):
-                    for l in range(speci.num):
-                        if 'UV' in self.pars:
-                            W[u, l] += self.pumping_rate(speci, u, l)
-            elif self.pumping == 'simple':
-                W += self.species[name].pump_rate * 10 ** self.pars['rad'].value
+        if 'rad' in self.pars:
+            if debug in [None, 'CMB']:
+                if 'rad' in self.pars:
+                    W += speci.Bij * self.rad_field(speci.Eij, sed_type='CMB')
 
-        if debug in [None, 'IR']:
-            if self.radiation == 'full':
-                for u in range(speci.num):
-                    for l in range(speci.num):
-                        W[u, l] = speci.Bij[u, l] * self.rad_field(speci.Eij[u, l])
-            if self.radiation == 'simple':
-                W += self.species[name].rad_rate * 10 ** self.pars['rad'].value
+            if debug in [None, 'UV']:
+                if self.pumping == 'full':
+                    for u in range(speci.num):
+                        for l in range(speci.num):
+                            if 'UV' in self.pars:
+                                W[u, l] += self.pumping_rate(speci, u, l)
+                elif self.pumping == 'simple':
+                    W += self.species[name].pump_rate * 10 ** self.pars['rad'].value
+
+            if debug in [None, 'IR']:
+                if self.radiation == 'full':
+                    for u in range(speci.num):
+                        for l in range(speci.num):
+                            W[u, l] += speci.Bij[u, l] * self.rad_field(speci.Eij[u, l])
+                if self.radiation == 'simple':
+                    W += self.species[name].rad_rate * 10 ** self.pars['rad'].value
 
         #self.timer.time('solve')
         if debug is None:
@@ -963,7 +994,7 @@ class pyratio():
                 coll += 10 ** self.pars['n'].value * speci.coll['oH2'].rate(u, l, self.pars['T'].value) * f_H2 * otop / (1 + otop)
                 #print('fractions:', f_HI, self.f_He / (self.f_He + 1 - m_fr / 2), f_H2 / (1 + otop), f_H2 * otop / (1 + otop))
                 #print(u, l, speci.coll['oH2'].rate(u, l, self.pars['T'].value), f_H2 * otop / (1 + otop))
-                if self.f_He !=0:
+                if self.f_He != 0:
                     coll += 10 ** self.pars['n'].value * speci.coll['He4'].rate(u, l, self.pars['T'].value) * self.f_He / (self.f_He + 1 - m_fr / 2)
                     #print(coll, 10 ** self.pars['n'].value, self.f_He, speci.coll['He4'].rate(u, l, self.pars['T'].value))
 
@@ -1449,6 +1480,7 @@ class pyratio():
         # >> colors for plotting
         if ax is None and fig is None:
              fig, ax = plt.subplots()
+
         if color is None:
             color = 'orangered' #(1, 0, 0)
         print(self.pars)
@@ -1473,7 +1505,6 @@ class pyratio():
                 self.pars[vary[1]].value = X2[k]
                 Z[k, i] = self.lnprob()
             printProgressBar(i + 1, grid_num, prefix='Progress:')
-
         if verbose == 1:
             print(max(Z.flatten()))
 
@@ -1515,72 +1546,6 @@ class pyratio():
         if marginalize:
             d1.plot()
             d2.plot()
-
-        old = 0
-        if old == 1:
-            print('plot regions...')
-
-            if 0: #self.species[self.species.keys()[0]].y[0][2].type in ['u', 'l']:
-                typ = 'i'
-            else:
-                typ = 'l'
-                #typ = 'chi2'
-
-            if typ == 'chi2':
-                conf_levels = np.asarray([chi2.isf(1-c, 2) for c in self.conf_levels])
-                chi = - Z * 2
-                m = np.min(chi.flatten())
-                print('chi2_min', m)
-                cs = ax.contour(d.X, d.Y, chi-m, levels=[1], lw=1, ls='--', origin='lower', zorder=zorder)
-
-            if typ == 'l':
-                if plot:
-                    d.plot_contour(conf_levels=self.conf_levels, limits=limits, ax=ax, cmap=cmap, color=color, color_point=color_point, alpha=alpha, zorder=zorder)
-
-            if typ == 'i':
-                print('interpolate region...')
-                if 1:
-                    f = interpolate.RectBivariateSpline(X2[:, 0], X1[0, :], np.exp(Z - max(Z.flatten())))
-                else:
-                    f = interpolate.interp2d(X1, X2, L, kind='cubic')
-                x = np.linspace(self.pars[vary[0]].range[0], self.pars[vary[0]].range[1], grid_num)
-                y = np.zeros_like(x)
-                print('estimate line...')
-                for i, xi in enumerate(x):
-                    g = lambda z: f.ev(z, xi)-0.317
-                    if g(self.pars[vary[1]].range[0]) * g(self.pars[vary[1]].range[1]) < 0:
-                        y[i] = optimize.bisect(g, self.pars[vary[1]].range[0], self.pars[vary[1]].range[1])
-                    else:
-                        y[i] = self.pars[vary[1]].range[1]
-                m = y != self.pars[vary[1]].range[1]
-                ax.plot(x, y, c=color, zorder=zorder)
-                x, y = x[m], y[m]
-                if self.species[0].y[0].type == 'u':
-                    uplims, lolims = True, False
-                else:
-                    uplims, lolims = False, True
-                ax.errorbar(x[::3], y[::3], yerr=0.1, ls='none', uplims=uplims, lolims=lolims, color=color, zorder=zorder)
-            if title !='':
-                if 0:
-                    ax.set_title(title)
-                else:
-                    ax.text(0.9, 0.9, title, ha='right', va='top', transform=ax.transAxes)
-            ax.set_xlabel(self.pars[vary[0]].label)
-            ax.set_ylabel(self.pars[vary[1]].label)
-            # save contour to file
-            if 0:
-                #f_c = open(species+'_c.dat', 'w')
-                p = cs.collections[0].get_paths()
-                for l in p:
-                    print(l.vertices)
-                np.savez('res/'+species+'_'+str(comp)+'_c', *[l.vertices for l in p])
-
-            if 1:
-                print(vary)
-                d.dointerval(0.6827)
-                print(d.interval)
-                out['par'].append([vary[0], a(d.point[0], d.interval[0][1] - d.point[0], d.point[0] - d.interval[0][0])])
-                out['par'].append([vary[1], a(d.point[1], d.interval[1][1] - d.point[1], d.point[1] - d.interval[1][0])])
 
         return out
     
@@ -2102,7 +2067,7 @@ if __name__ == '__main__':
 
 
     # >>> check radiation fields
-    if 1:
+    if 0:
         pr = pyratio(z=2.0, pumping='simple', radiation='simple', sed_type='Draine', agn={'filter': 'r', 'mag': 18})
         pr.set_pars(['T', 'rad'])
         e = np.logspace(-1, 5, 10000)
@@ -2254,3 +2219,14 @@ if __name__ == '__main__':
         plt.tight_layout()
         plt.savefig('C:/users/serj/desktop/OI.png')
         plt.show()
+
+    # >>> H2 calculations:
+    if 0:
+        pr = pyratio()
+        pr.add_spec('H2', num=3)
+        pr.set_pars(['T', 'n', 'f'])
+        pr.pars['n'].value = 2
+        pr.pars['T'].value = np.log10(100)
+        pr.pars['f'].value = 0
+        print(pr.predict(), np.log10(9), np.log10(5))
+

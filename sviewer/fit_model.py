@@ -979,7 +979,7 @@ class fitModelSysWidget(QFrame):
 
     def zstep(self):
         try:
-            self.fit.sys[self.ind].z.step = (abs(float(self.vstep.text()))) / 299792.458
+            self.fit.sys[self.ind].z.step = (abs(float(self.vstep.text()))) / 299792.458 * (1 + self.fit.sys[self.ind].z.val)
         except:
             pass
         self.refresh()

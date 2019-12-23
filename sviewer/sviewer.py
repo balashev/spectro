@@ -2734,7 +2734,8 @@ class fitExtWidget(QWidget):
         self.z_em.setChecked(False)
         l.addWidget(self.z_em, 0, 0)
         self.z_em_value = QLineEdit(self)
-        self.z_em_value.setText('3.04')
+        self.z_em_value.setText('2.87')
+        self.z_em_value.returnPressed.connect(self.showExt)
         l.addWidget(self.z_em_value, 0, 1)
 
         self.z_abs = QCheckBox('z_abs:', self)
@@ -2742,6 +2743,7 @@ class fitExtWidget(QWidget):
         l.addWidget(self.z_abs, 1, 0)
         self.z_abs_value = QLineEdit(self)
         self.z_abs_value.setText(str(self.parent.z_abs))
+        self.z_abs_value.returnPressed.connect(self.showExt)
         l.addWidget(self.z_abs_value, 1, 1)
 
         self.Av = QCheckBox('Av:', self)
@@ -2749,6 +2751,7 @@ class fitExtWidget(QWidget):
         l.addWidget(self.Av, 2, 0)
         self.Av_value = QLineEdit(self)
         self.Av_value.setText('0.0')
+        self.Av_value.returnPressed.connect(self.showExt)
         l.addWidget(self.Av_value, 2, 1)
 
         layout.addLayout(l)
@@ -2762,15 +2765,30 @@ class fitExtWidget(QWidget):
         layout.addWidget(self.tab)
 
         l = QHBoxLayout()
-        self.showEC = QPushButton('Show', self)
-        self.showEC.setFixedSize(100, 30)
-        self.showEC.clicked.connect(self.fitExt)
-        l.addWidget(self.showEC)
+        select = QPushButton('Auto select', self)
+        select.setFixedSize(100, 30)
+        select.clicked.connect(self.autoSelect)
+        l.addWidget(select)
 
-        self.fit = QPushButton('Fit', self)
-        self.fit.setFixedSize(100, 30)
-        self.fit.clicked.connect(self.fitExt)
-        l.addWidget(self.fit)
+        l.addWidget(QLabel('window:'))
+        self.smooth_window = QLineEdit(self)
+        self.smooth_window.setText('100')
+        self.smooth_window.setFixedSize(60, 30)
+        l.addWidget(self.smooth_window)
+        l.addStretch(1)
+
+        layout.addLayout(l)
+
+        l = QHBoxLayout()
+        show = QPushButton('Show', self)
+        show.setFixedSize(100, 30)
+        show.clicked.connect(self.showExt)
+        l.addWidget(show)
+
+        fit = QPushButton('Fit', self)
+        fit.setFixedSize(100, 30)
+        fit.clicked.connect(self.fitExt)
+        l.addWidget(fit)
         l.addStretch(1)
 
         layout.addLayout(l)
@@ -2822,14 +2840,7 @@ class fitExtWidget(QWidget):
         frame.setLayout(layout)
         return frame
 
-    def fitExt(self, signal, template='HST'):
-
-        print(self.tab.tabText(self.tab.currentIndex()), self.ec)
-        print(self.template)
-        z_em = float(self.z_em_value.text())
-        z_abs = float(self.z_abs_value.text())
-        Av = float(self.Av_value.text())
-        Av_bump = float(self.Av_bump_value.text())
+    def load_template(self, x=None, z_em=0, smooth_window=None):
         if self.template in ['VandenBerk', 'HST', 'Slesing']:
             if self.template == 'VandenBerk':
                 data = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
@@ -2846,27 +2857,110 @@ class fitExtWidget(QWidget):
             elif self.template == 'const':
                 data = np.ones((2, 10))
                 data[0] = np.linspace(xmin, xmax, 10)
-            inter = interp1d(data[0], data[1], bounds_error=False, fill_value=fill_value, assume_sorted=True)
-        s = self.parent.s[self.parent.s.ind]
 
-        y = inter(s.spec.raw.x[:])
+            if smooth_window is not None:
+                data[1] = smooth(data[1], window_len=smooth_window, window='hanning', mode='same')
+
+            inter = interp1d(data[0], data[1], bounds_error=False, fill_value=fill_value, assume_sorted=True)
+
+        if x is None:
+            s = self.parent.s[self.parent.s.ind]
+            x = s.spec.raw.x
+
+        return inter(x)
+
+    def autoSelect(self):
+        s = self.parent.s[self.parent.s.ind]
+        z_em = float(self.z_em_value.text())
+        mask = s.spec.x() > 1250 * (1 + z_em)
+        if 0:
+            y_0 = s.spec.y()[:]
+            for factor in range(6):
+                y = np.convolve(y_0, np.ones(1 + 2*2**factor) / (1 + 2*2**factor),  mode='same')
+                print(y)
+                mask *= np.abs((y_0 - y) / s.spec.err()) < 1.5
+                print(np.sum(mask))
+                y_0 = y[:]
+        else:
+            window = int(float(self.smooth_window.text()) / (s.spec.x()[-1] - s.spec.x()[0]) * s.spec.n())
+            s.calcCont(method='Smooth', xl=s.spec.x()[0]-1, xr=s.spec.x()[-1]+1, iter=3, clip=3, filter='hanning', window=window)
+            mask *= np.abs((s.spec.y() - s.cont.y) / s.spec.err()) < 2
+
+        windows = [[1318, 1325], [1348, 1360], [1446, 1494], [1682, 1696], [1765, 1771],
+                   [1875, 1884], [2008, 2036], [2124, 2153], [2238, 2257], [2448, 2458], [2482, 2595],
+                   [3021, 3100], [3224, 3248], [3297, 3329], [3356, 3394], [3537, 3554], [3613, 3714], [3832, 3850],
+                   [3898, 3950], [3978, 4050], [4202, 4227], [4260, 4285], [4412, 4469]]
+        m = np.zeros_like(s.spec.x(), dtype=bool)
+        for w in windows:
+            m += (s.spec.x() > w[0] * (1 + z_em)) * (s.spec.x() < w[1] * (1 + z_em))
+        mask *= m
+
+        windows = [[5560, 5600], [6865, 6930], [7580, 7690], [9300, 9600], [10150, 10400], [13200, 14600]]
+        for w in windows:
+            mask *= (s.spec.x() < w[0]) + (s.spec.x() > w[1])
+
+        s.mask.set(mask)
+        s.set_fit_mask()
+
+    def showExt(self, signal, norm=None):
+
+        print(self.tab.tabText(self.tab.currentIndex()), self.ec)
+        print(self.template)
+        z_em = float(self.z_em_value.text())
+        z_abs = float(self.z_abs_value.text())
+        Av = float(self.Av_value.text())
+        Av_bump = float(self.Av_bump_value.text())
+
+        y = self.load_template(z_em=z_em, smooth_window=7)
+
+        s = self.parent.s[self.parent.s.ind]
         if self.tab.tabText(self.tab.currentIndex()) == 'Emperical':
             y *= add_ext(x=s.spec.raw.x, z_ext=z_abs, Av=Av, kind=self.ec)
         elif self.tab.tabText(self.tab.currentIndex()) == 'Analytical':
             if Av > 0 or Av_bump > 0:
                 y *= add_ext_bump(x=s.spec.raw.x, z_ext=z_abs, Av=Av, Av_bump=Av_bump)
 
-        mask = np.logical_and(s.spec.raw.x > 1465 * (1 + z_em), s.spec.raw.x < 1475 * (1 + z_em))
-        print(np.sum(s.spec.raw.y[mask]), np.sum(y[mask]))
-        y *= np.sum(s.spec.raw.y[mask]) / np.sum(y[mask])
+        if norm is None:
+            mask = np.logical_and(s.spec.raw.x > 1465 * (1 + z_em), s.spec.raw.x < 1475 * (1 + z_em))
+            norm = np.sum(s.spec.raw.y[mask]) / np.sum(y[mask])
+
+        y *= norm
         s.cont.x, s.cont.y = s.spec.raw.x[:], y
         s.cont.n = len(s.cont.y)
         s.cont_mask = np.logical_not(np.isnan(s.spec.raw.x))
         s.redraw()
 
+    def fitExt(self):
+        s = self.parent.s[self.parent.s.ind]
+        z_em = float(self.z_em_value.text())
+        z_abs = float(self.z_abs_value.text())
+        Av = float(self.Av_value.text())
+        Av_bump = float(self.Av_bump_value.text())
+        temp = self.load_template(z_em=z_em, smooth_window=7)
+
+        def fcn2min(params):
+            y = temp * add_ext_bump(x=s.spec.raw.x, z_ext=z_abs, Av=params.valuesdict()['Av'], Av_bump=Av_bump) * params.valuesdict()['norm']
+            return (y[s.fit_mask.x()] - s.spec.raw.y[s.fit_mask.x()]) / s.spec.raw.err[s.fit_mask.x()]
+
+        mask = np.logical_and(s.spec.raw.x > 1465 * (1 + z_em), s.spec.raw.x < 1475 * (1 + z_em))
+        norm = np.sum(s.spec.raw.y[mask]) / np.sum(temp[mask])
+        print(norm)
+        # create a set of Parameters
+        params = Parameters()
+        params.add('Av', value=Av, min=-1, max=5)
+        params.add('norm', value=norm, min=0, max=1e10)
+
+        # do fit, here with leastsq model
+        minner = Minimizer(fcn2min, params, nan_policy='propagate', calc_covar=True)
+        result = minner.minimize()
+        report_fit(result)
+
+        self.Av_value.setText("{0:6.3f}".format(result.params['Av'].value))
+        self.showExt(True, norm=result.params['norm'].value)
+
     def keyPressEvent(self, qKeyEvent):
         if qKeyEvent.key() == Qt.Key_Return:
-            self.fitExt()
+            self.showExt(True)
 
 class extract2dWidget(QWidget):
     def __init__(self, parent):
@@ -5682,6 +5776,10 @@ class sviewer(QMainWindow):
         fitMinEnvelope.setStatusTip('Find bottom envelope')
         fitMinEnvelope.triggered.connect(partial(self.fitMinEnvelope, res=200))
 
+        H2Upper = QAction('&H2 upper limits', self)
+        H2Upper.setStatusTip('Estimate H2 upper limits')
+        H2Upper.triggered.connect(self.H2UpperLimit)
+
         AncMenu = QMenu('&Diagnostic plots', self)
         AncMenu.setStatusTip('Some ancillary for fit procedures')
 
@@ -5716,6 +5814,7 @@ class sviewer(QMainWindow):
         fitMenu.addAction(fitPoly)
         fitMenu.addAction(fitMinEnvelope)
         fitMenu.addSeparator()
+        fitMenu.addAction(H2Upper)
         fitMenu.addMenu(AncMenu)
         AncMenu.addAction(H2Exc)
         AncMenu.addAction(H2ExcTemp)
@@ -7591,6 +7690,45 @@ class sviewer(QMainWindow):
             inds = np.delete(inds, np.where((ys - y[inds]) / np.std(ys - y[inds]) < -1)[0])
 
         plt.show()
+
+    def H2UpperLimit(self):
+        """
+        Estimate the upper limits on H2 column density
+        :return:
+        """
+        f = not self.normview
+        if f:
+            self.normalize()
+
+        def recalcfit(self):
+            self.s.prepareFit(-1, all=True)
+            self.s.calcFit(-1, redraw=True)
+            self.s[self.s.ind].mask.set(self.s[self.s.ind].fit.inter(self.s[self.s.ind].spec.x()) < 0.99)
+            self.s[self.s.ind].set_fit_mask()
+
+        z_grid = np.linspace(self.fit.sys[0].z.min, self.fit.sys[0].z.max, int((self.fit.sys[0].z.max-self.fit.sys[0].z.min)/self.fit.sys[0].z.step)+1)
+        N_grid = np.linspace(self.fit.sys[0].Ntot.min, self.fit.sys[0].Ntot.max, int((self.fit.sys[0].Ntot.max - self.fit.sys[0].Ntot.min) / self.fit.sys[0].Ntot.step)+1)
+        for N in N_grid:
+            self.fit.setValue('Ntot_0', N)
+            print(N)
+            for z in z_grid:
+                self.fit.setValue('z_0', z)
+                recalcfit(self)
+                #print(z, np.sum(self.s[self.s.ind].mask.x()), np.sum(self.s.chi() > 0), np.sum(self.s.chi() > 2))
+                if (np.sum(self.s.chi() > 0) * 0.0455 > np.sum(self.s.chi() > 2)):
+                    break
+            if z == z_grid[-1]:
+                break
+            else:
+                z_save = z
+        else:
+            print('Limit is not reached. Please checked Ntot boundaries.')
+            return
+        self.fit.setValue('z_0', z_save)
+        self.fit.setValue('Ntot_0', N_grid[np.argwhere(N_grid == N)[0]-1])
+        recalcfit(self)
+
+        self.statusBar.setText('H2 upper limit is: ' + str(self.fit.sys[0].Ntot.val))
 
     def H2ExcDiag(self):
         """

@@ -256,7 +256,7 @@ class fitSystem:
         if init or self.pr is None:
             self.pr = pyratio(z=self.z.val, pumping='simple', radiation='simple', sed_type=self.rad.addinfo)
             #print('init', self.pr.pumping, self.pr.radiation,  self.pr.sed_type)
-            d = {'CO': [-1, 10], 'CI': [-1, 3], 'FeII': [-1, 13]}
+            d = {'CO': [-1, 10], 'CI': [-1, 3], 'FeII': [-1, 13], 'H2': [-1, 3]}
             for s in self.sp.keys():
                 if 'CO' in s:
                     d['CO'][0] = 0 if s[3:4].strip() == '' else max(d['CO'][0], int(s[3:4]))
@@ -267,6 +267,9 @@ class fitSystem:
                 if 'FeII' in s:
                     d['FeII'][0] = 0 if s[5:6].strip() == '' else max(d['FeII'][0], int(s[5:6]))
                     pars = ['T', 'e', 'rad']
+                if 'H2' in s:
+                    d['H2'][0] = 0 if s[3:4].strip() == '' else max(d['H2'][0], int(s[3:4]))
+                    pars = ['T', 'n', 'f', 'rad']
             self.pr.set_pars(pars)
             for k, v in d.items():
                 if v[0] > -1:
