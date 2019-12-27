@@ -200,9 +200,7 @@ class Console(QTextEdit):
                         lines += self.parent.atomic.list(s)
 
             elif args[1] == 'full':
-                lines = self.parent.atomic.list(s)
-                #for s in self.parent.atomic.keys():
-                #    lines += self.parent.atomic[s].lines
+                lines = self.parent.atomic.list()
 
             elif args[1] == 'H2' or 'H2j' in args[1]:
                 color = (229, 43, 80)
@@ -260,10 +258,9 @@ class Console(QTextEdit):
                 if self.parent.atomic.find(args[1]):
                     lines += self.parent.atomic.list(self.parent.atomic.find(args[1]))
                 else:
-                    print(args)
                     self.parent.atomic.getfromNIST(args[1], add=True)
                     lines += self.parent.atomic.list(self.parent.atomic.find(args[1]))
-                    print(lines)
+                    
             if args[1] != 'H2':
                 try:
                     f = float(args[2])

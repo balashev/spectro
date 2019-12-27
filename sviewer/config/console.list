@@ -1,21 +1,21 @@
-stats
-stats
-stats
-stats
-stats
-stats
-high HeIj1
-show NaI
-scale 10
-rescale 10
-high MgII
-show DI
+show FeIIj0
+FeII
+FeIIj0
+FeIIj1
+show FeIIj0
+show FeII
+FeII
+SiII
 show SiII
-hide all
-import numpy as np
-np.exp(-0.1)
-np.exp(-3)
-np.exp(-30)
-import numpy as np
-np.exp(-30)
-np.exp(-10)
+SiII
+show FeII
+FeII
+SiII
+SiII
+show SiII
+show full
+show all
+FeII
+show FeII
+FeII
+FeII

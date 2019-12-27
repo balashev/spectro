@@ -6117,6 +6117,8 @@ class sviewer(QMainWindow):
             spec.loader.exec_module(foo)
             foo.loadaction(self)
 
+
+
     def options(self, opt, value=None, config='config/options.ini'):
         """
         Read and write options from the config file

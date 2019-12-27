@@ -14,6 +14,7 @@ if __name__ == '__main__':
     import sys
     sys.path.append('C:/science/python')
     from spectro.a_unc import a
+    from spectro.sviewer.utils import Timer
 else:
     from .a_unc import a
     from .sviewer.utils import Timer
@@ -430,7 +431,7 @@ class atomicData(OrderedDict):
             for e in els:
                 elist = []
                 if e not in self.lines.keys() or linelist is not None:
-                    if e not in self.lines.keys():
+                    if e not in self.lines.keys() and linelist is None:
                         self.lines[e] = []
                     t = Timer(e)
                     name = self.correct_name(e)
@@ -446,7 +447,8 @@ class atomicData(OrderedDict):
                             if 'None' not in ref['band']:
                                 setattr(l, 'band', ref['band'])
                             if linelist is None or any([str(l) in lin or lin in str(l) for lin in linelist]):
-                                self.lines[e].append(l)
+                                if linelist is None:
+                                    self.lines[e].append(l)
                                 elist.append(l)
                             #t.time('out')
                 else:
@@ -727,25 +729,6 @@ class atomicData(OrderedDict):
                 self[name] = e(name)
             self[name].lines.append(line(name, l['lambda'], l['f'], 1e-9, ref=''))
 
-    def readFeII(self, J=13, clean=True):
-        if clean:
-            sp = []
-            for k in self.keys():
-                if k.startswith('FeII'):
-                    sp.append(k)
-            for s in sp:
-                self.pop(s, None)
-
-        t = Table.read(self.folder + r'/data/FeII.csv', format='csv')
-        for j in np.arange(J):
-            name = f'FeIIj{j}' if j > 0 else 'FeII'
-            if name not in self.keys():
-                self[name] = e(name)
-            self[name].energy = np.unique(t['Ei'])[j]
-            mask = (t['Ei'] == np.unique(t['Ei'])[j])
-            for l in t[mask]:
-                self[name].lines.append(line(name, l['lambda'], l['fik'], 1e-9, ref=''))
-
     def getfromNIST(self, species, level=None, refresh=False, clean=True, add=False):
         if level is None:
             if '*' in species:
@@ -781,14 +764,13 @@ class atomicData(OrderedDict):
 
     def fromNIST(self):
         for s in [('MnII', 2)]:
-            self.getfromNIST(s[0], s[1])
+            self.getfromNIST(s[0], level=s[1])
         for j in range(13):
-            self.getfromNIST('FeII', j+2)
+            self.getfromNIST('FeII', level=j+2)
 
     def makedatabase(self):
         self.readMorton()
         self.readCashman()
-        #self.readFeII(J=15)
         self.fromNIST()
         self.readH2(j=[0, 1, 2, 3, 4, 5, 6, 7, 8])
         self.readHD()
@@ -1439,10 +1421,9 @@ if __name__ == '__main__':
     if 1:
         A = atomicData()
         #A.getfromNIST('MnII', 3)
-        #A.readCO()
-        #print(A.list('MnII'))
-        A.makedatabase()
         #A.makedatabase()
+        A.readdatabase()
+        print([line.l() for line in A.list('SiII')])
 
     if 0:
         A = atomicData()
