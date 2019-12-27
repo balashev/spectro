@@ -2717,7 +2717,7 @@ class fitExtWidget(QWidget):
         layout = QVBoxLayout()
 
         l = QHBoxLayout()
-        l.addWidget(QLabel('Tempplate:'))
+        l.addWidget(QLabel('Template:'))
         temp_group = QButtonGroup(self)
         for template in ['VandenBerk', 'HST', 'Slesing']:
             setattr(self, template, QRadioButton(template))
@@ -2901,6 +2901,7 @@ class fitExtWidget(QWidget):
 
         s.mask.set(mask)
         s.set_fit_mask()
+        s.redraw()
 
     def showExt(self, signal, norm=None):
 
@@ -2939,7 +2940,7 @@ class fitExtWidget(QWidget):
         temp = self.load_template(z_em=z_em, smooth_window=7)
 
         def fcn2min(params):
-            y = temp * add_ext_bump(x=s.spec.raw.x, z_ext=z_abs, Av=params.valuesdict()['Av'], Av_bump=Av_bump) * params.valuesdict()['norm']
+            y = temp * add_ext(x=s.spec.raw.x, z_ext=z_abs, Av=params.valuesdict()['Av'], kind=self.ec) * params.valuesdict()['norm']
             return (y[s.fit_mask.x()] - s.spec.raw.y[s.fit_mask.x()]) / s.spec.raw.err[s.fit_mask.x()]
 
         mask = np.logical_and(s.spec.raw.x > 1465 * (1 + z_em), s.spec.raw.x < 1475 * (1 + z_em))
@@ -2947,7 +2948,7 @@ class fitExtWidget(QWidget):
         print(norm)
         # create a set of Parameters
         params = Parameters()
-        params.add('Av', value=Av, min=-1, max=5)
+        params.add('Av', value=Av, min=-5, max=5)
         params.add('norm', value=norm, min=0, max=1e10)
 
         # do fit, here with leastsq model
@@ -7727,6 +7728,7 @@ class sviewer(QMainWindow):
         self.fit.setValue('z_0', z_save)
         self.fit.setValue('Ntot_0', N_grid[np.argwhere(N_grid == N)[0]-1])
         recalcfit(self)
+        print(np.sum(self.s[self.s.ind].mask.x()), np.sum(self.s.chi() > 0), np.sum(self.s.chi() > 2))
 
         self.statusBar.setText('H2 upper limit is: ' + str(self.fit.sys[0].Ntot.val))
 
