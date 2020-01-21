@@ -27,8 +27,8 @@ from .stats import powerlaw
 
 class Voigt():
     def __init__(self, n):
-        self.h = np.zeros((n,2))
-        self.k = np.zeros((n,2))
+        self.h = np.zeros((n, 2))
+        self.k = np.zeros((n, 2))
         
     def set(self, a, x, n):
         z = wofz(x + 1j*a)
@@ -98,9 +98,8 @@ class tau:
                     setattr(self, k, getattr(line, k)())
                 else:
                     setattr(self, k, getattr(line, k))
-        self.a = self.g / 4 / np.pi / self.b / 1e5 * self.l * 1e-8  # dimensionless
         self.resolution = resolution
-        self.calctau0()
+        self.update()
 
     def calctau0(self, A=None, gu=None, gl=None):
         """ Returns the optical depth of transition at the center of line.
@@ -117,6 +116,25 @@ class tau:
         self.tau0 = np.sqrt(np.pi) * e2_me_c * (self.l * 1e-8) * self.f * 10 ** self.logN / (self.b * 1e5)
         return self.tau0
 
+    def calca(self):
+        """
+        Return a parameter for the line
+        :return:
+        """
+        self.a = self.g / 4 / np.pi / self.b / 1e5 * self.l * 1e-8
+        return self.a
+
+    def calc_doppler(self):
+        """
+        Return doppler broadening of the line
+        :return:
+        """
+        self.doppler = self.l * self.b * 1e5 / const.c.cgs.value
+        return self.doppler
+
+    def update(self):
+        self.calca()
+        self.calctau0()
 
     def calctau(self, x=None, vel=False, debug=False, verbose=False, convolve=None, tlim=0.01):
         """ Returns the optical depth (Voigt profile) for a transition.
@@ -134,9 +152,7 @@ class tau:
 
         """
 
-        # note units are cgs
-        c = const.c.cgs.value
-        self.calctau0()
+        self.update()
 
         if verbose:
             print('calculate optical depth for line:')
@@ -686,7 +702,7 @@ def fisherbN(N, b, lines, ston=1, cgs=0, convolve=1, resolution=50000, z=2.67, t
 if __name__ == '__main__':
 
     import sys
-    sys.path.append('D:/science/python')
+    sys.path.append('C:/science/python')
     from spectro.atomic import H2list
     import matplotlib.pyplot as plt
     

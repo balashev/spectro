@@ -260,7 +260,7 @@ class Console(QTextEdit):
                 else:
                     self.parent.atomic.getfromNIST(args[1], add=True)
                     lines += self.parent.atomic.list(self.parent.atomic.find(args[1]))
-                    
+
             if args[1] != 'H2':
                 try:
                     f = float(args[2])

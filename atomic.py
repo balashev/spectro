@@ -144,6 +144,8 @@ class e():
         
     def get_element_name(self):
         st = self.name[:]
+        if 'j' in st:
+            st = st[:st.index('j')]
         for s in ['I', 'V', 'X', '*']:
             st = st.replace(s, '')
             

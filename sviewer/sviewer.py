@@ -10,6 +10,7 @@ from copy import deepcopy, copy
 import emcee
 import h5py
 import inspect
+from importlib import reload
 from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs, Model
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
@@ -1203,7 +1204,7 @@ class preferencesWidget(QWidget):
 
             ind = 0
             self.fitGroup = QButtonGroup(self)
-            self.fittype = ['regular', 'fft', 'fast']
+            self.fittype = ['regular', 'fft', 'julia', 'fast']
             for i, f in enumerate(self.fittype):
                 s = ':' if f == 'fast' else ''
                 setattr(self, f, QRadioButton(f + s))
@@ -1215,7 +1216,7 @@ class preferencesWidget(QWidget):
             self.num_between = QLineEdit(str(self.parent.num_between))
             self.num_between.setValidator(validator)
             self.num_between.textChanged[str].connect(self.setNumBetween)
-            self.grid.addWidget(self.num_between, ind, 3)
+            self.grid.addWidget(self.num_between, ind, 4)
 
             ind += 1
             self.grid.addWidget(QLabel('Tau limit:'), ind, 0)
@@ -1225,6 +1226,7 @@ class preferencesWidget(QWidget):
             self.tau_limit.textChanged[str].connect(self.setTauLimit)
             self.grid.addWidget(self.tau_limit, ind, 1)
 
+            ind += 1
             self.grid.addWidget(QLabel('Fit method:'), ind, 0)
             self.fitmethod = QComboBox()
             self.fitmethod.addItems(['leastsq', 'least_squares', 'differential_evolution', 'brute', 'basinhopping',
@@ -1331,6 +1333,15 @@ class preferencesWidget(QWidget):
             if getattr(self, f).isChecked():
                 self.parent.fitType = f.replace(':', '')
                 self.parent.options('fitType', self.parent.fitType)
+                if self.parent.fitType == 'julia':
+                    try:
+                        self.parent.reload_julia()
+                    except:
+                        self.parent.sendMessage('Julia is not installed')
+                        self.fitType = 'regular'
+                        self.regular.toggle()
+                else:
+                    self.parent.julia = None
                 return
 
     def setCompView(self):
@@ -1421,8 +1432,9 @@ class choosePC(QToolButton):
                 self.set(cf=None)
         else:
             for c in text.split('_'):
-                self.cf[int(c.replace('cf', ''))].setChecked(True)
-                self.set(int(c.replace('cf', '')))
+                if self.parent.parent.fit.cf_num > int(c.replace('cf', '')):
+                    self.cf[int(c.replace('cf', ''))].setChecked(True)
+                    self.set(int(c.replace('cf', '')))
 
     def set(self, cf=None):
         if cf == None:
@@ -2054,8 +2066,8 @@ class snapShotWidget(QWidget):
 
         x_range = self.parent.plot.vb.viewRange()[0]
         y_range = self.parent.plot.vb.viewRange()[1]
-        s = self.parent.s[0].spec
-        fit = self.parent.s[0].fit
+        s = self.parent.s[self.parent.s.ind].spec
+        fit = self.parent.s[self.parent.s.ind].fit
         mask = np.logical_and(s.x() > x_range[0], s.x() < x_range[1])
 
         fig, ax = plt.subplots(figsize=(self.snap_width,self.snap_height))
@@ -2486,10 +2498,9 @@ class fitMCMCWidget(QWidget):
                     x = np.linspace(np.min(samples[nwalkers * burnin + 1:, i]), np.max(samples[nwalkers * burnin + 1:, i]), 100)
                     kde = gaussian_kde(samples[nwalkers * burnin + 1:, i])
                     d = distr1d(x, kde(x))
-                    print(x, kde(x))
                     d.dopoint()
                     d.dointerval()
-                    res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0])
+                    res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0], self.parent.fit.getPar(p).form)
                     self.parent.fit.setValue(p, res, 'unc')
                     self.parent.fit.setValue(p, res.val)
                     print(res.plus, res.minus)
@@ -2530,11 +2541,12 @@ class fitMCMCWidget(QWidget):
 
                 k = 0
                 for i, p in enumerate(self.parent.fit.list()):
+                    print(p, np.std(values[:, i]))
                     if np.std(values[:, i]) > 0:
                         d = distr1d(values[:, i])
                         d.dopoint()
                         d.dointerval()
-                        res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0])
+                        res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0], p.form)
                         f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
                         self.results.setText(self.results.toPlainText() + str(p) + ': ' + res.latex(f=f) + '\n')
                         #vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
@@ -2547,29 +2559,29 @@ class fitMCMCWidget(QWidget):
                         #ax[vert, hor].set_title(str(p).replace('_', ' '))
 
             elif t == 'cols':
-                sp = list()
+                sp = set()
                 for sys in self.parent.fit.sys:
                     for s in sys.sp.keys():
                         if s not in sp:
-                            sp.append(s)
-                    for el in ['H2', 'HD', 'CO', 'CI', 'CII']:
-                        if any([el in s for s in sys.sp.keys()]):
+                            sp.add(s)
+                    for el in ['H2', 'HD', 'CO', 'CI', 'CII', 'FeII']:
+                        if any([el+'j' in s for s in sys.sp.keys()]):
                             sys.addSpecies(el, 'total')
+                            print(el)
                             self.parent.fit.total.addSpecies(el)
                 for s in sp:
                     self.parent.fit.total.addSpecies(s)
 
                 sp = self.parent.fit.list_total()
+                print(sp)
                 n_hor = int(len(sp) ** 0.5)
                 if n_hor <= 1:
                     n_hor = 2
                 n_vert = len(sp) // n_hor + 1 if len(sp) % n_hor > 0 else len(sp) // n_hor
 
-
                 fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
                 i = 0
                 for k, v in sp.items():
-                    print(k, v)
                     if 'total' in k:
                         inds = np.where([k.split('_')[2] in str(s) and str(s)[0] == 'N' for s in self.parent.fit.list()])[0]
                     else:
@@ -2577,7 +2589,7 @@ class fitMCMCWidget(QWidget):
                     d = distr1d(np.log10(np.sum(10 ** values[:, inds], axis=1)))
                     d.dopoint()
                     d.dointerval()
-                    res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0])
+                    res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0], v.form)
                     v.set(res, attr='unc')
                     v.set(d.point)
                     f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
@@ -2589,9 +2601,10 @@ class fitMCMCWidget(QWidget):
                     ax[vert, hor].yaxis.set_ticks([])
                     ax[vert, hor].text(.1, .9, k.replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
 
-        for i in range(i, n_hor * n_vert):
-            vert, hor = i // n_hor, i % n_hor
-            fig.delaxes(ax[vert, hor])
+        if i < n_hor * n_vert:
+            for i in range(i+1, n_hor * n_vert):
+                vert, hor = i // n_hor, i % n_hor
+                fig.delaxes(ax[vert, hor])
 
         plt.tight_layout()
         plt.subplots_adjust(wspace=0)
@@ -5462,6 +5475,11 @@ class sviewer(QMainWindow):
         self.fit_method = str(self.options('fit_method'))
         self.comp_view = self.options('comp_view')
         self.animateFit = self.options('animateFit')
+        self.juliaFit = self.options('julia')
+        self.julia = None
+        if self.juliaFit:
+            self.julia = julia.Julia()
+            self.julia.include("profiles.jl")
         self.polyDeg = int(self.options('polyDeg'))
         self.SDSScat = self.options('SDSScat')
         self.comp = 0
@@ -6151,6 +6169,11 @@ class sviewer(QMainWindow):
         with open('config/options.ini', 'w') as f:
             for line in s:
                 f.write(line)
+
+    def reload_julia(self):
+        reload(julia)
+        self.julia = julia.Julia()
+        self.julia.include("profiles.jl")
 
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -7180,18 +7203,15 @@ class sviewer(QMainWindow):
             self.chooseFit = None
 
     def showFit(self, ind=-1, all=True):
-        if 1:
-            f = not self.normview
-            if f:
-                self.normalize()
-            self.s.prepareFit(ind, all=all)
-            self.s.calcFit(ind, redraw=True)
-            self.s.calcFitComps()
-            self.s.chi2()
-            if f:
-                self.normalize()
-        else:
-            self.s.calcFitfast(ind, redraw=True)
+        f = not self.normview
+        if f:
+            self.normalize()
+        self.s.prepareFit(ind, all=all)
+        self.s.calcFit(ind, redraw=True)
+        self.s.calcFitComps()
+        self.s.chi2()
+        if f:
+            self.normalize()
         try:
             self.fitModel.refresh()
         except:
@@ -7206,25 +7226,6 @@ class sviewer(QMainWindow):
                 par.fit = False
         print(self.fit.list_fit())
 
-    def fitLM(self, comp=-1):
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        self.panel.fitbutton.setChecked(True)
-        if self.chiSquare.text().strip() == '':
-            print('showFit')
-            self.showFit()
-
-        if self.animateFit:
-            if 1:
-                self.thread = threading.Thread(target=self.fitAbs, args=(), kwargs={'comp': comp}, daemon=True)
-                self.thread.start()
-            else:
-                self.fitprocess = Process(target=self.fitAbs) #s, args=(comp,))
-                self.fitprocess.daemon = True
-                self.fitprocess.start()
-        else:
-            self.fitAbs(comp=comp)
-        self.panel.fitbutton.setChecked(False)
-        QApplication.restoreOverrideCursor()
 
     def fitGrid(self, num=None):
         if not self.normview:
@@ -7286,8 +7287,39 @@ class sviewer(QMainWindow):
 
         plt.show()
 
+    def fitLM(self):
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        self.panel.fitbutton.setChecked(True)
+        if self.chiSquare.text().strip() == '':
+            print('showFit')
+            self.showFit()
 
-    def fitAbs(self, comp=-1, timer=True, redraw=True):
+        if self.animateFit:
+            if 1:
+                self.thread = threading.Thread(target=self.fitAbs, args=(), kwargs={'comp': comp}, daemon=True)
+                self.thread.start()
+            else:
+                self.fitprocess = Process(target=self.fitAbs)  # s, args=(comp,))
+                self.fitprocess.daemon = True
+                self.fitprocess.start()
+        else:
+            if self.options('fitType') == 'julia':
+                self.fitJulia()
+            else:
+                self.fitAbs()
+        self.panel.fitbutton.setChecked(False)
+        QApplication.restoreOverrideCursor()
+
+    def fitJulia(self):
+
+        self.reload_julia()
+
+        self.s.prepareFit(all=False)
+        print(self.julia_pars)
+        self.julia_spec = self.julia.prepare(self.s, self.julia_pars)
+        self.julia.fitLM(self.julia_spec, self.fit.pars())
+
+    def fitAbs(self, timer=True, redraw=True):
         t = Timer(verbose=True) if 1 else False
 
         def fcn2min(params):
@@ -7298,7 +7330,7 @@ class sviewer(QMainWindow):
             if timer:
                 t.time(None)
 
-            self.s.prepareFit(ind=comp, all=False)
+            self.s.prepareFit(all=False)
             self.s.calcFit(recalc=True, redraw=self.animateFit)
 
             if timer:
@@ -7815,8 +7847,6 @@ class sviewer(QMainWindow):
             plt.show()
 
         return text
-        #if ind is not None:
-        #    return temp.temp
 
     def showMetalAbundance(self, component=1, dep_ref='ZnII', HI=a(21,0,0)):
         """
@@ -7892,7 +7922,7 @@ class sviewer(QMainWindow):
         res = {}
         for k, v in sp.items():
             if dep_ref is '':
-                res[k] = [v]
+                res[k] = [v, metallicity(k, v, HI)]
             else:
                 res[k] = [v, metallicity(k, v, HI), depletion(k, v, sp[dep_ref], ref=dep_ref)]
             print('SMA', k, res[k])
@@ -8622,7 +8652,7 @@ class sviewer(QMainWindow):
             inter = interp1d(data[0], data[1], bounds_error=False, fill_value=fill_value, assume_sorted=True)
             s.resolution = resolution
             bin = (xmin + xmax) / 2 / resolution / 4
-            x = np.linspace(xmin, xmax, (xmax - xmin) / bin)
+            x = np.linspace(xmin, xmax, int((xmax - xmin) / bin))
             #debug(len(x), 'lenx')
             s.set_data([x, inter(x), np.ones_like(x) * 0.1])
             self.s.append(s)
@@ -8645,7 +8675,7 @@ class sviewer(QMainWindow):
 
         if fit and len(self.fit.sys) > 0:
             s.findFitLines(all=True, debug=False)
-            s.calcFit_fft(recalc=True, redraw=False, debug=False)
+            s.calcFit_fast(recalc=True, redraw=False)
             s.fit.norm.interpolate(fill_value=1.0)
             s.spec.set(y=s.spec.raw.y * s.fit.norm.inter(s.spec.raw.x))
 

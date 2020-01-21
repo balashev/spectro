@@ -12,6 +12,8 @@ from ccdproc import cosmicray_lacosmic
 from copy import deepcopy
 import gc
 import itertools
+from importlib import reload
+import julia
 from matplotlib import cm
 import matplotlib.pyplot as plt
 import numpy as np
@@ -136,22 +138,34 @@ class Speclist(list):
 
     def prepareFit(self, ind=-1, all=True):
         self.parent.fit.update()
+
+        if self.parent.fitType == 'julia':
+            #self.parent.reload_julia()
+            self.parent.julia_pars = self.parent.julia.make_pars(self.parent.fit.pars())
+
         for s in self:
             s.findFitLines(ind, all=all, debug=False)
 
-    def calcFit(self, ind=-1, recalc=False, redraw=True, timer=False):
+        if self.parent.fitType == 'julia':
+            self.parent.julia_spec = self.parent.julia.prepare(self, self.parent.julia_pars)
+
+    def calcFit(self, ind=-1, recalc=False, redraw=True, timer=True):
         if timer:
             t = Timer()
+
         for s in self:
             if hasattr(s, 'fit_lines') and len(s.fit_lines) > 0:
                 if self.parent.fitType == 'regular':
-                    s.calcFit(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit)
+                    s.calcFit(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
 
                 elif self.parent.fitType == 'fft':
-                    s.calcFit_fft(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit)
+                    s.calcFit_fft(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
 
                 elif self.parent.fitType == 'fast':
                     s.calcFit_fast(ind=ind, recalc=recalc, redraw=redraw, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit, timer=timer)
+
+                elif self.parent.fitType == 'julia':
+                    s.calcFit_julia(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
 
             else:
                 s.set_fit(x=self[self.ind].spec.raw.x[self[self.ind].cont_mask],
@@ -1810,7 +1824,7 @@ class Spectrum():
 
     def calcFit(self, ind=-1, x=None, recalc=False, redraw=True, timer=False, tau_limit=0.01):
         """
-
+           calculate the absorption profile
            - ind             : specify the exposure for which fit is calculated
            - recalc          : if True recalculate profile in all lines (given in self.fit_lines)
            - redraw          : if True redraw the fit
@@ -1890,9 +1904,61 @@ class Spectrum():
             if timer:
                 t.time('set_fit')
 
+    def calcFit_julia(self, ind=-1, x=None, recalc=False, redraw=True, timer=True, tau_limit=0.01):
+        """
+            calculate the absorption profile using Julia interface
+           - ind             : specify the exposure for which fit is calculated
+           - recalc          : if True recalculate profile in all lines (given in self.fit_lines)
+           - redraw          : if True redraw the fit
+        :return:
+        """
+        if timer:
+            t = Timer(str(ind))
+        if self.spec.norm.n > 0 and self.cont.n > 0:
+
+            if 0:
+                # >>> update line parameters:
+                pars = [str(p) for p in self.parent.fit.list()]
+                for line in self.fit_lines:
+                    sys = self.parent.fit.sys[line.sys]
+                    line.b_ind = pars.index("_".join(["b", str(line.sys), line.name.split()[0]]))
+                    line.N_ind = pars.index("_".join(["N", str(line.sys), line.name.split()[0]]))
+                    line.z_ind = pars.index("_".join(["z", str(line.sys)]))
+                    line.lam = line.l()
+                pars = [self.parent.fit.getValue(p) for p in pars]
+
+                if timer:
+                    t.time('update')
+
+            if timer:
+                t.time('update')
+
+            # >>> calculate the intrinsic absorption line spectrum
+            if 0:
+                x, flux = self.parent.julia.calc_spectrum_old(self.spec.norm.x, self.mask.norm.x, self.resolution, self.parent.julia_spec[self.ind()].lines, self.parent.julia_pars)
+                if timer:
+                    t.time('calc fit 0')
+            if 1:
+                x, flux = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars)
+                if timer:
+                    t.time('calc fit 1')
+
+            if timer:
+                t.time('calc fit')
+            # >>> set fit graphics
+            if ind == -1:
+                self.set_fit(x=x, y=flux)
+                if redraw:
+                    self.set_gfit()
+                    self.set_res()
+            else:
+                self.set_fit_comp(x=x, y=flux, ind=ind)
+            if timer:
+                t.time('set_fit')
+
     def calcFit_fft(self, ind=-1, recalc=True, redraw=True, debug=False, tau_limit=0.01):
         """
-
+            calculate the absorption profile using convolution by fft (on the regular grid)
            - ind             : specify the exposure for which fit is calculated
            - recalc          : if True recalculate profile in all lines (given in self.fit_lines)
            - redraw          : if True redraw the fit
@@ -2012,8 +2078,8 @@ class Spectrum():
             if self.resolution not in [None, 0]:
                 if ind == -1:
                     x_spec = self.spec.norm.x
-                    #mask_glob = np.zeros_like(x_spec)
-                    mask_glob = self.mask.norm.x
+                    mask_glob = np.zeros_like(x_spec)
+                    #mask_glob = self.mask.norm.x
                     for line in self.fit_lines:
                         if ind == -1 or ind == line.sys:
                             line.tau.getrange(tlim=tau_limit)

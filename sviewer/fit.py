@@ -1,4 +1,4 @@
-from copy import copy
+from copy import copy, deepcopy
 from collections import OrderedDict
 import gc
 import numpy as np
@@ -37,6 +37,7 @@ class par:
             self.sys = self.parent
         else:
             self.sys = None
+
         self.val = val
         self.min = min
         self.max = max
@@ -254,26 +255,30 @@ class fitSystem:
     def pyratio(self, init=False):
         #t = Timer('pyratio '+ str(self.parent.sys.index(self)))
         if init or self.pr is None:
-            self.pr = pyratio(z=self.z.val, pumping='simple', radiation='simple', sed_type=self.rad.addinfo)
-            #print('init', self.pr.pumping, self.pr.radiation,  self.pr.sed_type)
-            d = {'CO': [-1, 10], 'CI': [-1, 3], 'FeII': [-1, 13], 'H2': [-1, 3]}
-            for s in self.sp.keys():
-                if 'CO' in s:
-                    d['CO'][0] = 0 if s[3:4].strip() == '' else max(d['CO'][0], int(s[3:4]))
-                    pars = ['T', 'n', 'f', 'rad']
-                if 'CI' in s:
-                    d['CO'][0] = 0 if s[3:4].strip() == '' else max(d['CO'][0], int(s[3:4]))
-                    pars = ['T', 'n', 'f', 'rad']
-                if 'FeII' in s:
-                    d['FeII'][0] = 0 if s[5:6].strip() == '' else max(d['FeII'][0], int(s[5:6]))
-                    pars = ['T', 'e', 'rad']
-                if 'H2' in s:
-                    d['H2'][0] = 0 if s[3:4].strip() == '' else max(d['H2'][0], int(s[3:4]))
-                    pars = ['T', 'n', 'f', 'rad']
-            self.pr.set_pars(pars)
-            for k, v in d.items():
-                if v[0] > -1:
-                    self.pr.add_spec(k, num=v[1])
+            if self == self.parent.sys[0]:
+                self.pr = pyratio(z=self.z.val, pumping='simple', radiation='simple', sed_type=self.rad.addinfo)
+
+                #print('init', self.pr.pumping, self.pr.radiation,  self.pr.sed_type)
+                d = {'CO': [-1, 10], 'CI': [-1, 3], 'FeII': [-1, 13], 'H2': [-1, 3]}
+                for s in self.sp.keys():
+                    if 'CO' in s:
+                        d['CO'][0] = 0 if s[3:4].strip() == '' else max(d['CO'][0], int(s[3:4]))
+                        pars = ['T', 'n', 'f', 'rad']
+                    if 'CI' in s:
+                        d['CO'][0] = 0 if s[3:4].strip() == '' else max(d['CO'][0], int(s[3:4]))
+                        pars = ['T', 'n', 'f', 'rad']
+                    if 'FeII' in s:
+                        d['FeII'][0] = 0 if s[5:6].strip() == '' else max(d['FeII'][0], int(s[5:6]))
+                        pars = ['T', 'e', 'rad']
+                    if 'H2' in s:
+                        d['H2'][0] = 0 if s[3:4].strip() == '' else max(d['H2'][0], int(s[3:4]))
+                        pars = ['T', 'n', 'f', 'rad']
+                self.pr.set_pars(pars)
+                for k, v in d.items():
+                    if v[0] > -1:
+                        self.pr.add_spec(k, num=v[1])
+            else:
+                self.pr = deepcopy(self.parent.sys[0].pr)
             #self.pr.set_prior('f', 0)
 
         #t.time('init')
@@ -556,7 +561,8 @@ class fitPars:
         pars = OrderedDict()
         for sys in self.sys:
             for k, v in sys.total.items():
-                pars['_'.join(['N', str(self.sys.index(sys)), k])] = v.N
+                if k in sys.sp.keys():
+                    pars['_'.join(['N', str(self.sys.index(sys)), k])] = v.N
         for k, v in self.total.sp.items():
             pars['_'.join(['N', 'total', k])] = v.N
 

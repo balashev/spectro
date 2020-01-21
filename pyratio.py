@@ -88,7 +88,6 @@ class speci:
 
         self.fullnum = self.E.shape[0] # full number of levels
 
-        print(self.num, self.fullnum)
         self.setEij()
         self.setBij()
         self.setAij()
@@ -228,17 +227,18 @@ class speci:
         with open(folder+'HD/HD.dat') as f_in:
             f = 0
             while True:
-                line=f_in.readline()
-                if not line: break
+                line = f_in.readline()
+                if not line:
+                    break
                 if line.strip() == '#': 
-                    f +=1
-                    if f==4:
+                    f += 1
+                    if f == 4:
                         l = 0
                         line = f_in.readline()
                         while line.strip() != '':
                             if l < self.num: 
                                 self.g[l] = line.split()[1]
-                                self.E[l] = line.split()[0]
+                                self.E[l] = float(line.split()[0]) * 0.695
                                 self.descr[l] = line.split()[3]
                                 l +=1
                             line = f_in.readline()
@@ -841,7 +841,6 @@ class pyratio():
 
         if self.sed_type in ['QSO', 'AGN', 'GRB']:
             self.DL = FlatLambdaCDM(70, 0.3, Tcmb0=2.725, Neff=0).luminosity_distance(self.z).to('cm').value
-            print(self.DL)
 
         if 'QSO' in self.sed_type:
             from astroquery.sdss import SDSS
@@ -2230,3 +2229,50 @@ if __name__ == '__main__':
         pr.pars['f'].value = 0
         print(pr.predict(), np.log10(9), np.log10(5))
 
+    # >>> HD calculations:
+    if 1:
+        pr = pyratio()
+        pr.add_spec('HD', num=4)
+        pr.set_pars(['T', 'n', 'f'])
+        pr.pars['n'].value = 4
+        pr.pars['T'].value = np.log10(100)
+        pr.pars['f'].value = 0
+        print(pr.predict())
+        if 1:
+            n, T = np.linspace(1, 4, 10), np.linspace(1, 2.5, 10)
+            X, Y = np.meshgrid(n, T)
+            z = np.zeros_like(X)
+            for i, ni in enumerate(n):
+                for k, Tk in enumerate(T):
+                    pr.pars['n'].value, pr.pars['T'].value = ni, Tk
+                    pop = pr.predict()
+                    z[i, k] = pop[1] - np.log10(np.sum(np.power(10, pop)))
+                    print(pop, z[i, k])
+            cs = plt.contourf(X, Y, z, levels=100)
+            plt.contour(X, Y, z, levels=[-1.5, -1.0, -0.5, 0.0], linestyles='--', colors='k')
+            plt.colorbar(cs)
+            plt.show()
+
+    # >>> CI calculations:
+    if 0:
+        pr = pyratio()
+        pr.add_spec('CI', num=3)
+        pr.set_pars(['T', 'n', 'f'])
+        pr.pars['n'].value = 4
+        pr.pars['T'].value = np.log10(100)
+        pr.pars['f'].value = 0
+        print(pr.predict())
+        if 1:
+            n, T = np.linspace(1, 4, 10), np.linspace(1, 2.5, 10)
+            X, Y = np.meshgrid(n, T)
+            z = np.zeros_like(X)
+            for i, ni in enumerate(n):
+                for k, Tk in enumerate(T):
+                    pr.pars['n'].value, pr.pars['T'].value = ni, Tk
+                    pop = pr.predict()
+                    z[i, k] = pop[1] - np.log10(np.sum(np.power(10, pop)))
+                    print(pop, z[i, k])
+            cs = plt.contourf(X, Y, z, levels=100)
+            plt.contour(X, Y, z, levels=[-1.5, -1.0, -0.5, 0.0], linestyles='--', colors='k')
+            plt.colorbar(cs)
+            plt.show()
