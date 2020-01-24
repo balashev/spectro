@@ -1270,6 +1270,7 @@ def condens_temperature(name):
 def Asplund2009(name, relative=True):
     d = {
     'H': [12, 0, 0],
+    'D': [7.4, 0, 0], # this is not in Asplund
     'He': [10.93, 0.01, 0.01], #be carefull see Asplund 2009
     'Li': [1.05, 0.10, 0.10],
     'Be': [1.38, 0.09, 0.09],
@@ -1383,17 +1384,42 @@ def depletion(element, logN, logNref, ref='Zn', mode=None):
 
 def doppler(element, turb, kin):
     """
-        Return the value doppler parameter for the given species, given turbulence and kinetic temperature 
-        parameters:
-                - element     : name of the species
-                - turb        : turbulence doppler parameter, in km/s
-                - kin         : Kinetic temperature, in K
-        Output: b
-                - b           : doppler parameter in km/s
-                
-        Example:  doppler('OI', 3.4, 20000)
+    Return the value doppler parameter for the given species, given turbulence and kinetic temperature
+    parameters:
+            - element     : name of the species
+            - turb        : turbulence doppler parameter, in km/s
+            - kin         : Kinetic temperature, in K
+    Output: b
+            - b           : doppler parameter in km/s
+
+    Example:  doppler('OI', 3.4, 20000)
     """
     return np.sqrt(turb**2 + 0.0164 * kin / e(element).mass())
+
+def mean_molecular_weight(f=1, Z=0):
+    """
+    Return mean molecular weight of the gas with given hydrogen molecular fraction and metallicity.
+    NOTE: depletion is not taken into account!!!
+    parameters:
+            - f        : hydrogen molecular fraction
+            - Z        : metallicity in log
+    Output: mu
+            - mu       : mean molecular weight
+    """
+    d = ['D', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K', 'Ca', 'Sc', 'Ti', 'V', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'Ga', 'Ge']
+    m = 1
+    n = 1 - f/2
+    for i, di in enumerate(d):
+        try:
+            if i < 5:
+                m += e(di).mass() * 10**Asplund2009(di)[0]
+                n += 10**Asplund2009(di)[0]
+            else:
+                m += e(di).mass() * 10 ** Asplund2009(di)[0] * 10 ** Z
+                n += 10 ** Asplund2009(di)[0] * 10 ** Z
+        except:
+            pass
+    return m / n
 
 if __name__ == '__main__':
     if 0:
@@ -1420,7 +1446,7 @@ if __name__ == '__main__':
         me = a('-1.2^{+0.1}_{-0.1}', 'l')
         print(abundance('OI', HI, me))
 
-    if 1:
+    if 0:
         A = atomicData()
         #A.getfromNIST('MnII', 3)
         #A.makedatabase()
@@ -1434,3 +1460,6 @@ if __name__ == '__main__':
         #print(A.keys())
         #A.readH2(j=[0,1,2,3,4,5,6,7])
         A.compareH2()
+
+    if 1:
+        print(mean_molecular_weight(f=1, Z=0))

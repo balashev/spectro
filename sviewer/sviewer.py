@@ -2186,7 +2186,7 @@ class fitMCMCWidget(QWidget):
         self.start_button = QPushButton("Start")
         self.start_button.setCheckable(True)
         self.start_button.setFixedSize(120, 30)
-        self.start_button.clicked[bool].connect(partial(self.start, True))
+        self.start_button.clicked[bool].connect(partial(self.MCMC, True))
         self.continue_button = QPushButton("Continue")
         self.continue_button.setFixedSize(120, 30)
         self.continue_button.clicked[bool].connect(self.continueMC)
@@ -2379,75 +2379,90 @@ class fitMCMCWidget(QWidget):
 
     def MCMC(self, init=True):
         self.parent.setFit(comp=-1)
-        nwalkers = int(self.parent.options('MCMC_walkers'))
-        nsteps = int(self.parent.options('MCMC_iters'))
-        threads = int(self.parent.options('MCMC_threads'))
+        nwalkers, nsteps, threads = int(self.parent.options('MCMC_walkers')), int(self.parent.options('MCMC_iters')), int(self.parent.options('MCMC_threads'))
 
-        self.parent.s.prepareFit(-1, all=False)
+        self.parent.s.prepareFit(ind=-1, all=False)
 
-        if init:
-            pars, pos = [], []
-            for par in self.parent.fit.list_fit():
-                pars.append(str(par))
-                val = par.val * np.ones(nwalkers) + np.random.randn(nwalkers) * par.step
-                val[val > par.max] = par.max
-                val[val < par.min] = par.min
-                print(val)
-                pos.append(val)
-            pos = np.array(pos).transpose()
+        backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
+
+        if self.parent.options('fitType') == 'julia':
+            backend.reset(nwalkers, len(self.parent.julia_pars))
+            self.parent.reload_julia()
+            t = Timer("Julia MCMC")
+            chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.julia_pars, nwalkers=nwalkers, nsteps=nsteps)
+
+            with open("output/MCMC_pars.pkl", "wb") as f:
+                pickle.dump([str(p.name) for p in self.parent.julia_pars], f)
+
+            backend.grow(nsteps, None)
+            with backend.open("a") as f:
+                g = f[backend.name]
+                g.attrs["iteration"] = nsteps
+                #g["accepted"][...] =
+                g["log_prob"][...] = lns.transpose()
+                g["chain"][...] = chain.transpose(2, 1, 0)
+
+            t.time("finished")
         else:
-            with open("output/current.pkl", "rb") as f:
-                pars = pickle.load(f)
-                pos = pickle.load(f)
-
-        if pars == [str(p) for p in self.parent.fit.list_fit()]:
-            ndim = len(pars)
-
-            sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[pars, self.prior, self], threads=threads)
-
-            samples = np.array([[self.parent.fit.getValue(p) for p in pars]])
-            lnprobs = np.array([lnprob(samples[0], pars, self.prior, self)])
-
-            for i, result in enumerate(sampler.sample(pos, iterations=nsteps, storechain=False)):
-                print(i)
-                self.parent.MCMCprogress.setText('     MCMC is running: {0:d} / {1:d}'.format(i, nsteps))
-                samples = np.concatenate([samples, result[0]], axis=0)
-                lnprobs = np.concatenate([lnprobs, result[1]])
-                with open("output/chain.pkl", "wb") as f:
+            if init:
+                pars, pos = [], []
+                for par in self.parent.fit.list_fit():
+                    pars.append(str(par))
+                    val = par.val * np.ones(nwalkers) + np.random.randn(nwalkers) * par.step
+                    val[val > par.max] = par.max
+                    val[val < par.min] = par.min
+                    pos.append(val)
+                pos = np.array(pos).transpose()
+                with open("output/MCMC_pars.pkl", "wb") as f:
                     pickle.dump(pars, f)
-                    pickle.dump(nwalkers, f)
-                    pickle.dump(samples, f)
-                    pickle.dump(lnprobs, f)
-                with open("output/current.pkl", "wb") as f:
-                    pickle.dump(pars, f)
-                    pickle.dump(result[0], f)
+                ndims = len(pars)
+
+            else:
+                with open("output/MCMC_pars.pkl", "rb") as f:
+                    pars = pickle.load(f)
+                lnprobs = backend.get_last_sample()
+                print(lnprobs)
+
+            if pars == [str(p) for p in self.parent.fit.list_fit()]:
+                sampler = emcee.EnsembleSampler(nwalkers, ndims, lnprob, args=[pars, self.prior, self], backend=backend)
+
+                for i, result in enumerate(sampler.sample(pos, iterations=nsteps)):
+                    print(i)
+                    self.parent.MCMCprogress.setText('     MCMC is running: {0:d} / {1:d}'.format(i, nsteps))
+
             self.showMC()
 
             self.thread = None
             self.start_button.setChecked(False)
 
     def readChain(self, ):
-        with open("output/chain.pkl", "rb") as f:
-            return pickle.load(f), pickle.load(f), pickle.load(f), pickle.load(f)
+        with open("output/MCMC_pars.pkl", "rb") as f:
+            pars = pickle.load(f)
+        backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
+        lnprobs = backend.get_log_prob()
+        samples = backend.get_chain()
+        print(samples.shape, lnprobs.shape)
+        return pars, samples, lnprobs
 
     def showMC(self):
-        pars, nwalkers, samples, lnprobs = self.readChain()
+        pars, samples, lnprobs = self.readChain()
+        nsteps, nwalkers, = lnprobs.shape
+        burnin = int(self.parent.options('MCMC_burnin'))
 
         mask = np.array([self.parent.fit.list()[[str(i) for i in self.parent.fit.list()].index(p)].show for p in pars])
         names = [str(p).replace('_', ' ') for p in self.parent.fit.list_fit() if p.show]
         if self.parent.options('MCMC_likelihood'):
-            names = [r'$\chi^2$'] + names #pars
-            samples = np.insert(samples, 0, lnprobs, axis=1)
+            names = [r'$\chi^2$'] + names
+            samples = np.insert(samples, 0, lnprobs, axis=2)
             mask = np.insert(mask, 0, True)
-        imax = np.argmin(lnprobs)
-        truth = samples[imax][np.where(mask)[0]] if self.parent.options('MCMC_bestfit') else None
+        inds = np.where(lnprobs == np.max(lnprobs))
+        truth = samples[inds[0][0], inds[1][0], :] if bool(self.parent.options('MCMC_bestfit')) else None
         print('best fit:', truth)
-        burnin = int(self.parent.options('MCMC_burnin'))
-        if nwalkers * burnin < samples.shape[0]:
+        if burnin < samples.shape[0]:
             if self.parent.options('MCMC_graph') == 'chainConsumer':
                 from chainconsumer import ChainConsumer
                 c = ChainConsumer()
-                c.add_chain(samples[nwalkers * burnin:, np.where(mask)[0]], walkers=nwalkers,
+                c.add_chain(samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]], walkers=nwalkers,
                             parameters=names)
                 c.configure(smooth=self.parent.options('MCMC_smooth'),
                             cloud=True,
@@ -2462,8 +2477,7 @@ class fitMCMCWidget(QWidget):
                                         )
             if self.parent.options('MCMC_graph') == 'corner':
                 import corner
-                print(names)
-                figure = corner.corner(samples[nwalkers * burnin:, np.where(mask)[0]],
+                figure = corner.corner(samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]],
                                        labels=names,
                                        show_titles=True,
                                        plot_contours=self.parent.options('MCMC_smooth'),
@@ -2472,12 +2486,13 @@ class fitMCMCWidget(QWidget):
                 plt.show()
 
     def stats(self, t='fit'):
-        pars, nwalkers, samples, lnprobs = self.readChain()
-
+        pars, samples, lnprobs = self.readChain()
+        nsteps, nwalkers, = lnprobs.shape
         burnin = int(self.parent.options('MCMC_burnin'))
 
-        truth = samples[np.argmin(lnprobs)] if bool(self.parent.options('MCMC_bestfit')) else None
-
+        inds = np.where(lnprobs == np.max(lnprobs))
+        truth = samples[inds[0][0], inds[1][0], :] if bool(self.parent.options('MCMC_bestfit')) else None
+        print(truth)
         self.results.setText('')
 
         if t == 'fit':
@@ -2495,8 +2510,9 @@ class fitMCMCWidget(QWidget):
             for i, p in enumerate(pars):
                 print(i, p)
                 if p in names:
-                    x = np.linspace(np.min(samples[nwalkers * burnin + 1:, i]), np.max(samples[nwalkers * burnin + 1:, i]), 100)
-                    kde = gaussian_kde(samples[nwalkers * burnin + 1:, i])
+                    s = samples[burnin:, :, i].flatten()
+                    x = np.linspace(np.min(s), np.max(s), 100)
+                    kde = gaussian_kde(s)
                     d = distr1d(x, kde(x))
                     d.dopoint()
                     d.dointerval()
@@ -2521,11 +2537,12 @@ class fitMCMCWidget(QWidget):
 
         else:
             values = []
-            for k in range(nwalkers * burnin + 1, samples.shape[0]):
-                for xi, p in zip(samples[k], pars):
-                    self.parent.fit.setValue(p, xi)
-                self.parent.fit.update()
-                values.append([p.val for p in self.parent.fit.list()])
+            for k in range(burnin, samples.shape[0]):
+                for i in range(samples.shape[1]):
+                    for xi, p in zip(samples[k, i], pars):
+                        self.parent.fit.setValue(p, xi)
+                    self.parent.fit.update()
+                    values.append([p.val for p in self.parent.fit.list()])
 
             values = np.asarray(values)
             print(t)
@@ -2614,59 +2631,58 @@ class fitMCMCWidget(QWidget):
         self.MCMCqc()
 
     def MCMCqc(self, qc='all'):
-        pars, nwalkers, samples, lnprobs = self.readChain()
-        print(pars, lnprobs)
+        pars, samples, lnprobs = self.readChain()
+        nsteps, nwalkers, = lnprobs.shape
+        ndims = len(pars)
 
         if any([s in qc for s in ['current', 'moments', 'all']]):
-            k = samples.shape[1]
-            n_hor = int(k ** 0.5)
+            n_hor = int(ndims ** 0.5)
             if n_hor <= 1:
                 n_hor = 2
-            n_vert = int(k / n_hor + 1)
+            n_vert = int(ndims / n_hor + 1)
 
         if any([s in qc for s in ['current', 'all']]):
             for i, p in enumerate(pars):
                 if p.startswith('z'):
-                    samples[:, i] = samples[:, i] * 1000
+                    samples[:, :, i] = (samples[:, :, i] / np.mean(samples[:, :, i], axis=0) - 1) * 300000
             fig, ax0 = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
-            ax0[0, 0].hist(-lnprobs[-nwalkers:], 20, density=1, histtype='bar', color='crimson', label='$\chi^2$')
+            ax0[0, 0].hist(-lnprobs[nsteps-1, :][np.isfinite(lnprobs[nsteps-1, :])], 20, density=1, histtype='bar', color='crimson', label='$\chi^2$')
             ax0[0, 0].legend()
             ax0[0, 0].set_title('$\chi^2$ distribution')
-            for i in range(k):
+            for i in range(ndims):
                 vert, hor = int((i + 1) / n_hor), i + 1 - n_hor * int((i + 1) / n_hor)
-                ax0[vert, hor].scatter(samples[-nwalkers:, i], -lnprobs[-nwalkers:], c='r')
+                ax0[vert, hor].scatter(samples[nsteps-1, :, i], -lnprobs[nsteps-1, :], c='r')
                 ax0[vert, hor].text(.1, .9, str(pars[i]).replace('_', ' '), ha='left', va='top',
                                    transform=ax0[vert, hor].transAxes)
 
         plt.subplots_adjust(wspace=0)
         plt.tight_layout()
 
+        plt.show()
+
         if any([s in qc for s in ['moments', 'all']]):
-            ind = np.random.randint(0,nwalkers)
-            SomeChain = samples[1 + ind::nwalkers,:]
-            SomeChain = samples[1 + ind::nwalkers,:]
-            print((samples.shape[0])/nwalkers)
-            niters = int((samples.shape[0])/nwalkers)
-            mean, std, chimin = np.empty([len(pars), niters]), np.empty([len(pars), niters]), np.empty([3, niters])
-            for i in range(niters):
-                mean[:, i] = np.mean(samples[i*nwalkers+1:(i+1)*nwalkers+1, :], axis=0)
-                std[:, i] = np.std(samples[i*nwalkers+1:(i+1)*nwalkers+1, :], axis=0)
-                chimin[0, i] = np.min(-lnprobs[i*nwalkers+1:(i+1)*nwalkers+1])
-                chimin[1, i] = np.mean(-lnprobs[i * nwalkers + 1:(i + 1) * nwalkers + 1])
-                chimin[2, i] = np.std(-lnprobs[i * nwalkers + 1:(i + 1) * nwalkers + 1])
+            ind = np.random.randint(0, nwalkers)
+            SomeChain = samples[:, 1+ind, :]
+            mean, std, chimin = np.empty([ndims, nsteps]), np.empty([ndims, nsteps]), np.empty([ndims, nsteps])
+            for i in range(nsteps):
+                mean[:, i] = np.mean(samples[i, :, :], axis=0)
+                std[:, i] = np.std(samples[i, :, :], axis=0)
+                chimin[0, i] = np.min(-lnprobs[i, :])
+                chimin[1, i] = np.mean(-lnprobs[i, :])
+                chimin[2, i] = np.std(-lnprobs[i, :])
             fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor), sharex=True)
-            ax[0, 0].plot(np.arange(niters), np.log10(chimin[0]), label='$\chi^2_{min}$')
-            ax[0, 0].plot(np.arange(niters), np.log10(-lnprobs[ind::nwalkers]), label='$\chi^2$ at chain')
-            ax[0, 0].plot(np.arange(niters), np.log10(chimin[1]), label='$\chi^2$ mean')
-            ax[0, 0].plot(np.arange(niters), np.log10(chimin[2]), label='$\chi^2$ disp')
+            ax[0, 0].plot(np.arange(nsteps), np.log10(chimin[0]), label='$\chi^2_{min}$')
+            ax[0, 0].plot(np.arange(nsteps), np.log10(-lnprobs[:, ind+1]), label='$\chi^2$ at chain')
+            ax[0, 0].plot(np.arange(nsteps), np.log10(chimin[1]), label='$\chi^2$ mean')
+            ax[0, 0].plot(np.arange(nsteps), np.log10(chimin[2]), label='$\chi^2$ disp')
             ax[0, 0].legend(loc=1)
-            for i in range(k):
+            for i in range(ndims):
                 vert, hor = int((i + 1) / n_hor), i + 1 - n_hor * int((i + 1) / n_hor)
                 # print(vert, hor)
-                ax[vert, hor].plot(np.arange(niters), mean[i], color='r')
-                ax[vert, hor].fill_between(np.arange(niters), mean[i]-std[i], mean[i]+std[i],
+                ax[vert, hor].plot(np.arange(nsteps), mean[i], color='r')
+                ax[vert, hor].fill_between(np.arange(nsteps), mean[i]-std[i], mean[i]+std[i],
                                            facecolor='green', interpolate=True, alpha=0.5)
-                ax[vert, hor].plot(np.arange(niters), SomeChain[:, i], color='b')
+                ax[vert, hor].plot(np.arange(nsteps), SomeChain[:, i], color='b')
                 ax[vert, hor].text(.1, .9, str(pars[i]).replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
                 #ax[vert, hor].set_title(pars[i].replace('_', ' '))
 
@@ -7315,9 +7331,11 @@ class sviewer(QMainWindow):
         self.reload_julia()
 
         self.s.prepareFit(all=False)
-        print(self.julia_pars)
-        self.julia_spec = self.julia.prepare(self.s, self.julia_pars)
-        self.julia.fitLM(self.julia_spec, self.fit.pars())
+        #self.parent.julia_pars = self.parent.julia.make_pars(self.parent.fit.pars())
+        #self.julia_spec = self.julia.prepare(self.s, self.julia_pars)
+        #self.julia.fitLM(self.julia_spec, self.julia_pars)
+        chain, lns = self.julia.fitMCMC(self.julia_spec, self.julia_pars)
+        print(shape(chain))
 
     def fitAbs(self, timer=True, redraw=True):
         t = Timer(verbose=True) if 1 else False

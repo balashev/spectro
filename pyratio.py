@@ -2232,7 +2232,7 @@ if __name__ == '__main__':
     # >>> HD calculations:
     if 1:
         pr = pyratio()
-        pr.add_spec('HD', num=4)
+        pr.add_spec('HD', num=6)
         pr.set_pars(['T', 'n', 'f'])
         pr.pars['n'].value = 4
         pr.pars['T'].value = np.log10(100)
@@ -2246,7 +2246,8 @@ if __name__ == '__main__':
                 for k, Tk in enumerate(T):
                     pr.pars['n'].value, pr.pars['T'].value = ni, Tk
                     pop = pr.predict()
-                    z[i, k] = pop[1] - np.log10(np.sum(np.power(10, pop)))
+                    z[i, k] = np.log10(np.sum(np.power(10, pop[:2]))) - np.log10(np.sum(np.power(10, pop)))
+                    #z[i, k] = np.sum(np.power(10, pop[:2])) / np.sum(np.power(10, pop))
                     print(pop, z[i, k])
             cs = plt.contourf(X, Y, z, levels=100)
             plt.contour(X, Y, z, levels=[-1.5, -1.0, -0.5, 0.0], linestyles='--', colors='k')

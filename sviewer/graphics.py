@@ -1469,7 +1469,7 @@ class Spectrum():
     def set_fit(self, x, y):
         if self.cont.n > 0: # and self.active():
             self.fit.norm.set_data(x=x, y=y)
-            self.fit.norm.interpolate()
+            self.fit.norm.interpolate(fill_value=1)
             if not self.parent.normview:
                 self.fit.normalize(norm=False, cont_mask=False, inter=True)
                 self.fit.raw.interpolate()

@@ -59,6 +59,8 @@ class par:
                 setattr(self, attr, val)
         else:
             setattr(self, attr, val)
+            if attr == 'vary':
+                self.fit = self.vary
         if attr == 'val':
             return self.check_range()
 
