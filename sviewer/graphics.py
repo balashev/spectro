@@ -141,7 +141,7 @@ class Speclist(list):
 
         if self.parent.fitType == 'julia':
             #self.parent.reload_julia()
-            self.parent.julia_pars = self.parent.julia.make_pars(self.parent.fit.pars())
+            self.parent.julia_pars = self.parent.julia.make_pars(self.parent.fit.list())
 
         for s in self:
             s.findFitLines(ind, all=all, debug=False)
@@ -149,7 +149,7 @@ class Speclist(list):
         if self.parent.fitType == 'julia':
             self.parent.julia_spec = self.parent.julia.prepare(self, self.parent.julia_pars)
 
-    def calcFit(self, ind=-1, recalc=False, redraw=True, timer=True):
+    def calcFit(self, ind=-1, recalc=False, redraw=True, timer=False):
         if timer:
             t = Timer()
 
@@ -188,6 +188,9 @@ class Speclist(list):
 
                     elif self.parent.fitType == 'fast':
                         s.calcFit_fast(ind=sys.ind, recalc=recalc, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit)
+
+                    elif self.parent.fitType == 'julia':
+                        s.calcFit_julia(ind=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit)
 
     def reCalcFit(self, ind):
         self.prepareFit(ind=-1)
@@ -1916,35 +1919,13 @@ class Spectrum():
             t = Timer(str(ind))
         if self.spec.norm.n > 0 and self.cont.n > 0:
 
-            if 0:
-                # >>> update line parameters:
-                pars = [str(p) for p in self.parent.fit.list()]
-                for line in self.fit_lines:
-                    sys = self.parent.fit.sys[line.sys]
-                    line.b_ind = pars.index("_".join(["b", str(line.sys), line.name.split()[0]]))
-                    line.N_ind = pars.index("_".join(["N", str(line.sys), line.name.split()[0]]))
-                    line.z_ind = pars.index("_".join(["z", str(line.sys)]))
-                    line.lam = line.l()
-                pars = [self.parent.fit.getValue(p) for p in pars]
-
-                if timer:
-                    t.time('update')
-
-            if timer:
-                t.time('update')
-
             # >>> calculate the intrinsic absorption line spectrum
-            if 0:
-                x, flux = self.parent.julia.calc_spectrum_old(self.spec.norm.x, self.mask.norm.x, self.resolution, self.parent.julia_spec[self.ind()].lines, self.parent.julia_pars)
-                if timer:
-                    t.time('calc fit 0')
-            if 1:
-                x, flux = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars)
-                if timer:
-                    t.time('calc fit 1')
+            print('calc julia:', ind)
+            x, flux = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=ind+1)
 
             if timer:
                 t.time('calc fit')
+
             # >>> set fit graphics
             if ind == -1:
                 self.set_fit(x=x, y=flux)

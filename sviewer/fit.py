@@ -141,6 +141,8 @@ class par:
     def str(self, attr=None):
         if attr is None:
             return '{1:} {2:.{0}f} {3:.{0}f} {4:.{0}f} {5:.{0}f} {6:1d} {7:s}'.format(self.dec, self, self.val, self.min, self.max, self.step, self.vary, self.addinfo)
+        if attr == 'lmfit':
+            return '{1:} {2:.{0}f} ± {3:.{0}f}'.format(self.dec, self, self.val, self.step)
         else:
             return '{0:.{1}f}'.format(getattr(self, attr), self.dec)
 
@@ -617,6 +619,16 @@ class fitPars:
                 self.setValue(name, self.pars()[name].ref(par.stderr, attr='unc'), 'step')
             else:
                 self.setValue(name, 0, 'unc')
+
+    def fromJulia(self, res, unc):
+        s = ''
+        for i, p in enumerate(self.list_fit()):
+            self.setValue(p.__str__(), res[i])
+            self.setValue(p.__str__(), unc[i], 'unc')
+            self.setValue(p.__str__(), unc[i], 'step')
+            #s += p.__str__() + ': ' + str(self.getValue(p.__str__(), 'unc')) + '\n'
+            s += p.str(attr='lmfit') + '\n'
+        return s
 
     def save(self):
         self.saved = [copy(l) for l in self.list()]

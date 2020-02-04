@@ -3,10 +3,11 @@ from collections import OrderedDict
 from functools import partial
 from itertools import combinations
 from matplotlib import cm
+import matplotlib.colors as mcolors
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import (QFont)
-from PyQt5.QtWidgets import (QWidget, QLabel, QGridLayout, QPushButton,
-                             QApplication, QHBoxLayout, QVBoxLayout)
+from PyQt5.QtWidgets import (QWidget, QLabel, QGridLayout, QPushButton, QApplication,
+                             QHBoxLayout, QVBoxLayout, QComboBox)
 import pyqtgraph as pg
 from ..atomic import *
 from ..profiles import tau
@@ -744,3 +745,68 @@ class cfLabel(pg.TextItem):
 
     def clicked(self, pts):
         print("clicked: %s" % pts)
+
+class colorCompBox(QHBoxLayout):
+    def __init__(self, parent, num):
+        super(colorCompBox, self).__init__()
+        self.parent = parent
+        self.num = num
+        self.comp = [''] * self.num
+        self.init_colors()
+        self.addWidget(QLabel('Comp colors:'))
+        self.create()
+        self.addWidget(QLabel('Set:'))
+        self.default = QPushButton("default")
+        self.default.setFixedSize(60, 30)
+        self.default.pressed.connect(partial(self.set_default, kind='tab'))
+        self.addWidget(self.default)
+        self.cmap = QComboBox()
+        self.cmap.setFixedSize(80, 30)
+        self.cmap.addItems(['', 'rainbow', 'viridis', 'plasma', 'inferno', 'magma', 'cividis', 'spring', 'summer', 'autumn', 'winter', 'cool', 'Wistia', 'PiYG', 'PRGn', 'BrBG', 'PuOr', 'RdGy', 'RdBu',
+            'RdYlBu', 'RdYlGn', 'Spectral', 'coolwarm', 'bwr', 'seismic', 'twilight', 'twilight_shifted', 'hsv', 'flag', 'prism', 'ocean', 'gist_earth', 'terrain', 'gist_stern',
+            'gnuplot', 'gnuplot2', 'CMRmap', 'cubehelix', 'brg', 'gist_rainbow', 'jet', 'nipy_spectral', 'gist_ncar'])
+        self.cmap.currentTextChanged.connect(self.set_default)
+        self.addWidget(self.cmap)
+
+    def init_colors(self):
+        self.colors = [''] * self.num
+        if len(self.parent.comp_colors.split(',')) < self.num:
+            self.get_default()
+        for i, c in enumerate(self.parent.comp_colors.split(',')):
+            if i < self.num:
+                self.colors[i] = tuple(int(c.strip()).to_bytes(4, byteorder='big'))
+        self.saveColors()
+
+    def create(self):
+        for i in range(self.num):
+            self.comp[i] = pg.ColorButton(self.parent)
+            self.comp[i].setFixedSize(30, 30)
+            self.comp[i].setColor(color=self.colors[i])
+            self.comp[i].sigColorChanged.connect(partial(self.setColor, comp=i))
+            self.addWidget(self.comp[i])
+        self.addStretch(1)
+
+    def get_default(self, kind='tab'):
+        if kind != 'tab':
+            cmap = cm.get_cmap(kind)
+            color = cmap(np.linspace(0, 0.85, self.num))
+        color_tab = ['tab:blue', 'tab:green', 'tab:orange', 'tab:purple', 'tab:cyan', 'tab:pink', 'tab:gray',
+                     'tab:olive', 'tab:brown', 'tab:red', 'dodgerblue']
+        for i in range(self.num):
+            if kind == 'tab':
+                print(color_tab[i], mcolors.to_rgba(color_tab[i]))
+                self.colors[i] = tuple([int(c * 255) for c in mcolors.to_rgba(color_tab[i])])
+            else:
+                self.colors[i] = tuple([int(max(0, c - 0.20)*255) for c in color[i][:3]] + [255])
+
+    def set_default(self, kind='tab'):
+        self.get_default(kind=kind)
+        for i in range(self.num):
+            self.comp[i].setColor(color=self.colors[i])
+
+    def setColor(self, color, comp=None):
+        self.colors[comp] = tuple([int(c*255) for c in color.color(mode="float")])
+        self.saveColors()
+
+    def saveColors(self):
+        self.parent.comp_colors = ', '.join([str(int.from_bytes(bytes(self.colors[i]), byteorder='big')) for i in range(self.num)])

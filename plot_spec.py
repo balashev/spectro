@@ -64,7 +64,7 @@ class plot_spec(list):
         - readlist    :  read the path to lines from the file with the list
         -
     """
-    def __init__(self, arg, vel_scale=False, font=14, font_labels=16, fit=True, figure=None, gray_out=False, show_comps=True, show_err=True):
+    def __init__(self, arg, vel_scale=False, font=14, font_labels=16, fit=True, figure=None, gray_out=False, show_comps=True, show_err=True, error_cap=5):
         self.vel_scale = vel_scale
         self.name_pos = [0.02, 0.19]
         self.add_ioniz = False
@@ -72,8 +72,10 @@ class plot_spec(list):
         self.font_labels = font_labels
         self.fit = fit
         self.figure = figure
+        self.color_total = col.tableau10[3]
         self.show_comps = show_comps
         self.show_err = show_err
+        self.error_cap = error_cap
         self.gray_out = gray_out
         self.order = 'v'
 
@@ -135,7 +137,13 @@ class plot_spec(list):
     def specify_comps(self, *args):
         self.comps = np.array(args)
                 
-    def specify_styles(self, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0):
+    def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0):
+
+        if color_total is not None:
+            if np.max(list(color_total)) > 1:
+                color_total = tuple(c/255 for c in color_total)
+            self.color_total = color_total
+
         num = len(self.comps+1)
         if color is None:
             cmap = plt.get_cmap('rainbow')
@@ -147,6 +155,10 @@ class plot_spec(list):
                 color_add = ['tab:blue', 'tab:green', 'tab:orange', 'tab:purple', 'tab:cyan', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:brown', 'tab:red', 'dodgerblue']
                 for i in range(min(len(color_add), num)):
                     color[i] = color_add[i]
+        else:
+            for i, c in enumerate(color):
+                if np.max(list(c)) > 1:
+                    color[i] = tuple(ci / 255 for ci in c)
         self.color = color[:]
         
         if ls is None:
@@ -328,7 +340,6 @@ class plotline():
         if f is not None:
             self.fit.x = np.insert(np.append(f[0, :], self.spec.x[-1]), 0, self.spec.x[0])
             self.fit.y = np.insert(np.append(f[1, :], 1), 0, 1)
-            print(self.fit.x)
 
         if fit_comp is not None:
             self.fit_comp = []
@@ -382,31 +393,31 @@ class plotline():
         # >>> auto range of plot
         if self.x_min == 0 and self.x_max == 0:
             # >>> recalculate to velocity offset if necessary
-            if self.vel_scale:
+            if not self.vel_scale:
                 self.x_min, self.x_max = self.spec.x[0], self.spec.x[-1]
             else:
                 self.x_min, self.x_max = (self.spec.x[0]/self.wavelength/(1+self.parent.z_ref)-1)*299794.26, (self.spec.x[-1]/self.wavelength/(1+self.parent.z_ref)-1)*299794.26
             self.y_min, self.y_max = min(self.spec.y), max(self.spec.y)
 
         # >>> correct continuum
-        print('cont', len(self.cont))
         if len(self.cont) > 0:
             self.correct_cont()
 
         # >>> recalculate to velocity offset if necessary
-        if not self.vel_scale:
-            self.spec.x = (self.spec.x / self.wavelength / (1+self.parent.z_ref) - 1)*299794.26
+        if self.vel_scale:
+            self.spec.x = (self.spec.x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
 
         # >>> mask only selected wavelength range
         self.points = self.points[self.spec.mask(self.x_min, self.x_max)]
 
         # >>> plot spectrum
         if self.show_err:
-            elinewidth, ecolor, capsize = 0.5, '0.3', 1.5
+            elinewidth, ecolor, capsize = 0.5, None, self.parent.error_cap
         else:
-            elinewidth, ecolor, capsize = 0, None, 0
+            elinewidth, ecolor, capsize = 0, '1.0', 0
+
         if self.gray_out:
-            ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid', color='0.5', ecolor='0.7', capsize=capsize, zorder=0)
+            ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid', color='0.5', ecolor=ecolor, capsize=capsize, zorder=0)
             k = (self.points == 0)
             self.spec.y[k] = np.NaN
         ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid',  color='k', ecolor=ecolor, capsize=capsize, zorder=1)
@@ -416,7 +427,7 @@ class plotline():
         if self.show_fit:
 
             # >>> recalculate to velocity offset if necessary
-            if not self.vel_scale:
+            if self.vel_scale:
                 self.fit.x = (self.fit.x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
 
             # >>> mask only selected wavelength range
@@ -425,7 +436,7 @@ class plotline():
             # >>> plot fit components
             if self.show_comps:
                 for k in range(self.num_comp):
-                    if not self.vel_scale:
+                    if self.vel_scale:
                         self.fit_comp[k].x = (self.fit_comp[k].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
                     self.fit_comp[k].mask(self.x_min, self.x_max)
                     if 0:
@@ -438,7 +449,7 @@ class plotline():
                         ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
 
             # >>> plot joint fit
-            ax.plot(self.fit.x, self.fit.y, color=col.tableau10[3], ls='-', lw=self.parent.lw_total, zorder=11)
+            ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls='-', lw=self.parent.lw_total, zorder=11)
 
         # >>> add residuals
         if self.add_residual and self.show_fit:
@@ -506,7 +517,7 @@ class plotline():
         if self.show_comps and self.show_fit:
             for k in range(self.num_comp):
                 v = (self.parent.comps[k] - self.parent.z_ref) * 299794.26 / (1 + self.parent.z_ref)
-                ax.plot([v, v], [self.y_min, self.y_max], color=self.parent.color[k], linestyle=':', lw=self.parent.lw[k])
+                ax.plot([v, v], [self.y_min, self.y_max], color=self.parent.color[k], linestyle=':', lw=1.0) #self.parent.lw[k])
                 if self.parent.comp_names is not None:
                     ax.text(v, null_res-1.5*delt_res, self.parent.comp_names[k], fontsize=self.font_labels-2,
                     color=self.parent.color[k], backgroundcolor='w', clip_on=True, ha='center', va='top', zorder=21)
@@ -537,21 +548,23 @@ class plotline():
             self.correct_cont()
 
         # >>> plot spectrum
+        if self.show_err:
+            elinewidth, ecolor, capsize = 0.5, '0.3', self.parent.error_cap
+        else:
+            elinewidth, ecolor, capsize = 0, None, 0
+
         if self.gray_out:
             if self.add_errors:
-                ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=0.2, drawstyle='steps-mid',
-                            color='k', ecolor='0.3', capsize=1.5, zorder=1)
+                ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=elinewidth, drawstyle='steps-mid',
+                            color='k', ecolor='0.3', capsize=capsize, zorder=1)
             else:
-                ax.errorbar(self.spec.x, self.spec.y, lw=1, elinewidth=0.2, drawstyle='steps-mid',
-                            color='k', capsize=1.5, zorder=1)
+                ax.errorbar(self.spec.x, self.spec.y, lw=1, elinewidth=elinewidth, drawstyle='steps-mid',
+                            color='k', capsize=capsize, zorder=1)
             k = (self.points == 0)
             self.spec.y[k] = np.NaN
-        if self.add_errors:
-            ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=0.5, drawstyle='steps-mid',
-                        color='k', ecolor='0.3', capsize=1.5, zorder=0)
-        else:
-            ax.errorbar(self.spec.x, self.spec.y, lw=1, elinewidth=0.5, drawstyle='steps-mid',
-                        color='k', ecolor='0.3', capsize=1.5, zorder=0)
+
+        ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=elinewidth, drawstyle='steps-mid',
+                        color='k', ecolor=ecolor, capsize=capsize, zorder=0)
 
         # >>> correct continuum
         try:
@@ -563,8 +576,6 @@ class plotline():
 
         # >>> plot fit
         if self.show_fit:
-
-            # >>> plot fit components
             # >>> plot fit components
             if self.show_comps:
                 for k in range(self.num_comp):

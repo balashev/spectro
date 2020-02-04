@@ -24,7 +24,7 @@ from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget, QD
                              QSplitter, QFrame, QLineEdit, QLabel, QPushButton, QCheckBox,
                              QGridLayout, QTabWidget, QFormLayout, QHBoxLayout, QRadioButton,
                              QTreeWidget, QComboBox, QTreeWidgetItem, QAbstractItemView,
-                             QStatusBar, QMenu, QButtonGroup, QMessageBox, QToolButton)
+                             QStatusBar, QMenu, QButtonGroup, QMessageBox, QToolButton, QColorDialog)
 from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl, QTimer, pyqtSignal, QObject, QPropertyAnimation
 from PyQt5.QtGui import QDesktopServices, QPainter, QFont, QColor
 from scipy.special import erf
@@ -1470,18 +1470,19 @@ class showLinesWidget(QWidget):
                     ('col_offset', float), ('row_offset', float),
                     ('units', str), ('regions', int),
                     ('xmin', float), ('xmax', float), ('ymin', float), ('ymax', float),
-                    ('spec_lw', float), ('show_err', int),
+                    ('spec_lw', float), ('show_err', int), ('error_cap', float),
                     ('residuals', int), ('gray_out', int), ('res_sigma', int),
-                    ('show_comps', int), ('fit_lw', float), ('sys_ind', int),
-                    ('font', int), ('xlabel', str), ('ylabel', str),
+                    ('fit_color', int), ('fit_lw', float),
+                    ('show_comps', int), ('comp_lw', float), ('comp_colors', str), ('sys_ind', int),
+                    ('font', int), ('labels_corr', int), ('xlabel', str), ('ylabel', str),
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
                     ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
                     ('plotfile', str), ('show_cont', int), ('corr_cheb', int),
                     ('show_H2', str), ('pos_H2', float),
                     ('show_cf', int), ('cfs', str),
                     ])
+
         for opt, func in self.opts.items():
-            #print(opt, self.parent.options(opt), func(self.parent.options(opt)))
             setattr(self, opt, func(self.parent.options(opt)))
 
         self.y_formatter = None
@@ -1532,8 +1533,9 @@ class showLinesWidget(QWidget):
                  'X-units:', '', '', '', '',
                  'X-scale:', 'min:', '', 'max:', '',
                  'Y-scale:', 'min:', '', 'max:', '',
-                 'Spectrum:', '', '', '', '',
+                 'Spectrum:', '', '', 'error caps:', '',
                  'Residuals:', '', '', 'sig:', '',
+                 'Fit:', '', '', '', '',
                  'Comps:', '', '', 'central:', '',
                  'Fonts:', 'axis:', '', '', '',
                  'Labels:', 'x:', '', 'y:', '',
@@ -1545,7 +1547,7 @@ class showLinesWidget(QWidget):
                  'H2:', '', '', 'pos:', '',
                  'Covering factor:', '', '', '', '',]
 
-        positions = [(i, j) for i in range(20) for j in range(5)]
+        positions = [(i, j) for i in range(21) for j in range(5)]
 
         for position, name in zip(positions, names):
             if name == '':
@@ -1555,12 +1557,12 @@ class showLinesWidget(QWidget):
         self.opt_but = OrderedDict([('width', [0, 2]), ('height', [0, 4]), ('cols', [1, 2]), ('rows', [1, 4]),
                                     ('v_indent', [2, 2]), ('h_indent', [2, 4]), ('col_offset', [4, 2]), ('row_offset', [4, 4]),
                                     ('xmin', [6, 2]), ('xmax', [6, 4]), ('ymin', [7, 2]), ('ymax', [7, 4]),
-                                    ('spec_lw', [8, 2]),
-                                    ('res_sigma', [9, 4]), ('fit_lw', [10, 2]), ('font', [11, 2]),
-                                    ('xlabel', [12, 2]), ('ylabel', [12, 4]),
-                                    ('x_ticks', [13, 2]), ('xnum', [13, 4]), ('y_ticks', [14, 2]), ('ynum', [14, 4]),
-                                    ('font_labels', [15, 2]), ('name_x_pos', [16, 2]), ('name_y_pos', [16, 4]),
-                                    ('show_H2', [18, 2]), ('pos_H2', [18, 4])])
+                                    ('spec_lw', [8, 1]), ('error_cap', [8, 4]), ('res_sigma', [9, 4]),
+                                    ('fit_lw', [10, 1]), ('comp_lw', [11, 2]), ('font', [12, 2]),
+                                    ('xlabel', [13, 2]), ('ylabel', [13, 4]),
+                                    ('x_ticks', [14, 2]), ('xnum', [14, 4]), ('y_ticks', [15, 2]), ('ynum', [15, 4]),
+                                    ('font_labels', [16, 2]), ('name_x_pos', [17, 2]), ('name_y_pos', [17, 4]),
+                                    ('show_H2', [19, 2]), ('pos_H2', [19, 4])])
         for opt, v in self.opt_but.items():
             b = QLineEdit(str(getattr(self, opt)))
             b.setFixedSize(80, 30)
@@ -1588,7 +1590,7 @@ class showLinesWidget(QWidget):
         self.showerr = QCheckBox('show err')
         self.showerr.setChecked(self.show_err)
         self.showerr.clicked[bool].connect(self.setErr)
-        grid.addWidget(self.showerr, 8, 3)
+        grid.addWidget(self.showerr, 8, 2)
 
         self.resid = QCheckBox('')
         self.resid.setChecked(self.residuals)
@@ -1600,36 +1602,56 @@ class showLinesWidget(QWidget):
         self.gray.clicked[bool].connect(self.setGray)
         grid.addWidget(self.gray, 9, 2)
 
+        self.fitcolor = pg.ColorButton()
+        #self.fitcolor = QColorDialog()
+        self.fitcolor.setFixedSize(30, 30)
+        self.fitcolor.setColor(color=self.fit_color.to_bytes(4, byteorder='big'))
+        self.fitcolor.sigColorChanged.connect(partial(self.setColor, comp=-1))
+        self.fitcolor.setStyleSheet(open('config/styles.ini').read())
+        grid.addWidget(self.fitcolor, 10, 2)
+
         self.plotcomps = QCheckBox('show')
         self.plotcomps.setChecked(self.show_comps)
         self.plotcomps.clicked[bool].connect(self.setPlotComps)
-        grid.addWidget(self.plotcomps, 10, 1)
+        grid.addWidget(self.plotcomps, 11, 1)
+
+        #self.colorcomps = colorComboBox(self, len(self.parent.fit.sys))
+        #grid.addWidget(self.colorcomps, 11, 2)
 
         self.refcomp = QComboBox(self)
         self.refcomp.addItems([str(i+1) for i in range(len(self.parent.fit.sys))])
         self.sys_ind = min(self.sys_ind, len(self.parent.fit.sys))
         self.refcomp.setCurrentIndex(self.sys_ind-1)
         self.refcomp.currentIndexChanged.connect(self.onIndChoose)
-        grid.addWidget(self.refcomp, 10, 4)
+        grid.addWidget(self.refcomp, 11, 4)
+
+
+        self.labelscorr = QCheckBox('j1 -> *')
+        self.labelscorr.setChecked(self.labels_corr)
+        self.labelscorr.clicked[bool].connect(self.setLabelsCorr)
+        grid.addWidget(self.labelscorr, 16, 3)
 
         self.showcont = QCheckBox('show')
         self.showcont.setChecked(self.show_cont)
         self.showcont.clicked[bool].connect(self.setCont)
-        grid.addWidget(self.showcont, 17, 1)
+        grid.addWidget(self.showcont, 18, 1)
 
         self.corrcheb = QCheckBox('cheb. applied')
         self.corrcheb.setChecked(self.corr_cheb)
         self.corrcheb.clicked[bool].connect(self.setCheb)
-        grid.addWidget(self.corrcheb, 17, 2)
+        grid.addWidget(self.corrcheb, 18, 2)
 
         self.showcf = QCheckBox('show')
         self.showcf.setChecked(self.show_cf)
         self.showcf.clicked[bool].connect(self.setCf)
-        grid.addWidget(self.showcf, 19, 1)
+        grid.addWidget(self.showcf, 20, 1)
 
         self.cf = choosePC(self)
         self.cf.fromtext(self.cfs)
-        grid.addWidget(self.cf, 19, 2)
+        grid.addWidget(self.cf, 20, 2)
+
+        self.colorComps = colorCompBox(self, num=len(self.parent.fit.sys))
+        layout.addLayout(self.colorComps)
 
         layout.addStretch(1)
         l = QHBoxLayout()
@@ -1705,6 +1727,10 @@ class showLinesWidget(QWidget):
             getattr(self, 'units'+u).setChecked(s == u)
         self.units = s
 
+    def setColor(self, color, comp=-1):
+        print(comp, color.color(mode="byte"), int.from_bytes(color.color(mode="byte"), byteorder='big'))
+        self.fit_color = int.from_bytes(color.color(mode="byte"), byteorder='big')
+
     def setErr(self, b):
         self.show_err = int(self.showerr.isChecked())
 
@@ -1717,14 +1743,17 @@ class showLinesWidget(QWidget):
     def setPlotComps(self, b):
         self.show_comps = int(self.plotcomps.isChecked())
 
-    def setCf(self, b):
-        self.show_cf = int(self.showcf.isChecked())
+    def setLabelsCorr(self, b):
+        self.labels_corr = int(self.labelscorr.isChecked())
 
     def setCont(self, b):
         self.show_cont = int(self.showcont.isChecked())
 
     def setCheb(self, b):
         self.corr_cheb = int(self.corrcheb.isChecked())
+
+    def setCf(self, b):
+        self.show_cf = int(self.showcf.isChecked())
 
     def setFilename(self):
         self.plotfile = self.file.text()
@@ -1760,8 +1789,8 @@ class showLinesWidget(QWidget):
             if not self.parent.normview:
                 self.parent.normalize()
 
-            self.ps = plot_spec(len(self.parent.lines), font=self.font, font_labels=self.font_labels,
-                           vel_scale=(self.units=='l'), gray_out=self.gray_out, show_err=self.show_err, figure=fig)
+            self.ps = plot_spec(len(self.parent.lines), font=self.font, font_labels=self.font_labels, vel_scale=(self.units == 'v'),
+                                gray_out=self.gray_out, show_err=self.show_err, error_cap=self.error_cap, figure=fig)
             rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order,
                                v_indent=self.v_indent, h_indent=self.h_indent,
                                col_offset=self.col_offset, row_offset=self.row_offset)
@@ -1770,7 +1799,8 @@ class showLinesWidget(QWidget):
             self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
-            self.ps.specify_styles(lw=1.0, lw_total=self.fit_lw, lw_spec=self.spec_lw)
+            self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw, color_total=self.fit_color.to_bytes(4, byteorder='big'),
+                                   color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')])
             if len(self.parent.fit.sys) > 0:
                 self.ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
             else:
@@ -1794,7 +1824,7 @@ class showLinesWidget(QWidget):
                     if self.show_comps:
                         fit_comp = []
                         for c in s.fit_comp:
-                            fit_comp.append(np.array([c.x(), c.y()/cheb(s.fit.x())]))
+                            fit_comp.append(np.array([c.x(), c.y()/cheb(c.x())]))
                     else:
                         fit_comp = None
                 else:
@@ -1811,9 +1841,13 @@ class showLinesWidget(QWidget):
                 if any([s in p.name for s in ['H2', 'HD', 'CO']]):
                     p.name = ' '.join([p.name.split()[0][:-2], p.name.split()[1]])
                 p.name_pos = [self.name_x_pos, self.name_y_pos]
+                if self.labels_corr and all([not s in p.name for s in ['H2', 'HD', 'CO']]):
+                    if 'j' in p.name:
+                        m = re.findall('(j\d+)', p.name)[0]
+                        p.name = p.name.replace(m, '*'*int(m[1:]))
+
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 p.y_formatter = self.y_formatter
-
                 ax = p.plot_line()
 
                 if self.show_cf and self.parent.fit.cf_fit:
@@ -1826,8 +1860,8 @@ class showLinesWidget(QWidget):
                                     ax.plot([np.max([(cf.min / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_min]), np.min([(cf.max / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_max])], [1-cf.val, 1-cf.val], '--', lw=0.5, color='rebeccapurple')
 
         else:
-            self.ps = plot_spec(len(self.parent.plot.regions), font=self.font, font_labels=self.font_labels,
-                           vel_scale=True, gray_out=self.gray_out, show_err=self.show_err, figure=fig)
+            self.ps = plot_spec(len(self.parent.plot.regions), font=self.font, font_labels=self.font_labels, vel_scale=False,
+                                gray_out=self.gray_out, show_err=self.show_err, error_cap=self.error_cap, figure=fig)
             rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order,
                                v_indent=self.v_indent, h_indent=self.h_indent,
                                col_offset=self.col_offset, row_offset=self.row_offset)
@@ -1836,7 +1870,8 @@ class showLinesWidget(QWidget):
             self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
-            self.ps.specify_styles(lw=1.0, lw_total=self.fit_lw, lw_spec=self.spec_lw)
+            self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw, color_total=self.fit_color.to_bytes(4, byteorder='big'),
+                                   color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')])
             if len(self.parent.fit.sys) > 0:
                 self.ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
             else:
@@ -1885,12 +1920,12 @@ class showLinesWidget(QWidget):
                 p.y_formatter = self.y_formatter
                 ax = p.plot_line()
                 if self.show_cf and self.parent.fit.cf_fit:
-                    for i in range(self.parent.fit.cf_num):
-                        if self.cfs.currentText() == 'all' or 'cf' + str(i) in self.cfs.currentText():
-                            attr = 'cf_' + str(i)
+                    for k in range(self.parent.fit.cf_num):
+                        if self.cfs.currentText() == 'all' or 'cf' + str(k) in self.cfs.currentText():
+                            attr = 'cf_' + str(k)
                             if hasattr(self.parent.fit, attr):
                                 cf = getattr(self.parent.fit, attr)
-                                if (len(cf.addinfo.split('_'))>1 and cf.addinfo.split('_')[1]=='all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
+                                if (len(cf.addinfo.split('_')) > 1 and cf.addinfo.split('_')[1] == 'all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
                                     ax.plot([np.max([cf.min, p.x_min]), np.min([cf.max, p.x_max])], [1-cf.val, 1-cf.val], '--', color='orangered')
 
                 if self.show_H2.strip() != '':
@@ -2379,20 +2414,22 @@ class fitMCMCWidget(QWidget):
 
     def MCMC(self, init=True):
         self.parent.setFit(comp=-1)
-        nwalkers, nsteps, threads = int(self.parent.options('MCMC_walkers')), int(self.parent.options('MCMC_iters')), int(self.parent.options('MCMC_threads'))
+        nwalkers, nsteps, nthreads = int(self.parent.options('MCMC_walkers')), int(self.parent.options('MCMC_iters')), int(self.parent.options('MCMC_threads'))
 
         self.parent.s.prepareFit(ind=-1, all=False)
 
         backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
 
         if self.parent.options('fitType') == 'julia':
-            backend.reset(nwalkers, len(self.parent.julia_pars))
-            self.parent.reload_julia()
+            backend.reset(nwalkers, np.sum([p.vary for p in self.parent.julia_pars]))
+            self.julia = julia.Julia()
+            self.julia.include("MCMC.jl")
+
             t = Timer("Julia MCMC")
-            chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.julia_pars, nwalkers=nwalkers, nsteps=nsteps)
+            chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.julia_pars, nwalkers=nwalkers, nsteps=nsteps, nthreads=nthreads)
 
             with open("output/MCMC_pars.pkl", "wb") as f:
-                pickle.dump([str(p.name) for p in self.parent.julia_pars], f)
+                pickle.dump([str(p.name) for p in self.parent.julia_pars if p.vary], f)
 
             backend.grow(nsteps, None)
             with backend.open("a") as f:
@@ -2462,10 +2499,15 @@ class fitMCMCWidget(QWidget):
             if self.parent.options('MCMC_graph') == 'chainConsumer':
                 from chainconsumer import ChainConsumer
                 c = ChainConsumer()
+                print(np.sort(samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]].flatten()))
                 c.add_chain(samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]], walkers=nwalkers,
                             parameters=names)
                 c.configure(smooth=self.parent.options('MCMC_smooth'),
+                            #colors='tab:red',
+                            #cmap='Reds',
+                            #marker_size=2,
                             cloud=True,
+                            shade=False,
                             sigmas=[0, 1, 2, 3],
                             )
                 c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
@@ -2585,7 +2627,8 @@ class fitMCMCWidget(QWidget):
                         if any([el+'j' in s for s in sys.sp.keys()]):
                             sys.addSpecies(el, 'total')
                             print(el)
-                            self.parent.fit.total.addSpecies(el)
+                            self.parent.fit.total.addSpecies(el + '_total')
+                print(sp)
                 for s in sp:
                     self.parent.fit.total.addSpecies(s)
 
@@ -2595,28 +2638,33 @@ class fitMCMCWidget(QWidget):
                 if n_hor <= 1:
                     n_hor = 2
                 n_vert = len(sp) // n_hor + 1 if len(sp) % n_hor > 0 else len(sp) // n_hor
-
+                print(self.parent.fit.list())
                 fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
                 i = 0
                 for k, v in sp.items():
+                    print(k, v)
                     if 'total' in k:
-                        inds = np.where([k.split('_')[2] in str(s) and str(s)[0] == 'N' for s in self.parent.fit.list()])[0]
+                        if k.split('_')[-1] == 'total':
+                            inds = np.where([k.split('_')[2] in str(s) and str(s)[0] == 'N' for s in self.parent.fit.list()])[0]
+                        else:
+                            inds = np.where([str(s)[0] == 'N' and k.split('_')[2] == str(s).split('_')[2] for s in self.parent.fit.list()])[0]
                     else:
                         inds = np.where([k[2:] in str(s) and str(s)[0] == 'N' for s in self.parent.fit.list()])[0]
-                    d = distr1d(np.log10(np.sum(10 ** values[:, inds], axis=1)))
-                    d.dopoint()
-                    d.dointerval()
-                    res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0], v.form)
-                    v.set(res, attr='unc')
-                    v.set(d.point)
-                    f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
-                    self.results.setText(self.results.toPlainText() + k + ': ' + v.fitres(latex=True, dec=f, showname=False) + '\n')
-                    vert, hor = i // n_hor, i % n_hor
-                    i += 1
-                    d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
-                    ax[vert, hor].yaxis.set_ticklabels([])
-                    ax[vert, hor].yaxis.set_ticks([])
-                    ax[vert, hor].text(.1, .9, k.replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
+                    if 1:
+                        d = distr1d(np.log10(np.sum(10 ** values[:, inds], axis=1)))
+                        d.dopoint()
+                        d.dointerval()
+                        res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0], v.form)
+                        v.set(res, attr='unc')
+                        v.set(d.point)
+                        f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
+                        self.results.setText(self.results.toPlainText() + k + ': ' + v.fitres(latex=True, dec=f, showname=False) + '\n')
+                        vert, hor = i // n_hor, i % n_hor
+                        i += 1
+                        d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
+                        ax[vert, hor].yaxis.set_ticklabels([])
+                        ax[vert, hor].yaxis.set_ticks([])
+                        ax[vert, hor].text(.1, .9, k.replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
 
         if i < n_hor * n_vert:
             for i in range(i+1, n_hor * n_vert):
@@ -4363,8 +4411,9 @@ class observabilityWidget(QWidget):
         constraints = [astroplan.AirmassConstraint(float(self.airmass.text()), 1.0), astroplan.AtNightConstraint.twilight_civil()]
         print(constraints)
         targets = []
+        names = self.parent.SDSSdata.dtype.names[np.where(['name' in name.lower() for name in self.parent.SDSSdata.dtype.names])[0][0]]
         if self.loadSDSS.isChecked():
-            for name in self.parent.SDSSdata['SDSS_NAME']:
+            for name in self.parent.SDSSdata[names]:
                 name = name.replace('J', '').replace('SDSS', '').replace(':', '').replace('−', '-').strip()
                 ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (name[:name.index('-')], name[name.index('-'):])
                 ra, dec = hms_to_deg(ra), dms_to_deg(dec)
@@ -7331,11 +7380,16 @@ class sviewer(QMainWindow):
         self.reload_julia()
 
         self.s.prepareFit(all=False)
-        #self.parent.julia_pars = self.parent.julia.make_pars(self.parent.fit.pars())
-        #self.julia_spec = self.julia.prepare(self.s, self.julia_pars)
-        #self.julia.fitLM(self.julia_spec, self.julia_pars)
-        chain, lns = self.julia.fitMCMC(self.julia_spec, self.julia_pars)
-        print(shape(chain))
+        self.julia_pars = self.julia.make_pars(self.fit.list())
+        self.julia_spec = self.julia.prepare(self.s, self.julia_pars)
+        dof, res, unc = self.julia.fitLM(self.julia_spec, self.julia_pars)
+        print(dof, res, unc)
+        s = self.fit.fromJulia(res, unc)
+        self.showFit(all=False)
+
+        self.console.set(s)
+        #chain, lns = self.julia.fitMCMC(self.julia_spec, self.julia_pars)
+        #print(shape(chain))
 
     def fitAbs(self, timer=True, redraw=True):
         t = Timer(verbose=True) if 1 else False
@@ -7756,19 +7810,20 @@ class sviewer(QMainWindow):
         def recalcfit(self):
             self.s.prepareFit(-1, all=True)
             self.s.calcFit(-1, redraw=True)
-            self.s[self.s.ind].mask.set(self.s[self.s.ind].fit.inter(self.s[self.s.ind].spec.x()) < 0.99)
+            self.s[self.s.ind].mask.set((self.s[self.s.ind].fit.inter(self.s[self.s.ind].spec.x()) < 0.99) * (self.s[self.s.ind].spec.y() - 1 < 2 * self.s[self.s.ind].spec.err()))
             self.s[self.s.ind].set_fit_mask()
 
         z_grid = np.linspace(self.fit.sys[0].z.min, self.fit.sys[0].z.max, int((self.fit.sys[0].z.max-self.fit.sys[0].z.min)/self.fit.sys[0].z.step)+1)
         N_grid = np.linspace(self.fit.sys[0].Ntot.min, self.fit.sys[0].Ntot.max, int((self.fit.sys[0].Ntot.max - self.fit.sys[0].Ntot.min) / self.fit.sys[0].Ntot.step)+1)
+        z_save = self.fit.sys[0].z.val
         for N in N_grid:
             self.fit.setValue('Ntot_0', N)
             print(N)
             for z in z_grid:
                 self.fit.setValue('z_0', z)
                 recalcfit(self)
-                #print(z, np.sum(self.s[self.s.ind].mask.x()), np.sum(self.s.chi() > 0), np.sum(self.s.chi() > 2))
-                if (np.sum(self.s.chi() > 0) * 0.0455 > np.sum(self.s.chi() > 2)):
+                print(z, np.sum(self.s[self.s.ind].mask.x()), np.sum(self.s.chi() > 0), np.sum(self.s.chi() > 2))
+                if np.sum(self.s[self.s.ind].mask.x()) < 40 or (np.sum(self.s.chi() > 0) * 0.0455 > np.sum(self.s.chi() > 2)):
                     break
             if z == z_grid[-1]:
                 break
@@ -7789,7 +7844,7 @@ class sviewer(QMainWindow):
         Show H2 excitation diagram for the selected component 
         """
         data = np.genfromtxt('data/H2/energy_X.dat', comments='#', unpack=True)
-        fig, ax = plt.subplots(figsize=(6,7))
+        fig, ax = plt.subplots(figsize=(6, 7))
         num_sys = 0
         text = []
         for sys in self.fit.sys:
@@ -8180,7 +8235,7 @@ class sviewer(QMainWindow):
             spec = self.SDSSDR14['data/{0:05d}/{2:04d}/{1:05d}'.format(plate, MJD, fiber)]
             self.importSpectrum('spec-{0:05d}-{1:05d}-{2:04d}'.format(plate, MJD, fiber),
                                 spec=[10**spec['loglam'][:], spec['flux'][:], np.sqrt(1.0/spec['ivar'][:])],
-                                mask=(spec['and_mask'][:] == 0), append=append)
+                                mask=(spec['and_mask'][:] != 0), append=append)
             resolution = 1800
             #except:
             #    print('error')

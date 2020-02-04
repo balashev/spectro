@@ -10,9 +10,14 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__))[:-16])
 #sys.path.append('/media/serj/3078FE3678FDFB04/science/python')
 import spectro.sviewer.sviewer as sv
 
-from PyQt5.QtWidgets import (QApplication)
+from PyQt5.QtWidgets import (QApplication, QDesktopWidget)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = sv.sviewer()
+    monitor = QDesktopWidget().screenGeometry(2)
+    print(monitor)
+    ex.move(monitor.left(), monitor.top())
+    ex.resize(monitor.width(), monitor.height())
+    #ex.showFullScreen()
     sys.exit(app.exec_())

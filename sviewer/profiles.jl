@@ -1,8 +1,10 @@
-using BenchmarkTools
+using AffineInvariantMCMC
 using DataFitting
+using LsqFit
+using OrderedCollections
 #using Plots
 using SpecialFunctions
-import AffineInvariantMCMC
+
 
 function argclose2(x, value)
     return argmin(abs.(x .- value))
@@ -54,9 +56,21 @@ mutable struct par
     min::Float64
     max::Float64
     step::Float64
-    vary::Int64
+    vary::Bool
     addinfo::String
 end
+
+function make_pars(p_pars)
+    pars = Vector{par}(undef, length(collect(keys(p_pars))))
+    i = 1
+    for p in p_pars
+        pars[i] = par(p.__str__(), p.val, p.min, p.max, p.step, p.fit * p.vary, p.addinfo)
+        i += 1
+    end
+    return pars
+end
+
+##############################################################################
 
 mutable struct line
     name::String
@@ -77,26 +91,8 @@ mutable struct line
     z_ind::Int64
 end
 
-mutable struct spectrum
-    x::Vector{Float64}
-    y::Vector{Float64}
-    unc::Vector{Float64}
-    mask::BitArray
-    resolution::Float64
-    lines::Vector{line}
-end
-
-function make_pars(p_pars)
-    pars = Vector{par}(undef, length(collect(keys(p_pars))))
-    i = 1
-    for (k, p) in p_pars
-        pars[i] = par(k, p.val, p.min, p.max, p.step, p.fit * p.vary, p.addinfo)
-        i += 1
-    end
-    return pars
-end
-
-function update_lines(lines, pars)
+function update_lines(lines, pars; ind=0)
+    mask = Vector{Bool}(undef, 0)
     for line in lines
         line.b = pars[line.b_ind].val
         line.logN = pars[line.N_ind].val
@@ -105,7 +101,9 @@ function update_lines(lines, pars)
         line.tau0 = sqrt(π) * 0.008447972556327578 * (line.lam * 1e-8) * line.f * 10 ^ line.logN / (line.b * 1e5)
         line.a = line.g / 4 / π / line.b / 1e5 * line.lam * 1e-8
         line.ld = line.lam * line.b / 299794.26 * (1 + line.z)
+        append!(mask, (ind == 0) || (line.sys == ind-1))
     end
+    return mask
 end
 
 function get_b_index(name, pars)::Int64
@@ -140,7 +138,6 @@ function get_z_index(name, pars)::Int64
     end
 end
 
-
 function prepare_lines(lines, pars)
     fit_lines = Vector{line}(undef, size(lines)[1])
     for (i, l) in enumerate(lines)
@@ -152,6 +149,18 @@ function prepare_lines(lines, pars)
     return fit_lines
 end
 
+##############################################################################
+
+mutable struct spectrum
+    x::Vector{Float64}
+    y::Vector{Float64}
+    unc::Vector{Float64}
+    mask::BitArray
+    resolution::Float64
+    lines::Vector{line}
+end
+
+
 function prepare(s, pars)
     spec = Vector(undef, size(s)[1])
     for (i, si) in enumerate(s)
@@ -160,148 +169,65 @@ function prepare(s, pars)
     return spec
 end
 
+if 1 == 0
+    const COUNTERS = Dict{String, Int}()
+    COUNTERS["num"] = 100
 
-function calc_spectrum_old(x_spec, mask, resolution, lines, pars; kind=-1)
-
-    start = time()
-
-    println(typeof(x_spec))
-    #@time pars = make_pars(p_pars)
-    #@time lines = prepare_lines(lines, pars)
-
-    @time update_lines(lines, pars)
-
-    x_instr = 1.0 / resolution / 2.355
-    x_grid = -1 .* ones(Int8, size(x_spec)[1])
-    x_grid[mask] = zeros(sum(mask))
-    if 1 == 0
-        num = size(x_grid)[1]
-        println(num, sum(x_grid))
-        for i in range(2, stop=num)
-            println(i)
-            if mask[i] != mask[i-1]
-                k = i
-                s = 1 - 2 * mask[i]
-                while k > 0 && k <= num && abs(x_spec[k] / x_spec[i] - 1) <  3 * x_instr
-                    x_grid[k] = 0
-                    k += s
-                end
+    macro counted(f)
+        name = f.args[1].args[1]
+        name_str = String(name)
+        body = f.args[2]
+        counter_code = quote
+            if !haskey(COUNTERS, $name_str)
+                COUNTERS[$name_str] = 0
+            end
+            COUNTERS[$name_str] += 1
+            if COUNTERS[$name_str] % COUNTERS["num"] == 0
+                println("iter: ", COUNTERS[$name_str], " ", COUNTERS["num"])
             end
         end
-        println(sum(x_grid))
-    end
-    @time for line in lines
-        i_min, i_max = binsearch(x_spec, line.l * (1 - 3 * x_instr), type="min"), binsearch(x_spec, line.l * (1 + 3 * x_instr), type="max")
-        if i_max - i_min > 1 && i_min > 0
-            for i in range(i_min+1, i_max, step=1)
-                x_grid[i] = max(x_grid[i], round(Int, (x_spec[i] - x_spec[i-1]) / line.l / x_instr * 5))
-            end
-        end
-        line.dx = sqrt(max(-log10(0.001 / line.tau0), line.tau0 / 0.001 * line.a / sqrt(π))) * 1.5
-        i_min, i_max = binsearch(x_spec, line.l - line.dx * line.ld, type="min"), binsearch(x_spec, line.l + line.dx * line.ld, type="max")
-        #println((x_spec[i_max] + x_spec[i_min]) / 2, ' ', i_max-i_min, ' ', line.li, ' ', line.ld)
-        if i_max - i_min > 1 && i_min > 0
-            #println(x_spec[i_min], ' ', x_spec[i_max], ' ', line.l, ' ', line.ld)
-            for i in range(i_min, i_max, step=1)
-                #println(x_spec[i], ' ', round(Int, (x_spec[i] - x_spec[i-1]) / line.ld * 3) + 1)
-                x_grid[i] = max(x_grid[i], round(Int, (x_spec[i] - x_spec[i-1]) / line.ld * 3) + 1)
-            end
-        end
-    end
-
-    if kind == 0
-        x = x_spec[x_grid .> -1]
-    else
-        x = [0.0]
-        k = 1
-        if kind == -1
-            @time for i in 1:size(x_grid)[1]
-                #println(i, ' ', x_grid[i], ' ', x[k])
-                if x_grid[i] == 0
-                    splice!(x, k, [x_spec[i], x_spec[i]])
-                    k += 1
-                elseif x_grid[i] > 0
-                    step = (x_spec[i+1] - x_spec[i]) / (x_grid[i] + 1)
-                    splice!(x, k, range(x_spec[i], length=x_grid[i]+2, step=step))
-                    k += x_grid[i]+1
-                end
-            end
-        elseif kind > 0
-            @time for i in range(1, size(x_grid)[1], step=1)
-                if x_grid[i] > -1
-                    step = (x_spec[i+1] - x_spec[i]) / (kind + 1)
-                    splice!(x, k, range(x_spec[i], stop=x_spec[i+1], length=kind+2))
-                    k += kind + 1
-                end
-            end
-        end
-        splice!(x, k, x_spec[end])
-    end
-
-    y = ones(size(x))
-
-    @time for line in lines
-        i_min, i_max = binsearch(x, line.l - line.dx * line.ld, type="min"), binsearch(x, line.l + line.dx * line.ld, type="max")
-        @. @views y[i_min:i_max] = y[i_min:i_max] .* exp.(-1 .* line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x[i_min:i_max] .- line.l) ./ line.ld)))
-    end
-
-    if resolution != 0
-        y = 1 .- y
-        y_c = Vector{Float64}(undef, size(y)[1])
-        @time for (i, xi) in enumerate(x)
-            sigma_r = xi / resolution / 1.66511
-            k_min, k_max = binsearch(x, xi - 3 * sigma_r), binsearch(x, xi + 3 * sigma_r)
-            instr = exp.( -1 .* ((view(x, k_min:k_max) .- xi) ./ sigma_r ) .^ 2)
-            s = 0
-            @inbounds for k = k_min+1:k_max
-                s += (y[k] * instr[k-k_min+1] + y[k-1] * instr[k-k_min]) * (x[k] - x[k-1])
-            end
-            y_c[i] = s / 2 / sqrt(π) / sigma_r  + y[k_min] * (1 - SpecialFunctions.erf((xi - x[k_min]) / sigma_r)) / 2 + y[k_max] * (1 - SpecialFunctions.erf((x[k_max] - xi) / sigma_r)) / 2
-        end
-
-        println(time() - start)
-        return x, 1 .- y_c
-    else
-        return x, y
+        insert!(body.args, 1, counter_code)
+        return f
     end
 end
 
-
-function calc_spectrum(spec, pars; kind=-1, out="all")
+function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
 
     start = time()
 
-    update_lines(spec.lines, pars)
+    line_mask = update_lines(spec.lines, pars, ind=ind)
 
     x_instr = 1.0 / spec.resolution / 2.355
     x_grid = -1 .* ones(Int8, size(spec.x)[1])
     x_grid[spec.mask] = zeros(sum(spec.mask))
-    for line in spec.lines
-        i_min, i_max = binsearch(spec.x, line.l * (1 - 3 * x_instr), type="min"), binsearch(spec.x, line.l * (1 + 3 * x_instr), type="max")
+    for line in spec.lines[line_mask]
+        i_min, i_max = binsearch(spec.x, line.l * (1 - 4 * x_instr), type="min"), binsearch(spec.x, line.l * (1 + 4 * x_instr), type="max")
         if i_max - i_min > 1 && i_min > 0
-            for i in range(i_min+1, i_max, step=1)
+            for i in i_min:i_max
                 x_grid[i] = max(x_grid[i], round(Int, (spec.x[i] - spec.x[i-1]) / line.l / x_instr * 5))
             end
         end
         line.dx = sqrt(max(-log10(0.001 / line.tau0), line.tau0 / 0.001 * line.a / sqrt(π))) * 1.5
         i_min, i_max = binsearch(spec.x, line.l - line.dx * line.ld, type="min"), binsearch(spec.x, line.l + line.dx * line.ld, type="max")
         if i_max - i_min > 1 && i_min > 0
-            for i in range(i_min, i_max, step=1)
+            for i in i_min:i_max
                 x_grid[i] = max(x_grid[i], round(Int, (spec.x[i] - spec.x[i-1]) / line.ld * 3) + 1)
             end
         end
     end
 
-    if kind == 0
+    if regular == 0
         x = spec.x[x_grid .> -1]
-        mask = ~isinf(x)
+        x_mask = ~isinf(x)
     else
         x = [0.0]
-        mask = Vector{Int64}(undef, 0)
+        x_mask = Vector{Int64}(undef, 0)
         k = 1
-        if kind == -1
+        if regular == -1
             for i in 1:size(x_grid)[1]-1
-                spec.mask[i] > 0 ? append!(mask, k) : continue
+                if spec.mask[i] > 0
+                    append!(x_mask, k)
+                end
                 if x_grid[i] == 0
                     splice!(x, k, [spec.x[i], spec.x[i]])
                     k += 1
@@ -312,12 +238,14 @@ function calc_spectrum(spec, pars; kind=-1, out="all")
                 end
 
             end
-        elseif kind > 0
+        elseif regular > 0
             for i in 1:size(x_grid)[1]-1
-                spec.mask[i] > 0 ? append!(mask, k) : continue
+                if spec.mask[i] > 0
+                    append!(x_mask, k)
+                end
                 if x_grid[i] > -1 && x_grid[i+1] > -1
-                    step = (spec.x[i+1] - spec.x[i]) / (kind + 1)
-                    splice!(x, k, range(spec.x[i], stop=spec.x[i+1], length=kind+2))
+                    step = (spec.x[i+1] - spec.x[i]) / (regular + 1)
+                    splice!(x, k, range(spec.x[i], stop=spec.x[i+1], length=regular+2))
                     k += kind + 1
                 end
             end
@@ -327,7 +255,7 @@ function calc_spectrum(spec, pars; kind=-1, out="all")
 
     y = ones(size(x))
 
-    for line in spec.lines
+    for line in spec.lines[line_mask]
         i_min, i_max = binsearch(x, line.l - line.dx * line.ld, type="min"), binsearch(x, line.l + line.dx * line.ld, type="max")
         @. @views y[i_min:i_max] = y[i_min:i_max] .* exp.(-1 .* line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x[i_min:i_max] .- line.l) ./ line.ld)))
     end
@@ -349,64 +277,24 @@ function calc_spectrum(spec, pars; kind=-1, out="all")
         if out == "all"
             return x, 1 .- y_c
         elseif out == "init"
-            return 1 .- y_c[mask]
+            return 1 .- y_c[x_mask]
         end
     else
         if out == "all"
             return x, y
         elseif out == "init"
-            return y[mask]
+            return y[x_mask]
         end
     end
-end
 
+    counter.next()
+end
 
 
 function fitLM(spec, pars)
-    params = [p.val for p in pars if p.vary == 1]
-    println(params)
 
-    function f(params)
-        print(x, " ", params, " ", spec, " ", pars)
-        k = 1
-        for i in 1:size(pars)[1]
-            if pars[i].vary == 1
-                pars[i].val = params[k]
-                k += 1
-            end
-        end
-
-        prepare_lines(spec[1].lines, pars)
-        calc_spectrum(spec[1].x, pars, out="init")
-    end
-
-    dom = Domain(spec[1].x[spec[1].mask])
-    data = Measures(spec[1].y[spec[1].mask], spec[1].unc[spec[1].mask])
-    model1 = Model(:comp1 => FuncWrap(f, params))
-    prepare!(model1, dom, :comp1)
-
-    result1 = fit(model1, data)
-end
-
-function fitMCMC(spec, pars; nwalkers=100, nsteps=1000, init=nothing)
-
-    params = [p.val for p in pars if p.vary == 1]
-
-    numdims = size(params)[1]
-    thinning = 10
-
-    if init == nothing
-        init = Matrix{Float64}(undef, numdims, nwalkers)
-        i = 1
-        for p in pars
-            if p.vary == 1
-                init[i,:] = p.val .+ randn(nwalkers) .* p.step
-                i += 1
-            end
-        end
-    end
-
-    lnlike = p->begin
+    function lnlike(x, p)
+        #println("lnlike: ", p)
         k = 1
         for i in 1:size(pars)[1]
             if pars[i].vary == 1
@@ -414,14 +302,65 @@ function fitMCMC(spec, pars; nwalkers=100, nsteps=1000, init=nothing)
                 k += 1
             end
         end
-
-        retval = 0
-        for s in spec
-            retval -= .5 * sum(((calc_spectrum(s, pars, out="init") - s.y[s.mask]) ./ s.unc[s.mask]) .^ 2)
-        end
-        return retval
+        calc_spectrum(spec[1], pars, out="init")
     end
 
-    chain, llhoodvals = AffineInvariantMCMC.sample(lnlike, nwalkers, init, nsteps, 1)
+    x = spec[1].x[spec[1].mask]
+    y = spec[1].y[spec[1].mask]
+    w = 1 ./ spec[1].unc[spec[1].mask] .^ 2
 
+    params = [p.val for p in pars if p.vary == true]
+    lower = [p.min for p in pars if p.vary == true]
+    upper = [p.max for p in pars if p.vary == true]
+
+    println(params, " ", lower, " ", upper)
+
+    fit = curve_fit(lnlike, x, y, w, params; lower=lower, upper=upper)
+    sigma = stderror(fit)
+    covar = estimate_covar(fit)
+
+    println(dof(fit))
+    println(fit.param)
+    println(sigma)
+    println(covar)
+
+    return dof(fit), fit.param, sigma
+
+end
+
+function fitLM_2(spec, pars)
+
+    function lnlike(x, p...)
+        println("lnlike: ", p)
+        for i in 1:size(pars)[1]
+            l = p[i]
+            if p[i] < pars[i].min
+                println(typeof(p[i]), " ",  p[i], " ", pars[i].min)
+                model.comp[:comp1].p[i].val = pars[i].min
+                l =  pars[i].min
+            elseif p[i] > pars[i].max
+                model.comp[:comp1].p[i].val = pars[i].max
+                l = pars[i].max
+            end
+            pars[i].val = l #model.comp[:comp1].p[i].val
+        end
+
+        calc_spectrum(spec[1], pars, out="init")
+    end
+
+    dom = Domain(spec[1].x[spec[1].mask])
+    data = Measures(spec[1].y[spec[1].mask], spec[1].unc[spec[1].mask])
+
+    params = [p.val for p in pars]
+    println(params)
+    model = Model(:comp1 => FuncWrap(lnlike, params...))
+
+    for (i, p) in enumerate(pars)
+        model.comp[:comp1].p[i].low, model.comp[:comp1].p[i].high, model.comp[:comp1].p[i].fixed = p.min, p.max, ~p.vary
+        println(p, " ", model.comp[:comp1].p[i].fixed)
+    end
+
+    prepare!(model, dom, :comp1)
+
+    result1 = fit!(model, data)
 end

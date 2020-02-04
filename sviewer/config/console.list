@@ -1,21 +1,21 @@
-show FeII
-FeII
-SiII
-SiII
-show SiII
-show full
-show all
-FeII
-show FeII
-FeII
-FeII
-FeII
-show FeIIj1
-show FeIIj2
+qso lum
+0.53 * 3.6 + 2 * 0.6
+0.53 * 3.6 + 2 * 0.6 + 6.66
+qso lum
+qso mass
+qso mass 4000
+qso mass 4000
+qso mass 3500
+show SiII*
 show H2 0 1
-show HD
-show H2 2 3 4
-show H2 5
-show H2 6
-high HD
-show HDj1
+high CIJ2
+high CIj2
+high CIj0
+show CIj0
+Show SiIIj1
+Show SiII*
+show SiII8
+show SiII*
+hide CI
+hide CIj1
+hide CIj2

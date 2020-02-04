@@ -1,5 +1,4 @@
-import sys
-import copy
+from astropy.cosmology import Planck15
 from mendeleev import element
 import numpy as np
 from PyQt5.QtCore import Qt, QRectF
@@ -642,6 +641,21 @@ class Console(QTextEdit):
             if len(args) > 1:
                 levels = [int(a) for a in args[1:]]
             self.parent.H2ExcitationTemp(levels=levels)
+
+        elif args[0] == 'qso':
+            if args[1] == 'lum':
+                spec = self.parent.s[self.parent.s.ind].spec.raw
+                flux = np.mean(spec.y[(spec.x > 1345 * (1 + self.parent.z_abs)) * (spec.x < 1355 * (1 + self.parent.z_abs))])
+                L = flux * 1e-17 * 4 * np.pi * Planck15.luminosity_distance(self.parent.z_abs).to('cm').value**2 * (1 + self.parent.z_abs)
+                print(L, L * 1345 * (1 + self.parent.z_abs))
+
+            if args[1] == 'mass':
+                if len(args) == 3:
+                    spec = self.parent.s[self.parent.s.ind].spec.raw
+                    flux = np.mean(spec.y[(spec.x > 1345 * (1 + self.parent.z_abs)) * (spec.x < 1355 * (1 + self.parent.z_abs))])
+                    lL = flux * 1e-17 * 4 * np.pi * Planck15.luminosity_distance(self.parent.z_abs).to('cm').value ** 2 * (1 + self.parent.z_abs) * 1355 * (1 + self.parent.z_abs)
+                    mass = 0.53 * np.log10(lL / 1e44) + 2 * np.log10(float(args[2]) / 1000) + 6.66
+                    print(mass)
 
         elif args[0].isdigit():
             self.parent.s.setSpec(int(args[0]))

@@ -521,19 +521,19 @@ class QSOlistTable(pg.TableWidget):
         load_spectrum = 0
         if 'SDSS' == self.cat:
             if colInd == 0:
-                fiber = int(self.cell_value('FIBERID'))
-                plate = int(self.cell_value('PLATE'))
-                MJD = int(self.cell_value('MJD'))
+                fiber_name = self.horizontalHeaderItem(np.where(['fiber' in self.horizontalHeaderItem(x).text().lower() for x in range(self.columnCount())])[0][0]).text()
+                plate_name = self.horizontalHeaderItem(np.where(['plate' in self.horizontalHeaderItem(x).text().lower() for x in range(self.columnCount())])[0][0]).text()
+                mjd_name = self.horizontalHeaderItem(np.where(['mjd' in self.horizontalHeaderItem(x).text().lower() for x in range(self.columnCount())])[0][0]).text()
+
                 if 1:
-                    self.parent.loadSDSS(plate=plate, MJD=MJD, fiber=fiber)
+                    self.parent.loadSDSS(plate=int(self.cell_value(plate_name)), MJD=int(self.cell_value(mjd_name)), fiber=int(self.cell_value(fiber_name)))
                     load_spectrum = 0
                 else:
                     self.parent.importSpectrum('C:/science/Noterdaeme/ESDLA/DR14/data/spSpec-{:}-{:05d}-{:04d}.fits'.format(MJD, int(plate), int(fiber)))
-                #self.parent.vb.enableAutoRange()
                 print('spectrum loaded')
                 if 1:
-                    ind = np.where((self.data['PLATE'] == int(self.cell_value('PLATE'))) & (self.data['FIBERID'] == int(fiber)))[0][0]
-                    for attr in ['Z', 'Z_VI', 'Z_PCE', 'Z_CIV']:
+                    ind = np.where((self.data[plate_name] == int(self.cell_value(plate_name))) & (self.data[fiber_name] == int(self.cell_value(fiber_name))))[0][0]
+                    for attr in ['Z', 'Z_VI', 'Z_PCE', 'Z_CIV', 'z_em']:
                         if attr in self.data.dtype.names:
                             self.parent.setz_abs(self.data[attr][ind])
                             break
@@ -791,7 +791,11 @@ class QSOlistTable(pg.TableWidget):
         self.previous_item = [self.currentItem().row(), self.currentItem().column()]
 
     def columnIndex(self, columnname):
-        return [self.horizontalHeaderItem(x).text() for x in range(self.columnCount())].index(columnname)
+        l = [self.horizontalHeaderItem(x).text() for x in range(self.columnCount())]
+        if columnname in l:
+            return l.index(columnname)
+        else:
+            return None
 
     def set_cell_value(self, row, columnname, text):
         print(self.columnIndex(columnname), text)
@@ -801,11 +805,10 @@ class QSOlistTable(pg.TableWidget):
 
         if row is None:
             row = self.currentItem().row()
-            print(row)
 
-        cell = self.item(row, self.columnIndex(columnname)).text()   # get cell at row, col
-
-        return cell
+        if self.columnIndex(columnname) is not None:
+            cell = self.item(row, self.columnIndex(columnname)).text()   # get cell at row, col
+            return cell
     
     def show_H2_cand(self):
         
