@@ -166,6 +166,7 @@ class LineLabel(pg.TextItem):
                 self.setText(str(self.line))
 
         if self.active:
+            self.exp = self.parent.parent.s.ind
             self.color = (255, 255, 255)
             self.fill = pg.mkBrush(85, 130, 20, 255)
             self.zvalue = 11
@@ -772,8 +773,10 @@ class colorCompBox(QHBoxLayout):
         self.colors = [''] * self.num
         if len(self.parent.comp_colors.split(',')) < self.num:
             self.get_default()
+        print(self.colors)
+        print(self.parent.comp_colors.split(","))
         for i, c in enumerate(self.parent.comp_colors.split(',')):
-            if i < self.num:
+            if i < self.num and c.strip() != '':
                 self.colors[i] = tuple(int(c.strip()).to_bytes(4, byteorder='big'))
         self.saveColors()
 
@@ -794,8 +797,8 @@ class colorCompBox(QHBoxLayout):
                      'tab:olive', 'tab:brown', 'tab:red', 'dodgerblue']
         for i in range(self.num):
             if kind == 'tab':
-                print(color_tab[i], mcolors.to_rgba(color_tab[i]))
-                self.colors[i] = tuple([int(c * 255) for c in mcolors.to_rgba(color_tab[i])])
+                k = i if i < len(color_tab) else i % len(color_tab)
+                self.colors[i] = tuple([int(c * 255) for c in mcolors.to_rgba(color_tab[k])])
             else:
                 self.colors[i] = tuple([int(max(0, c - 0.20)*255) for c in color[i][:3]] + [255])
 

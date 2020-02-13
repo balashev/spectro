@@ -26,12 +26,13 @@ from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget, QD
                              QTreeWidget, QComboBox, QTreeWidgetItem, QAbstractItemView,
                              QStatusBar, QMenu, QButtonGroup, QMessageBox, QToolButton, QColorDialog)
 from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl, QTimer, pyqtSignal, QObject, QPropertyAnimation
-from PyQt5.QtGui import QDesktopServices, QPainter, QFont, QColor
+from PyQt5.QtGui import QDesktopServices, QPainter, QFont, QColor, QIcon
 from scipy.special import erf
 from scipy.stats import gaussian_kde
 from shutil import copyfile
 import subprocess
 import tarfile
+from threading import Thread
 
 from ..a_unc import a
 from ..absorption_systems import vel_offset
@@ -280,6 +281,10 @@ class plotSpectrum(pg.PlotWidget):
                 self.h_status = True
                 self.parent.statusBar.setText('Lya select')
 
+            if event.key() == Qt.Key_J:
+                self.j_status = True
+                self.parent.s[self.parent.s.ind].set_fit_disp(show=True)
+
             if event.key() == Qt.Key_I:
                 if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
                     if self.instr_file is None:
@@ -433,6 +438,10 @@ class plotSpectrum(pg.PlotWidget):
 
             if event.key() == Qt.Key_I:
                 self.i_status = False
+
+            if event.key() == Qt.Key_J:
+                self.parent.s[self.parent.s.ind].set_fit_disp(show=False)
+                self.j_status = False
 
             if event.key() == Qt.Key_M:
                 self.m_status = False
@@ -1472,7 +1481,7 @@ class showLinesWidget(QWidget):
                     ('xmin', float), ('xmax', float), ('ymin', float), ('ymax', float),
                     ('spec_lw', float), ('show_err', int), ('error_cap', float),
                     ('residuals', int), ('gray_out', int), ('res_sigma', int),
-                    ('fit_color', int), ('fit_lw', float),
+                    ('fit_color', int), ('fit_lw', float), ('show_disp', int), ('disp_alpha', float),
                     ('show_comps', int), ('comp_lw', float), ('comp_colors', str), ('sys_ind', int),
                     ('font', int), ('labels_corr', int), ('xlabel', str), ('ylabel', str),
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
@@ -1558,7 +1567,7 @@ class showLinesWidget(QWidget):
                                     ('v_indent', [2, 2]), ('h_indent', [2, 4]), ('col_offset', [4, 2]), ('row_offset', [4, 4]),
                                     ('xmin', [6, 2]), ('xmax', [6, 4]), ('ymin', [7, 2]), ('ymax', [7, 4]),
                                     ('spec_lw', [8, 1]), ('error_cap', [8, 4]), ('res_sigma', [9, 4]),
-                                    ('fit_lw', [10, 1]), ('comp_lw', [11, 2]), ('font', [12, 2]),
+                                    ('fit_lw', [10, 1]), ('disp_alpha', [10, 4]), ('comp_lw', [11, 2]), ('font', [12, 2]),
                                     ('xlabel', [13, 2]), ('ylabel', [13, 4]),
                                     ('x_ticks', [14, 2]), ('xnum', [14, 4]), ('y_ticks', [15, 2]), ('ynum', [15, 4]),
                                     ('font_labels', [16, 2]), ('name_x_pos', [17, 2]), ('name_y_pos', [17, 4]),
@@ -1609,6 +1618,11 @@ class showLinesWidget(QWidget):
         self.fitcolor.sigColorChanged.connect(partial(self.setColor, comp=-1))
         self.fitcolor.setStyleSheet(open('config/styles.ini').read())
         grid.addWidget(self.fitcolor, 10, 2)
+
+        self.showdisp = QCheckBox('show disp')
+        self.showdisp.setChecked(self.show_disp)
+        self.showdisp.clicked[bool].connect(self.setDisp)
+        grid.addWidget(self.showdisp, 10, 3)
 
         self.plotcomps = QCheckBox('show')
         self.plotcomps.setChecked(self.show_comps)
@@ -1734,6 +1748,9 @@ class showLinesWidget(QWidget):
     def setErr(self, b):
         self.show_err = int(self.showerr.isChecked())
 
+    def setDisp(self, b):
+        self.show_disp = int(self.showdisp.isChecked())
+
     def setResidual(self, b):
         self.residuals = int(self.resid.isChecked())
 
@@ -1800,7 +1817,7 @@ class showLinesWidget(QWidget):
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
             self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw, color_total=self.fit_color.to_bytes(4, byteorder='big'),
-                                   color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')])
+                                   color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')], disp_alpha=self.disp_alpha)
             if len(self.parent.fit.sys) > 0:
                 self.ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
             else:
@@ -1830,7 +1847,12 @@ class showLinesWidget(QWidget):
                 else:
                     fit = None
                     fit_comp = None
-                p.loaddata(d=np.array([s.spec.x(), s.spec.y()/cheb(s.spec.x()), s.spec.err()/cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp)
+                if self.show_disp and len(s.fit_disp[0].norm.x) > 0:
+                    fit_disp = [[s.fit_disp[0].norm.x, s.fit_disp[0].norm.y], [s.fit_disp[1].norm.x, s.fit_disp[1].norm.y]]
+                else:
+                    fit_disp = None
+
+                p.loaddata(d=np.array([s.spec.x(), s.spec.y()/cheb(s.spec.x()), s.spec.err()/cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp, fit_disp=fit_disp)
                 if len(self.parent.lines[self.ps.index(p)].split()) == 4:
                     p.y_min, p.y_max = (float(l) for l in self.parent.lines[self.ps.index(p)].split()[2:])
                 for l in self.parent.abs.lines:
@@ -1871,7 +1893,7 @@ class showLinesWidget(QWidget):
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
             self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw, color_total=self.fit_color.to_bytes(4, byteorder='big'),
-                                   color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')])
+                                   color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')], disp_alpha=self.disp_alpha)
             if len(self.parent.fit.sys) > 0:
                 self.ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
             else:
@@ -1905,15 +1927,18 @@ class showLinesWidget(QWidget):
                     if self.show_comps:
                         fit_comp = []
                         for c in s.fit_comp:
-                            fit_comp.append(np.array([c.x(), c.y()/cheb(s.fit.x())]))
+                            fit_comp.append(np.array([c.x(), c.y()/cheb(c.x())]))
                     else:
                         fit_comp = None
                 else:
                     fit = None
                     fit_comp = None
+                if self.show_disp and len(s.fit_disp[0].norm.x) > 0:
+                    fit_disp = [[s.fit_disp[0].norm.x, s.fit_disp[0].norm.y], [s.fit_disp[1].norm.x, s.fit_disp[1].norm.y]]
+                else:
+                    fit_disp = None
 
-                p.loaddata(d=np.array([s.spec.x(), s.spec.y()/cheb(s.spec.x()), s.spec.err()/cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp)
-                #p.name = self.parent.regions[ps.index(p)]
+                p.loaddata(d=np.array([s.spec.x(), s.spec.y()/cheb(s.spec.x()), s.spec.err()/cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp, fit_disp=fit_disp)
                 p.show_comps = self.show_comps
                 p.name_pos = [self.name_x_pos, self.name_y_pos]
                 p.add_residual, p.sig = self.residuals, self.res_sigma
@@ -2308,6 +2333,15 @@ class fitMCMCWidget(QWidget):
         self.show_button = QPushButton("Show")
         self.show_button.setFixedSize(100, 30)
         self.show_button.clicked[bool].connect(self.showMC)
+        self.show_comp_button = QPushButton("Show comps")
+        self.show_comp_button.setFixedSize(100, 30)
+        self.show_comp_button.clicked[bool].connect(self.showCompsMC)
+        self.check_button = QPushButton("Check")
+        self.check_button.setFixedSize(100, 30)
+        self.check_button.clicked[bool].connect(self.check)
+        self.bestfit_button = QPushButton("Best fit")
+        self.bestfit_button.setFixedSize(100, 30)
+        self.bestfit_button.clicked[bool].connect(self.show_bestfit)
         self.stats_button = QPushButton("Stats")
         self.stats_button.setFixedSize(100, 30)
         self.stats_button.clicked[bool].connect(partial(self.stats, t='fit'))
@@ -2317,30 +2351,51 @@ class fitMCMCWidget(QWidget):
         self.stats_cols_button = QPushButton("Stats cols")
         self.stats_cols_button.setFixedSize(100, 30)
         self.stats_cols_button.clicked[bool].connect(partial(self.stats, t='cols'))
-        self.check_button = QPushButton("Check")
-        self.check_button.setFixedSize(100, 30)
-        self.check_button.clicked[bool].connect(self.check)
-        self.bestfit_button = QPushButton("Best fit")
-        self.bestfit_button.setFixedSize(100, 30)
-        self.bestfit_button.clicked[bool].connect(self.show_bestfit)
+        self.stats_ratios_button = QPushButton("Stats ratios:")
+        self.stats_ratios_button.setFixedSize(100, 30)
+        self.stats_ratios_button.clicked[bool].connect(partial(self.stats, t='ratios'))
+        self.ratios_species = QLineEdit()
+        self.ratios_species.setFixedSize(100, 30)
+
+        self.fit_disp_button = QPushButton("Fit disp:")
+        self.fit_disp_button.setFixedSize(100, 30)
+        self.fit_disp_button.clicked[bool].connect(self.fit_disp)
+        self.fit_disp_num = QLineEdit(str(self.parent.options('MCMC_disp_num')))
+        self.fit_disp_num.setFixedSize(80, 30)
+        self.fit_disp_num.textChanged.connect(self.set_fit_disp_num)
 
         self.loadres_button = QPushButton("Load")
         self.loadres_button.setFixedSize(120, 30)
         self.loadres_button.clicked[bool].connect(self.loadres)
-        hbox = QHBoxLayout()
-        hbox.addWidget(self.show_button)
-        hbox.addWidget(self.stats_button)
-        hbox.addWidget(self.stats_all_button)
-        hbox.addWidget(self.stats_cols_button)
-        hbox.addWidget(self.check_button)
-        hbox.addWidget(self.bestfit_button)
-        hbox.addStretch(1)
-        hbox.addWidget(self.loadres_button)
 
         showlayout = QVBoxLayout()
         showlayout.addLayout(h)
         showlayout.addStretch(1)
+
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.show_button)
+        hbox.addWidget(self.show_comp_button)
+        hbox.addWidget(self.check_button)
+        hbox.addWidget(self.bestfit_button)
+        hbox.addStretch(1)
+        hbox.addWidget(self.loadres_button)
         showlayout.addLayout(hbox)
+
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.stats_button)
+        hbox.addWidget(self.stats_all_button)
+        hbox.addWidget(self.stats_cols_button)
+        hbox.addWidget(self.stats_ratios_button)
+        hbox.addWidget(self.ratios_species)
+        hbox.addStretch(1)
+        showlayout.addLayout(hbox)
+
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.fit_disp_button)
+        hbox.addWidget(self.fit_disp_num)
+        hbox.addStretch(1)
+        showlayout.addLayout(hbox)
+
         widget = QWidget()
         widget.setLayout(showlayout)
         splitter.addWidget(widget)
@@ -2388,7 +2443,8 @@ class fitMCMCWidget(QWidget):
         self.graph.setCurrentIndex(['chainConsumer', 'corner'].index(self.parent.options('MCMC_graph')))
 
     def start(self, init=True):
-        if self.thread is None:
+        self.MCMC(init=init)
+        if 0 and self.thread is None:
             self.start_button.setChecked(True)
             if 0:
                 from multiprocessing import Process
@@ -2396,7 +2452,6 @@ class fitMCMCWidget(QWidget):
                 #self.thread = Process(target=self.MCMC, args=(self,), kwargs={'init': init})
             else:
                 self.thread = StoppableThread(target=self.MCMC, args=(), kwargs={'init': init}, daemon=True)
-                print(self.thread.isDaemon())
                 self.thread.daemon = True
                 #self.thread = threading.Thread(target=self.MCMC, args=(), kwargs={'init': init}, daemon=True)
             self.thread.start()
@@ -2416,78 +2471,106 @@ class fitMCMCWidget(QWidget):
         self.parent.setFit(comp=-1)
         nwalkers, nsteps, nthreads = int(self.parent.options('MCMC_walkers')), int(self.parent.options('MCMC_iters')), int(self.parent.options('MCMC_threads'))
 
+        #pars = []
+        #for par in self.parent.fit.list_fit():
+        #    pars.append(str(par))
+        #    ndims = len(pars)
+
+        if init:
+            init = []
+            for par in self.parent.fit.list_fit():
+                val = par.val * np.ones(nwalkers) + np.random.randn(nwalkers) * par.step
+                val[val > par.max] = par.max
+                val[val < par.min] = par.min
+                init.append(val)
+            init = np.array(init).transpose()
+        else:
+            pars, samples, lnprobs = self.readChain()
+            init = samples[-1, :, :]
+
         self.parent.s.prepareFit(ind=-1, all=False)
 
-        backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
+        if 1:
+            backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
 
-        if self.parent.options('fitType') == 'julia':
-            backend.reset(nwalkers, np.sum([p.vary for p in self.parent.julia_pars]))
-            self.julia = julia.Julia()
-            self.julia.include("MCMC.jl")
+            pars = [str(p) for p in self.parent.fit.list_fit()]
+            print(pars)
 
-            t = Timer("Julia MCMC")
-            chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.julia_pars, nwalkers=nwalkers, nsteps=nsteps, nthreads=nthreads)
+            #with open("output/MCMC_pars.pkl", "wb") as f:
+            #    pickle.dump([str(p.name) for p in self.parent.julia_pars if p.vary], f)
 
-            with open("output/MCMC_pars.pkl", "wb") as f:
-                pickle.dump([str(p.name) for p in self.parent.julia_pars if p.vary], f)
+            if self.parent.options('fitType') == 'julia':
 
-            backend.grow(nsteps, None)
-            with backend.open("a") as f:
-                g = f[backend.name]
-                g.attrs["iteration"] = nsteps
-                #g["accepted"][...] =
-                g["log_prob"][...] = lns.transpose()
-                g["chain"][...] = chain.transpose(2, 1, 0)
+                backend.reset(nwalkers, np.sum([p.vary for p in self.parent.julia_pars]))
 
-            t.time("finished")
-        else:
-            if init:
-                pars, pos = [], []
-                for par in self.parent.fit.list_fit():
-                    pars.append(str(par))
-                    val = par.val * np.ones(nwalkers) + np.random.randn(nwalkers) * par.step
-                    val[val > par.max] = par.max
-                    val[val < par.min] = par.min
-                    pos.append(val)
-                pos = np.array(pos).transpose()
-                with open("output/MCMC_pars.pkl", "wb") as f:
-                    pickle.dump(pars, f)
-                ndims = len(pars)
+                self.julia = julia.Julia()
+                self.julia.include("MCMC.jl")
+                t = Timer("Julia MCMC")
+                chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.julia_pars, nwalkers=nwalkers, nsteps=nsteps, nthreads=nthreads, init=np.transpose(init))
 
+                backend.grow(nsteps, None)
+                with backend.open("a") as f:
+                    g = f[backend.name]
+                    g.attrs["iteration"] = nsteps
+                    g["log_prob"][...] = lns.transpose()
+                    g["chain"][...] = chain.transpose(2, 1, 0)
+                    g.attrs["pars"] = [p.encode() for p in pars]
+
+                t.time("finished")
             else:
-                with open("output/MCMC_pars.pkl", "rb") as f:
-                    pars = pickle.load(f)
-                lnprobs = backend.get_last_sample()
-                print(lnprobs)
+                if pars == [str(p) for p in self.parent.fit.list_fit()]:
+                    sampler = emcee.EnsembleSampler(nwalkers, ndims, lnprob, args=[pars, self.prior, self], backend=backend)
 
-            if pars == [str(p) for p in self.parent.fit.list_fit()]:
-                sampler = emcee.EnsembleSampler(nwalkers, ndims, lnprob, args=[pars, self.prior, self], backend=backend)
+                    for i, result in enumerate(sampler.sample(pos, iterations=nsteps)):
+                        print(i)
+                        self.parent.MCMCprogress.setText('     MCMC is running: {0:d} / {1:d}'.format(i, nsteps))
 
-                for i, result in enumerate(sampler.sample(pos, iterations=nsteps)):
-                    print(i)
-                    self.parent.MCMCprogress.setText('     MCMC is running: {0:d} / {1:d}'.format(i, nsteps))
+                    with backend.open("a") as f:
+                        g = f[backend.name]
+                        f[backend.name].attrs["pars"] = [p.encode() for p in pars]
 
-            self.showMC()
+                self.showMC()
 
-            self.thread = None
-            self.start_button.setChecked(False)
+        self.start_button.setChecked(False)
 
-    def readChain(self, ):
-        with open("output/MCMC_pars.pkl", "rb") as f:
-            pars = pickle.load(f)
+    def readChain(self):
+        #with open("output/MCMC_pars.pkl", "rb") as f:
+        #    pars = pickle.load(f)
         backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
+        try:
+            with backend.open("r") as f:
+                g = f[backend.name]
+                pars = [p.decode() for p in g.attrs['pars']]
+        except:
+            pars = [str(p) for p in self.parent.fit.list_fit()]
+        print(pars)
         lnprobs = backend.get_log_prob()
         samples = backend.get_chain()
         print(samples.shape, lnprobs.shape)
         return pars, samples, lnprobs
 
-    def showMC(self):
+    def showCompsMC(self):
         pars, samples, lnprobs = self.readChain()
+
+        for ind in range(-1, len(self.parent.fit.sys)):
+            loc_pars = [str(i) for i in self.parent.fit.list(ind)]
+            print(loc_pars)
+            mask = np.array([self.parent.fit.list()[[str(i) for i in self.parent.fit.list()].index(p)].fit and p in loc_pars for p in pars])
+            print(mask)
+            if np.sum(mask) > 0:
+                self.showMC(mask=mask, pars=pars, samples=samples, lnprobs=lnprobs)
+
+    def showMC(self, mask=None, pars=None, samples=None, lnprobs=None):
+
+        if any([pars is None, samples is None, lnprobs is None]):
+            pars, samples, lnprobs = self.readChain()
         nsteps, nwalkers, = lnprobs.shape
         burnin = int(self.parent.options('MCMC_burnin'))
 
-        mask = np.array([self.parent.fit.list()[[str(i) for i in self.parent.fit.list()].index(p)].show for p in pars])
-        names = [str(p).replace('_', ' ') for p in self.parent.fit.list_fit() if p.show]
+        if mask is None:
+            mask = np.array([self.parent.fit.list()[[str(i) for i in self.parent.fit.list()].index(p)].show for p in pars])
+
+        names = [str(p).replace('_', ' ') for i, p in enumerate(self.parent.fit.list_fit()) if mask[i]]
         if self.parent.options('MCMC_likelihood'):
             names = [r'$\chi^2$'] + names
             samples = np.insert(samples, 0, lnprobs, axis=2)
@@ -2507,7 +2590,7 @@ class fitMCMCWidget(QWidget):
                             #cmap='Reds',
                             #marker_size=2,
                             cloud=True,
-                            shade=False,
+                            shade=True,
                             sigmas=[0, 1, 2, 3],
                             )
                 c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
@@ -2577,6 +2660,35 @@ class fitMCMCWidget(QWidget):
                     ax[vert, hor].text(.95, .9, self.parent.fit.getPar(p).fitres(latex=True, showname=False), ha='right', va='top', transform=ax[vert, hor].transAxes)
                     #ax[vert, hor].set_title(pars[i].replace('_', ' '))
 
+        elif t == 'ratios':
+            ratios = [s.split('/') for s in self.ratios_species.text().split()]
+            if len(ratios) > 0:
+                print(ratios)
+                k = len(self.parent.fit.sys) * len(ratios)  # samples.shape[1]
+                n_hor = int(k ** 0.5)
+                n_hor = np.max([n_hor, 2])
+                n_vert = k // n_hor + 1 if k % n_hor > 0 else k // n_hor
+                n_vert = np.max([n_vert, 2])
+
+                fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
+                k = 0
+                for i in range(len(self.parent.fit.sys)):
+                    for ratio in ratios:
+                        inds = [np.where([str(s) == 'N_{0:d}_{1:s}'.format(i, r) for s in pars])[0] for r in ratio]
+                        print(inds)
+                        d = distr1d(samples[burnin:, :, inds[0]].flatten() - samples[burnin:, :, inds[1]].flatten())
+                        d.dopoint()
+                        d.dointerval()
+                        res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0], 'log')
+                        f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
+                        self.results.setText(self.results.toPlainText() + str('{0:s}_{1:s}_{2:d}'.format(ratio[0], ratio[1], i)) + ': ' + res.latex(f=f) + '\n')
+                        # vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
+                        vert, hor = k // n_hor, k % n_hor
+                        k += 1
+                        d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
+                        ax[vert, hor].yaxis.set_ticklabels([])
+                        ax[vert, hor].yaxis.set_ticks([])
+                        ax[vert, hor].text(.1, .9, str('{0:s}/{1:s} {2:d}'.format(ratio[0], ratio[1], i)), ha='left', va='top', transform=ax[vert, hor].transAxes)
         else:
             values = []
             for k in range(burnin, samples.shape[0]):
@@ -2739,11 +2851,44 @@ class fitMCMCWidget(QWidget):
         plt.show()
 
     def show_bestfit(self):
-        pars, nwalkers, samples, lnprobs = self.readChain()
-        truth = samples[np.argmin(lnprobs)]
+        pars, samples, lnprobs = self.readChain()
+        ind = np.where(lnprobs == np.amax(lnprobs))
+        truth = samples[ind[0][0], ind[1][0], :]
         for p, t in zip(pars, truth):
             print(p, t)
             self.parent.fit.setValue(p, t)
+
+    def fit_disp(self):
+        self.show_bestfit()
+        self.parent.s.calcFit(recalc=True)
+        fit, fit_disp = [], []
+        for s in self.parent.s:
+            fit.append(deepcopy(s.fit.norm))
+            fit_disp.append(s.fit.norm.y)
+
+        burnin = int(self.parent.options('MCMC_burnin'))
+        pars, samples, lnprobs = self.readChain()
+        samples[burnin:, :, :]
+        num = int(self.parent.options('MCMC_disp_num'))
+        for i1, i2 in zip(np.random.randint(burnin, high=samples.shape[0], size=num), np.random.randint(0, high=samples.shape[1], size=num)):
+            for p, t in zip(pars, samples[i1, i2, :]):
+                self.parent.fit.setValue(p, t)
+            self.parent.s.prepareFit()
+            self.parent.s.calcFit(recalc=True, redraw=False)
+            for i, s in enumerate(self.parent.s):
+                fit_disp[i] = np.c_[fit_disp[i], s.fit.norm.inter(fit[i].x)]
+
+        #print(np.asarray(fit_disp[0])[100, :])
+
+        for i, s in enumerate(self.parent.s):
+            fit_disp[i] = np.sort(fit_disp[i])
+            self.parent.s[i].fit_disp[0].set(x=fit[i].x, y=fit_disp[i][:, int((1-0.683)/2*num)])
+            self.parent.s[i].fit_disp[1].set(x=fit[i].x, y=fit_disp[i][:, num-int((1-0.683)/2*num)])
+
+        print("disp done")
+
+    def set_fit_disp_num(self):
+        self.parent.options('MCMC_disp_num', int(self.fit_disp_num.text()))
 
     def loadres(self):
         fname = QFileDialog.getOpenFileName(self, 'Load MCMC results', self.parent.work_folder)
@@ -5485,6 +5630,8 @@ class sviewer(QMainWindow):
         super().__init__()
 
         #self.setWindowFlags(Qt.FramelessWindowHint)
+        self.setWindowTitle('Spectro')
+        self.setWindowIcon(QIcon('images/spectro_logo.png'))
         self.initStatus()
         self.initUI()
         self.initStyles()
@@ -7517,14 +7664,16 @@ class sviewer(QMainWindow):
             print(v)
 
             for line in self.abs.activelist:
-                print(line.line, line.line != self.abs.reference.line)
+                print(line.line, line.line != self.abs.reference.line, line.exp)
                 if line.line != self.abs.reference.line:
-                    v_1 = vel_offset(self.s[self.s.ind].spec.x(), line.line.l() * (self.z_abs + 1))
-                    y_1 = spectres.spectres(v_1, self.s[self.s.ind].spec.y(), v)
+                    v_1 = vel_offset(self.s[line.exp].spec.x(), line.line.l() * (self.z_abs + 1))
+                    y_1 = spectres.spectres(v_1, self.s[line.exp].spec.y(), v)
+                    print(y_1)
+                    m = (v_1 >= v[0]) * (v_1 <= v[-1])
                     if 1:
-                        plt.step(v, np.log(self.s[self.s.ind].spec.y()[mask]) / np.log(y_1), where='mid')
+                        plt.step(v, np.log(self.s[line.exp].spec.y()[mask]) / np.log(y_1), where='mid')
                     else:
-                        plt.step(v, -np.log(self.s[self.s.ind].spec.y()[mask]), where='mid')
+                        plt.step(v, -np.log(self.s[line.exp].spec.y()[mask]), where='mid')
                         plt.step(v, -np.log(y_1), where='mid')
                     print(self.abs.reference.line.f(), line.line.f())
                     plt.axhline(self.abs.reference.line.f() / line.line.f(), ls='--', color='k')

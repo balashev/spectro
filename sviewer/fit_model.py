@@ -1188,11 +1188,21 @@ class fitResultsWidget(QWidget):
         self.depRef.setFixedSize(30, 30)
         self.depRef.setEnabled(self.showdep.isChecked())
         self.depRef.returnPressed.connect(self.refresh)
+        self.showratios = QCheckBox('Ratios')
+        self.showratios.setChecked(False)
+        self.showratios.clicked.connect(self.refresh)
+        self.ratios = QLineEdit()
+        self.ratios.setFixedSize(90, 30)
+        self.ratios.setEnabled(self.showratios.isChecked())
+        self.ratios.returnPressed.connect(self.refresh)
+
         hl.addWidget(self.showtotal)
         hl.addWidget(self.showme)
         hl.addWidget(self.HIvalue)
         hl.addWidget(self.showdep)
         hl.addWidget(self.depRef)
+        hl.addWidget(self.showratios)
+        hl.addWidget(self.ratios)
         hl.addStretch(0)
         layout.addLayout(hl)
         self.setLayout(layout)
@@ -1204,6 +1214,7 @@ class fitResultsWidget(QWidget):
         self.HI = a(self.HIvalue.text())
         self.depRef.setEnabled(self.showdep.isChecked())
         self.depref = self.depRef.text() if self.showdep.isChecked() else ''
+        self.ratios.setEnabled(self.showratios.isChecked())
         if isinstance(view, str):
             self.view = view
         if self.view == 'plain':
@@ -1240,6 +1251,8 @@ class fitResultsWidget(QWidget):
         d += list([r'$\log N$(' + s + ')' for s in sps.keys()])
         if self.showtotal.isChecked() and any([all([el in sp for sp in sys.sp.keys()]) for el in ['H2', 'CO', 'HD', 'CI']]):
             d += [r'$\log N_{\rm tot}$']
+        if self.showratios.isChecked():
+            d += [r'$\log N$({0:s})/$N$({1:s})'.format(s.split('/')[0], s.split('/')[1]) for s in self.ratios.text().split()]
         if self.showLFR.isChecked() and self.parent.fit.cf_fit:
             d += [r'LFR']
         data = [d]
@@ -1259,13 +1272,14 @@ class fitResultsWidget(QWidget):
 
             for sp in sps.keys():
                 if sp in sys.sp.keys():
+                    sys.sp[sp].N.unc.log()
                     d.append(sys.sp[sp].N.fitres(latex=True, dec=2, showname=False))
                 else:
                     d.append(' ')
 
             t = ''
             if self.showtotal.isChecked():
-                for el in ['H2', 'CO', 'HD', 'CI']:
+                for el in ['H2', 'CO', 'HD', 'CI', 'SiII']:
                     if el in sys.total.keys():
                         d.append(sys.total[el].N.fitres(latex=True, dec=2, showname=False))
                         t = el
@@ -1279,6 +1293,12 @@ class fitResultsWidget(QWidget):
                         d.append(sys.sp[el + 't'].N.fitres(latex=True, dec=2, showname=False))
                         del sys.sp[el + 't']
                         t = el
+
+            if self.showratios.isChecked():
+                for s in self.ratios.text().split():
+                    sp = s.split('/')
+                    print(sys.sp[sp[0]].N.unc / sys.sp[sp[1]].N.unc)
+                    d.append((sys.sp[sp[0]].N.unc / sys.sp[sp[1]].N.unc).latex(f=2))
 
             if self.showLFR.isChecked() and fit.cf_fit:
                 for i in range(fit.cf_num):

@@ -2,7 +2,6 @@ using AffineInvariantMCMC
 using DataFitting
 using LsqFit
 using OrderedCollections
-#using Plots
 using SpecialFunctions
 
 
@@ -194,6 +193,7 @@ end
 function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
 
     start = time()
+    #println("start")
 
     line_mask = update_lines(spec.lines, pars, ind=ind)
 
@@ -204,7 +204,9 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
         i_min, i_max = binsearch(spec.x, line.l * (1 - 4 * x_instr), type="min"), binsearch(spec.x, line.l * (1 + 4 * x_instr), type="max")
         if i_max - i_min > 1 && i_min > 0
             for i in i_min:i_max
+                ###### PROBLEMS HERE ############
                 x_grid[i] = max(x_grid[i], round(Int, (spec.x[i] - spec.x[i-1]) / line.l / x_instr * 5))
+                ###### PROBLEMS HERE ############
             end
         end
         line.dx = sqrt(max(-log10(0.001 / line.tau0), line.tau0 / 0.001 * line.a / sqrt(π))) * 1.5
@@ -257,6 +259,7 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
 
     for line in spec.lines[line_mask]
         i_min, i_max = binsearch(x, line.l - line.dx * line.ld, type="min"), binsearch(x, line.l + line.dx * line.ld, type="max")
+        #println(i_min, " ", i_max)
         @. @views y[i_min:i_max] = y[i_min:i_max] .* exp.(-1 .* line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x[i_min:i_max] .- line.l) ./ line.ld)))
     end
 
@@ -277,6 +280,7 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
         if out == "all"
             return x, 1 .- y_c
         elseif out == "init"
+            #println("all done ", sum(y_c[x_mask]))
             return 1 .- y_c[x_mask]
         end
     else

@@ -1,4 +1,5 @@
 using Distributed
+import RobustPmap
 
 if nprocs() > 1
     rmprocs(2:nprocs())
@@ -31,18 +32,20 @@ function fitMCMC(spec, pars; nwalkers=100, nsteps=1000, nthreads=1, init=nothing
     numdims = size(params)[1]
     thinning = 10
 
-    if init == nothing
-        init = Matrix{Float64}(undef, numdims, nwalkers)
-        i = 1
-        for p in pars
-            if p.vary == 1
-                init[i,:] = p.val .+ randn(nwalkers) .* p.step
-                i += 1
-            end
-        end
-    end
+    #init2 = Matrix{Float64}(undef, numdims, nwalkers)
+    #if 1==1 #init == nothing
+    #    i = 1
+    #    for p in pars
+    #        if p.vary == 1
+    #            init2[i,:] = p.val .+ randn(nwalkers) .* p.step
+    #            i += 1
+    #        end
+    #    end
+    #end
+    #println(size(init2), init2[3])
 
     lnlike = p->begin
+        #println(p)
         k = 1
         for i in 1:size(pars)[1]
             if pars[i].vary == 1
@@ -52,7 +55,6 @@ function fitMCMC(spec, pars; nwalkers=100, nsteps=1000, nthreads=1, init=nothing
                     p[k] = pars[i].max
                 end
                 pars[i].val = p[k]
-                #println(pars[i].name, " ", p[k])
                 k += 1
             end
         end
@@ -64,6 +66,52 @@ function fitMCMC(spec, pars; nwalkers=100, nsteps=1000, nthreads=1, init=nothing
         return retval
     end
 
-    chain, llhoodvals = AffineInvariantMCMC.sample(lnlike, nwalkers, init, nsteps, 1)
+    bounds = hcat([p.min for p in pars if p.vary], [p.max for p in pars if p.vary])
+    chain, llhoodvals = sample(lnlike, nwalkers, init, nsteps, 1, bounds)
+
+end
+
+function check_pars(proposal, pars)
+    return all([proposal[i] > p.min && proposal[i] < p.max for (i, p) in enumerate([p for p in pars if p.vary])])
+end
+
+function sample(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thinning::Integer, bounds::Array; a::Number=2.)
+    """
+    This function is modified version of AffineInvariantMCMC by MADS (see copyright information in initial module)
+    """
+	@assert length(size(x0)) == 2
+
+	x = copy(x0)
+	chain = Array{Float64}(undef, size(x0, 1), nwalkers, div(nsteps, thinning))
+	llhoodvals = Array{Float64}(undef, nwalkers, div(nsteps, thinning))
+	lastllhoodvals = RobustPmap.rpmap(llhood, map(i->x[:, i], 1:size(x, 2)))
+	chain[:, :, 1] = x0
+	llhoodvals[:, 1] = lastllhoodvals
+	for i = 2:nsteps
+		println(i)
+		for ensembles in [(1:div(nwalkers, 2), div(nwalkers, 2) + 1:nwalkers), (div(nwalkers, 2) + 1:nwalkers, 1:div(nwalkers, 2))]
+			active, inactive = ensembles
+			zs = map(u->((a - 1) * u + 1)^2 / a, rand(length(active)))
+			proposals = map(i-> min.(max.(zs[i] * x[:, active[i]] + (1 - zs[i]) * x[:, rand(inactive)], bounds[:,1]), bounds[:,2]), 1:length(active))
+			newllhoods = RobustPmap.rpmap(llhood, proposals)
+			for (j, walkernum) in enumerate(active)
+				z = zs[j]
+				newllhood = newllhoods[j]
+				proposal = proposals[j]
+				logratio = (size(x, 1) - 1) * log(z) + newllhood - lastllhoodvals[walkernum]
+				if log(rand()) < logratio
+					lastllhoodvals[walkernum] = newllhood
+					x[:, walkernum] = proposal
+			    else
+    			    x[:, walkernum] = chain[:, walkernum, i-1]
+                end
+				if i % thinning == 0
+					chain[:, walkernum, div(i, thinning)] = x[:, walkernum]
+					llhoodvals[walkernum, div(i, thinning)] = lastllhoodvals[walkernum]
+				end
+			end
+		end
+	end
+	return chain, llhoodvals
 
 end

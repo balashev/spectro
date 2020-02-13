@@ -504,8 +504,8 @@ class fitPars:
         else:
             return getattr(par, attr)
 
-    def list(self):
-        return list(self.pars().values())
+    def list(self, ind=None):
+        return list(self.pars(ind).values())
 
     def list_check(self):
         for par in self.list():
@@ -517,48 +517,50 @@ class fitPars:
     def list_vary(self):
         return [par for par in self.list() if par.vary]
 
-    def pars(self):
+    def pars(self, ind=None):
         pars = OrderedDict()
-        for attr in ['mu', 'me', 'dtoh', 'res']:
-            if hasattr(self, attr):
-                p = getattr(self, attr)
-                pars[str(p)] = p
-        if self.cont_fit and self.cont_num > 0:
-            for i in range(self.cont_num):
-                attr = 'cont_' + str(i)
+        if ind in [None, -1]:
+            for attr in ['mu', 'me', 'dtoh', 'res']:
                 if hasattr(self, attr):
                     p = getattr(self, attr)
                     pars[str(p)] = p
-        if self.res_fit and self.res_num > 0:
-            for i in range(self.res_num):
-                attr = 'res_' + str(i)
-                if hasattr(self, attr):
-                    p = getattr(self, attr)
-                    pars[str(p)] = p
-        if self.cf_fit and self.cf_num > 0:
-            for i in range(self.cf_num):
-                attr = 'cf_' + str(i)
-                if hasattr(self, attr):
-                    p = getattr(self, attr)
-                    pars[str(p)] = p
-        if self.disp_fit and self.disp_num > 0:
-            for i in range(self.disp_num):
-                for attr in ['dispz', 'disps']:
-                    attr = attr + '_' + str(i)
+            if self.cont_fit and self.cont_num > 0:
+                for i in range(self.cont_num):
+                    attr = 'cont_' + str(i)
                     if hasattr(self, attr):
                         p = getattr(self, attr)
                         pars[str(p)] = p
-        if len(self.sys) > 0:
-            for sys in self.sys:
-                for attr in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
-                    if hasattr(sys, attr):
-                        p = getattr(sys, attr)
+            if self.res_fit and self.res_num > 0:
+                for i in range(self.res_num):
+                    attr = 'res_' + str(i)
+                    if hasattr(self, attr):
+                        p = getattr(self, attr)
                         pars[str(p)] = p
-                for sp in sys.sp.values():
-                    for attr in ['b', 'N']:
-                        if hasattr(sp, attr):
-                            p = getattr(sp, attr)
+            if self.cf_fit and self.cf_num > 0:
+                for i in range(self.cf_num):
+                    attr = 'cf_' + str(i)
+                    if hasattr(self, attr):
+                        p = getattr(self, attr)
+                        pars[str(p)] = p
+            if self.disp_fit and self.disp_num > 0:
+                for i in range(self.disp_num):
+                    for attr in ['dispz', 'disps']:
+                        attr = attr + '_' + str(i)
+                        if hasattr(self, attr):
+                            p = getattr(self, attr)
                             pars[str(p)] = p
+        if len(self.sys) > 0:
+            for i, sys in enumerate(self.sys):
+                if ind in [None, i]:
+                    for attr in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
+                        if hasattr(sys, attr):
+                            p = getattr(sys, attr)
+                            pars[str(p)] = p
+                    for sp in sys.sp.values():
+                        for attr in ['b', 'N']:
+                            if hasattr(sp, attr):
+                                p = getattr(sp, attr)
+                                pars[str(p)] = p
         return pars
 
     def list_total(self):

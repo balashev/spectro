@@ -632,8 +632,6 @@ class Console(QTextEdit):
                         s.raw.setLevels(float(args[3]), float(args[4]), attr='err')
                     if args[2] == 'sky':
                         s.sky.setLevels(float(args[3]), float(args[4]))
-
-
             self.parent.s.redraw()
 
         elif args[0] == 'Tkin':
@@ -647,13 +645,13 @@ class Console(QTextEdit):
                 spec = self.parent.s[self.parent.s.ind].spec.raw
                 flux = np.mean(spec.y[(spec.x > 1345 * (1 + self.parent.z_abs)) * (spec.x < 1355 * (1 + self.parent.z_abs))])
                 L = flux * 1e-17 * 4 * np.pi * Planck15.luminosity_distance(self.parent.z_abs).to('cm').value**2 * (1 + self.parent.z_abs)
-                print(L, L * 1345 * (1 + self.parent.z_abs))
+                print(L, L * 1345)
 
             if args[1] == 'mass':
                 if len(args) == 3:
                     spec = self.parent.s[self.parent.s.ind].spec.raw
                     flux = np.mean(spec.y[(spec.x > 1345 * (1 + self.parent.z_abs)) * (spec.x < 1355 * (1 + self.parent.z_abs))])
-                    lL = flux * 1e-17 * 4 * np.pi * Planck15.luminosity_distance(self.parent.z_abs).to('cm').value ** 2 * (1 + self.parent.z_abs) * 1355 * (1 + self.parent.z_abs)
+                    lL = flux * 1e-17 * 4 * np.pi * Planck15.luminosity_distance(self.parent.z_abs).to('cm').value ** 2 * (1 + self.parent.z_abs) * 1355
                     mass = 0.53 * np.log10(lL / 1e44) + 2 * np.log10(float(args[2]) / 1000) + 6.66
                     print(mass)
 

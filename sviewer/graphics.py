@@ -1155,6 +1155,8 @@ class Spectrum():
         self.sm = specline(self)
         self.rebin = None
         self.fit = specline(self)
+        self.fit_disp = [specline(self), specline(self)]
+        self.g_fit_disp = ["", '', '']
         self.fit_comp = []
         self.cheb = specline(self)
         self.res = gline()
@@ -1176,6 +1178,8 @@ class Spectrum():
         self.err_pen = pg.mkPen(70, 130, 180)
         self.cont_pen = pg.mkPen(168, 66, 195, width=3)
         self.fit_pen = pg.mkPen(255, 69, 0, width=4)
+        self.fit_disp_pen = pg.mkPen(232, 178,  0, width=2)
+        self.fit_disp_brush = pg.mkBrush(255, 204, 35, 100)
         self.fit_comp_pen = pg.mkPen(255, 215, 63, width=1.0)
         self.spline_brush = pg.mkBrush(0, 191, 255, 255) # pg.mkBrush(117, 218, 50, 255)
 
@@ -1200,7 +1204,6 @@ class Spectrum():
             self.fit_pixels_pen = pg.mkPen(145, 180, 29, width=4)
             cdict = cm.get_cmap('viridis')
             cmap = np.array(cdict.colors)
-            #cmap[0] = [1,1,1]
             cmap[-1] = [1, 0.4, 0]
             map = pg.ColorMap(np.linspace(0,1,cdict.N), cmap, mode='rgb')
             self.colormap = map.getLookupTable(0.0, 1.0, 256, alpha=False)
@@ -1480,6 +1483,21 @@ class Spectrum():
     def set_gfit(self):
         if len(self.fit.norm.x) > 0 and self.cont.n > 0 and self.active():
             self.g_fit.setData(self.fit.x(), self.fit.y())
+
+    def set_fit_disp(self, show=True):
+        if show:
+            if self.parent.normview and len(self.fit_disp[0].norm.x) > 0:
+                for i in [0, 1]:
+                    self.g_fit_disp[i] = pg.PlotCurveItem(x=self.fit_disp[i].norm.x, y=self.fit_disp[i].norm.y, pen=self.fit_disp_pen)
+                    self.parent.vb.addItem(self.g_fit_disp[i])
+                self.g_fit_disp[2] = pg.FillBetweenItem(self.g_fit_disp[0], self.g_fit_disp[1], brush=self.fit_disp_brush)
+                self.parent.vb.addItem(self.g_fit_disp[2])
+        else:
+            try:
+                for i in [0, 1, 2]:
+                    self.parent.vb.removeItem(self.g_fit_disp[i])
+            except:
+                pass
 
     def construct_fit_comps(self):
         self.fit_comp = []
@@ -1920,7 +1938,6 @@ class Spectrum():
         if self.spec.norm.n > 0 and self.cont.n > 0:
 
             # >>> calculate the intrinsic absorption line spectrum
-            print('calc julia:', ind)
             x, flux = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=ind+1)
 
             if timer:

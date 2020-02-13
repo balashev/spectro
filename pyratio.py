@@ -127,12 +127,13 @@ class speci:
         """
         read popratio data for species with given name and numbers of levels
         """
-        with open(self.parent.folder+'/data/pyratio/'+self.name+'.dat') as f_in:
+        with open(self.parent.folder+'/data/pyratio/'+self.name+'.dat', encoding="ISO-8859-1") as f_in:
             f = 0
             n_coll = 0
             while True:
                 line=f_in.readline()
-                if not line: break
+                if not line:
+                    break
                 if line.strip() == '#': 
                     f +=1
                     if f == 4:
@@ -837,7 +838,11 @@ class pyratio():
             uv[mask] = 6.825e-13 * (l[mask] / 1e4)
             mask = np.logical_and(1340 < l, l <= 2460)
             uv[mask] = 2.373e-14 * (l[mask] / 1e4) ** (-0.6678)
-            self.mathis = interpolate.interp1d(1e8 / l, uv / (ac.c.cgs.value / l), bounds_error=0, fill_value=0)
+            self.mathis = interpolate.interp1d(1e8 / l, uv / (ac.c.cgs.value / l / 1e-8), bounds_error=0, fill_value=0)
+
+        if 'Draine' in self.sed_type:
+            l = np.linspace(0.912, 3.1, 100)
+            self.draine = interpolate.interp1d(1e5 / l, 6.84e-14 * l ** (-5) * (31.016 * l ** 2 - 49.913 * l + 19.897) / (ac.c.cgs.value / l / 1e-5), bounds_error=0, fill_value=0)
 
         if self.sed_type in ['QSO', 'AGN', 'GRB']:
             self.DL = FlatLambdaCDM(70, 0.3, Tcmb0=2.725, Neff=0).luminosity_distance(self.z).to('cm').value
@@ -845,36 +850,35 @@ class pyratio():
         if 'QSO' in self.sed_type:
             from astroquery.sdss import SDSS
             qso = SDSS.get_spectral_template('qso')
-            x, flux = 10 ** (np.arange(len(qso[0][0].data[0])) * 0.0001 + qso[0][0].header['CRVAL1']) * (1 + self.z), qso[0][0].data[0] * 1e-17
+            x, flux = 10 ** (np.arange(len(qso[0][0].data[0])) * 0.0001 + qso[0][0].header['CRVAL1']), qso[0][0].data[0] * 1e-17
             cosmo = FlatLambdaCDM(70, 0.3, Tcmb0=2.725, Neff=0)
             b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
             fil = np.genfromtxt(self.folder + r'/data/SDSS/' + self.agn_pars['filter'] + '.dat', skip_header=6, usecols=(0, 1), unpack=True)
-            mask = (x > fil[0][0]) * (x < fil[0][-1])
+            mask = (x * (1 + self.z) > fil[0][0]) * (x * (1 + self.z) < fil[0][-1])
             fil = interpolate.interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
-            scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux[mask], x[mask], b[self.agn_pars['filter']], fil, self.agn_pars['mag']))
-            print(scale, flux_to_mag(flux * scale, x, self.agn_pars['filter']), self.agn_pars['mag'])
-            print(flux[flux != 0] * scale * (self.DL / ac.kpc.cgs.value) ** 2 * x[flux != 0] ** 2 / 1e8 / ac.c.cgs.value ** 2)
-            self.qso = interpolate.interp1d(1e8 / x * (1 + self.z), flux * scale * (self.DL / ac.kpc.cgs.value) ** 2 * x ** 2/ 1e8 / ac.c.cgs.value ** 2, bounds_error=False, fill_value=0)
+            scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux[mask], x[mask] * (1 + self.z), b[self.agn_pars['filter']], fil, self.agn_pars['mag']))
+            print(scale, flux_to_mag(flux * scale, x * (1 + self.z), self.agn_pars['filter']), self.agn_pars['mag'])
+            self.qso = interpolate.interp1d(1e8 / x, scale * flux * (self.DL / ac.kpc.cgs.value) ** 2 * x ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=False, fill_value=0)
 
         if 'AGN' in self.sed_type:
-            data = np.genfromtxt(self.folder + '/data/pyratio/Richards2006.dat', unpack=True, comments='#')
-            if 0:
-                x = (ac.c.cgs.value * 1e4 / 10 ** data[0])
-                for k in range(1,8):
-                    plt.loglog(x, 10 ** (data[k] - data[k][np.argmin(np.abs(0.3 - x))]))
-                plt.show()
+            b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
+            fil = np.genfromtxt(self.folder + r'/data/SDSS/' + self.agn_pars['filter'] + '.dat', skip_header=6, usecols=(0, 1), unpack=True)
+            filter = interpolate.interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
             if 1:
-                b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
-                fil = np.genfromtxt(self.folder + r'/data/SDSS/' + self.agn_pars['filter'] + '.dat', skip_header=6, usecols=(0, 1), unpack=True)
-                x = 1e8 * ac.c.cgs.value / 10 ** data[0]
-                mask = (x > fil[0][0]) * (x < fil[0][-1])
-                filter = interpolate.interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
-                flux = 10**data[1][mask] / 4 / np.pi / self.DL ** 2 / (ac.c.to('Angstrom/s').value / 10**data[0][mask]) * (1 + self.z)
-                scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux, x[mask], b[self.agn_pars['filter']], filter, self.agn_pars['mag']))
-                print(scale, flux_to_mag(flux * scale, x[mask], self.agn_pars['filter']), self.agn_pars['mag'])
+                data = np.genfromtxt(self.folder + '/data/pyratio/QSO1_template_norm.sed', unpack=True, comments='#')
+                mask = (data[0] * (1 + self.z) > fil[0][0]) * (data[0] * (1 + self.z) < fil[0][-1])
+                scale = 10 ** bisect(self.flux_to_mag_solve, -25, 25, args=(data[1][mask], data[0][mask] * (1 + self.z), b[self.agn_pars['filter']], filter, self.agn_pars['mag']))
+                print(scale)
+                self.agn = interpolate.interp1d(1e8 / data[0], scale * data[1] * (self.DL / ac.kpc.cgs.value) ** 2 * data[0] ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=False, fill_value='extrapolate')
+
             else:
-                scale = 1.
-            self.agn = interpolate.interp1d(10 ** data[0] / ac.c.cgs.value * (1 + self.z), 10 ** data[1] / 4 / np.pi / (ac.kpc.cgs.value) ** 2 / 10 ** data[0] * (1 + self.z) * scale / ac.c.cgs.value, bounds_error=False, fill_value='extrapolate')
+                data = np.genfromtxt(self.folder + '/data/pyratio/Richards2006.dat', unpack=True, comments='#')
+                x = 1e8 * ac.c.cgs.value / 10 ** data[0]
+                mask = (x * (1 + self.z) > fil[0][0]) * (x * (1 + self.z) < fil[0][-1])
+                flux = 10 ** data[1][mask] / 4 / np.pi / self.DL ** 2 / x[mask] * (1 + self.z)
+                scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux, x[mask] * (1 + self.z), b[self.agn_pars['filter']], filter, self.agn_pars['mag']))
+                print(scale, flux_to_mag(flux * scale, x[mask] * (1 + self.z), self.agn_pars['filter']), self.agn_pars['mag'])
+                self.agn = interpolate.interp1d(10 ** data[0] / ac.c.cgs.value, scale * 10 ** data[1] / 4 / np.pi / (ac.kpc.cgs.value) ** 2 / 10 ** data[0] / ac.c.cgs.value, bounds_error=False, fill_value='extrapolate')
 
     def set_EBL(self):
         """
@@ -1060,7 +1064,7 @@ class pyratio():
                                     - AGN (based on Richards+2006)
                                     - GRB (some model)
         return:
-            uv       : energy density of UV field in [erg/cm^3]
+            uv       : energy density of UV field in [erg/cm^3/Hz]
         """
         if sed_type is None:
             s = self.sed_type
@@ -1070,6 +1074,7 @@ class pyratio():
         e = np.asarray(e)
         field = np.zeros_like(e)
         m = e != 0
+        #print(e[m])
 
         if sed_type is None and self.CMB or 'CMB' == s:
             temp = self.pars['CMB'].value if 'CMB' in self.pars.keys() else 2.72548 * (1 + self.z)
@@ -1083,10 +1088,8 @@ class pyratio():
             field[m] += 4e-14 / (ac.c.cgs.value * e[m]) * 10 ** self.pars['rad'].value
 
         if s == 'Draine':
-            m = (e > 4 * 8065.54) * (e < 13.5947 * 8065.54)
-            l = 1e5 / e[m]  # in 100 nm
-            field[m] += 6.84e-14 * l**(-5) * (31.016 * l**2 - 49.913 * l + 19.897) / (ac.c.cgs.value * e[m]) * 10 ** self.pars['rad'].value
-            
+            field[m] += self.draine(e[m]) * 10 ** self.pars['rad'].value
+
         if s == 'Mathis':
             field[m] += self.mathis(e[m]) * 10 ** self.pars['rad'].value
 
@@ -1099,6 +1102,8 @@ class pyratio():
         if s == 'GRB':
             t_obs, alpha, beta, z = 393, -1.1, -0.5, 1.5
             field[m] += 1.12e-25 * (t_obs / 393) ** alpha * (1e8 / e[m] / 5439) ** (-beta) * 1.083e+7 ** 2 / (1 + z) / ac.c.cgs.value * 10 ** self.pars['rad'].value
+
+        #print(s, field[m])
 
         return field
 
@@ -1983,19 +1988,19 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check SiII
-    if 0:
-        pr = pyratio(z=2.5, pumping='simple', radiation='simple', sed_type='AGN', agn={'filter': 'r', 'mag': 18})
+    if 1:
+        pr = pyratio(z=2.5, pumping='simple', radiation='simple') #, sed_type='AGN', agn={'filter': 'r', 'mag': 18})
         pr.set_pars(['T', 'n', 'f', 'rad'])
         pr.pars['T'].range = [1.5, 5]
-        pr.set_prior('T', a(4, 0, 0))
+        pr.set_prior('T', a(2.2, 0, 0))
         pr.pars['rad'].range = [-3, 4]
         pr.pars['n'].range = [1, 5]
         pr.pars['f'].range = [-6, 0]
         pr.set_fixed('f', -3)
         species = 'SiII'
         pr.add_spec(species)
-        pr.pars['n'].value = 5
-        pr.pars['rad'].value = 0
+        pr.pars['n'].value = 2.5
+        pr.pars['rad'].value = np.log10(10)
         if 1:
             print('IR:', pr.balance(species, debug='IR'))
             print('UV:', pr.balance(species, debug='UV'))
@@ -2067,7 +2072,8 @@ if __name__ == '__main__':
 
     # >>> check radiation fields
     if 0:
-        pr = pyratio(z=2.0, pumping='simple', radiation='simple', sed_type='Draine', agn={'filter': 'r', 'mag': 18})
+        z, r, d = 2.8, 17.7, 150
+        pr = pyratio(z=z, pumping='simple', radiation='simple', sed_type='Draine', agn={'filter': 'r', 'mag': 17.7})
         pr.set_pars(['T', 'rad'])
         e = np.logspace(-1, 5, 10000)
         fig = plt.figure(figsize=(10, 6))
@@ -2078,21 +2084,21 @@ if __name__ == '__main__':
         else:
             ax = plt.axes([0.10, 0.10, 0.90, 0.90])
 
-        ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='CMB')), label='CMB, z=2')
-        ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='EBL')), label='EBL, z=2')
-        ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='Draine')), label='Draine')
-        for sed, label in zip(['AGN', 'QSO', 'GRB'], ['AGN, r=20, z=2, d=1kpc', 'QSO, r=20, z=2, d=1kpc', 'GRB, d=1kpc']):
-            if sed != 'GRB':
+        ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='CMB')), label='CMB, z={0:3.1f}'.format(z))
+        ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='EBL')), label='EBL, z={0:3.1f}'.format(z))
+        ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='Draine') * 15), label='Draine x15')
+        for sed, label in zip(['AGN', 'QSO', 'GRB'], ['AGN, r={0:4.1f}, z={1:3.1f}, d={2:d}kpc'.format(r, z, d), 'QSO, r={0:4.1f}, z={1:3.1f}, d={2:d}kpc'.format(r, z, d), 'GRB, d={0:d}kpc'.format(d)]):
+            if sed not in ['GRB', 'QSO']:
                 pr.sed_type = sed
                 pr.load_sed()
-                ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type=sed)), label=label)
+                ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type=sed)) - np.log10(d)*2, label=label)
         ax.set_ylim([-39, -18])
         ax.set_xlim(ax.get_xlim())
         ax.set_ylabel(r'log u$_{\nu}$ [$\rm erg\,cm^{-3}\,Hz^{-1}$]')
         ax.set_xlabel(r'log E [$\rm cm^{-1}$]')
         ax.legend()
 
-        if 1:
+        if 0:
             qso = np.genfromtxt('C:/science/data/swire_library/QSO1_template_norm.sed', unpack=True)
             ax.plot(np.log10(1e8 / qso[0]), np.log10(qso[1] * qso[0]**2 / ac.c.cgs.value / 1e8 / 1e10))
             print(qso[1] * qso[0]**2 / ac.c.cgs.value / 1e8 / 1e10)
@@ -2113,7 +2119,6 @@ if __name__ == '__main__':
             ax2.set_xlim(ax.get_xlim())
             ax2.axvspan(np.log10(1e8 / 912), ax2.get_xlim()[-1], facecolor='lightseagreen', edgecolor='k', alpha=0.1, hatch='/', zorder=0)
             ax2.set_title(species, fontsize=16)
-
 
         ax.axvspan(np.log10(1e8 / 912), ax.get_xlim()[-1], facecolor='lightseagreen', edgecolor='k', alpha=0.1, hatch='/', zorder=0)
         ax.text(np.log10(1e8 / 912), np.mean(ax.get_ylim()), 'Ly cutoff', rotation=90, ha='left', va='center')
@@ -2157,16 +2162,16 @@ if __name__ == '__main__':
 
     # >>> OI calculations
     if 0:
-        pr = pyratio()
-        pr.add_spec('OI', num=3)
+        pr = pyratio(z=2.8, pumping='simple', radiation='simple')
         pr.set_pars(['T', 'n', 'f', 'rad'])
         pr.pars['T'].range = [1, 4]
         pr.pars['n'].range = [1, 4]
         pr.pars['rad'].range = [0, 4]
-        pr.pars['n'].value = 2
-        pr.pars['rad'].value = 2
-        pr.pars['T'].value = np.log10(100)
+        pr.pars['n'].value = 2.3
+        pr.pars['rad'].value = np.log10(10)
+        pr.pars['T'].value = np.log10(150)
         pr.set_prior('f', a(-3, 0, 0))
+        pr.add_spec('OI', num=3)
         print(pr.balance('OI', debug='A'))
         print(pr.balance('OI', debug='C'))
         print(pr.balance('OI', debug='UV'))
@@ -2196,7 +2201,7 @@ if __name__ == '__main__':
                 if i == 0:
                     ax[i].set_ylabel(r'log(n$_i$/n$_0$)')
         else:
-            for i, T in enumerate([100, 1000, 5000]):
+            for i, T in enumerate([150, 1000, 5000]):
                 ax[i].set_prop_cycle(None)
                 pr.pars['T'].value = np.log10(T)
                 n = []
@@ -2230,7 +2235,7 @@ if __name__ == '__main__':
         print(pr.predict(), np.log10(9), np.log10(5))
 
     # >>> HD calculations:
-    if 1:
+    if 0:
         pr = pyratio()
         pr.add_spec('HD', num=6)
         pr.set_pars(['T', 'n', 'f'])

@@ -137,7 +137,7 @@ class plot_spec(list):
     def specify_comps(self, *args):
         self.comps = np.array(args)
                 
-    def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0):
+    def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, disp_alpha=0.7):
 
         if color_total is not None:
             if np.max(list(color_total)) > 1:
@@ -175,6 +175,7 @@ class plot_spec(list):
 
         self.lw_total = lw_total
         self.lw_spec = lw_spec
+        self.disp_alpha = disp_alpha
 
     def set_limits(self, x_min, x_max, y_min, y_max):
         for p in self:
@@ -321,7 +322,7 @@ class plotline():
         self.show_comps = self.parent.show_comps
         self.sig = 2
 
-    def loaddata(self, d=None, f=None, fit_comp=None, verbose=False):
+    def loaddata(self, d=None, f=None, fit_comp=None, fit_disp=None, verbose=False):
         self.spec = data()
         self.fit = data()
 
@@ -348,6 +349,15 @@ class plotline():
                 fit.x, fit.y = c[0], c[1]
                 self.fit_comp.append(fit)
             self.num_comp = len(self.fit_comp)
+
+        if fit_disp is not None:
+            self.fit_disp = [data(), data()]
+            for i, d in enumerate(fit_disp):
+                self.fit_disp[i].x = d[0]
+                self.fit_disp[i].y = d[1]
+        else:
+            self.fit_disp = None
+
         if f is None:
             self.fit = None
             self.show_fit = False
@@ -448,8 +458,18 @@ class plotline():
                     else:
                         ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
 
-            # >>> plot joint fit
-            ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls='-', lw=self.parent.lw_total, zorder=11)
+            print(self.fit.x, self.fit.y)
+            if self.fit_disp is None:
+                # >>> plot joint fit
+                ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls='-', lw=self.parent.lw_total, zorder=11)
+            else:
+                # >>> plot fit dispersion
+                if self.vel_scale:
+                    self.fit_disp[0].x = (self.fit_disp[0].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
+                    self.fit_disp[1].x = (self.fit_disp[1].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
+                self.fit_disp[0].mask(self.x_min, self.x_max)
+                self.fit_disp[1].mask(self.x_min, self.x_max)
+                ax.fill_between(self.fit_disp[0].x, self.fit_disp[0].y, self.fit_disp[1].y, fc=self.parent.color_total, alpha=self.parent.disp_alpha, zorder=11)
 
         # >>> add residuals
         if self.add_residual and self.show_fit:
@@ -468,6 +488,7 @@ class plotline():
                     color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
             ax.text(x_pos, null_res-delt_res, r'-'+str(self.sig)+'$\sigma$', fontsize=self.font-2,
                     color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
+            print(self.fit.x, self.fit.y)
             fit = interpolate.interp1d(self.fit.x, self.fit.y, bounds_error=False, fill_value=1)
             try:
                 if sum(self.points) > 0:
@@ -583,8 +604,15 @@ class plotline():
                     ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k],
                             lw=self.parent.lw[k], zorder=10)
 
-            # >>> plot joint fit
-            ax.plot(self.fit.x, self.fit.y, color=col.tableau10[3], ls='-', lw=self.parent.lw_total, zorder=11)
+            if self.fit_disp is None:
+                # >>> plot joint fit
+                ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls='-', lw=self.parent.lw_total, zorder=11)
+            else:
+                # >>> plot fit dispersion
+                self.fit_disp[0].mask(self.x_min, self.x_max)
+                self.fit_disp[1].mask(self.x_min, self.x_max)
+                ax.fill_between(self.fit_disp[0].x, self.fit_disp[0].y, self.fit_disp[1].y, fc=self.parent.color_total, alpha=self.parent.disp_alpha, zorder=11)
+
 
             # >>> add residuals
             if self.add_residual and self.fit:

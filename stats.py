@@ -365,7 +365,7 @@ class distr2d():
             if isinstance(cmap, str):
                 cmap = getattr(cm, cmap)
             my_cmap = cmap(np.arange(cmap.N))
-            my_cmap[:,-1] = np.linspace(alpha, 1, cmap.N)
+            my_cmap[:,-1] = np.linspace(alpha*(0.6+0.4*alpha), 0.6+0.4*alpha, cmap.N)
             my_cmap = ListedColormap(my_cmap)
             cs = ax.contourf(self.X, self.Y, self.z / self.zmax, 100, cmap=my_cmap, zorder=zorder)
         if color is not None:

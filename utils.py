@@ -1,7 +1,7 @@
 from matplotlib import colors as mcolors
 import matplotlib.pyplot as plt
 
-def cmap_from_color(color, r=0, c='w', name='mycmap', bins=128):
+def cmap_from_color(color, r=0, c='w', alpha=1, name='mycmap', bins=128):
     """
     return cmap object for given color. Cmap is color --> c, d by default is white (1,1,1)
     parameters:

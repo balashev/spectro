@@ -1,21 +1,21 @@
-qso lum
-0.53 * 3.6 + 2 * 0.6
-0.53 * 3.6 + 2 * 0.6 + 6.66
-qso lum
-qso mass
-qso mass 4000
-qso mass 4000
-qso mass 3500
-show SiII*
-show H2 0 1
-high CIJ2
-high CIj2
-high CIj0
-show CIj0
-Show SiIIj1
-Show SiII*
-show SiII8
-show SiII*
+hide FeII
+hide FeIIj1
+show HeII
+aod
+aod
+aod
+aod
+aod
+aod
+aod
+show SiIIj1
+show SiII
 hide CI
-hide CIj1
-hide CIj2
+show CI
+show CIj1
+show CIj2
+high CIj1
+show H2 0 1
+show OI*
+show OI**
+OI**
