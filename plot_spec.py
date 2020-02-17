@@ -322,7 +322,7 @@ class plotline():
         self.show_comps = self.parent.show_comps
         self.sig = 2
 
-    def loaddata(self, d=None, f=None, fit_comp=None, fit_disp=None, verbose=False):
+    def loaddata(self, d=None, f=None, fit_comp=None, fit_disp=None, fit_comp_disp=None, verbose=False):
         self.spec = data()
         self.fit = data()
 
@@ -357,6 +357,17 @@ class plotline():
                 self.fit_disp[i].y = d[1]
         else:
             self.fit_disp = None
+
+        if fit_comp_disp is not None:
+            print(fit_comp_disp)
+            self.fit_comp_disp = ['']*len(fit_comp_disp)
+            for k in range(len(fit_comp_disp)):
+                self.fit_comp_disp[k] = [data(), data()]
+                for i, d in enumerate(fit_comp_disp[k]):
+                    self.fit_comp_disp[k][i].x = d[0]
+                    self.fit_comp_disp[k][i].y = d[1]
+        else:
+            self.fit_comp_disp = None
 
         if f is None:
             self.fit = None
@@ -446,22 +457,24 @@ class plotline():
             # >>> plot fit components
             if self.show_comps:
                 for k in range(self.num_comp):
-                    if self.vel_scale:
-                        self.fit_comp[k].x = (self.fit_comp[k].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
-                    self.fit_comp[k].mask(self.x_min, self.x_max)
-                    if 0:
-                        inds = np.where(self.fit_comp[k].y > 0.995)[0]
-                        ins = np.where(np.diff(inds) > 1)[0]
-                        for i in ins:
-                            print(i, inds[i], self.fit.x[inds[i]], self.fit.x[inds[i + 1]])
-                            ax.plot(self.fit_comp[k].x[inds[i]:inds[i + 1]], self.fit_comp[k].y[inds[i]:inds[i + 1]], color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k])
-                    else:
+                    if self.fit_disp is None:
+                        if self.vel_scale:
+                            self.fit_comp[k].x = (self.fit_comp[k].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
+                        self.fit_comp[k].mask(self.x_min, self.x_max)
                         ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
+                    else:
+                        if self.vel_scale:
+                            self.fit_comp_disp[k][0].x = (self.fit_comp_disp[k][0].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
+                            self.fit_comp_disp[k][1].x = (self.fit_comp_disp[k][1].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
+                        self.fit_comp_disp[k][0].mask(self.x_min, self.x_max)
+                        self.fit_comp_disp[k][1].mask(self.x_min, self.x_max)
+                        ax.fill_between(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, self.fit_comp_disp[k][1].y, fc=self.parent.color[k], alpha=self.parent.disp_alpha, zorder=11)
 
-            print(self.fit.x, self.fit.y)
+            # >>> plot joint fit
             if self.fit_disp is None:
-                # >>> plot joint fit
+                print(self.fit.x, self.fit.y)
                 ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls='-', lw=self.parent.lw_total, zorder=11)
+
             else:
                 # >>> plot fit dispersion
                 if self.vel_scale:
@@ -599,13 +612,20 @@ class plotline():
         if self.show_fit:
             # >>> plot fit components
             if self.show_comps:
-                for k in range(self.num_comp):
-                    self.fit_comp[k].mask(self.x_min, self.x_max)
-                    ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k],
-                            lw=self.parent.lw[k], zorder=10)
+                if self.fit_disp is None:
+                    for k in range(self.num_comp):
+                        self.fit_comp[k].mask(self.x_min, self.x_max)
+                        ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
+                else:
+                    if self.vel_scale:
+                        self.fit_comp_disp[k][0].x = (self.fit_comp_disp[k][0].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
+                        self.fit_comp_disp[k][1].x = (self.fit_comp_disp[k][1].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
+                    self.fit_comp_disp[k][0].mask(self.x_min, self.x_max)
+                    self.fit_comp_disp[k][1].mask(self.x_min, self.x_max)
+                    ax.fill_between(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, self.fit_comp_disp[k][1].y, fc=self.parent.color[k], alpha=self.parent.disp_alpha, zorder=11)
 
+            # >>> plot joint fit
             if self.fit_disp is None:
-                # >>> plot joint fit
                 ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls='-', lw=self.parent.lw_total, zorder=11)
             else:
                 # >>> plot fit dispersion

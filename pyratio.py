@@ -1988,26 +1988,53 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check SiII
-    if 1:
-        pr = pyratio(z=2.5, pumping='simple', radiation='simple') #, sed_type='AGN', agn={'filter': 'r', 'mag': 18})
+    if 0:
+        pr = pyratio(z=2.65, pumping='simple', radiation='simple', sed_type='QSO', agn={'filter': 'r', 'mag': 20.22})
         pr.set_pars(['T', 'n', 'f', 'rad'])
         pr.pars['T'].range = [1.5, 5]
         pr.set_prior('T', a(2.2, 0, 0))
-        pr.pars['rad'].range = [-3, 4]
-        pr.pars['n'].range = [1, 5]
+        pr.pars['rad'].range = [-2, 4]
+        pr.pars['n'].range = [1, 4]
         pr.pars['f'].range = [-6, 0]
         pr.set_fixed('f', -3)
         species = 'SiII'
         pr.add_spec(species)
         pr.pars['n'].value = 2.5
         pr.pars['rad'].value = np.log10(10)
-        if 1:
+        if 0:
             print('IR:', pr.balance(species, debug='IR'))
             print('UV:', pr.balance(species, debug='UV'))
             print('coll:', pr.balance(species, debug='C'))
             print(pr.predict())
         else:
-            out = pr.calc_grid(grid_num=10, plot=2, verbose=1, alpha=0.5, color='dodgerblue')
+            n = np.linspace(1, 8, 20)
+            if pr.sed_type == 'Draine':
+                rad = np.linspace(-4, 6, 20)
+            elif pr.sed_type in ['QSO', 'AGN']:
+                rad = np.linspace(-2, 2, 20)
+            X, Y = np.meshgrid(n, rad)
+            z = np.zeros_like(X)
+            for i, ni in enumerate(n):
+                pr.pars['n'].value = ni
+                for k, rk in enumerate(rad):
+                    if pr.sed_type == 'Draine':
+                        pr.pars['rad'].value = rk
+                    elif pr.sed_type in ['QSO', 'AGN']:
+                        pr.pars['rad'].value =  - 2 * rk
+                    pop = pr.predict()
+                    z[k, i] = pop[1]
+                    print(pop, z[k, i])
+
+            fig, ax = plt.subplots()
+            cs = ax.contourf(X, Y, z, levels=100)
+            cs1 = ax.contour(X, Y, z, levels=[-3, -2, -1, 0.0], linestyles='--', colors='k')
+            ax.clabel(cs1, cs1.levels[::2], inline=True, fmt='%3.1f', fontsize=12)
+            ax.set_xlabel('log n')
+            if pr.sed_type == 'Draine':
+                ax.set_ylabel('log UV')
+            elif pr.sed_type in ['QSO', 'AGN']:
+                ax.set_ylabel('log (r / kpc)')
+            plt.colorbar(cs)
             plt.show()
 
     # >>> check ionization parameter
@@ -2071,9 +2098,10 @@ if __name__ == '__main__':
 
 
     # >>> check radiation fields
-    if 0:
+    if 1:
         z, r, d = 2.8, 17.7, 150
-        pr = pyratio(z=z, pumping='simple', radiation='simple', sed_type='Draine', agn={'filter': 'r', 'mag': 17.7})
+        z, r, d = 2.65, 20.2, 10
+        pr = pyratio(z=z, pumping='simple', radiation='simple', sed_type='Draine', agn={'filter': 'r', 'mag': r})
         pr.set_pars(['T', 'rad'])
         e = np.logspace(-1, 5, 10000)
         fig = plt.figure(figsize=(10, 6))
@@ -2086,7 +2114,7 @@ if __name__ == '__main__':
 
         ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='CMB')), label='CMB, z={0:3.1f}'.format(z))
         ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='EBL')), label='EBL, z={0:3.1f}'.format(z))
-        ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='Draine') * 15), label='Draine x15')
+        ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='Draine') * 1000), label='Draine x1000')
         for sed, label in zip(['AGN', 'QSO', 'GRB'], ['AGN, r={0:4.1f}, z={1:3.1f}, d={2:d}kpc'.format(r, z, d), 'QSO, r={0:4.1f}, z={1:3.1f}, d={2:d}kpc'.format(r, z, d), 'GRB, d={0:d}kpc'.format(d)]):
             if sed not in ['GRB', 'QSO']:
                 pr.sed_type = sed
@@ -2098,14 +2126,23 @@ if __name__ == '__main__':
         ax.set_xlabel(r'log E [$\rm cm^{-1}$]')
         ax.legend()
 
+        if 1:
+            #with open("C:\Users\Serj\Downloads\Slack\J0015BCJ0015BC.con", 'r') as f:
+            #    f.readlines()
+            data = np.genfromtxt("C:/Users/Serj/Downloads/Slack/J0015BCJ0015BC.con", comments='#', usecols=(0, 1), unpack=True)
+            inds = np.where(np.diff(data[0]) > 0)[0]
+            inds = np.insert(inds, 0 , 0)
+            for s, e in zip(inds[:-1], inds[1:]):
+                ax.plot(np.log10(1e8 / data[0][s+1:e-1]), np.log10(data[1][s+1:e-1] * data[0][s+1:e-1] * 1e-8 / (ac.c.cgs.value ** 2)), '--k')
+
         if 0:
             qso = np.genfromtxt('C:/science/data/swire_library/QSO1_template_norm.sed', unpack=True)
-            ax.plot(np.log10(1e8 / qso[0]), np.log10(qso[1] * qso[0]**2 / ac.c.cgs.value / 1e8 / 1e10))
+            ax.plot(np.log10(1e8 / qso[0]), np.log10(qso[1] * qso[0]**2 / ac.c.cgs.value / 1e8 / 1e10), )
             print(qso[1] * qso[0]**2 / ac.c.cgs.value / 1e8 / 1e10)
         mpl.rcParams['hatch.linewidth'] = 5
 
         if add_lines:
-            species = 'OI'
+            species = 'SiII'
             pr.add_spec(species)
             inds = np.where(pr.species[species].A != 0)
             E = np.abs(pr.species[species].E[inds[0]] - pr.species[species].E[inds[1]])
@@ -2113,7 +2150,7 @@ if __name__ == '__main__':
                 ax2.scatter(np.log10(E), np.log10(pr.species[species].A[inds[0], inds[1]]))
                 ax2.set_ylabel(r'$\rm \log\,A_{ik}, s^{-1}$')
             else:
-                ax2.scatter(np.log10(E), np.log10(pr.species[species].B[inds[0], inds[1]] * pr.rad_field(E)))
+                ax2.scatter(np.log10(E), np.log10(pr.species[species].B[inds[0], inds[1]] * (pr.rad_field(E) * 10**d)))
                 ax2.set_ylabel(r'$\rm \log\,B_{ik} \rho(E_{ik}), s^{-1}$')
 
             ax2.set_xlim(ax.get_xlim())

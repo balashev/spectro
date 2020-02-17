@@ -1847,12 +1847,15 @@ class showLinesWidget(QWidget):
                 else:
                     fit = None
                     fit_comp = None
-                if self.show_disp and len(s.fit_disp[0].norm.x) > 0:
-                    fit_disp = [[s.fit_disp[0].norm.x, s.fit_disp[0].norm.y], [s.fit_disp[1].norm.x, s.fit_disp[1].norm.y]]
+                if self.show_disp and len(s.fit.disp[0].norm.x) > 0:
+                    fit_disp = [[s.fit.disp[0].norm.x, s.fit.disp[0].norm.y], [s.fit.disp[1].norm.x, s.fit.disp[1].norm.y]]
+                    fit_comp_disp = []
+                    for comp in s.fit_comp:
+                        fit_comp_disp.append([[comp.disp[0].norm.x, comp.disp[0].norm.y], [comp.disp[1].norm.x, comp.disp[1].norm.y]])
                 else:
-                    fit_disp = None
+                    fit_disp, fit_comp_disp = None, None
 
-                p.loaddata(d=np.array([s.spec.x(), s.spec.y()/cheb(s.spec.x()), s.spec.err()/cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp, fit_disp=fit_disp)
+                p.loaddata(d=np.array([s.spec.x(), s.spec.y()/cheb(s.spec.x()), s.spec.err()/cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp)
                 if len(self.parent.lines[self.ps.index(p)].split()) == 4:
                     p.y_min, p.y_max = (float(l) for l in self.parent.lines[self.ps.index(p)].split()[2:])
                 for l in self.parent.abs.lines:
@@ -1933,12 +1936,16 @@ class showLinesWidget(QWidget):
                 else:
                     fit = None
                     fit_comp = None
-                if self.show_disp and len(s.fit_disp[0].norm.x) > 0:
-                    fit_disp = [[s.fit_disp[0].norm.x, s.fit_disp[0].norm.y], [s.fit_disp[1].norm.x, s.fit_disp[1].norm.y]]
-                else:
-                    fit_disp = None
 
-                p.loaddata(d=np.array([s.spec.x(), s.spec.y()/cheb(s.spec.x()), s.spec.err()/cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp, fit_disp=fit_disp)
+                if self.show_disp and len(s.fit.disp[0].norm.x) > 0:
+                    fit_disp = [[s.fit.disp[0].norm.x, s.fit.disp[0].norm.y], [s.fit.disp[1].norm.x, s.fit.disp[1].norm.y]]
+                    fit_comp_disp = []
+                    for comp in s.fit_comp:
+                        fit_comp_disp.append([[comp.disp[0].norm.x, comp.disp[0].norm.y], [comp.disp[1].norm.x, comp.disp[1].norm.y]])
+                else:
+                    fit_disp, fit_comp_disp = None, None
+
+                p.loaddata(d=np.array([s.spec.x(), s.spec.y()/cheb(s.spec.x()), s.spec.err()/cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp)
                 p.show_comps = self.show_comps
                 p.name_pos = [self.name_x_pos, self.name_y_pos]
                 p.add_residual, p.sig = self.residuals, self.res_sigma
@@ -2560,7 +2567,7 @@ class fitMCMCWidget(QWidget):
             if np.sum(mask) > 0:
                 self.showMC(mask=mask, pars=pars, samples=samples, lnprobs=lnprobs)
 
-    def showMC(self, mask=None, pars=None, samples=None, lnprobs=None):
+    def showMC(self, signal, mask=None, pars=None, samples=None, lnprobs=None):
 
         if any([pars is None, samples is None, lnprobs is None]):
             pars, samples, lnprobs = self.readChain()
@@ -2861,10 +2868,21 @@ class fitMCMCWidget(QWidget):
     def fit_disp(self):
         self.show_bestfit()
         self.parent.s.calcFit(recalc=True)
-        fit, fit_disp = [], []
-        for s in self.parent.s:
-            fit.append(deepcopy(s.fit.norm))
-            fit_disp.append(s.fit.norm.y)
+        self.parent.s.calcFitComps(recalc=True)
+        fit, fit_disp, fit_comp, fit_comp_disp = [], [], [], []
+        for i, s in enumerate(self.parent.s):
+            fit.append(deepcopy(s.fit.line.norm))
+            fit_disp.append(s.fit.line.norm.y)
+            fit_comp.append([])
+            fit_comp_disp.append([])
+            for k, sys in enumerate(self.parent.fit.sys):
+                fit_comp[i].append(self.parent.s[i].fit_comp[k].line.norm.x[:])
+                fit_comp_disp[i].append(s.fit_comp[k].line.norm.y)
+                print(i, k, self.parent.s[i].fit_comp[k].line.norm.x[0], fit_comp[i][k][0], fit_comp[i][k][-1])
+
+        for i, s in enumerate(self.parent.s):
+            for k, sys in enumerate(self.parent.fit.sys):
+                print(i, k, self.parent.s[i].fit_comp[k].line.norm.x[0], fit_comp[i][k][0], fit_comp[i][k][-1])
 
         burnin = int(self.parent.options('MCMC_burnin'))
         pars, samples, lnprobs = self.readChain()
@@ -2875,15 +2893,22 @@ class fitMCMCWidget(QWidget):
                 self.parent.fit.setValue(p, t)
             self.parent.s.prepareFit()
             self.parent.s.calcFit(recalc=True, redraw=False)
-            for i, s in enumerate(self.parent.s):
-                fit_disp[i] = np.c_[fit_disp[i], s.fit.norm.inter(fit[i].x)]
+            self.parent.s.calcFitComps(recalc=True)
 
-        #print(np.asarray(fit_disp[0])[100, :])
+            for i, s in enumerate(self.parent.s):
+                fit_disp[i] = np.c_[fit_disp[i], s.fit.line.norm.inter(fit[i].x)]
+                for k, sys in enumerate(self.parent.fit.sys):
+                    fit_comp_disp[i][k] = np.c_[fit_comp_disp[i][k], s.fit_comp[k].line.norm.inter(fit_comp[i][k])]
 
         for i, s in enumerate(self.parent.s):
             fit_disp[i] = np.sort(fit_disp[i])
-            self.parent.s[i].fit_disp[0].set(x=fit[i].x, y=fit_disp[i][:, int((1-0.683)/2*num)])
-            self.parent.s[i].fit_disp[1].set(x=fit[i].x, y=fit_disp[i][:, num-int((1-0.683)/2*num)])
+            self.parent.s[i].fit.disp[0].set(x=fit[i].x, y=fit_disp[i][:, int((1-0.683)/2*num)])
+            self.parent.s[i].fit.disp[1].set(x=fit[i].x, y=fit_disp[i][:, num-int((1-0.683)/2*num)])
+            for k, sys in enumerate(self.parent.fit.sys):
+                print(i, k, fit_comp[i][k][0], fit_comp[i][k][-1])
+                fit_comp_disp[i][k] = np.sort(fit_comp_disp[i][k])
+                self.parent.s[i].fit_comp[k].disp[0].set(x=fit_comp[i][k], y=fit_comp_disp[i][k][:, int((1 - 0.683) / 2 * num)])
+                self.parent.s[i].fit_comp[k].disp[1].set(x=fit_comp[i][k], y=fit_comp_disp[i][k][:, num - int((1 - 0.683) / 2 * num)])
 
         print("disp done")
 

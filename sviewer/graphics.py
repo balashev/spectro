@@ -190,7 +190,7 @@ class Speclist(list):
                         s.calcFit_fast(ind=sys.ind, recalc=recalc, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit)
 
                     elif self.parent.fitType == 'julia':
-                        s.calcFit_julia(ind=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit)
+                        s.calcFit_julia(ind=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit, timer=False)
 
     def reCalcFit(self, ind):
         self.prepareFit(ind=-1)
@@ -541,7 +541,6 @@ class specline():
         self.current().interpolate()
 
     def normalize(self, norm=True, cont_mask=True, inter=False, action='normalize'):
-
         if cont_mask:
             if norm:
                 self.norm.x = self.raw.x[self.parent.cont_mask]
@@ -608,6 +607,38 @@ class specline():
 
     def inter(self, x):
         return self.current().inter(x)
+
+class fitline():
+    def __init__(self, parent):
+        self.parent = parent
+        self.line = specline(parent)
+        self.disp = [specline(parent), specline(parent)]
+        self.g_disp = [None]*3
+
+    def interpolate(self):
+        self.line.current().interpolate()
+        self.disp[0].current().interpolate()
+        self.disp[1].current().interpolate()
+
+    def normalize(self):
+        self.line.normalize()
+        self.disp[0].normalize()
+        self.disp[1].normalize()
+
+    def n(self):
+        return self.line.n()
+
+    def x(self):
+        return self.line.x()
+
+    def y(self):
+        return self.line.y()
+
+    def err(self):
+        return self.line.err()
+
+    def f(self):
+        return self.line.f()
 
 class image():
     """
@@ -1154,9 +1185,7 @@ class Spectrum():
         #self.norm = gline()
         self.sm = specline(self)
         self.rebin = None
-        self.fit = specline(self)
-        self.fit_disp = [specline(self), specline(self)]
-        self.g_fit_disp = ["", '', '']
+        self.fit = fitline(self)
         self.fit_comp = []
         self.cheb = specline(self)
         self.res = gline()
@@ -1178,8 +1207,7 @@ class Spectrum():
         self.err_pen = pg.mkPen(70, 130, 180)
         self.cont_pen = pg.mkPen(168, 66, 195, width=3)
         self.fit_pen = pg.mkPen(255, 69, 0, width=4)
-        self.fit_disp_pen = pg.mkPen(232, 178,  0, width=2)
-        self.fit_disp_brush = pg.mkBrush(255, 204, 35, 100)
+        self.fit_disp_pen = pg.mkPen(255, 204, 35, width=2)
         self.fit_comp_pen = pg.mkPen(255, 215, 63, width=1.0)
         self.spline_brush = pg.mkBrush(0, 191, 255, 255) # pg.mkBrush(117, 218, 50, 255)
 
@@ -1465,7 +1493,7 @@ class Spectrum():
         self.set_res()
 
     def update_fit(self):
-        if len(self.fit.norm.x) > 0 and self.cont.n > 0 and self.active():
+        if len(self.fit.line.norm.x) > 0 and self.cont.n > 0 and self.active():
             self.set_gfit()
             self.set_res()
             if self.parent.fit.cont_fit:
@@ -1474,35 +1502,43 @@ class Spectrum():
 
     def set_fit(self, x, y):
         if self.cont.n > 0: # and self.active():
-            self.fit.norm.set_data(x=x, y=y)
-            self.fit.norm.interpolate(fill_value=1)
+            self.fit.line.norm.set_data(x=x, y=y)
+            self.fit.line.norm.interpolate(fill_value=1)
             if not self.parent.normview:
-                self.fit.normalize(norm=False, cont_mask=False, inter=True)
-                self.fit.raw.interpolate()
+                self.fit.line.normalize(norm=False, cont_mask=False, inter=True)
+                self.fit.line.raw.interpolate()
 
     def set_gfit(self):
-        if len(self.fit.norm.x) > 0 and self.cont.n > 0 and self.active():
-            self.g_fit.setData(self.fit.x(), self.fit.y())
+        if len(self.fit.line.norm.x) > 0 and self.cont.n > 0 and self.active():
+            self.g_fit.setData(self.fit.line.x(), self.fit.line.y())
 
     def set_fit_disp(self, show=True):
         if show:
-            if self.parent.normview and len(self.fit_disp[0].norm.x) > 0:
+            for i in [0, 1]:
+                self.fit.g_disp[i] = pg.PlotCurveItem(x=self.fit.disp[i].norm.x, y=self.fit.disp[i].norm.y, pen=self.fit_disp_pen)
+                self.parent.vb.addItem(self.fit.g_disp[i])
+            self.fit.g_disp[2] = pg.FillBetweenItem(self.fit.g_disp[0], self.fit.g_disp[1], brush=pg.mkBrush(tuple(list(self.fit_disp_pen.color().getRgb()[:3]) + [200])))
+            self.parent.vb.addItem(self.fit.g_disp[2])
+            for k in range(len(self.fit_comp)):
                 for i in [0, 1]:
-                    self.g_fit_disp[i] = pg.PlotCurveItem(x=self.fit_disp[i].norm.x, y=self.fit_disp[i].norm.y, pen=self.fit_disp_pen)
-                    self.parent.vb.addItem(self.g_fit_disp[i])
-                self.g_fit_disp[2] = pg.FillBetweenItem(self.g_fit_disp[0], self.g_fit_disp[1], brush=self.fit_disp_brush)
-                self.parent.vb.addItem(self.g_fit_disp[2])
+                    self.fit_comp[k].g_disp[i] = pg.PlotCurveItem(x=self.fit_comp[k].disp[i].norm.x, y=self.fit_comp[k].disp[i].norm.y, pen=pg.mkPen(tuple(list(self.g_fit_comp[k].opts['pen'].color().getRgb()[:3]) + [100])))
+                    self.parent.vb.addItem(self.fit_comp[k].g_disp[i])
+                self.fit_comp[k].g_disp[2] = pg.FillBetweenItem(self.fit_comp[k].g_disp[0], self.fit_comp[k].g_disp[1], brush=pg.mkBrush(tuple(list(self.g_fit_comp[k].opts['pen'].color().getRgb()[:3]) + [50])))
+                self.parent.vb.addItem(self.fit_comp[k].g_disp[2])
         else:
             try:
                 for i in [0, 1, 2]:
-                    self.parent.vb.removeItem(self.g_fit_disp[i])
+                    self.parent.vb.removeItem(self.fit.g_disp[i])
+                    for k in range(len(self.fit_comp)):
+                        self.parent.vb.removeItem(self.fit_comp[k].g_disp[i])
             except:
                 pass
 
     def construct_fit_comps(self):
+        self.set_fit_disp(show=False)
         self.fit_comp = []
         for sys in self.parent.fit.sys:
-            self.fit_comp.append(specline(self))
+            self.fit_comp.append(fitline(self))
         if self.active():
             self.remove_g_fit_comps()
             self.construct_g_fit_comps()
@@ -1510,13 +1546,13 @@ class Spectrum():
     def set_fit_comp(self, x, y, ind=-1):
         for i in range(len(self.fit_comp)):
             if ind == i or ind == -1:
-                self.fit_comp[i].norm.set_data(x=x, y=y)
+                self.fit_comp[i].line.norm.set_data(x=x, y=y)
                 if not self.parent.normview:
                     self.fit_comp[i].normalize(norm=False, cont_mask=False, inter=True)
                 if self.active():
                     if self.parent.comp_view == 'one' and self.parent.comp == i or self.parent.comp_view == 'all':
                         ind = i if self.parent.comp_view == 'all' else 0
-                        self.g_fit_comp[ind].setData(x=self.fit_comp[i].x(), y=self.fit_comp[i].y())
+                        self.g_fit_comp[ind].setData(x=self.fit_comp[i].line.x(), y=self.fit_comp[i].line.y())
 
     def construct_g_fit_comps(self):
         if self.active():
@@ -1526,7 +1562,7 @@ class Spectrum():
                     style = Qt.DashLine if self.parent.comp_view == 'all' and self.parent.comp != i else Qt.SolidLine
                     color = pg.mkPen(50, 115, 235, width=1.0) if self.parent.comp_view == 'all' and self.parent.comp != i else self.fit_comp_pen.color()
                     pen = color = pg.mkPen(50, 115, 235, width=1.0) if self.parent.comp_view == 'all' and self.parent.comp != i else self.fit_comp_pen
-                    self.g_fit_comp.append(pg.PlotCurveItem(x=c.x(), y=c.y(), pen=pen)) #pg.mkPen(color=color, style=style)))
+                    self.g_fit_comp.append(pg.PlotCurveItem(x=c.line.x(), y=c.line.y(), pen=pen)) #pg.mkPen(color=color, style=style)))
                     self.g_fit_comp[-1].setZValue(6)
                     self.parent.vb.addItem(self.g_fit_comp[-1])
 
@@ -1556,9 +1592,9 @@ class Spectrum():
             self.g_cheb.setData(x=self.cheb.x(), y=self.cheb.y())
 
     def set_res(self):
-        if 1 and hasattr(self.parent, 'residualsPanel') and self.parent.s.ind < len(self.parent.s) and self.active() and len(self.fit.x()) > 0:
+        if 1 and hasattr(self.parent, 'residualsPanel') and self.parent.s.ind < len(self.parent.s) and self.active() and len(self.fit.line.x()) > 0:
             self.res.x = self.spec.x()[self.fit_mask.x()]
-            self.res.y = (self.spec.y()[self.fit_mask.x()] - self.fit.f(self.spec.x()[self.fit_mask.x()])) / self.spec.err()[self.fit_mask.x()]
+            self.res.y = (self.spec.y()[self.fit_mask.x()] - self.fit.line.f(self.spec.x()[self.fit_mask.x()])) / self.spec.err()[self.fit_mask.x()]
             self.residuals.setData(x=self.res.x, y=self.res.y)
             if len(self.res.y) > 1 and not np.isnan(np.sum(self.res.y)) and not np.isinf(np.sum(self.res.y)):
                 kde = gaussian_kde(self.res.y)
@@ -1719,21 +1755,14 @@ class Spectrum():
         if len(self.fit_comp) > 0:
             for comp in self.fit_comp:
                 comp.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
-        if self.fit.norm.n > 0:
+        if self.fit.line.norm.n > 0:
             self.fit.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
             if not self.parent.normview:
-                self.fit.raw.interpolate()
+                self.fit.line.raw.interpolate()
 
         self.mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
         self.bad_mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
         self.set_fit_mask()
-
-        #if self.fit.norm.n > 0 and not self.parent.normview or self.parent.aodview:
-        #    self.fit.normalize(self.parent.normview, cont_mask=False, inter=True, action=action)
-        #    self.fit.raw.interpolate()
-
-        # self.set_fit_mask()
-        # self.rewrite_mask()
 
     def calcCont(self, method='SG', xl=None, xr=None, iter=5, window=201, clip=2.5, sg_order=5, filter='flat', new=True, cont=False, sign=1):
         if self.spec.raw.n > 0:
@@ -2084,7 +2113,7 @@ class Spectrum():
                             mask_glob = np.logical_or(mask_glob, ((x_spec > line.tau.range[0]) * (x_spec < line.tau.range[-1])))
                     x = makegrid(x_spec, mask_glob.astype(int) * num_between)
                 else:
-                    x = self.fit.norm.x
+                    x = self.fit.line.norm.x
             else:
                 x = self.spec.norm.x
             if timer:
@@ -2174,15 +2203,15 @@ class Spectrum():
 
     def chi(self):
         mask = self.fit_mask.x()
-        if len(self.spec.x()) > 0 and np.sum(mask) > 0 and self.fit.n() > 0:
-            return ((self.spec.y()[mask] - self.fit.f(self.spec.x()[mask])) / self.spec.err()[mask])
+        if len(self.spec.x()) > 0 and np.sum(mask) > 0 and self.fit.line.n() > 0:
+            return ((self.spec.y()[mask] - self.fit.line.f(self.spec.x()[mask])) / self.spec.err()[mask])
         else:
             return np.asarray([])
 
     def chi2(self):
         mask = self.fit_mask.norm.x
         spec = self.spec.norm
-        chi2 = np.sum(np.power(((spec.y[mask] - self.fit.norm.f(spec.x[mask])) / spec.err[mask]), 2))
+        chi2 = np.sum(np.power(((spec.y[mask] - self.fit.line.norm.f(spec.x[mask])) / spec.err[mask]), 2))
         return chi2
 
     def selectCosmics(self):
@@ -2307,9 +2336,9 @@ class Spectrum():
         if len(self.cont.x) > 0:
             print('shift cont')
             self.cont.x *= factor
-        if len(self.fit.raw.x) > 0:
+        if len(self.fit.line.raw.x) > 0:
             print('shift fit')
-            self.fit.raw.x *= factor
+            self.fit.line.raw.x *= factor
         print('Converted to Heliocentric velocities, helio_vel:', vel)
 
     def airvac(self):
