@@ -2508,12 +2508,12 @@ class fitMCMCWidget(QWidget):
 
             if self.parent.options('fitType') == 'julia':
 
-                backend.reset(nwalkers, np.sum([p.vary for p in self.parent.julia_pars]))
+                backend.reset(nwalkers, np.sum([p.vary for p in self.parent.julia_pars.values()]))
 
                 self.julia = julia.Julia()
                 self.julia.include("MCMC.jl")
                 t = Timer("Julia MCMC")
-                chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.julia_pars, nwalkers=nwalkers, nsteps=nsteps, nthreads=nthreads, init=np.transpose(init))
+                chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), nwalkers=nwalkers, nsteps=nsteps, nthreads=nthreads, init=np.transpose(init))
 
                 backend.grow(nsteps, None)
                 with backend.open("a") as f:
@@ -7552,9 +7552,9 @@ class sviewer(QMainWindow):
         self.reload_julia()
 
         self.s.prepareFit(all=False)
-        self.julia_pars = self.julia.make_pars(self.fit.list())
+        #self.julia_pars = self.julia.make_pars(self.fit.list())
         self.julia_spec = self.julia.prepare(self.s, self.julia_pars)
-        dof, res, unc = self.julia.fitLM(self.julia_spec, self.julia_pars)
+        dof, res, unc = self.julia.fitLM(self.julia_spec, self.fit.list())
         print(dof, res, unc)
         s = self.fit.fromJulia(res, unc)
         self.showFit(all=False)

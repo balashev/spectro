@@ -620,10 +620,10 @@ class fitline():
         self.disp[0].current().interpolate()
         self.disp[1].current().interpolate()
 
-    def normalize(self):
-        self.line.normalize()
-        self.disp[0].normalize()
-        self.disp[1].normalize()
+    def normalize(self, *args, **kwargs):
+        self.line.normalize(*args, **kwargs)
+        self.disp[0].normalize(*args, **kwargs)
+        self.disp[1].normalize(*args, **kwargs)
 
     def n(self):
         return self.line.n()

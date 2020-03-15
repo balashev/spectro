@@ -279,7 +279,7 @@ class distr2d():
         return: level
             - level          :  pdf value above pdf contains conf level of probability
         """
-        x, y = np.linspace(self.x[0], self.x[-1], 300), np.linspace(self.y[0], self.y[-1], 300)
+        x, y = np.linspace(np.min(self.x), np.max(self.x), 300), np.linspace(np.min(self.y), np.max(self.y), 300)
         z = self.inter(x, y)
         if 1:
             res = optimize.bisect(self.func, 0, self.zmax, args=(conf, x, y, z), xtol=self.xtol, disp=self.debug)

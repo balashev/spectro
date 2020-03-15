@@ -23,11 +23,12 @@ println("procs: ", nprocs())
 @everywhere using SpecialFunctions
 @everywhere include("profiles.jl")
 
-function fitMCMC(spec, pars; nwalkers=100, nsteps=1000, nthreads=1, init=nothing)
+function fitMCMC(spec, par; nwalkers=100, nsteps=1000, nthreads=1, init=nothing)
 
     #COUNTERS["num"] = nwalkers
 
-    params = [p.val for p in pars if p.vary == 1]
+    pars = make_pars(par)
+    params = [p.val for (k, p) in pars if p.vary == 1]
 
     numdims = size(params)[1]
     thinning = 10
@@ -46,16 +47,16 @@ function fitMCMC(spec, pars; nwalkers=100, nsteps=1000, nthreads=1, init=nothing
 
     lnlike = p->begin
         #println(p)
-        k = 1
-        for i in 1:size(pars)[1]
-            if pars[i].vary == 1
-                if p[k] < pars[i].min
-                    p[k] = pars[i].min
-                elseif p[k] > pars[i].max
-                    p[k] = pars[i].max
+        i = 1
+        for (k, v) in pars
+            if v.vary == 1
+                if p[i] < v.min
+                    p[i] = v.min
+                elseif p[i] > v.max
+                    p[i] = v.max
                 end
-                pars[i].val = p[k]
-                k += 1
+                pars[k].val = p[i]
+                i += 1
             end
         end
 
@@ -66,7 +67,7 @@ function fitMCMC(spec, pars; nwalkers=100, nsteps=1000, nthreads=1, init=nothing
         return retval
     end
 
-    bounds = hcat([p.min for p in pars if p.vary], [p.max for p in pars if p.vary])
+    bounds = hcat([p.min for (k, p) in pars if p.vary], [p.max for (k, p) in pars if p.vary])
     chain, llhoodvals = sample(lnlike, nwalkers, init, nsteps, 1, bounds)
 
 end

@@ -1,7 +1,7 @@
 using AffineInvariantMCMC
 using DataFitting
 using LsqFit
-using OrderedCollections
+using DataStructures
 using SpecialFunctions
 
 
@@ -60,12 +60,14 @@ mutable struct par
 end
 
 function make_pars(p_pars)
-    pars = Vector{par}(undef, length(collect(keys(p_pars))))
-    i = 1
+    pars = OrderedDict{String, par}()
     for p in p_pars
-        pars[i] = par(p.__str__(), p.val, p.min, p.max, p.step, p.fit * p.vary, p.addinfo)
-        i += 1
+        pars[p.__str__()] = par(p.__str__(), p.val, p.min, p.max, p.step, p.fit * p.vary, p.addinfo)
+        if occursin("cf", p.__str__())
+            pars[p.__str__()].min, pars[p.__str__()].max = 0, 1
+        end
     end
+    println(pars)
     return pars
 end
 
@@ -85,17 +87,15 @@ mutable struct line
     a::Float64
     ld::Float64
     dx::Float64
-    b_ind::Int64
-    N_ind::Int64
-    z_ind::Int64
+    cf::Int64
 end
 
 function update_lines(lines, pars; ind=0)
     mask = Vector{Bool}(undef, 0)
     for line in lines
-        line.b = pars[line.b_ind].val
-        line.logN = pars[line.N_ind].val
-        line.z = pars[line.z_ind].val
+        line.b = pars["b_" * string(line.sys) * "_" * line.name].val
+        line.logN = pars["N_" * string(line.sys) * "_" * line.name].val
+        line.z = pars["z_" * string(line.sys)].val
         line.l = line.lam * (1 + line.z)
         line.tau0 = sqrt(π) * 0.008447972556327578 * (line.lam * 1e-8) * line.f * 10 ^ line.logN / (line.b * 1e5)
         line.a = line.g / 4 / π / line.b / 1e5 * line.lam * 1e-8
@@ -105,45 +105,10 @@ function update_lines(lines, pars; ind=0)
     return mask
 end
 
-function get_b_index(name, pars)::Int64
-    for (i, p) in enumerate(pars)
-        if name == p.name
-            if p.addinfo == ""
-                return i
-            else
-                return get_b_index(rsplit(name, "_", limit=2)[1] * "_" * p.addinfo, pars)
-            end
-        end
-    end
-end
-
-function get_N_index(name, pars)::Int64
-    for (i, p) in enumerate(pars)
-        if name == p.name
-            if p.addinfo == ""
-                return i
-            else
-                return i
-            end
-        end
-    end
-end
-
-function get_z_index(name, pars)::Int64
-    for (i, p) in enumerate(pars)
-        if name == p.name
-            return i
-        end
-    end
-end
-
 function prepare_lines(lines, pars)
     fit_lines = Vector{line}(undef, size(lines)[1])
     for (i, l) in enumerate(lines)
-        fit_lines[i] = line(l.name, l.sys, l.l(), l.f(), l.g(), l.b, l.logN, l.z, l.l()*(1+l.z), 0, 0, 0, 0, 0, 0, 0)
-        fit_lines[i].b_ind = get_b_index("b_" * string(fit_lines[i].sys) * "_" * fit_lines[i].name, pars)
-        fit_lines[i].N_ind = get_N_index("N_" * string(fit_lines[i].sys) * "_" * fit_lines[i].name, pars)
-        fit_lines[i].z_ind = get_z_index("z_" * string(fit_lines[i].sys), pars)
+        fit_lines[i] = line(l.name, l.sys, l.l(), l.f(), l.g(), l.b, l.logN, l.z, l.l()*(1+l.z), 0, 0, 0, 0, l.cf)
     end
     return fit_lines
 end
@@ -202,16 +167,14 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
     x_grid[spec.mask] = zeros(sum(spec.mask))
     for line in spec.lines[line_mask]
         i_min, i_max = binsearch(spec.x, line.l * (1 - 4 * x_instr), type="min"), binsearch(spec.x, line.l * (1 + 4 * x_instr), type="max")
-        if i_max - i_min > 1 && i_min > 0
+        if i_max - i_min > 1 && i_min > 1
             for i in i_min:i_max
-                ###### PROBLEMS HERE ############
                 x_grid[i] = max(x_grid[i], round(Int, (spec.x[i] - spec.x[i-1]) / line.l / x_instr * 5))
-                ###### PROBLEMS HERE ############
             end
         end
         line.dx = sqrt(max(-log10(0.001 / line.tau0), line.tau0 / 0.001 * line.a / sqrt(π))) * 1.5
         i_min, i_max = binsearch(spec.x, line.l - line.dx * line.ld, type="min"), binsearch(spec.x, line.l + line.dx * line.ld, type="max")
-        if i_max - i_min > 1 && i_min > 0
+        if i_max - i_min > 1 && i_min > 1
             for i in i_min:i_max
                 x_grid[i] = max(x_grid[i], round(Int, (spec.x[i] - spec.x[i-1]) / line.ld * 3) + 1)
             end
@@ -252,15 +215,40 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
                 end
             end
         end
-        #splice!(x, k, spec.x[end])
     end
 
-    y = ones(size(x))
-
-    for line in spec.lines[line_mask]
-        i_min, i_max = binsearch(x, line.l - line.dx * line.ld, type="min"), binsearch(x, line.l + line.dx * line.ld, type="max")
-        #println(i_min, " ", i_max)
-        @. @views y[i_min:i_max] = y[i_min:i_max] .* exp.(-1 .* line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x[i_min:i_max] .- line.l) ./ line.ld)))
+    if ~any([occursin("cf", p.first) for p in pars])
+        y = ones(size(x))
+        for line in spec.lines[line_mask]
+            i_min, i_max = binsearch(x, line.l - line.dx * line.ld, type="min"), binsearch(x, line.l + line.dx * line.ld, type="max")
+            @. @views y[i_min:i_max] = y[i_min:i_max] .* exp.(-1 .* line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x[i_min:i_max] .- line.l) ./ line.ld)))
+        end
+    else
+        y = zeros(size(x))
+        cfs, inds = [], []
+        for (i, line) in enumerate(spec.lines[line_mask])
+            append!(cfs, line.cf)
+            append!(inds, i)
+        end
+        #println(cfs, inds)
+        for l in unique(cfs)
+            if l > -1
+                cf = pars["cf_" * string(l)].val
+            else
+                cf = 1
+            end
+            #println(l, " ", cf)
+            profile = zeros(size(x))
+            for (i, c) in zip(inds, cfs)
+                if c == l
+                    line = spec.lines[line_mask][i]
+                    i_min, i_max = binsearch(x, line.l - line.dx * line.ld, type="min"), binsearch(x, line.l + line.dx * line.ld, type="max")
+                    @. @views profile[i_min:i_max] -= line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x[i_min:i_max] .- line.l) ./ line.ld))
+                end
+            end
+            y += log.(exp.(profile) .* cf .+ (1 .- cf))
+        end
+        y = exp.(y)
     end
 
     if spec.resolution != 0
@@ -295,31 +283,36 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
 end
 
 
-function fitLM(spec, pars)
+function fitLM(spec, p_pars)
 
     function lnlike(x, p)
         #println("lnlike: ", p)
-        k = 1
-        for i in 1:size(pars)[1]
-            if pars[i].vary == 1
-                pars[i].val = p[k]
-                k += 1
+        i = 1
+        for (k, v) in pars
+            if v.vary == 1
+                #println(k, " ", v, " ", p[i])
+                pars[k].val = p[i]
+                i += 1
             end
         end
+        println("chi2 ", sum((calc_spectrum(spec[1], pars, out="init") .- y).^2 .* w))
         calc_spectrum(spec[1], pars, out="init")
     end
+
+    pars = make_pars(p_pars)
 
     x = spec[1].x[spec[1].mask]
     y = spec[1].y[spec[1].mask]
     w = 1 ./ spec[1].unc[spec[1].mask] .^ 2
 
-    params = [p.val for p in pars if p.vary == true]
-    lower = [p.min for p in pars if p.vary == true]
-    upper = [p.max for p in pars if p.vary == true]
+    println("fitLM ", pars)
+    params = [p.val for (k, p) in pars if p.vary == true]
+    lower = [p.min for (k, p) in pars if p.vary == true]
+    upper = [p.max for (k, p) in pars if p.vary == true]
 
     println(params, " ", lower, " ", upper)
 
-    fit = curve_fit(lnlike, x, y, w, params; lower=lower, upper=upper)
+    fit = curve_fit(lnlike, x, y, w, params; maxIter=100, lower=lower, upper=upper, show_trace=true)
     sigma = stderror(fit)
     covar = estimate_covar(fit)
 

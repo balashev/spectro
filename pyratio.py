@@ -21,6 +21,7 @@ import os, sys
 sys.path.append('C:/Science/python')
 from spectro import colors as col
 from spectro.a_unc import a
+from spectro.profiles import tau, voigt
 from spectro.stats import distr1d, distr2d
 from spectro.sviewer.utils import printProgressBar, Timer, flux_to_mag
 
@@ -174,9 +175,9 @@ class speci:
                                     #self.g = np.append(self.g, d[1])
                                     A[int(d[2])-1] = d[3]
                             self.A = np.append(self.A, [A], axis=0)
+
                         #print(self.E)
                         #print(self.g)
-                        #print(self.A)
 
                     if f == 7:
                         n_coll = int(f_in.readline()) 
@@ -383,7 +384,7 @@ class speci:
         with open(file) as f_in:
             while True:
                 line = f_in.readline()
-                if  '!NUMBER OF ENERGY LEVELS' in line:
+                if '!NUMBER OF ENERGY LEVELS' in line:
                     num = int(f_in.readline())
                     self.E = np.zeros(num)
                     self.g = np.zeros(num)
@@ -394,7 +395,7 @@ class speci:
                         self.E[int(dic['J'])] = float(dic['ENERGIES'])
                         self.g[int(dic['J'])] = float(dic['WEIGHT'])
 
-                if  '!NUMBER OF RADIATIVE TRANSITIONS' in line:
+                if '!NUMBER OF RADIATIVE TRANSITIONS' in line:
                     num = int(f_in.readline())
                     self.A = np.zeros([num+1, num+1])
                     self.B = np.zeros([num+1, num+1])
@@ -438,9 +439,9 @@ class speci:
         self.B = np.zeros([self.fullnum, self.fullnum])
         for i in range(self.A.shape[0]):
             for j in range(self.A.shape[1]):
-                if self.A[i,j] != 0:
-                    self.B[i,j] = self.A[i,j]*(self.E[i]-self.E[j])**(-3)/8/np.pi/ac.h.cgs.value
-                    self.B[j,i] = self.B[i,j]*self.g[i]/self.g[j]
+                if self.A[i, j] != 0:
+                    self.B[i ,j] = self.A[i, j] * (self.E[i] - self.E[j]) ** (-3) / 8 / np.pi / ac.h.cgs.value
+                    self.B[j, i] = self.B[i, j] * self.g[i] / self.g[j]
 
         self.Bij = self.B[:self.num, :self.num]
 
@@ -858,7 +859,7 @@ class pyratio():
             fil = interpolate.interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
             scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux[mask], x[mask] * (1 + self.z), b[self.agn_pars['filter']], fil, self.agn_pars['mag']))
             print(scale, flux_to_mag(flux * scale, x * (1 + self.z), self.agn_pars['filter']), self.agn_pars['mag'])
-            self.qso = interpolate.interp1d(1e8 / x, scale * flux * (self.DL / ac.kpc.cgs.value) ** 2 * x ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=False, fill_value=0)
+            self.qso = interpolate.interp1d(1e8 / x, scale * flux * (self.DL / ac.kpc.cgs.value) ** 2 * x ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=0, fill_value=0)
 
         if 'AGN' in self.sed_type:
             b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
@@ -869,7 +870,7 @@ class pyratio():
                 mask = (data[0] * (1 + self.z) > fil[0][0]) * (data[0] * (1 + self.z) < fil[0][-1])
                 scale = 10 ** bisect(self.flux_to_mag_solve, -25, 25, args=(data[1][mask], data[0][mask] * (1 + self.z), b[self.agn_pars['filter']], filter, self.agn_pars['mag']))
                 print(scale)
-                self.agn = interpolate.interp1d(1e8 / data[0], scale * data[1] * (self.DL / ac.kpc.cgs.value) ** 2 * data[0] ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=False, fill_value='extrapolate')
+                self.agn = interpolate.interp1d(1e8 / data[0], scale * data[1] * (self.DL / ac.kpc.cgs.value) ** 2 * data[0] ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=0, fill_value=0)
 
             else:
                 data = np.genfromtxt(self.folder + '/data/pyratio/Richards2006.dat', unpack=True, comments='#')
@@ -878,7 +879,7 @@ class pyratio():
                 flux = 10 ** data[1][mask] / 4 / np.pi / self.DL ** 2 / x[mask] * (1 + self.z)
                 scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux, x[mask] * (1 + self.z), b[self.agn_pars['filter']], filter, self.agn_pars['mag']))
                 print(scale, flux_to_mag(flux * scale, x[mask] * (1 + self.z), self.agn_pars['filter']), self.agn_pars['mag'])
-                self.agn = interpolate.interp1d(10 ** data[0] / ac.c.cgs.value, scale * 10 ** data[1] / 4 / np.pi / (ac.kpc.cgs.value) ** 2 / 10 ** data[0] / ac.c.cgs.value, bounds_error=False, fill_value='extrapolate')
+                self.agn = interpolate.interp1d(10 ** data[0] / ac.c.cgs.value, scale * 10 ** data[1] / 4 / np.pi / (ac.kpc.cgs.value) ** 2 / 10 ** data[0] / ac.c.cgs.value, bounds_error=0, fill_value=0)
 
     def set_EBL(self):
         """
@@ -1017,14 +1018,28 @@ class pyratio():
                 pump += self.exc_rate(speci, u, k) * (speci.A[k,l] + self.exc_rate(speci, k, l)) / s
         return pump
     
-    def exc_rate(self, speci, u, l):
+    def exc_rate(self, speci, u, l, logN=0, b=5):
         """
         calculates excitation rates (B_ul * u(\nu)) in specified field (by u), 
                             for l -> u transition of given species 
         """
-        return speci.B[u, l] * self.rad_field(np.abs(speci.E[u]-speci.E[l]))
 
-    def pump_matrix(self, name):
+        if logN > 0:
+            t = tau(logN=logN, b=b, l=1e8 / np.abs(speci.E[u] - speci.E[l]))
+            #print(u, l, speci.A[l, u], speci.g[u], speci.g[l])
+            t.calctau0(speci.A[l, u], speci.g[u], speci.g[l])
+            if t.f != 0:
+                t.voigt_range()
+                x = np.linspace(-t.dx, t.dx, 100)
+                S = np.trapz(1.0 - np.exp(-t.tau0 * voigt(t.a, x)), x=x) / t.tau0 / np.sqrt(np.pi)
+                #print('S: ', 1e8 / np.abs(speci.E[u]-speci.E[l]), self.rad_field(np.abs(speci.E[u]-speci.E[l])), np.log10(speci.B[u, l] * S), S)
+            else:
+                S = 0
+        else:
+            S = 1
+        return speci.B[u, l] * self.rad_field(np.abs(speci.E[u]-speci.E[l])) * S
+
+    def pump_matrix(self, name, logN=0, b=5):
         """
         calculates the pumping matrix for <speci> in simple case:
         1. optically thin limit
@@ -1037,7 +1052,9 @@ class pyratio():
             for l in range(speci.num):
                 for k in range(speci.num, speci.fullnum):
                     if speci.A[k, l] != 0:
-                        pump[u, l] += self.exc_rate(speci, u, k) * speci.A[k, l] / np.sum(speci.A[k, :speci.num])
+                        print(u, l,  1e8 / np.abs(speci.E[u]-speci.E[k]), self.exc_rate(speci, u, k, logN=logN, b=b) * speci.A[k, l] / np.sum(speci.A[k, :speci.num]))
+                        pump[u, l] += self.exc_rate(speci, u, k, logN=logN, b=b) * speci.A[k, l] / np.sum(speci.A[k, :speci.num])
+        print(pump)
         self.species[name].pump_rate = pump
 
     def rad_matrix(self, name):
@@ -1250,7 +1267,7 @@ class pyratio():
                     pri += p.prior.lnL(p.value)
         return pri
     
-    def predict(self, name=None, level=0, logN=None):
+    def predict(self, name=None, level=0, logN=None, plot=None):
         """
         predict column densities on levels
         parameters:
@@ -1273,11 +1290,26 @@ class pyratio():
             ref = x[level]
 
         if isinstance(logN, (int, float)):
-            return [np.log10(10**logN * x[i] / ref) for i in range(self.species[name].num)]
+            out = [np.log10(10 ** logN * x[i] / ref) for i in range(self.species[name].num)]
 
         if isinstance(logN, a):
-            return [logN * x[i]/ref for i in range(self.species[name].num)]
-        
+            out = [logN * x[i] / ref for i in range(self.species[name].num)]
+
+        if plot is not None and plot.lower() in ['energy', 'levels']:
+            fig, ax = plt.subplots()
+            if plot.lower() == 'energy':
+                 xi = self.species[name].E[:len(x)]
+            if plot.lower() == 'levels':
+                 xi = np.arange(len(x))
+
+            print(xi, self.species[name].g[:len(x)], out - self.species[name].g[:len(x)])
+            if isinstance(logN, (int, float)):
+                ax.plot(xi, out - self.species[name].g[:len(x)], 'ok')
+            if isinstance(logN, a):
+                ax.errorbar(xi, [o.val for o in out] - self.species[name].g[:len(x)], yerr=[[o.plus for o in out], [o.minus for o in out]])
+
+        return out
+
     def calc_dep(self, par, grid_num=50, plot=1, verbose=1, title='', ax=None, alpha=1, stats=False, Texc=False):
         """
         calculate dependence of population of rotational levels on one parameter
@@ -1726,15 +1758,18 @@ class pyratio():
             out.append([s.name, L])
         return out
 
-    def calc_emission_CO(self, par, col=None, grid_num=50, plot=1, verbose=1, title='', ax=None, alpha=1, stats=False):
+    def calc_emission_CO(self, par, grid_num=50, ax=None, specific='co', coh2=4e-5, title='', alpha=1, stats=False):
         """
-        calculate the dependence of CO emission in J->J-1 transition from parameters
+        calculate the dependence of CO emissivity in J->J-1 transition per CO atom from physical parameter
+
         parameters:
             - par        : name of parameter
             - col        : column densities. If None -- read from species, if float or int -- the total, then for each par column densities will be derived
             - grid_num   : number of points in the grid for each parameter
-            - plot       : specify graphs to plot
             - ax         : axes object where to plot data, of not present make it if plot==1.
+            - specific   : if 'co' then per one co atom, if 'h2' then per one h2 atom, if <number>, then per <number> of solar masses
+            - coh2       : coh2 ratio
+            - title      : set title of the plot
             - alpha      : alpha value for the contour plots
             - stats      : if True, then include stat weights: i.e. N[k]/g[k] / N[0]/g[0]
         """
@@ -1745,32 +1780,48 @@ class pyratio():
         if ax is None:
             fig, ax = plt.subplots(figsize=(10, 10 * len(self.species)))
 
+        if specific == 'co':
+            sp = 1
+        elif specific == 'h2':
+            sp = coh2
+        elif isinstance(specific, (float, int)):
+            sp = coh2 * ac.M_sun.cgs / 2.3 / ac.m_p.cgs / ac.L_sun.cgs.value
+
         x = np.linspace(self.pars[par].range[0], self.pars[par].range[1], grid_num)
-        for s in self.species:
+        for s in self.species.values():
             if s.name == 'CO':
                 c = np.zeros(s.num-1)
                 for k in range(s.num-1):
                     mu = 0.11e-18
                     # constant in (K km/s)
-                    c[k] = 8 * np.pi**3 * (s.E[k+1]-s.E[0]) * ac.c.cgs.value / 3 / ac.k_B.cgs.value * mu**2 * (k+1) / s.g[k+1] / 1e5
-                #print(c)
+                    #c[k] = 8 * np.pi**3 * (s.E[k+1]-s.E[k]) * ac.c.cgs.value / 3 / ac.k_B.cgs.value * mu**2 * (k+1) / s.g[k+1] / 1e5
+                    # constant h*\nu_{ik}*A_{ik} in erg/s
+                    c[k] = 64 * np.pi**4 / 3 * ac.c.cgs.value * (s.E[k+1]-s.E[k])**4 * mu**2 * (k+1) / s.g[k+1]
+                print(c[0])
+
                 f = np.zeros([len(x), s.num - 1])
                 f_CMB = np.zeros([len(x), s.num - 1])
                 for k, z in enumerate(x):
                     self.pars[par].value = z
                     f[k] = self.balance(s.name)[1:]
-                    f_CMB[k] = 1 - (np.power(f[k]/s.g[1:s.num], -1) - 1)/(np.exp((s.E[1:s.num] - s.E[0]) / 0.695 / (2.725*(1+self.z)))-1)
-                    if col is None:
-                        f[k] = s.n[1:].val
-                    else:
-                        f[k] = np.log10(f[k] * 10**col / sum(f[k]))
-                    print(f_CMB[k], f[k])
+                    print(f[k])
+                    f_CMB[k] = 1 - (np.power(f[k] / s.g[1:s.num], -1) - 1)/(np.exp((s.E[1:s.num] - s.E[0:s.num-1]) / 0.695 / (2.725 * (1 + self.z))) - 1)
+                    #if col is None:
+                    #    f[k] = s.n[1:].val
+                    #else:
+                    #    f[k] = np.log10(f[k] * 10**col / sum(f[k]))
+                    #print(f_CMB[k], f[k])
+
                 for k in range(s.num-1):
-                    ax.plot(x, f_CMB[:, k] * c[k] * np.power(10, f[:, k]), color=colors[2 * k + 1], label=r'{:}$\to${:}'.format(k + 1, k), lw=3)
+                    print(c[k] * f[:, k])
+                    ax.plot(x, np.log10(sp * c[k] * f[:, k]), label=r'{:}$\to${:}'.format(k + 1, k), lw=3,
+                            #color=colors[2 * k + 1],
+                            )
 
                 ax.set_title(s.name)
                 ax.set_ylabel(r'W$_{\rm CO}$ [K km/s]')
                 ax.set_xlabel(self.pars[par].label)
+                #ax.set_ylim([-22, -15])
                 ax.legend(loc=4)
 
 if __name__ == '__main__':
@@ -1867,15 +1918,18 @@ if __name__ == '__main__':
         #plt.savefig('C:/Users/Serj/Desktop/{:}_comparison.pdf'.format(spec))
         plt.show()
 
-    if 0:
+    if 1:
         pr = pyratio(z=2.5)
-        pr.add_spec('CO')
-        d = {'T': 2, 'n': 3, 'f': 0}
+        pr.add_spec('CO', num=7)
+        d = {'T': 1.5, 'n': 5, 'f': 0}
         pr.set_pars(d.keys())
+        pr.pars['n'].range = [1, 5]
         for d in d.items():
             pr.pars[d[0]].value = d[1]
-        print(pr.predict(0, 14.43))
-    
+        print(pr.predict('CO', level=-1, logN=14., plot='levels'))
+        pr.calc_emission_CO(par='n', specific=1, coh2=4e-5)
+        plt.show()
+
     if 0:
         pr = pyratio()
         n_CII = [a(16.93, 0.10, 0.10), a(15.46, 0.20, 0.21)]
@@ -1989,7 +2043,7 @@ if __name__ == '__main__':
 
     # >>> check SiII
     if 0:
-        pr = pyratio(z=2.65, pumping='simple', radiation='simple', sed_type='QSO', agn={'filter': 'r', 'mag': 20.22})
+        pr = pyratio(z=2.65, pumping='simple', radiation='simple', sed_type='AGN', agn={'filter': 'r', 'mag': 20.22})
         pr.set_pars(['T', 'n', 'f', 'rad'])
         pr.pars['T'].range = [1.5, 5]
         pr.set_prior('T', a(2.2, 0, 0))
@@ -1998,15 +2052,16 @@ if __name__ == '__main__':
         pr.pars['f'].range = [-6, 0]
         pr.set_fixed('f', -3)
         species = 'SiII'
-        pr.add_spec(species)
+        pr.add_spec(species, num=2)
+        pr.pump_matrix('SiII', logN=15, b=10)
         pr.pars['n'].value = 2.5
-        pr.pars['rad'].value = np.log10(10)
+        pr.pars['rad'].value = np.log10(1)
         if 0:
             print('IR:', pr.balance(species, debug='IR'))
             print('UV:', pr.balance(species, debug='UV'))
             print('coll:', pr.balance(species, debug='C'))
             print(pr.predict())
-        else:
+        if 1:
             n = np.linspace(1, 8, 20)
             if pr.sed_type == 'Draine':
                 rad = np.linspace(-4, 6, 20)
@@ -2020,10 +2075,10 @@ if __name__ == '__main__':
                     if pr.sed_type == 'Draine':
                         pr.pars['rad'].value = rk
                     elif pr.sed_type in ['QSO', 'AGN']:
-                        pr.pars['rad'].value =  - 2 * rk
+                        pr.pars['rad'].value = - 2 * rk
                     pop = pr.predict()
                     z[k, i] = pop[1]
-                    print(pop, z[k, i])
+                    #print(pop, z[k, i])
 
             fig, ax = plt.subplots()
             cs = ax.contourf(X, Y, z, levels=100)
@@ -2035,7 +2090,11 @@ if __name__ == '__main__':
             elif pr.sed_type in ['QSO', 'AGN']:
                 ax.set_ylabel('log (r / kpc)')
             plt.colorbar(cs)
-            plt.show()
+            ax.set_title('logN(SiII) = 15')
+            #ax.set_title('optically thin')
+        else:
+            pr.pars['n'] = 2
+        plt.show()
 
     # >>> check ionization parameter
     if 0:
@@ -2098,12 +2157,12 @@ if __name__ == '__main__':
 
 
     # >>> check radiation fields
-    if 1:
+    if 0:
         z, r, d = 2.8, 17.7, 150
-        z, r, d = 2.65, 20.2, 10
+        z, r, d = 2.65, 20.2, 5
         pr = pyratio(z=z, pumping='simple', radiation='simple', sed_type='Draine', agn={'filter': 'r', 'mag': r})
         pr.set_pars(['T', 'rad'])
-        e = np.logspace(-1, 5, 10000)
+        e = np.logspace(-1, 6, 10000)
         fig = plt.figure(figsize=(10, 6))
         add_lines = 1
         if add_lines:
@@ -2116,7 +2175,7 @@ if __name__ == '__main__':
         ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='EBL')), label='EBL, z={0:3.1f}'.format(z))
         ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='Draine') * 1000), label='Draine x1000')
         for sed, label in zip(['AGN', 'QSO', 'GRB'], ['AGN, r={0:4.1f}, z={1:3.1f}, d={2:d}kpc'.format(r, z, d), 'QSO, r={0:4.1f}, z={1:3.1f}, d={2:d}kpc'.format(r, z, d), 'GRB, d={0:d}kpc'.format(d)]):
-            if sed not in ['GRB', 'QSO']:
+            if sed not in ['GRB']:
                 pr.sed_type = sed
                 pr.load_sed()
                 ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type=sed)) - np.log10(d)*2, label=label)
@@ -2126,7 +2185,7 @@ if __name__ == '__main__':
         ax.set_xlabel(r'log E [$\rm cm^{-1}$]')
         ax.legend()
 
-        if 1:
+        if 0:
             #with open("C:\Users\Serj\Downloads\Slack\J0015BCJ0015BC.con", 'r') as f:
             #    f.readlines()
             data = np.genfromtxt("C:/Users/Serj/Downloads/Slack/J0015BCJ0015BC.con", comments='#', usecols=(0, 1), unpack=True)
