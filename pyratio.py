@@ -1918,7 +1918,7 @@ if __name__ == '__main__':
         #plt.savefig('C:/Users/Serj/Desktop/{:}_comparison.pdf'.format(spec))
         plt.show()
 
-    if 1:
+    if 0:
         pr = pyratio(z=2.5)
         pr.add_spec('CO', num=7)
         d = {'T': 1.5, 'n': 5, 'f': 0}
@@ -2094,6 +2094,42 @@ if __name__ == '__main__':
             #ax.set_title('optically thin')
         else:
             pr.pars['n'] = 2
+        plt.show()
+
+    # >>> check SiII collisions
+    if 1:
+        pr = pyratio(z=2.65)
+        pr.set_pars(['T', 'n', 'f'])
+        pr.pars['T'].range = [1, 6]
+        pr.pars['n'].range = [1, 4]
+        pr.pars['f'].range = [-6, 0]
+        pr.set_fixed('f', -3)
+        species = 'SiII'
+        pr.add_spec(species, num=2)
+        num = 20
+        if 1:
+            n = np.linspace(0, 5, num)
+            T = np.linspace(2, 5, num)
+            X, Y = np.meshgrid(n, T)
+            z = np.zeros_like(X)
+            for i, ni in enumerate(n):
+                pr.pars['n'].value = ni
+                for k, tk in enumerate(T):
+                    pr.pars['T'].value = tk
+                    pop = pr.predict()
+                    z[k, i] = pop[1]
+
+            fig, ax = plt.subplots()
+            cs = ax.contourf(X, Y, z, levels=100)
+            cs1 = ax.contour(X, Y, z, levels=[-4, -3, -2, -1, 0.0], linestyles='--', colors='k')
+            #cbar = plt.colorbar(cs)
+            #cbar.ax.set_ylabel('log SiII*/SiII')
+            ax.clabel(cs1, cs1.levels[::2], inline=True, fmt='%3.1f', fontsize=12)
+            ax.set_xlabel('log n')
+            ax.set_ylabel('log T')
+            ax.set_title('log SiII*/SiII')
+            plt.colorbar(cs)
+
         plt.show()
 
     # >>> check ionization parameter

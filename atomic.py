@@ -1449,7 +1449,7 @@ if __name__ == '__main__':
     if 0:
         A = atomicData()
         #A.getfromNIST('MnII', 3)
-        #A.makedatabase()
+        A.makedatabase()
         A.readdatabase()
         print([line.l() for line in A.list('SiII')])
 

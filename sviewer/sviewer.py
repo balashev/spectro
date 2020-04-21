@@ -7070,9 +7070,13 @@ class sviewer(QMainWindow):
 
                 if filename.endswith('.fits'):
                     with fits.open(filename, memmap=False) as hdulist:
-                        x = np.linspace(hdulist[0].header['CRVAL1'],
-                                        hdulist[0].header['CRVAL1'] + hdulist[0].header['CDELT1'] *
-                                        (hdulist[0].header['NAXIS1']-1),
+                        if hdulist[0].header['CUNIT1'] == 'A':
+                            k = 1
+                        elif hdulist[0].header['CUNIT1'] == 'nm':
+                            k = 10
+                        x = np.linspace(hdulist[0].header['CRVAL1'] * k,
+                                        (hdulist[0].header['CRVAL1'] + hdulist[0].header['CDELT1'] *
+                                        (hdulist[0].header['NAXIS1']-1)) * k,
                                         hdulist[0].header['NAXIS1'])
                         y = np.linspace(hdulist[0].header['CRVAL2'],
                                         hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] *
@@ -7081,11 +7085,11 @@ class sviewer(QMainWindow):
                         if 'INSTRUME' in hdulist[0].header and 'XSHOOTER' in hdulist[0].header['INSTRUME']:
                             err, mask = None, None
                             for h in hdulist[1:]:
-                                if h.header['EXTNAME'].strip() == 'ERRS':
+                                if 'EXTNAME' not in h.header or h.header['EXTNAME'].strip() == 'ERRS':
                                     err = h.data * 1e17
-                                if h.header['EXTNAME'].strip() == 'QUAL':
+                                elif h.header['EXTNAME'].strip() == 'QUAL':
                                     mask = h.data.astype(bool)
-                            s.spec2d.set(x=x*10, y=y, z=hdulist[0].data*1e17, err=err, mask=mask)
+                            s.spec2d.set(x=x, y=y, z=hdulist[0].data*1e17, err=err, mask=mask)
 
                         if 'ORIGFILE' in hdulist[0].header and 'VANDELS' in hdulist[0].header['ORIGFILE']:
                             s.spec2d.set(x=x, y=y[:-1], z=hdulist[0].data[:-1,:])
@@ -8402,7 +8406,11 @@ class sviewer(QMainWindow):
             #try:
             sdss = self.SDSSDR14['meta']
             if name is None or name.strip() == '':
-                ind = np.where((sdss['meta']['PLATE'] == plate) & (sdss['meta']['FIBERID'] == fiber))[0][0]
+                ind = np.where((sdss['meta']['PLATE'] == plate) & (sdss['meta']['FIBERID'] == fiber))
+                if len(ind[0]) > 0:
+                    ind = np.where((sdss['meta']['PLATE'] == plate) & (sdss['meta']['FIBERID'] == fiber))[0][0]
+                else:
+                    self.sendMessage(f"There is no {plate}-{MJD}-{fiber} spectrum in database")
             else:
                 ind = np.argmin((sdss['meta']['RA'] - ra) ** 2 + (sdss['meta']['DEC'] - dec) ** 2)
             plate, MJD, fiber = sdss['meta']['PLATE'][ind], sdss['meta']['MJD'][ind], sdss['meta']['FIBERID'][ind]

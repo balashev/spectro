@@ -1,8 +1,3 @@
-show HI
-y 0 1
-qso lum
-snr
-stats
 stats
 stats
 show SiIIj1
@@ -19,3 +14,8 @@ show SiII
 show SiII
 show SiIV
 SiII
+y 0 1
+show SiII*
+show CI
+show ClI
+show NiII

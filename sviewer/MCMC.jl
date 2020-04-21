@@ -46,7 +46,7 @@ function fitMCMC(spec, par; nwalkers=100, nsteps=1000, nthreads=1, init=nothing)
     #println(size(init2), init2[3])
 
     lnlike = p->begin
-        #println(p)
+        println(p)
         i = 1
         for (k, v) in pars
             if v.vary == 1
@@ -62,7 +62,9 @@ function fitMCMC(spec, par; nwalkers=100, nsteps=1000, nthreads=1, init=nothing)
 
         retval = 0
         for s in spec
-            retval -= .5 * sum(((calc_spectrum(s, pars, out="init") - s.y[s.mask]) ./ s.unc[s.mask]) .^ 2)
+            if sum(s.mask) > 0
+                retval -= .5 * sum(((calc_spectrum(s, pars, out="init") - s.y[s.mask]) ./ s.unc[s.mask]) .^ 2)
+            end
         end
         return retval
     end
