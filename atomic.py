@@ -731,6 +731,12 @@ class atomicData(OrderedDict):
                 self[name] = e(name)
             self[name].lines.append(line(name, l['lambda'], l['f'], 1e-9, ref=''))
 
+    def read_NiII(self):
+        data = np.genfromtxt(self.folder + r'/data/NiII_Boisse.dat', comments="#", unpack=True, dtype=None)
+        for i, l in enumerate(self["NiII"].lines):
+            if len(np.where(np.abs(data[0] / l.l() - 1) < 2e-5)[0]) > 0:
+                self["NiII"].lines[i].oscillator = [data[1][np.where(np.abs(data[0] / l.l() - 1) < 2e-5)[0][0]]]
+
     def getfromNIST(self, species, level=None, refresh=False, clean=True, add=False):
         if level is None:
             if '*' in species:
@@ -781,6 +787,7 @@ class atomicData(OrderedDict):
         self.readBAL()
         self.read_Molecular()
         self.read_EmissionSF()
+        self.read_NiII()
         self.writedatabase()
 
     def writedatabase(self):
@@ -1446,12 +1453,12 @@ if __name__ == '__main__':
         me = a('-1.2^{+0.1}_{-0.1}', 'l')
         print(abundance('OI', HI, me))
 
-    if 0:
+    if 1:
         A = atomicData()
         #A.getfromNIST('MnII', 3)
         A.makedatabase()
-        A.readdatabase()
-        print([line.l() for line in A.list('SiII')])
+        #A.readdatabase()
+        #print([line.l() for line in A.list('SiII')])
 
     if 0:
         A = atomicData()

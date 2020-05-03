@@ -1967,7 +1967,11 @@ class Spectrum():
         if self.spec.norm.n > 0 and self.cont.n > 0:
 
             # >>> calculate the intrinsic absorption line spectrum
-            x, flux = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=ind+1)
+            if 1:
+                x, flux = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=ind + 1)
+            else:
+                flux = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=ind + 1, out="init")
+                x = self.spec.norm.x[self.mask.norm.x]
 
             if timer:
                 t.time('calc fit')

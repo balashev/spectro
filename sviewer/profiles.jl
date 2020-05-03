@@ -51,9 +51,24 @@ function Voigt(a, x)
     return exp.(-1 .* x .* x) .* (1 .+ a^2 .* (1 .- 2 .* x .* x)) - 2 / sqrt(π) .* (1 .- 2 .* x .* Dawson.(x))
 end
 
-function voigt_range(a, level)
+function voigt_range_old(a, level)
     f(x) = real(SpecialFunctions.erfcx(a - im * x)) - level
     return find_zero(f, (min(sqrt(a / level / sqrt(π)), sqrt(max(0, -log(level)))) / 2, 3*max(sqrt(a / level / sqrt(π)), sqrt(max(0, -log(level))))), tol=0.001)
+end
+
+function voigt_range(a, level)
+    if level < 1
+        α = 1.3
+        if exp(sqrt(a / sqrt(π) / level)) ^ α == Inf
+            return sqrt(a / sqrt(π) / level)
+        else
+            return log((exp(sqrt(-log(level))) ^ α + exp(sqrt(a / sqrt(π) / level)) ^ α - 1) ^ (1 / α))
+        end
+    elseif level == 1
+        return 0
+    else
+        return 0
+    end
 end
 
 function voigt_deriv(x, a, tau_0)
@@ -129,7 +144,6 @@ function make_pars(p_pars)
             pars[p.__str__()].min, pars[p.__str__()].max = 0, 1
         end
     end
-    println(pars)
     return pars
 end
 
@@ -155,7 +169,11 @@ end
 function update_lines(lines, pars; ind=0)
     mask = Vector{Bool}(undef, 0)
     for line in lines
-        line.b = pars["b_" * string(line.sys) * "_" * line.name].val
+        if pars["b_" * string(line.sys) * "_" * line.name].addinfo != ""
+            line.b = pars["b_" * string(line.sys) * "_" * pars["b_" * string(line.sys) * "_" * line.name].addinfo].val
+        else
+            line.b = pars["b_" * string(line.sys) * "_" * line.name].val
+        end
         line.logN = pars["N_" * string(line.sys) * "_" * line.name].val
         line.z = pars["z_" * string(line.sys)].val
         line.l = line.lam * (1 + line.z)
@@ -238,7 +256,6 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
             end
         end
         line.dx = voigt_range(line.a, 0.001 / line.tau0)
-
         x, r = voigt_step(line.a, line.tau0)
         x = line.l .+ x * line.ld
         i_min, i_max = binsearch(spec.x, x[1], type="min"), binsearch(spec.x, x[end], type="max")-1
@@ -372,7 +389,7 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
 end
 
 
-function fitLM(spec, p_pars)
+function fitLM_old(spec, p_pars)
 
     function lnlike(x, p)
         #println("lnlike: ", p)
@@ -414,7 +431,49 @@ function fitLM(spec, p_pars)
 
 end
 
-function fitLM_2(spec, pars)
+function fitLM(spec, p_pars)
+
+    function cost(p)
+        i = 1
+        #println(p)
+        for (k, v) in pars
+            if v.vary == 1
+                #println(k, " ", v, " ", p[i])
+                pars[k].val = p[i]
+                i += 1
+            end
+        end
+        res = Vector{Float64}()
+        for s in spec
+            append!(res, (calc_spectrum(s, pars, out="init") .- s.y[s.mask]) ./ s.unc[s.mask])
+        end
+        println("chi ", sum(res .^ 2))
+        return res
+    end
+
+    pars = make_pars(p_pars)
+
+    println("fitLM ", pars)
+    params = [p.val for (k, p) in pars if p.vary == true]
+    lower = [p.min for (k, p) in pars if p.vary == true]
+    upper = [p.max for (k, p) in pars if p.vary == true]
+
+    println(params, " ", lower, " ", upper)
+    fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=100, lower=lower, upper=upper, show_trace=true)
+    sigma = stderror(fit)
+    covar = estimate_covar(fit)
+    println("cost end ", cost(fit.param))
+
+    println(dof(fit))
+    println(fit.param)
+    println(sigma)
+    println(covar)
+
+    return dof(fit), fit.param, sigma
+
+end
+
+function fitLM_3(spec, pars)
 
     function lnlike(x, p...)
         println("lnlike: ", p)

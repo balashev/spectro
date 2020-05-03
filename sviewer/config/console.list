@@ -1,21 +1,21 @@
-stats
-stats
-show SiIIj1
-show SiII
-y 0 1
-show DI
-show SiIIj1
-SiII1808
-show SiII
-show SiII
-show SiII
-hide all
-show SiII
-show SiII
-show SiIV
-SiII
-y 0 1
+show CIj2
+
 show SiII*
-show CI
-show ClI
+show AlI
+AlI
+show H2 0 1
+hide CI
+show H2 2 3
+show H2 4
+ClI
+show CaII
+show NaI
+NaI
+show TiII
+show CaI
+show KI
+y 0 1
+x 3000 9000
+NiII
+show NiII
 show NiII

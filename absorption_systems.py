@@ -131,13 +131,14 @@ def deltaV(z_em, z_abs):
     """
     return the doppler shift, between emission and absorption redshift
     :param z_em: emission redshift
-    :param z_abs: ansorption redshift
+    :param z_abs: absorption redshift
     :return: deltaV in km/s
     """
     R = (1 + z_abs) / (1 + z_em)
     return (R**2 - 1) / (R**2 + 1) * 299792.46
 
 if __name__ == '__main__':
-    print(18180 / 5007 - 1, 18190 / 5007 - 1)
-    print(deltaV(18180 / 5007 - 1, 18190 / 5007 - 1))
+    print(deltaV(2.811124, 2.811129))
+    print(deltaV(2.811124, 2.811126))
+    print(deltaV(2.811124, 2.811132))
     

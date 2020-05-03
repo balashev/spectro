@@ -166,6 +166,8 @@ class plot_spec(list):
         if isinstance(ls, (str)):
             ls = [ls] * num
         self.ls = ls[:]
+        #self.ls[0] = '--'
+        #self.ls[1] = ':'
         
         if lw is None:
             lw = [0.5] * num

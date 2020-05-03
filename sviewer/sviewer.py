@@ -4877,7 +4877,7 @@ class ExportDataWidget(QWidget):
         if self.cont.isChecked():
             np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x[mask] / unit, s.cont.y[mask] / cheb(s.spec.x()[mask])], **kwargs)
         if self.fit.isChecked():
-            np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x()[mask] / unit, s.fit.y()[mask] / cheb(s.fit.x()[mask])], **kwargs)
+            np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x()[mask[s.fit_mask.x()]] / unit, s.fit.y()[mask[s.fit_mask.x()]] / cheb(s.fit.x()[mask[s.fit_mask.x()]])], **kwargs)
         if self.fit.isChecked():
             np.savetxt('_fit_regions.'.join(self.filename.rsplit('.', 1)), np.c_[s.spec.x()[np.logical_and(mask, s.fit_mask.x())] / unit, (s.spec.y() / cheb(s.spec.x()))[np.logical_and(mask, s.fit_mask.x())]], **kwargs)
         if self.lines.isChecked():
@@ -7559,13 +7559,10 @@ class sviewer(QMainWindow):
         #self.julia_pars = self.julia.make_pars(self.fit.list())
         self.julia_spec = self.julia.prepare(self.s, self.julia_pars)
         dof, res, unc = self.julia.fitLM(self.julia_spec, self.fit.list())
-        print(dof, res, unc)
         s = self.fit.fromJulia(res, unc)
-        self.showFit(all=False)
 
         self.console.set(s)
-        #chain, lns = self.julia.fitMCMC(self.julia_spec, self.julia_pars)
-        #print(shape(chain))
+        self.showFit(all=False)
 
     def fitAbs(self, timer=True, redraw=True):
         t = Timer(verbose=True) if 1 else False
