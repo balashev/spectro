@@ -1,21 +1,21 @@
-show CIj2
-
-show SiII*
-show AlI
-AlI
-show H2 0 1
-hide CI
-show H2 2 3
-show H2 4
-ClI
-show CaII
-show NaI
-NaI
-show TiII
-show CaI
-show KI
+high H2j2
+high H2j3
+high H2j4
+high H2j4
+high H2j5
+high H2j6
 y 0 1
-x 3000 9000
-NiII
-show NiII
-show NiII
+show H2j7
+high H2j7
+high H2j6
+high H2j6
+high H2j7
+high H2j4
+high H2j5
+high H2j4
+high H2j6
+high H2j6
+high H2j7
+high H2j6
+high H2j7
+hide all

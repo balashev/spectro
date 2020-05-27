@@ -9,6 +9,7 @@ import collections
 import corner
 import emcee
 import glob
+import itertools
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -2097,7 +2098,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check SiII collisions
-    if 1:
+    if 0:
         pr = pyratio(z=2.65)
         pr.set_pars(['T', 'n', 'f'])
         pr.pars['T'].range = [1, 6]
@@ -2357,9 +2358,9 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> H2 calculations:
-    if 0:
+    if 1:
         pr = pyratio()
-        pr.add_spec('H2', num=3)
+        pr.add_spec('H2', num=7)
         pr.set_pars(['T', 'n', 'f'])
         pr.pars['n'].value = 2
         pr.pars['T'].value = np.log10(100)

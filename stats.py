@@ -49,8 +49,8 @@ class distr1d():
         self.y = self.y / norm[0]
         self.ymax = np.max(self.y)
 
-    def interpolate(self):
-        self.inter = interpolate.interp1d(self.x, self.y, bounds_error=False, fill_value=0)
+    def interpolate(self, kind='linear'):
+        self.inter = interpolate.interp1d(self.x, self.y, kind=kind, bounds_error=False, fill_value=0)
 
     def minter(self, x):
         return -self.inter(x)

@@ -106,6 +106,7 @@ end
 function voigt_max_deriv(a, tau_0)
     f = (x -> df(x, a, tau_0))
     level = tau_0 > 0.3 ? 0.1 / tau_0 : 1 / 3
+    #println(a, " ", tau_0, " ", level)
     r = find_zero(f, (0, abs(voigt_range(a, level))))
     return r
 end

@@ -61,11 +61,28 @@ function fitMCMC(spec, par; nwalkers=100, nsteps=1000, nthreads=1, init=nothing)
         end
 
         retval = 0
+
+        #if H2_cond == true
+        for (k, v) in pars
+            if occursin("H2j", k) & occursin("b_", k)
+                for (k1, v1) in pars
+                    if occursin(k[1:7], k1) & ~occursin(k, k1)
+                        j, j1 = parse(Int64, k[8:end]), parse(Int64, k1[8:end])
+                        x = sign(j - j1) * (v.val - v1.val) / 0.1
+                        retval -= (x < 0 ? x : 0) ^ 2
+                        #println(j, " ", j1, " ", v.val, " ", v1.val, " ", x, " ", retval)
+                    end
+                end
+            end
+        end
+        #end
+
         for s in spec
             if sum(s.mask) > 0
                 retval -= .5 * sum(((calc_spectrum(s, pars, out="init") - s.y[s.mask]) ./ s.unc[s.mask]) .^ 2)
             end
         end
+        #println(retval)
         return retval
     end
 
@@ -96,7 +113,7 @@ function sample(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thi
 			active, inactive = ensembles
 			zs = map(u->((a - 1) * u + 1)^2 / a, rand(length(active)))
 			proposals = map(i-> min.(max.(zs[i] * x[:, active[i]] + (1 - zs[i]) * x[:, rand(inactive)], bounds[:,1]), bounds[:,2]), 1:length(active))
-			newllhoods = RobustPmap.rpmap(llhood, proposals)
+            newllhoods = RobustPmap.rpmap(llhood, proposals)
 			for (j, walkernum) in enumerate(active)
 				z = zs[j]
 				newllhood = newllhoods[j]
