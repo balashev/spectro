@@ -563,12 +563,12 @@ class fitPars:
                                 pars[str(p)] = p
         return pars
 
+
     def list_total(self):
         pars = OrderedDict()
         for sys in self.sys:
             for k, v in sys.total.items():
-                if k in sys.sp.keys():
-                    pars['_'.join(['N', str(self.sys.index(sys)), k])] = v.N
+                pars['_'.join(['N', str(self.sys.index(sys)), k])] = v.N
         for k, v in self.total.sp.items():
             pars['_'.join(['N', 'total', k])] = v.N
 

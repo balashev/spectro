@@ -2756,14 +2756,13 @@ class fitMCMCWidget(QWidget):
 
             elif t == 'cols':
                 sp = set()
-                for sys in self.parent.fit.sys:
+                for i, sys in enumerate(self.parent.fit.sys):
                     for s in sys.sp.keys():
                         if s not in sp:
                             sp.add(s)
                     for el in ['H2', 'HD', 'CO', 'CI', 'CII', 'FeII']:
                         if any([el+'j' in s for s in sys.sp.keys()]):
-                            sys.addSpecies(el, 'total')
-                            print(el)
+                            self.parent.fit.sys[i].addSpecies(el, 'total')
                             self.parent.fit.total.addSpecies(el + '_total')
                 print(sp)
                 for s in sp:
@@ -2885,6 +2884,7 @@ class fitMCMCWidget(QWidget):
 
     def fit_disp(self):
         self.show_bestfit()
+        self.parent.s.prepareFit(-1, all=all)
         self.parent.s.calcFit(recalc=True)
         self.parent.s.calcFitComps(recalc=True)
         fit, fit_disp, fit_comp, fit_comp_disp = [], [], [], []
@@ -4884,19 +4884,21 @@ class ExportDataWidget(QWidget):
             print(s.spec.x())
             print(self.parent.plot.vb.getState()['viewRange'][0][0], self.parent.plot.vb.getState()['viewRange'][0][-1])
             mask = (s.spec.x() > self.parent.plot.vb.getState()['viewRange'][0][0]) * (s.spec.x() < self.parent.plot.vb.getState()['viewRange'][0][-1])
+            cont_mask = (s.cont.x > self.parent.plot.vb.getState()['viewRange'][0][0]) * (s.cont.x < self.parent.plot.vb.getState()['viewRange'][0][-1])
         else:
-            mask = np.isfinite(s.spec.x())
+            mask, cont_mask = np.isfinite(s.spec.x()), np.isfinite(s.cont.x)
         print(np.sum(mask))
+        print(np.sum(s.cont_mask))
 
         if self.cheb_applied.isChecked() and self.parent.fit.cont_fit:
             cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
         else:
-            cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1)
+            cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1, bounds_error=False)
 
         if self.spectrum.isChecked():
             np.savetxt(self.filename, np.c_[s.spec.x()[mask] / unit, s.spec.y()[mask] / cheb(s.spec.x()[mask]), s.spec.err()[mask]], **kwargs)
         if self.cont.isChecked():
-            np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x[mask] / unit, s.cont.y[mask] / cheb(s.spec.x()[mask])], **kwargs)
+            np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x[cont_mask] / unit, s.cont.y[cont_mask] / cheb(s.cont.x[cont_mask])], **kwargs)
         if self.fit.isChecked():
             np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x()[mask[s.fit_mask.x()]] / unit, s.fit.y()[mask[s.fit_mask.x()]] / cheb(s.fit.x()[mask[s.fit_mask.x()]])], **kwargs)
         if self.fit.isChecked():

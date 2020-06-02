@@ -390,48 +390,6 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
 end
 
 
-function fitLM_old(spec, p_pars)
-
-    function lnlike(x, p)
-        #println("lnlike: ", p)
-        i = 1
-        for (k, v) in pars
-            if v.vary == 1
-                #println(k, " ", v, " ", p[i])
-                pars[k].val = p[i]
-                i += 1
-            end
-        end
-        println("chi2 ", sum((calc_spectrum(spec[1], pars, out="init") .- y).^2 .* w))
-        calc_spectrum(spec[1], pars, out="init")
-    end
-
-    pars = make_pars(p_pars)
-
-    x = spec[1].x[spec[1].mask]
-    y = spec[1].y[spec[1].mask]
-    w = 1 ./ spec[1].unc[spec[1].mask] .^ 2
-
-    println("fitLM ", pars)
-    params = [p.val for (k, p) in pars if p.vary == true]
-    lower = [p.min for (k, p) in pars if p.vary == true]
-    upper = [p.max for (k, p) in pars if p.vary == true]
-
-    println(params, " ", lower, " ", upper)
-
-    fit = curve_fit(lnlike, x, y, w, params; maxIter=100, lower=lower, upper=upper, show_trace=true)
-    sigma = stderror(fit)
-    covar = estimate_covar(fit)
-
-    println(dof(fit))
-    println(fit.param)
-    println(sigma)
-    println(covar)
-
-    return dof(fit), fit.param, sigma
-
-end
-
 function fitLM(spec, p_pars)
 
     function cost(p)
@@ -446,7 +404,9 @@ function fitLM(spec, p_pars)
         end
         res = Vector{Float64}()
         for s in spec
-            append!(res, (calc_spectrum(s, pars, out="init") .- s.y[s.mask]) ./ s.unc[s.mask])
+            if sum(s.mask) > 0
+                append!(res, (calc_spectrum(s, pars, out="init") .- s.y[s.mask]) ./ s.unc[s.mask])
+            end
         end
         println("chi ", sum(res .^ 2))
         return res

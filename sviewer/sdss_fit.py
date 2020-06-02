@@ -15,7 +15,6 @@ from scipy.interpolate import interp1d, interp2d
 from scipy.optimize import minimize
 from scipy.sparse.linalg import svds
 from scipy.stats import spearmanr
-from sklearn.preprocessing import Imputer
 from sklearn.decomposition import PCA, FastICA
 
 from ..excitation_temp import ExcitationTemp
@@ -1034,13 +1033,8 @@ class SDSS_fit():
         mask = np.divide(self.Y_in, self.V[mask]) > 1
         self.Y_in[~mask] = np.nan
         self.Y_in = np.subtract(self.Y, self.m)
-        if 0:
-            imp = Imputer(missing_values='NaN', strategy='mean', axis=1)
-            imp.fit(self.Y_in)
-            self.Y_in = imp.transform(self.Y_in)
-        else:
-            Y_hat, mu_hat, U, s, Vt = emsvd(self.Y_in)
-            self.Y_in = Y_hat
+        Y_hat, mu_hat, U, s, Vt = emsvd(self.Y_in)
+        self.Y_in = Y_hat
         self.Y = self.Y_in
         self.savetofile(['Y'], prefix='_temp')
         fig, ax = plt.subplots()

@@ -46,7 +46,7 @@ function fitMCMC(spec, par; nwalkers=100, nsteps=1000, nthreads=1, init=nothing)
     #println(size(init2), init2[3])
 
     lnlike = p->begin
-        println(p)
+        #println(p)
         i = 1
         for (k, v) in pars
             if v.vary == 1
@@ -68,7 +68,7 @@ function fitMCMC(spec, par; nwalkers=100, nsteps=1000, nthreads=1, init=nothing)
                 for (k1, v1) in pars
                     if occursin(k[1:7], k1) & ~occursin(k, k1)
                         j, j1 = parse(Int64, k[8:end]), parse(Int64, k1[8:end])
-                        x = sign(j - j1) * (v.val - v1.val) / 0.1
+                        x = sign(j - j1) * (v.val / v1.val - 1) * 10
                         retval -= (x < 0 ? x : 0) ^ 2
                         #println(j, " ", j1, " ", v.val, " ", v1.val, " ", x, " ", retval)
                     end

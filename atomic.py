@@ -185,27 +185,27 @@ class e():
         self.stat = None
         if 'H2' in self.name:
             if self.J is not None:
-                self.stat = (2*self.J+1)*((self.J%2)*2+1)
+                self.stat = (2 * self.J + 1) * ((self.J % 2) * 2 + 1)
 
         elif 'HD' in self.name:
             if self.J is not None:
-                self.stat = (2*self.J+1)
+                self.stat = (2 * self.J + 1)
         
         elif 'CO' in self.name:
             if self.J is not None:
-                self.stat = (2*self.J+1)
+                self.stat = (2 * self.J + 1)
 
         elif 'SiII' in self.name:
-            self.stat = (self.fine+1)*2
+            self.stat = (self.fine + 1) * 2
             
         elif 'CII' in self.name:
-            self.stat = (self.fine+1)*2
+            self.stat = (self.fine + 1) * 2
         
         elif 'CI' in self.name:
-            self.stat = self.fine*2+1
+            self.stat = self.fine * 2 + 1
         
         elif 'OI' in self.name:
-            self.stat = self.fine*2+1
+            self.stat = self.fine * 2 + 1
         
         return self.stat
         
