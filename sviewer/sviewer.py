@@ -2679,6 +2679,7 @@ class fitMCMCWidget(QWidget):
                     res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0], self.parent.fit.getPar(p).form)
                     self.parent.fit.setValue(p, res, 'unc')
                     self.parent.fit.setValue(p, res.val)
+                    self.parent.fit.setValue(p, (res.plus + res.minus) / 2, 'step')
                     print(res.plus, res.minus)
                     f = np.asarray([res.plus, res.minus])
                     f = int(np.round(np.abs(np.log10(np.min(f[np.nonzero(f)])))) + 1)
