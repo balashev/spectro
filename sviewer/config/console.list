@@ -1,17 +1,3 @@
-high H2j6
-high H2j7
-high H2j4
-high H2j5
-high H2j4
-high H2j6
-high H2j6
-high H2j7
-high H2j6
-high H2j7
-hide all
-high HI
-high H2j7
-high H2J7
 high H2j7
 high H2j0
 high H2j7
@@ -19,3 +5,17 @@ high H2j7
 high H2j4
 high H2j5
 high HI
+show SiIIj1
+hide all 
+show H2 0 1
+show H2 2 3
+hide NiII
+show CI
+show H2 0 1
+hide all
+show H2 0 1
+show H2 0 1
+show CI
+show CI*
+show CI**
+high CI

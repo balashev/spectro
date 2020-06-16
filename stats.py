@@ -39,7 +39,7 @@ class distr1d():
 
     def kde(self):
         kde = gaussian_kde(self.x)
-        x = np.linspace(np.min(self.x), np.max(self.x), np.max([100, np.sqrt(len(self.x))]))
+        x = np.linspace(np.min(self.x), np.max(self.x), np.max([100, int(np.sqrt(len(self.x)))]))
         self.y = kde(x)
         self.x = x
 

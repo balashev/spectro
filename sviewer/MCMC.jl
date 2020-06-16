@@ -23,7 +23,7 @@ println("procs: ", nprocs())
 @everywhere using SpecialFunctions
 @everywhere include("profiles.jl")
 
-function fitMCMC(spec, par; nwalkers=100, nsteps=1000, nthreads=1, init=nothing)
+function fitMCMC(spec, par; nwalkers=100, nsteps=1000, nthreads=1, init=nothing, opts=0)
 
     #COUNTERS["num"] = nwalkers
 
@@ -62,27 +62,58 @@ function fitMCMC(spec, par; nwalkers=100, nsteps=1000, nthreads=1, init=nothing)
 
         retval = 0
 
-        #if H2_cond == true
-        for (k, v) in pars
-            if occursin("H2j", k) & occursin("b_", k)
-                for (k1, v1) in pars
-                    if occursin(k[1:7], k1) & ~occursin(k, k1)
-                        j, j1 = parse(Int64, k[8:end]), parse(Int64, k1[8:end])
-                        x = sign(j - j1) * (v.val / v1.val - 1) * 10
-                        retval -= (x < 0 ? x : 0) ^ 2
-                        #println(j, " ", j1, " ", v.val, " ", v1.val, " ", x, " ", retval)
-                    end
-                end
-            end
-        end
-        #end
-
         for s in spec
             if sum(s.mask) > 0
                 retval -= .5 * sum(((calc_spectrum(s, pars, out="init") - s.y[s.mask]) ./ s.unc[s.mask]) .^ 2)
             end
         end
-        #println(retval)
+
+        # add constraints to the fit set by opts parameter
+
+        # constraints for H2 on increasing b parameter with J level increase
+        if opts["b_increase"] == true
+            for (k, v) in pars
+                if occursin("H2j", k) & occursin("b_", k)
+                    for (k1, v1) in pars
+                        if occursin(k[1:7], k1) & ~occursin(k, k1)
+                            j, j1 = parse(Int64, k[8:end]), parse(Int64, k1[8:end])
+                            x = sign(j - j1) * (v.val / v1.val - 1) * 10
+                            retval -= (x < 0 ? x : 0) ^ 2
+                        end
+                    end
+                end
+            end
+        end
+
+        # constraints for H2 on on excitation diagram to be gradually increasing with J
+        if opts["H2_excitation"] == true
+            T = Dict()
+            E = [170.5, 339.35, 505.31, 666.53, 822.20, 970.58, 1111.96, 1243.40, 1367.25, 1480.35] #Energy difference in K
+            g = [(2 * level + 1) * ((level % 2) * 2 + 1) for level in 0:11]  #statweights
+            for (k, v) in pars
+                if occursin("H2j", k) & occursin("N_", k)
+                    j = parse(Int64, k[8:end])
+                    if haskey(pars, k[1:7] * string(j+1))
+                        if ~haskey(T, k[3])
+                            T[k[3]] = Dict()
+                        end
+                        #println(j, " ", v.val, " ", E[j+1], " ", g[j+1])
+                        T[k[3]][j] = E[j+1] / log(10^v.val / 10^pars[k[1:7] * string(j+1)].val * g[j+2] / g[j+1])
+                    end
+                end
+            end
+            for (k, d) in T
+                #println(k)
+                for (k, v) in d
+                    if haskey(d, k+1)
+                        #println(k, " ", v, " ", d[k+1])
+                        retval -= (d[k+1] - v < 0 ? (d[k+1] - v) / 50 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2
+                    end
+                end
+            end
+            #println(T)
+        end
+
         return retval
     end
 

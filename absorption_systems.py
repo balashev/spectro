@@ -138,7 +138,7 @@ def deltaV(z_em, z_abs):
     return (R**2 - 1) / (R**2 + 1) * 299792.46
 
 if __name__ == '__main__':
-    print(deltaV(2.811124, 2.811129))
+    print(deltaV(2.811124, 2.811156))
     print(deltaV(2.811124, 2.811126))
     print(deltaV(2.811124, 2.811132))
     

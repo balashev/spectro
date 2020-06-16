@@ -1482,7 +1482,8 @@ class showLinesWidget(QWidget):
                     ('spec_lw', float), ('show_err', int), ('error_cap', float),
                     ('residuals', int), ('gray_out', int), ('res_sigma', int),
                     ('fit_color', int), ('fit_lw', float), ('show_disp', int), ('disp_alpha', float),
-                    ('show_comps', int), ('comp_lw', float), ('comp_colors', str), ('sys_ind', int),
+                    ('show_comps', int), ('comp_lw', float), ('z_ref', float),
+                    ('comp_colors', str), ('sys_ind', int),
                     ('font', int), ('labels_corr', int), ('xlabel', str), ('ylabel', str),
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
                     ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
@@ -1545,7 +1546,7 @@ class showLinesWidget(QWidget):
                  'Spectrum:', '', '', 'error caps:', '',
                  'Residuals:', '', '', 'sig:', '',
                  'Fit:', '', '', '', '',
-                 'Comps:', '', '', 'central:', '',
+                 'Comps:', '', '', 'reference z:', '',
                  'Fonts:', 'axis:', '', '', '',
                  'Labels:', 'x:', '', 'y:', '',
                  'X-ticks:', 'scale:', '', 'num', '',
@@ -1567,18 +1568,19 @@ class showLinesWidget(QWidget):
                                     ('v_indent', [2, 2]), ('h_indent', [2, 4]), ('col_offset', [4, 2]), ('row_offset', [4, 4]),
                                     ('xmin', [6, 2]), ('xmax', [6, 4]), ('ymin', [7, 2]), ('ymax', [7, 4]),
                                     ('spec_lw', [8, 1]), ('error_cap', [8, 4]), ('res_sigma', [9, 4]),
-                                    ('fit_lw', [10, 1]), ('disp_alpha', [10, 4]), ('comp_lw', [11, 2]), ('font', [12, 2]),
+                                    ('fit_lw', [10, 1]), ('disp_alpha', [10, 4]), ('comp_lw', [11, 2]), ('z_ref', [11, 4]), ('font', [12, 2]),
                                     ('xlabel', [13, 2]), ('ylabel', [13, 4]),
                                     ('x_ticks', [14, 2]), ('xnum', [14, 4]), ('y_ticks', [15, 2]), ('ynum', [15, 4]),
                                     ('font_labels', [16, 2]), ('name_x_pos', [17, 2]), ('name_y_pos', [17, 4]),
                                     ('show_H2', [19, 2]), ('pos_H2', [19, 4])])
+        self.buttons = {}
         for opt, v in self.opt_but.items():
-            b = QLineEdit(str(getattr(self, opt)))
-            b.setFixedSize(80, 30)
+            self.buttons[opt] = QLineEdit(str(getattr(self, opt)))
+            self.buttons[opt].setFixedSize(80, 30)
             if opt not in ['xlabel', 'ylabel', 'show_H2']:
-                b.setValidator(validator)
-            b.textChanged[str].connect(partial(self.onChanged, attr=opt))
-            grid.addWidget(b, v[0], v[1])
+                self.buttons[opt].setValidator(validator)
+            self.buttons[opt].textChanged[str].connect(partial(self.onChanged, attr=opt))
+            grid.addWidget(self.buttons[opt], v[0], v[1])
 
         self.orderh = QCheckBox("hor.", self)
         self.orderh.clicked.connect(partial(self.setOrder, 'h'))
@@ -1633,11 +1635,11 @@ class showLinesWidget(QWidget):
         #grid.addWidget(self.colorcomps, 11, 2)
 
         self.refcomp = QComboBox(self)
-        self.refcomp.addItems([str(i+1) for i in range(len(self.parent.fit.sys))])
-        self.sys_ind = min(self.sys_ind, len(self.parent.fit.sys))
-        self.refcomp.setCurrentIndex(self.sys_ind-1)
+        self.refcomp.addItems([str(i) for i in range(len(self.parent.fit.sys))])
+        self.sys_ind = min(self.sys_ind, len(self.parent.fit.sys)-1)
+        self.refcomp.setCurrentIndex(self.sys_ind)
         self.refcomp.currentIndexChanged.connect(self.onIndChoose)
-        grid.addWidget(self.refcomp, 11, 4)
+        grid.addWidget(self.refcomp, 12, 4)
 
 
         self.labelscorr = QCheckBox('j1 -> *')
@@ -1792,11 +1794,12 @@ class showLinesWidget(QWidget):
         else:
             if line not in self.parent.lines:
                 self.parent.lines.append(line)
-                self.lines.setText(self.lines.toPlainText()+ '\n'+line)
+                self.lines.setText(self.lines.toPlainText() + '\n' + line)
         self.chooseLine.setCurrentIndex(0)
 
     def onIndChoose(self):
-        self.sys_ind = self.refcomp.currentIndex() + 1
+        self.sys_ind = self.refcomp.currentIndex()
+        self.buttons['z_ref'].setText(str(self.parent.fit.sys[self.sys_ind].z.val))
 
     def showPlot(self, savefig=True, showH2=[]):
         fig = plt.figure(figsize=(self.width, self.height), dpi=300)
@@ -1819,9 +1822,14 @@ class showLinesWidget(QWidget):
             self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw, color_total=self.fit_color.to_bytes(4, byteorder='big'),
                                    color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')], disp_alpha=self.disp_alpha)
             if len(self.parent.fit.sys) > 0:
-                self.ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
+                if self.buttons['z_ref'].text().strip() != '':
+                    self.ps.z_ref = float(self.buttons['z_ref'].text())
+                else:
+                    self.ps.z_ref = self.parent.fit.sys[self.sys_ind].z.val
+                    self.buttons['z_ref'].setText(str(self.ps.z_ref))
             else:
                 self.ps.z_ref = self.parent.z_abs
+
             for i, p in enumerate(self.ps):
                 p.name = ' '.join(self.parent.lines[self.ps.index(p)].split()[:2])
                 if len(self.parent.lines[self.ps.index(p)].split()) > 2:
@@ -1898,7 +1906,11 @@ class showLinesWidget(QWidget):
             self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw, color_total=self.fit_color.to_bytes(4, byteorder='big'),
                                    color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')], disp_alpha=self.disp_alpha)
             if len(self.parent.fit.sys) > 0:
-                self.ps.z_ref = self.parent.fit.sys[self.sys_ind-1].z.val
+                if self.buttons['z_ref'].text().strip() != '':
+                    self.ps.z_ref = float(self.buttons['z_ref'].text())
+                else:
+                    self.ps.z_ref = self.parent.fit.sys[self.sys_ind].z.val
+                    self.buttons['z_ref'].setText(str(self.ps.z_ref))
             else:
                 self.ps.z_ref = self.parent.z_abs
             for i, p in enumerate(self.ps):
@@ -2248,10 +2260,10 @@ class fitMCMCWidget(QWidget):
         #self.b_increase.clicked[bool].connect(partial(self.setOpts, 'smooth'))
         grid.addWidget(self.b_increase, 4, 1)
 
-        self.H2_ext = QCheckBox('H2 excitation')
-        self.H2_ext.setChecked(False)
+        self.H2_excitation = QCheckBox('H2 excitation')
+        self.H2_excitation.setChecked(False)
         # self.b_increase.clicked[bool].connect(partial(self.setOpts, 'smooth'))
-        grid.addWidget(self.H2_ext, 5, 1)
+        grid.addWidget(self.H2_excitation, 5, 1)
 
         self.chooseFit = chooseFitParsWidget(self.parent, closebutton=False)
         self.chooseFit.setFixedSize(200, 700)
@@ -2490,10 +2502,7 @@ class fitMCMCWidget(QWidget):
         self.parent.setFit(comp=-1)
         nwalkers, nsteps, nthreads = int(self.parent.options('MCMC_walkers')), int(self.parent.options('MCMC_iters')), int(self.parent.options('MCMC_threads'))
 
-        #pars = []
-        #for par in self.parent.fit.list_fit():
-        #    pars.append(str(par))
-        #    ndims = len(pars)
+        opts = {'b_increase': self.b_increase.isChecked(), 'H2_excitation': self.H2_excitation.isChecked()}
 
         if init:
             init = []
@@ -2525,7 +2534,8 @@ class fitMCMCWidget(QWidget):
                 self.julia = julia.Julia()
                 self.julia.include("MCMC.jl")
                 t = Timer("Julia MCMC")
-                chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), nwalkers=nwalkers, nsteps=nsteps, nthreads=nthreads, init=np.transpose(init))
+                chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), nwalkers=nwalkers,
+                                                       nsteps=nsteps, nthreads=nthreads, init=np.transpose(init), opts=opts)
 
                 backend.grow(nsteps, None)
                 with backend.open("a") as f:
