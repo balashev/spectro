@@ -2531,7 +2531,7 @@ class fitMCMCWidget(QWidget):
 
                 backend.reset(nwalkers, np.sum([p.vary for p in self.parent.julia_pars.values()]))
 
-                self.julia = julia.Julia(compiled_)
+                self.julia = julia.Julia()
                 self.julia.include("MCMC.jl")
                 t = Timer("Julia MCMC")
                 chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), nwalkers=nwalkers,
@@ -2562,10 +2562,10 @@ class fitMCMCWidget(QWidget):
 
         self.start_button.setChecked(False)
 
-    def readChain(self):
+    def readChain(self, ):
         #with open("output/MCMC_pars.pkl", "rb") as f:
         #    pars = pickle.load(f)
-        backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
+        backend = emcee.backends.HDFBackend(self.parent.MCMC_output)
 
         try:
             with backend.open('a') as f:
@@ -2952,23 +2952,7 @@ class fitMCMCWidget(QWidget):
 
         if fname[0]:
             self.parent.options('work_folder', os.path.dirname(fname[0]))
-            if fname[0].endswith('.dat'):
-                with open(fname[0]) as f:
-                    nwalkers = int(f.readline())
-                    pars = f.readline().split()
-                    for i, par in enumerate(pars):
-                        p = par.split('_')
-                        if len(p) > 1:
-                            p[1] = str(int(p[1])-1)
-                        pars[i] = '_'.join(p)
-                    print(pars)
-                samples = np.genfromtxt(fname[0], skip_header=2)
-
-            with open("output/chain.pkl", "wb") as f:
-                pickle.dump(pars[1:-1], f)
-                pickle.dump(nwalkers, f)
-                pickle.dump(samples[:, 1:-1], f)
-                pickle.dump(samples[:, 0], f)
+            self.parent.MCMC_output = fname[0]
 
     def keyPressEvent(self, event):
         super(fitMCMCWidget, self).keyPressEvent(event)
@@ -5732,6 +5716,7 @@ class sviewer(QMainWindow):
         self.KodiaqFile = self.options('KodiaqFile', config=self.config)
         self.UVESfolder = self.options('UVESfolder', config=self.config)
         self.IGMspecfile = self.options('IGMspecfile', config=self.config)
+        self.MCMC_output = 'output/mcmc.hdf5'
         self.z_abs = 0
         self.lines = lineList(self)
         #self.line_reper = line('HI', 1215.6701, 0.4164, 6.265e8, ref='???')
