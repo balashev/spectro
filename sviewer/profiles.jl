@@ -1,4 +1,3 @@
-using AffineInvariantMCMC
 using DataFitting
 using DataStructures
 using LsqFit

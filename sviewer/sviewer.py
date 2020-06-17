@@ -2531,7 +2531,7 @@ class fitMCMCWidget(QWidget):
 
                 backend.reset(nwalkers, np.sum([p.vary for p in self.parent.julia_pars.values()]))
 
-                self.julia = julia.Julia()
+                self.julia = julia.Julia(compiled_)
                 self.julia.include("MCMC.jl")
                 t = Timer("Julia MCMC")
                 chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), nwalkers=nwalkers,
