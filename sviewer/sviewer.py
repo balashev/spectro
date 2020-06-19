@@ -1481,9 +1481,11 @@ class showLinesWidget(QWidget):
                     ('xmin', float), ('xmax', float), ('ymin', float), ('ymax', float),
                     ('spec_lw', float), ('show_err', int), ('error_cap', float),
                     ('residuals', int), ('gray_out', int), ('res_sigma', int),
-                    ('fit_color', int), ('fit_lw', float), ('show_disp', int), ('disp_alpha', float),
-                    ('show_comps', int), ('comp_lw', float), ('z_ref', float),
-                    ('comp_colors', str), ('sys_ind', int),
+                    ('fit_color', int), ('fit_lw', float), ('fit_ls', str),
+                    ('show_comps', int), ('comp_lw', float), ('comp_ls', str),
+                    ('z_ref', float), ('sys_ind', int),
+                    ('show_disp', int), ('disp_alpha', float),
+                    ('comp_colors', str),
                     ('font', int), ('labels_corr', int), ('xlabel', str), ('ylabel', str),
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
                     ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
@@ -1545,8 +1547,10 @@ class showLinesWidget(QWidget):
                  'Y-scale:', 'min:', '', 'max:', '',
                  'Spectrum:', '', '', 'error caps:', '',
                  'Residuals:', '', '', 'sig:', '',
-                 'Fit:', '', '', '', '',
-                 'Comps:', '', '', 'reference z:', '',
+                 'Fit:', '', '', 'linestyle:', '',
+                 'Comps:', '', '', 'linestyle:', '',
+                 'Reference z:', '', '', '', '',
+                 'Disp:' , '', '', '', '',
                  'Fonts:', 'axis:', '', '', '',
                  'Labels:', 'x:', '', 'y:', '',
                  'X-ticks:', 'scale:', '', 'num', '',
@@ -1557,7 +1561,7 @@ class showLinesWidget(QWidget):
                  'H2:', '', '', 'pos:', '',
                  'Covering factor:', '', '', '', '',]
 
-        positions = [(i, j) for i in range(21) for j in range(5)]
+        positions = [(i, j) for i in range(23) for j in range(5)]
 
         for position, name in zip(positions, names):
             if name == '':
@@ -1568,11 +1572,11 @@ class showLinesWidget(QWidget):
                                     ('v_indent', [2, 2]), ('h_indent', [2, 4]), ('col_offset', [4, 2]), ('row_offset', [4, 4]),
                                     ('xmin', [6, 2]), ('xmax', [6, 4]), ('ymin', [7, 2]), ('ymax', [7, 4]),
                                     ('spec_lw', [8, 1]), ('error_cap', [8, 4]), ('res_sigma', [9, 4]),
-                                    ('fit_lw', [10, 1]), ('disp_alpha', [10, 4]), ('comp_lw', [11, 2]), ('z_ref', [11, 4]), ('font', [12, 2]),
-                                    ('xlabel', [13, 2]), ('ylabel', [13, 4]),
-                                    ('x_ticks', [14, 2]), ('xnum', [14, 4]), ('y_ticks', [15, 2]), ('ynum', [15, 4]),
-                                    ('font_labels', [16, 2]), ('name_x_pos', [17, 2]), ('name_y_pos', [17, 4]),
-                                    ('show_H2', [19, 2]), ('pos_H2', [19, 4])])
+                                    ('fit_lw', [10, 1]), ('comp_lw', [11, 2]), ('z_ref', [12, 1]), ('disp_alpha', [13, 2]),
+                                    ('font', [14, 2]), ('xlabel', [15, 2]), ('ylabel', [15, 4]),
+                                    ('x_ticks', [16, 2]), ('xnum', [16, 4]), ('y_ticks', [17, 2]), ('ynum', [17, 4]),
+                                    ('font_labels', [18, 2]), ('name_x_pos', [19, 2]), ('name_y_pos', [19, 4]),
+                                    ('show_H2', [21, 2]), ('pos_H2', [21, 4])])
         self.buttons = {}
         for opt, v in self.opt_but.items():
             self.buttons[opt] = QLineEdit(str(getattr(self, opt)))
@@ -1621,10 +1625,11 @@ class showLinesWidget(QWidget):
         self.fitcolor.setStyleSheet(open('config/styles.ini').read())
         grid.addWidget(self.fitcolor, 10, 2)
 
-        self.showdisp = QCheckBox('show disp')
-        self.showdisp.setChecked(self.show_disp)
-        self.showdisp.clicked[bool].connect(self.setDisp)
-        grid.addWidget(self.showdisp, 10, 3)
+        self.lsfit = QComboBox(self)
+        self.lsfit.addItems(['solid', 'dashed', 'dotted', 'dashdot'])
+        self.lsfit.setCurrentText(self.fit_ls)
+        self.lsfit.currentIndexChanged.connect(self.onFitLsChoose)
+        grid.addWidget(self.lsfit, 10, 4)
 
         self.plotcomps = QCheckBox('show')
         self.plotcomps.setChecked(self.show_comps)
@@ -1634,37 +1639,47 @@ class showLinesWidget(QWidget):
         #self.colorcomps = colorComboBox(self, len(self.parent.fit.sys))
         #grid.addWidget(self.colorcomps, 11, 2)
 
+        self.lscomp = QComboBox(self)
+        self.lscomp.addItems(['solid', 'dashed', 'dotted', 'dashdot'])
+        self.lscomp.setCurrentText(self.comp_ls)
+        self.lscomp.currentIndexChanged.connect(self.onCompLsChoose)
+        grid.addWidget(self.lscomp, 11, 4)
+
         self.refcomp = QComboBox(self)
         self.refcomp.addItems([str(i) for i in range(len(self.parent.fit.sys))])
         self.sys_ind = min(self.sys_ind, len(self.parent.fit.sys)-1)
         self.refcomp.setCurrentIndex(self.sys_ind)
         self.refcomp.currentIndexChanged.connect(self.onIndChoose)
-        grid.addWidget(self.refcomp, 12, 4)
+        grid.addWidget(self.refcomp, 12, 2)
 
+        self.showdisp = QCheckBox('show disp')
+        self.showdisp.setChecked(self.show_disp)
+        self.showdisp.clicked[bool].connect(self.setDisp)
+        grid.addWidget(self.showdisp, 13, 1)
 
         self.labelscorr = QCheckBox('j1 -> *')
         self.labelscorr.setChecked(self.labels_corr)
         self.labelscorr.clicked[bool].connect(self.setLabelsCorr)
-        grid.addWidget(self.labelscorr, 16, 3)
+        grid.addWidget(self.labelscorr, 18, 3)
 
         self.showcont = QCheckBox('show')
         self.showcont.setChecked(self.show_cont)
         self.showcont.clicked[bool].connect(self.setCont)
-        grid.addWidget(self.showcont, 18, 1)
+        grid.addWidget(self.showcont, 20, 1)
 
         self.corrcheb = QCheckBox('cheb. applied')
         self.corrcheb.setChecked(self.corr_cheb)
         self.corrcheb.clicked[bool].connect(self.setCheb)
-        grid.addWidget(self.corrcheb, 18, 2)
+        grid.addWidget(self.corrcheb, 20, 2)
 
         self.showcf = QCheckBox('show')
         self.showcf.setChecked(self.show_cf)
         self.showcf.clicked[bool].connect(self.setCf)
-        grid.addWidget(self.showcf, 20, 1)
+        grid.addWidget(self.showcf, 22, 1)
 
         self.cf = choosePC(self)
         self.cf.fromtext(self.cfs)
-        grid.addWidget(self.cf, 20, 2)
+        grid.addWidget(self.cf, 22, 2)
 
         self.colorComps = colorCompBox(self, num=len(self.parent.fit.sys))
         layout.addLayout(self.colorComps)
@@ -1801,6 +1816,12 @@ class showLinesWidget(QWidget):
         self.sys_ind = self.refcomp.currentIndex()
         self.buttons['z_ref'].setText(str(self.parent.fit.sys[self.sys_ind].z.val))
 
+    def onFitLsChoose(self):
+        self.fit_ls = self.lsfit.currentText()
+
+    def onCompLsChoose(self):
+        self.comp_ls = self.lscomp.currentText()
+
     def showPlot(self, savefig=True, showH2=[]):
         fig = plt.figure(figsize=(self.width, self.height), dpi=300)
         #self.subplot = self.mw.getFigure().add_subplot(self.rows, self.cols, 1)
@@ -1819,7 +1840,8 @@ class showLinesWidget(QWidget):
             self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
-            self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw, color_total=self.fit_color.to_bytes(4, byteorder='big'),
+            self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw,
+                                   ls=self.comp_ls, ls_total=self.fit_ls, color_total=self.fit_color.to_bytes(4, byteorder='big'),
                                    color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')], disp_alpha=self.disp_alpha)
             if len(self.parent.fit.sys) > 0:
                 if self.buttons['z_ref'].text().strip() != '':
@@ -1903,7 +1925,8 @@ class showLinesWidget(QWidget):
             self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
-            self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw, color_total=self.fit_color.to_bytes(4, byteorder='big'),
+            self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw,
+                                   ls=self.comp_ls, ls_total=self.fit_ls, color_total=self.fit_color.to_bytes(4, byteorder='big'),
                                    color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')], disp_alpha=self.disp_alpha)
             if len(self.parent.fit.sys) > 0:
                 if self.buttons['z_ref'].text().strip() != '':
@@ -8188,11 +8211,14 @@ class sviewer(QMainWindow):
 
         res = {}
         for k, v in sp.items():
-            if dep_ref is '':
-                res[k] = [v, metallicity(k, v, HI)]
-            else:
-                res[k] = [v, metallicity(k, v, HI), depletion(k, v, sp[dep_ref], ref=dep_ref)]
-            print('SMA', k, res[k])
+            try:
+                if dep_ref is '':
+                    res[k] = [v, metallicity(k, v, HI)]
+                else:
+                    res[k] = [v, metallicity(k, v, HI), depletion(k, v, sp[dep_ref], ref=dep_ref)]
+                print('SMA', k, res[k])
+            except:
+                res[k] = [v]
 
         return res
 

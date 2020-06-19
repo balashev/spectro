@@ -137,7 +137,7 @@ class plot_spec(list):
     def specify_comps(self, *args):
         self.comps = np.array(args)
                 
-    def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, disp_alpha=0.7):
+    def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, ls_total='solid', disp_alpha=0.7):
 
         if color_total is not None:
             if np.max(list(color_total)) > 1:
@@ -160,15 +160,14 @@ class plot_spec(list):
                 if np.max(list(c)) > 1:
                     color[i] = tuple(ci / 255 for ci in c)
         self.color = color[:]
-        
+
+        #d = {'solid': '-', 'dashed': '--', 'dotted': ':', 'dashdot': '-:'}
         if ls is None:
             ls = ['-'] * num
         if isinstance(ls, (str)):
             ls = [ls] * num
         self.ls = ls[:]
-        #self.ls[0] = '--'
-        #self.ls[1] = ':'
-        
+
         if lw is None:
             lw = [0.5] * num
         if isinstance(lw, (float, int)):
@@ -177,6 +176,7 @@ class plot_spec(list):
 
         self.lw_total = lw_total
         self.lw_spec = lw_spec
+        self.ls_total = ls_total
         self.disp_alpha = disp_alpha
 
     def set_limits(self, x_min, x_max, y_min, y_max):
@@ -475,7 +475,7 @@ class plotline():
             # >>> plot joint fit
             if self.fit_disp is None:
                 print(self.fit.x, self.fit.y)
-                ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls='-', lw=self.parent.lw_total, zorder=11)
+                ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=11)
 
             else:
                 # >>> plot fit dispersion
@@ -628,7 +628,7 @@ class plotline():
 
             # >>> plot joint fit
             if self.fit_disp is None:
-                ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls='-', lw=self.parent.lw_total, zorder=11)
+                ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=11)
             else:
                 # >>> plot fit dispersion
                 self.fit_disp[0].mask(self.x_min, self.x_max)

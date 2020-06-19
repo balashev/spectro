@@ -1,11 +1,3 @@
-high HI
-show SiIIj1
-hide all 
-show H2 0 1
-show H2 2 3
-hide NiII
-show CI
-show H2 0 1
 hide all
 show H2 0 1
 show H2 0 1
@@ -19,3 +11,11 @@ stast
 stats
 stats
 show CII*
+high FeII
+high FeII
+show ClI
+show H2 0 1
+show CI
+show CIj0
+show CIj1
+show CIj2
