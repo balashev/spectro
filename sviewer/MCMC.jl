@@ -60,6 +60,8 @@ function fitMCMC(spec, par; nwalkers=100, nsteps=1000, nthreads=1, init=nothing,
             end
         end
 
+        update_pars(pars, spec)
+
         retval = 0
 
         for s in spec

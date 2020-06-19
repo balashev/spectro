@@ -1,4 +1,4 @@
-using DataFitting
+using AffineInvariantMCMC
 using DataStructures
 using LsqFit
 using Roots
@@ -105,9 +105,13 @@ end
 function voigt_max_deriv(a, tau_0)
     f = (x -> df(x, a, tau_0))
     level = tau_0 > 0.3 ? 0.1 / tau_0 : 1 / 3
-    #println(a, " ", tau_0, " ", level)
-    r = find_zero(f, (0, abs(voigt_range(a, level))))
-    return r
+    try
+        r = find_zero(f, (0, abs(voigt_range(a, level))))
+        return r
+    catch
+        r = find_zero(f, abs(voigt_range(a, level) / 2))
+        return r
+    end
 end
 
 function voigt_grid(l, a, tau_0)
@@ -145,6 +149,15 @@ function make_pars(p_pars)
         end
     end
     return pars
+end
+
+function update_pars(pars, spec)
+    for (k, v) in pars
+        if occursin("res", pars[k].name)
+            #println(pars[k].name, " ", pars[k].val, " ", parse(Int, pars[k].addinfo[5:end]))
+            spec[parse(Int, pars[k].addinfo[5:end]) + 1].resolution = pars[k].val
+        end
+    end
 end
 
 ##############################################################################
@@ -213,28 +226,6 @@ function prepare(s, pars)
     return spec
 end
 
-if 1 == 0
-    const COUNTERS = Dict{String, Int}()
-    COUNTERS["num"] = 100
-
-    macro counted(f)
-        name = f.args[1].args[1]
-        name_str = String(name)
-        body = f.args[2]
-        counter_code = quote
-            if !haskey(COUNTERS, $name_str)
-                COUNTERS[$name_str] = 0
-            end
-            COUNTERS[$name_str] += 1
-            if COUNTERS[$name_str] % COUNTERS["num"] == 0
-                println("iter: ", COUNTERS[$name_str], " ", COUNTERS["num"])
-            end
-        end
-        insert!(body.args, 1, counter_code)
-        return f
-    end
-end
-
 function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
 
     timeit = 0
@@ -256,6 +247,7 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
             end
         end
         line.dx = voigt_range(line.a, 0.001 / line.tau0)
+        #println(line.logN, "  ", line.b)
         x, r = voigt_step(line.a, line.tau0)
         x = line.l .+ x * line.ld
         i_min, i_max = binsearch(spec.x, x[1], type="min"), binsearch(spec.x, x[end], type="max")-1
@@ -384,8 +376,6 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
         end
     end
 
-
-    counter.next()
 end
 
 
@@ -396,18 +386,20 @@ function fitLM(spec, p_pars)
         #println(p)
         for (k, v) in pars
             if v.vary == 1
-                #println(k, " ", v, " ", p[i])
                 pars[k].val = p[i]
                 i += 1
             end
         end
+
+        update_pars(pars, spec)
+
         res = Vector{Float64}()
         for s in spec
             if sum(s.mask) > 0
                 append!(res, (calc_spectrum(s, pars, out="init") .- s.y[s.mask]) ./ s.unc[s.mask])
             end
         end
-        println("chi ", sum(res .^ 2))
+        #println("chi ", sum(res .^ 2))
         return res
     end
 
@@ -419,10 +411,9 @@ function fitLM(spec, p_pars)
     upper = [p.max for (k, p) in pars if p.vary == true]
 
     println(params, " ", lower, " ", upper)
-    fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=100, lower=lower, upper=upper, show_trace=true)
+    fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=300, lower=lower, upper=upper, show_trace=true)
     sigma = stderror(fit)
     covar = estimate_covar(fit)
-    println("cost end ", cost(fit.param))
 
     println(dof(fit))
     println(fit.param)
@@ -433,39 +424,3 @@ function fitLM(spec, p_pars)
 
 end
 
-function fitLM_3(spec, pars)
-
-    function lnlike(x, p...)
-        println("lnlike: ", p)
-        for i in 1:size(pars)[1]
-            l = p[i]
-            if p[i] < pars[i].min
-                println(typeof(p[i]), " ",  p[i], " ", pars[i].min)
-                model.comp[:comp1].p[i].val = pars[i].min
-                l =  pars[i].min
-            elseif p[i] > pars[i].max
-                model.comp[:comp1].p[i].val = pars[i].max
-                l = pars[i].max
-            end
-            pars[i].val = l #model.comp[:comp1].p[i].val
-        end
-
-        calc_spectrum(spec[1], pars, out="init")
-    end
-
-    dom = Domain(spec[1].x[spec[1].mask])
-    data = Measures(spec[1].y[spec[1].mask], spec[1].unc[spec[1].mask])
-
-    params = [p.val for p in pars]
-    println(params)
-    model = Model(:comp1 => FuncWrap(lnlike, params...))
-
-    for (i, p) in enumerate(pars)
-        model.comp[:comp1].p[i].low, model.comp[:comp1].p[i].high, model.comp[:comp1].p[i].fixed = p.min, p.max, ~p.vary
-        println(p, " ", model.comp[:comp1].p[i].fixed)
-    end
-
-    prepare!(model, dom, :comp1)
-
-    result1 = fit!(model, data)
-end

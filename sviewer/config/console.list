@@ -1,9 +1,3 @@
-high H2j7
-high H2j0
-high H2j7
-high H2j7
-high H2j4
-high H2j5
 high HI
 show SiIIj1
 hide all 
@@ -19,3 +13,9 @@ show CI
 show CI*
 show CI**
 high CI
+show CII*
+stats
+stast
+stats
+stats
+show CII*
