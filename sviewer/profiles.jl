@@ -75,7 +75,7 @@ function voigt_deriv(x, a, tau_0)
     return exp.( - tau_0 .* real(w)) .* tau_0 .* 2 .* (imag(w) .* a .- real(w) .* x)
 end
 
-function voigt_step(a, tau_0; level=0.01, step=0.05)
+function voigt_step(a, tau_0; level=0.002, step=0.03)
     x_0 = voigt_max_deriv(a, tau_0)
     x = [-abs(x_0)]
     w = real(SpecialFunctions.erfcx.(a .- im .* x[1])) * tau_0
@@ -114,14 +114,14 @@ function voigt_max_deriv(a, tau_0)
     end
 end
 
-function voigt_grid(l, a, tau_0)
+function voigt_grid(l, a, tau_0; step=0.03)
     x, r = voigt_step(a, tau_0)
     k_min, k_max = binsearch(l, x[1], type="min"), binsearch(l, x[end], type="max")-1
     g = Vector{Float64}()
     for k in k_min:k_max
         i_min, i_max = binsearch(x, l[k]), binsearch(x, l[k+1])
         #append!(g, maximum(r[i_min:i_max]))
-        append!(g, Int(floor((l[k+1] - l[k]) / (0.03  / maximum(r[i_min:i_max]))))+1)
+        append!(g, Int(floor((l[k+1] - l[k]) / (step / maximum(r[i_min:i_max]))))+1)
     end
     return k_min:k_max, g
 end
@@ -240,7 +240,7 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
     x_grid = -1 .* ones(Int8, size(spec.x)[1])
     x_grid[spec.mask] = zeros(sum(spec.mask))
     for line in spec.lines[line_mask]
-        i_min, i_max = binsearch(spec.x, line.l * (1 - 3 * x_instr), type="min"), binsearch(spec.x, line.l * (1 + 3 * x_instr), type="max")
+        i_min, i_max = binsearch(spec.x, line.l * (1 - 4 * x_instr), type="min"), binsearch(spec.x, line.l * (1 + 4 * x_instr), type="max")
         if i_max - i_min > 1 && i_min > 1
             for i in i_min:i_max
                 x_grid[i] = max(x_grid[i], round(Int, (spec.x[i] - spec.x[i-1]) / line.l / x_instr * 4))
@@ -302,6 +302,8 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
     if timeit == 1
         println("make grid ", start - time())
     end
+
+    println("x len ", size(x))
 
     if ~any([occursin("cf", p.first) for p in pars])
         y = ones(size(x))
