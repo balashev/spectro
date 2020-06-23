@@ -452,24 +452,24 @@ class a:
             if self.plus != self.minus:
                 # Barlow 2003
                 if ind == 1:
-                    beta = self.plus/self.minus
+                    beta = self.plus / self.minus
                     gamma = self.plus * self.minus / (self.plus + self.minus)
-                    return -0.5 * (np.log(1+alpha/gamma)/np.log(beta))**2
+                    return -0.5 * (np.log(1 + alpha / gamma) / np.log(beta)) ** 2
                 # two parabola
                 if ind == 2:
                     if alpha > 0:
-                        return -0.5 * (alpha/self.plus)**2
+                        return -0.5 * (alpha / self.plus) ** 2
                     else:
-                        return -0.5 * (alpha/self.minus)**2
+                        return -0.5 * (alpha / self.minus) ** 2
                 # Another from Barlow arXiv:physics/0406120
                 if ind == 3:
-                    return -0.5 * (alpha * (self.plus + self.minus)/(2*self.plus*self.minus + (self.plus - self.minus)*alpha))**2
+                    return -0.5 * (alpha * (self.plus + self.minus) / (2 * self.plus * self.minus + (self.plus - self.minus) * alpha)) ** 2
                 # Another from Barlow arXiv:physics/0406120
                 if ind == 4:
-                    return -0.5 * alpha**2/(self.plus * self.minus + (self.plus - self.minus) * alpha)
+                    return -0.5 * alpha**2 / (self.plus * self.minus + (self.plus - self.minus) * alpha)
             else:
                 #print (((x-n[0])/n[1])**2)
-                return -0.5 * (alpha/self.plus)**2
+                return -0.5 * (alpha / self.plus) ** 2
 
         elif self.type in ['l', 'u']:
             d = {'l': -1, 'u': 1}

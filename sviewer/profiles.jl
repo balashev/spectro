@@ -160,6 +160,30 @@ function update_pars(pars, spec)
     end
 end
 
+mutable struct prior
+    name::String
+    val::Float64
+    plus::Float64
+    minus::Float64
+end
+
+function make_priors(p_priors)
+    priors = OrderedDict{String, prior}()
+    for (k, p) in p_priors
+        priors[k] = prior(k, p.val, p.plus, p.minus)
+    end
+    return priors
+end
+
+function use_prior(prior, val)
+    a = val - prior.val
+    if a > 0
+        return 0.5 * (a / prior.plus) ^ 2
+    else
+        return 0.5 * (a / prior.minus) ^ 2
+    end
+end
+
 ##############################################################################
 
 mutable struct line
@@ -302,8 +326,6 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
     if timeit == 1
         println("make grid ", start - time())
     end
-
-    println("x len ", size(x))
 
     if ~any([occursin("cf", p.first) for p in pars])
         y = ones(size(x))

@@ -23,27 +23,17 @@ println("procs: ", nprocs())
 @everywhere using SpecialFunctions
 @everywhere include("profiles.jl")
 
-function fitMCMC(spec, par; nwalkers=100, nsteps=1000, nthreads=1, init=nothing, opts=0)
+function fitMCMC(spec, par; prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, init=nothing, opts=0)
 
     #COUNTERS["num"] = nwalkers
 
     pars = make_pars(par)
+    priors = make_priors(prior)
+    println(priors)
     params = [p.val for (k, p) in pars if p.vary == 1]
 
     numdims = size(params)[1]
     thinning = 10
-
-    #init2 = Matrix{Float64}(undef, numdims, nwalkers)
-    #if 1==1 #init == nothing
-    #    i = 1
-    #    for p in pars
-    #        if p.vary == 1
-    #            init2[i,:] = p.val .+ randn(nwalkers) .* p.step
-    #            i += 1
-    #        end
-    #    end
-    #end
-    #println(size(init2), init2[3])
 
     lnlike = p->begin
         #println(p)
@@ -63,6 +53,13 @@ function fitMCMC(spec, par; nwalkers=100, nsteps=1000, nthreads=1, init=nothing,
         update_pars(pars, spec)
 
         retval = 0
+
+        if priors != nothing
+            for (k, p) in priors
+                println(p.name, " ", pars[p.name].val, " ", use_prior(p, pars[p.name].val))
+                retval -= use_prior(p, pars[p.name].val)
+            end
+        end
 
         for s in spec
             if sum(s.mask) > 0

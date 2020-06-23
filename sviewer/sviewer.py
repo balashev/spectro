@@ -2272,11 +2272,11 @@ class fitMCMCWidget(QWidget):
             b.setValidator(validator)
             b.textChanged[str].connect(partial(self.onChanged, attr=opt))
             grid.addWidget(b, v[0], v[1])
-        self.priors = QTextEdit('')
-        self.priors.setFixedSize(300, 400)
-        self.priors.textChanged.connect(self.priorsChanged)
-        self.priors.setText('# you can specify prior here \n# N_0_HI 19 0.2 0.3 \n# for comment use #')
-        grid.addWidget(self.priors, 3, 1)
+        self.priorField = QTextEdit('')
+        self.priorField.setFixedSize(300, 400)
+        self.priorField.textChanged.connect(self.priorsChanged)
+        self.priorField.setText('# you can specify prior here \n# N_0_HI 19 0.2 0.3 \n# for comment use #')
+        grid.addWidget(self.priorField, 3, 1)
 
         self.b_increase = QCheckBox('b increase')
         self.b_increase.setChecked(False)
@@ -2468,15 +2468,15 @@ class fitMCMCWidget(QWidget):
             self.parent.options(attr, self.opts[attr](text))
 
     def priorsChanged(self):
-        self.prior = {}
-        for line in self.priors.toPlainText().splitlines():
+        self.priors = {}
+        for line in self.priorField.toPlainText().splitlines():
             if not line.startswith('#'):
                 words = line.split()
                 if words[0] in self.parent.fit.pars():
                     if len(words) == 3:
-                        self.prior[words[0]] = a(float(words[1]), float(words[2]), 'd')
+                        self.priors[words[0]] = a(float(words[1]), float(words[2]), 'd')
                     elif len(words) == 4:
-                        self.prior[words[0]] = a(float(words[1]), float(words[2]), float(words[3]), 'd')
+                        self.priors[words[0]] = a(float(words[1]), float(words[2]), float(words[3]), 'd')
 
     def fitresChanged(self):
         for line in self.results.toPlainText().splitlines():
@@ -2539,6 +2539,8 @@ class fitMCMCWidget(QWidget):
             pars, samples, lnprobs = self.readChain()
             init = samples[-1, :, :]
 
+        print(self.priors)
+
         self.parent.s.prepareFit(ind=-1, all=False)
 
         if 1:
@@ -2557,7 +2559,7 @@ class fitMCMCWidget(QWidget):
                 self.julia = julia.Julia()
                 self.julia.include("MCMC.jl")
                 t = Timer("Julia MCMC")
-                chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), nwalkers=nwalkers,
+                chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), prior=self.priors, nwalkers=nwalkers,
                                                        nsteps=nsteps, nthreads=nthreads, init=np.transpose(init), opts=opts)
 
                 backend.grow(nsteps, None)
@@ -2571,7 +2573,7 @@ class fitMCMCWidget(QWidget):
                 t.time("finished")
             else:
                 if pars == [str(p) for p in self.parent.fit.list_fit()]:
-                    sampler = emcee.EnsembleSampler(nwalkers, ndims, lnprob, args=[pars, self.prior, self], backend=backend)
+                    sampler = emcee.EnsembleSampler(nwalkers, ndims, lnprob, args=[pars, self.priors, self], backend=backend)
 
                     for i, result in enumerate(sampler.sample(pos, iterations=nsteps)):
                         print(i)

@@ -91,6 +91,9 @@ class par:
         for attr in attrs:
             setattr(self, attr, getattr(other, attr))
 
+    def copy(self):
+        return par(self.parent, self.name, self.val, self.min, self.max, self.step, addinfo=self.addinfo, vary=self.vary, fit=self.fit, show=self.show)
+
     def latexname(self):
         pass
 
@@ -498,7 +501,6 @@ class fitPars:
 
     def getValue(self, name, attr='val'):
         par = self.getPar(name)
-
         if par is None:
             raise ValueError('Fit model has no {:} parameter'.format(name))
         else:
