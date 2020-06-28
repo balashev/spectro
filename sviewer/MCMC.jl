@@ -56,7 +56,7 @@ function fitMCMC(spec, par; prior=nothing, nwalkers=100, nsteps=1000, nthreads=1
 
         if priors != nothing
             for (k, p) in priors
-                println(p.name, " ", pars[p.name].val, " ", use_prior(p, pars[p.name].val))
+                #println(p.name, " ", pars[p.name].val, " ", use_prior(p, pars[p.name].val))
                 retval -= use_prior(p, pars[p.name].val)
             end
         end

@@ -1861,7 +1861,7 @@ class Spectrum():
                                     else:
                                         cf_sys = [int(s) for s in cf_sys.split('sys')[1:]]
                                     cf_exp = cf.addinfo.split('_')[1] if len(cf.addinfo.split('_')) > 1 else 'all'
-                                    if (sys.ind in cf_sys) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l()*(1+l.z) > cf.min and l.l()*(1+l.z) < cf.max:
+                                    if (sys.ind in cf_sys) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l()*(1+l.z) > cf.left and l.l()*(1+l.z) < cf.right:
                                         l.cf = i
                             if all:
                                 if l.range[0] < x[-1] and l.range[1] > x[0]:

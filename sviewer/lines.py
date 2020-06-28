@@ -655,15 +655,15 @@ class pcRegion():
 
     def updateFromFit(self):
         self.value = 1 - getattr(self.parent.parent.fit, self.name).val
-        self.x1 = getattr(self.parent.parent.fit, self.name).min
-        self.x2 = getattr(self.parent.parent.fit, self.name).max
+        self.x1 = getattr(self.parent.parent.fit, self.name).left
+        self.x2 = getattr(self.parent.parent.fit, self.name).right
         self.redraw()
 
     def updateFitModel(self):
         #print(self.name, self.value, self.x1, self.x2)
         self.parent.parent.fit.setValue(self.name, 1-self.value)
-        self.parent.parent.fit.setValue(self.name, self.x1, 'min')
-        self.parent.parent.fit.setValue(self.name, self.x2, 'max')
+        self.parent.parent.fit.setValue(self.name, self.x1, 'left')
+        self.parent.parent.fit.setValue(self.name, self.x2, 'right')
         try:
             self.parent.parent.fitModel.refresh()
         except:
@@ -734,6 +734,10 @@ class cfLabel(pg.TextItem):
             self.parent.x1 += (pos.x() - self.st_pos.x())
             self.parent.x2 += (pos.x() - self.st_pos.x())
             self.parent.value += (pos.y() - self.st_pos.y())
+            if self.parent.value > 1:
+                self.parent.value = 1
+            if self.parent.value < 0:
+                self.parent.value = 0
             self.parent.updateFitModel()
             self.parent.redraw()
             ev.accept()

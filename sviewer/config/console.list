@@ -1,16 +1,3 @@
-show H2 0 1
-show CI
-show CI*
-show CI**
-high CI
-show CII*
-stats
-stast
-stats
-stats
-show CII*
-high FeII
-high FeII
 show ClI
 show H2 0 1
 show CI
@@ -19,3 +6,16 @@ show CIj1
 show CIj2
 hide all
 3800 / 912
+show CI
+show HD
+show HD 0
+high HDj0
+high HD 
+show CI
+show H2j4
+show H2j2
+show H2 0 1 2 3
+y 0 1
+scale y 0.5
+rescale 0.5 
+show CIIj1

@@ -8,7 +8,7 @@ from ..atomic import abundance, doppler
 from ..pyratio import pyratio
 
 class par:
-    def __init__(self, parent, name, val, min, max, step, addinfo='', vary=True, fit=True, show=True):
+    def __init__(self, parent, name, val, min, max, step, addinfo='', vary=True, fit=True, show=True, left=None, right=None):
         self.parent = parent
         self.name = name
         if 'cont' in self.name:
@@ -47,6 +47,8 @@ class par:
         self.fit = fit
         self.fit_w = self.fit
         self.show = show
+        self.left = left
+        self.right = right
         self.unc = a()
 
     def set(self, val, attr='val'):
@@ -65,17 +67,13 @@ class par:
             return self.check_range()
 
     def check_range(self):
-        if 'cf' not in self.name:
-            min, max = self.min, self.max
-        else:
-            min, max = 0, 1
 
-        if self.val < min:
-            self.val = min
+        if self.val < self.min:
+            self.val = self.min
             return False
 
-        if self.val > max:
-            self.val = max
+        if self.val > self.max:
+            self.val = self.max
             return False
 
         return True
@@ -143,7 +141,10 @@ class par:
 
     def str(self, attr=None):
         if attr is None:
-            return '{1:} {2:.{0}f} {3:.{0}f} {4:.{0}f} {5:.{0}f} {6:1d} {7:s}'.format(self.dec, self, self.val, self.min, self.max, self.step, self.vary, self.addinfo)
+            if 'cf' not in self.name:
+                return '{1:} {2:.{0}f} {3:.{0}f} {4:.{0}f} {5:.{0}f} {6:1d} {7:s}'.format(self.dec, self, self.val, self.min, self.max, self.step, self.vary, self.addinfo)
+            else:
+                return '{1:} {2:.{0}f} {3:.{0}f} {4:.{0}f} {5:.{0}f} {6:1d} {7:s}'.format(self.dec, self, self.val, self.left, self.right, self.step, self.vary, self.addinfo)
         if attr == 'lmfit':
             return '{1:} {2:.{0}f} ± {3:.{0}f}'.format(self.dec, self, self.val, self.step)
         else:
@@ -342,7 +343,7 @@ class fitPars:
             else:
                 setattr(self, name, par(self, name, 0, -0.5, 0.5, 0.01))
         if 'cf' in name:
-            setattr(self, name, par(self, name, 0.1, 3000, 9000, 0.01, addinfo='all'))
+            setattr(self, name, par(self, name, 0.1, 0, 1, 0.01, addinfo='all', left=3000, right=9000))
         if 'dispz' in name:
             setattr(self, name, par(self, name, 5000, 3000, 9000, 0.1, addinfo='exp_0'))
         if 'disps' in name:
@@ -406,7 +407,7 @@ class fitPars:
 
     def setValue(self, name, val, attr='val'):
         s = name.split('_')
-        if attr in ['val', 'min', 'max', 'step']:
+        if attr in ['val', 'min', 'max', 'step', 'left', 'right']:
             val = float(val)
         elif attr in ['vary', 'fit']:
             val = int(val)
@@ -592,6 +593,7 @@ class fitPars:
             self.res_num = max(self.res_num, int(s[0][4:]) + 1)
         if 'cf' in s[0]:
             self.cf_fit = True
+            attrs = ['val', 'left', 'right', 'step', 'vary', 'addinfo']
             self.parent.plot.add_pcRegion()
         if 'disp' in s[0]:
             self.disp_fit = True

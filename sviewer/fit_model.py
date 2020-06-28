@@ -209,7 +209,6 @@ class fitModelWidget(QWidget):
         self.tied = QComboBox()
         self.tied.setFixedSize(80, 30)
         sp = set([sp for sys in self.parent.fit.sys for sp in sys.sp.keys()])
-        print(sp)
         self.tied.addItems(['tied...'] + list(sp))
         speciesbox.addWidget(self.tied)
 
@@ -367,8 +366,12 @@ class fitModelWidget(QWidget):
         return item
 
     def addChild(self, parent, name):
-        attr = ['val', 'min', 'max', 'step']
-        sign = ['value: ', 'range: ', '....', 'step: ']
+        if 'cf' not in name:
+            attr = ['val', 'min', 'max', 'step']
+            sign = ['value: ', 'range: ', '....', 'step: ']
+        else:
+            attr = ['val', 'left', 'right', 'step']
+            sign = ['value: ', 'range: ', '....']
         if not hasattr(self.parent.fit, name):
             self.parent.fit.add(name)
         setattr(self, name, QTreeWidgetItem(getattr(self, parent)))
@@ -378,10 +381,14 @@ class fitModelWidget(QWidget):
             if 'cf' not in name or k < 3:
                 getattr(self, name).setText(2 * k + 3, sign[k])
                 var = name if attr[k] == 'val' else None
-                setattr(self, name + '_' + attr[k], FLineEdit(self, getattr(getattr(self.parent.fit, name), attr[k]), var=var, name=name+'_'+attr[k]))
+                setattr(self, name + '_' + attr[k], FLineEdit(self, getattr(getattr(self.parent.fit, name), attr[k]), var=var, name=name + '_' + attr[k]))
                 getattr(self, name + '_' + attr[k]).textChanged[str].connect(partial(self.onChanged, name, attr[k]))
                 self.treeWidget.setItemWidget(getattr(self, name), 2 * k + 4, getattr(self, name + '_' + attr[k]))
             else:
+                setattr(self, name + '_' + attr[3], FLineEdit(self, getattr(getattr(self.parent.fit, name), attr[3]), var=var, name=name + '_' + attr[3]))
+                getattr(self, name + '_' + attr[3]).textChanged[str].connect(partial(self.onChanged, name, attr[3]))
+                self.treeWidget.setItemWidget(getattr(self, name), 9, getattr(self, name + '_' + attr[3]))
+
                 setattr(self, name + '_applied', chooseSystemPC(self, name))
                 #getattr(self, name + '_applied').triggered.connect(partial(self.setApplied, name=name))
                 self.treeWidget.setItemWidget(getattr(self, name), 10, getattr(self, name + '_applied'))
@@ -423,7 +430,6 @@ class fitModelWidget(QWidget):
         except:
             pass
         if self.parent.fit.res_fit:
-            print(self.parent.fit.list())
             for res in self.parent.fit.list():
                 if 'res' in str(res):
                     try:
@@ -449,7 +455,7 @@ class fitModelWidget(QWidget):
             for cf in self.parent.fit.list():
                 if 'cf' in str(cf):
                     try:
-                        names = ['val', 'max', 'min']
+                        names = ['val', 'left', 'right']
                         for attr in names:
                             if str(cf) + '_' + attr != excl:
                                 getattr(self, str(cf) + '_' + attr).setText(str(getattr(cf, attr)))
@@ -554,7 +560,6 @@ class fitModelWidget(QWidget):
             self.refresh('varyChanged')
 
     def stateChanged(self, item):
-        print('stateChaged', item.name)
         if item.name in ['mu', 'me', 'dtoh']:
             if item.isExpanded():
                 self.parent.fit.add(item.name)
@@ -642,7 +647,6 @@ class fitModelWidget(QWidget):
 
     def numCfChanged(self):
         k = int(self.cf_num.text())
-        print(k)
         sign = 1 if k > self.parent.fit.cf_num else -1
         if k != self.parent.fit.cf_num:
             rang = range(self.parent.fit.cf_num, k) if sign == 1 else range(self.parent.fit.cf_num-1, k-1, -1)
