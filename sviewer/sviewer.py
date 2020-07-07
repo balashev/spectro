@@ -7802,7 +7802,7 @@ class sviewer(QMainWindow):
 
     def fitwithCont(self, st, n=10, priors=[]):
         reg = []
-        priors = {'b_0_HDj0': a(14.8, 3.1, 3.1, 'd'), 'b_1_HDj0': a(3.0, 2.0, 2.0, 'd')}
+        #priors = {'b_0_HDj0': a(14.8, 3.1, 3.1, 'd'), 'b_1_HDj0': a(3.0, 2.0, 2.0, 'd')}
         #priors = {'b_0_HDj0': a(3.9, 0.3, 0.3, 'd')}
         self.fit.save()
         for ind, s in enumerate(self.s):
