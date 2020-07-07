@@ -1,21 +1,21 @@
-show ClI
+high H2j3
+high H2j4
+high H2j5
+show CIIj1
+
+show MgII
+hide h2
+HIDE H2
+hide H2
 show H2 0 1
 show CI
-show CIj0
-show CIj1
-show CIj2
-hide all
-3800 / 912
-show CI
-show HD
-show HD 0
-high HDj0
-high HD 
-show CI
-show H2j4
-show H2j2
-show H2 0 1 2 3
-y 0 1
-scale y 0.5
-rescale 0.5 
-show CIIj1
+hide CI
+show H2 2 3\
+show H2 2 3
+hide H2 2 3
+hide H2
+show H2 0 1
+show CI 
+show SiIIj1
+4800 / 1215
+4650 / 1215.61

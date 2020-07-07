@@ -641,7 +641,6 @@ class fitPars:
 
     def load(self):
         for p, saved in zip(self.pars(), self.saved):
-            print(p, saved.val)
             self.setValue(p, saved.val)
 
     def setSpecific(self):

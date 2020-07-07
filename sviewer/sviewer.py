@@ -7800,10 +7800,10 @@ class sviewer(QMainWindow):
         self.fitExtWindow = fitExtWidget(self)
         self.fitExtWindow.show()
 
-    def fitwithCont(self, st, n=200, priors=[]):
+    def fitwithCont(self, st, n=10, priors=[]):
         reg = []
-        #priors = {'b_0_HDj0': a(11.4, 0.5, 0.7, 'd'), 'b_1_HDj0': a(7.6, 0.2, 0.4, 'd')}
-        priors = {'b_0_HDj0': a(3.9, 0.3, 0.3, 'd')}
+        priors = {'b_0_HDj0': a(14.8, 3.1, 3.1, 'd'), 'b_1_HDj0': a(3.0, 2.0, 2.0, 'd')}
+        #priors = {'b_0_HDj0': a(3.9, 0.3, 0.3, 'd')}
         self.fit.save()
         for ind, s in enumerate(self.s):
             inds = np.where(np.diff(s.mask.x()) == 1)[0]
@@ -7819,21 +7819,16 @@ class sviewer(QMainWindow):
             for r in reg:
                 self.s[r[0]].spec.norm.y[r[1][0]:r[1][1]] = r[2] + r[3] * np.random.randn()
             self.fitAbs(timer=False)
-            res.append([self.fit.sys[0].sp['HDj0'].N.val]) #, self.fit.sys[1].sp['HDj0'].N.val])
+            print(self.fit.list_fit())
+            print([self.fit.getValue(str(p)) for p in self.fit.list_fit()])
+            res.append([self.fit.getValue(str(p)) for p in self.fit.list_fit()])
 
-        x = np.asarray([r[0] for r in res])
-        np.savetxt('temp/HD.dat', x)
-        z = np.linspace(np.min(x) - (np.max(x) - np.min(x)) / 4, np.max(x) + (np.max(x) - np.min(x)) / 4, 100)
-        kernel = gaussian_kde(x)
-        d = distr1d(z, kernel(z))
-        d.stats(latex=2)
-        d.plot(conf=0.683)
-        if 0:
-            x = [r[1] for r in res]
-            np.savetxt('temp/HD_1.dat', x)
-            z = np.linspace(np.min(x) - (np.max(x) - np.min(x)) / 6, np.max(x) + (np.max(x) - np.min(x)) / 6, 100)
+        for i in range(len(res[0])):
+            x = np.asarray([r[i] for r in res])
+            np.savetxt('temp/HD.dat', x)
+            z = np.linspace(np.min(x) - (np.max(x) - np.min(x)) / 4, np.max(x) + (np.max(x) - np.min(x)) / 4, 100)
             kernel = gaussian_kde(x)
-            d = distr1d(z, kernel(z))
+            d = distr1d(z, kernel(z), name=self.fit.list_fit()[i])
             d.stats(latex=2)
             d.plot(conf=0.683)
         plt.show()

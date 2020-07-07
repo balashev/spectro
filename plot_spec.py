@@ -503,7 +503,7 @@ class plotline():
                     color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
             ax.text(x_pos, null_res-delt_res, r'-'+str(self.sig)+'$\sigma$', fontsize=self.font-2,
                     color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
-            print(self.fit.x, self.fit.y)
+            #print(self.fit.x, self.fit.y)
             fit = interpolate.interp1d(self.fit.x, self.fit.y, bounds_error=False, fill_value=1)
             try:
                 if sum(self.points) > 0:
