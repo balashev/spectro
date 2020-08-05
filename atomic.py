@@ -1,5 +1,5 @@
 import astropy.constants as const
-from astropy.table import Table
+import astropy.units as u
 from collections import OrderedDict
 import copy
 from functools import wraps
@@ -1174,6 +1174,36 @@ class atomicData(OrderedDict):
             return s.list(['H2j' + str(i) for i in n])
 
 
+def oscill_strength(A=1e9, nu=3e15):
+    """
+    Return oscillator strength for a transition of given Einstein coefficient and frequency
+    parameters:
+        - A            :  Einstein coefficient [s^-1]
+        - nu           :  frequency of the transition [Hz]
+    return:  f
+        - f            :  oscillator strength of the transition [dimensionless]
+    """
+    return 3 * const.m_e.cgs.value * const.c.cgs.value ** 3 / (8 * (np.pi * const.e.esu.value * nu) ** 2) * A
+
+def optical_depth(A=None, f=None, nu=None, l=None, N=None, b=None):
+    """
+    Return optical depth at the line center of transition
+    parameters:
+        - A            :  Einstein coefficient [s^-1]
+        - f            :  Oscillator strength [dimensionless]
+        - nu           :  frequency of the transition [Hz]
+        - l            :  wavelength of the transition [cm]
+        - N            :  column density [cm^-2]
+        - b            :  doppler parameter [km/s]
+    return:  tau
+        - tau          :  optical depth at the line center
+    """
+    if nu is None:
+        nu = const.c.cgs / l
+    if f is None:
+        f = oscill_strength(A=A, nu=nu)
+
+    return np.sqrt(np.pi) * const.e.esu.value ** 2 / const.m_e.cgs.value * f * N / nu / b / 1e5
 
 def condens_temperature(name):
     """
@@ -1453,7 +1483,7 @@ if __name__ == '__main__':
         me = a('-1.2^{+0.1}_{-0.1}', 'l')
         print(abundance('OI', HI, me))
 
-    if 1:
+    if 0:
         A = atomicData()
         #A.getfromNIST('MnII', 3)
         A.makedatabase()
@@ -1469,4 +1499,8 @@ if __name__ == '__main__':
         A.compareH2()
 
     if 1:
-        print(mean_molecular_weight(f=1, Z=0))
+        print(oscill_strength(0.122, 2.509e12))
+        print(oscill_strength(1.28e-11, 1.665e9))
+        print(optical_depth(A=0.122, nu=2.509e12, N=1e14, b=1))
+        print(optical_depth(A=7.07e-11, nu=1.665e9, N=1e14, b=1))
+        #print(mean_molecular_weight(f=1, Z=0))

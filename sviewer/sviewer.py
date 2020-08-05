@@ -1488,7 +1488,8 @@ class showLinesWidget(QWidget):
                     ('comp_colors', str),
                     ('font', int), ('labels_corr', int), ('xlabel', str), ('ylabel', str),
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
-                    ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
+                    ('title', str), ('show_title', int), ('font_title', int), ('title_x_pos', float), ('title_y_pos', float),
+                    ('show_labels', int), ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
                     ('plotfile', str), ('show_cont', int), ('corr_cheb', int),
                     ('show_H2', str), ('pos_H2', float),
                     ('show_cf', int), ('cfs', str),
@@ -1555,13 +1556,15 @@ class showLinesWidget(QWidget):
                  'Labels:', 'x:', '', 'y:', '',
                  'X-ticks:', 'scale:', '', 'num', '',
                  'Y-ticks:', 'scale:', '', 'num', '',
-                 'Line labels:', 'font:', '', '', '',
+                 'Title:', '', '', 'font:', '',
+                 '', 'hor.:', '', 'vert.:', '',
+                 'Line labels:', '', '', 'font', '',
                  '', 'hor.:', '', 'vert.:', '',
                  'Continuum', '', '', '', '',
                  'H2:', '', '', 'pos:', '',
                  'Covering factor:', '', '', '', '',]
 
-        positions = [(i, j) for i in range(23) for j in range(5)]
+        positions = [(i, j) for i in range(25) for j in range(5)]
 
         for position, name in zip(positions, names):
             if name == '':
@@ -1575,13 +1578,14 @@ class showLinesWidget(QWidget):
                                     ('fit_lw', [10, 1]), ('comp_lw', [11, 2]), ('z_ref', [12, 1]), ('disp_alpha', [13, 2]),
                                     ('font', [14, 2]), ('xlabel', [15, 2]), ('ylabel', [15, 4]),
                                     ('x_ticks', [16, 2]), ('xnum', [16, 4]), ('y_ticks', [17, 2]), ('ynum', [17, 4]),
-                                    ('font_labels', [18, 2]), ('name_x_pos', [19, 2]), ('name_y_pos', [19, 4]),
-                                    ('show_H2', [21, 2]), ('pos_H2', [21, 4])])
+                                    ('title', [18, 2]), ('font_title', [18, 4]), ('title_x_pos', [19, 2]), ('title_y_pos', [19, 4]),
+                                    ('font_labels', [20, 4]), ('name_x_pos', [21, 2]), ('name_y_pos', [21, 4]),
+                                    ('show_H2', [23, 2]), ('pos_H2', [23, 4])])
         self.buttons = {}
         for opt, v in self.opt_but.items():
             self.buttons[opt] = QLineEdit(str(getattr(self, opt)))
             self.buttons[opt].setFixedSize(80, 30)
-            if opt not in ['xlabel', 'ylabel', 'show_H2']:
+            if opt not in ['xlabel', 'ylabel', 'show_H2', 'title']:
                 self.buttons[opt].setValidator(validator)
             self.buttons[opt].textChanged[str].connect(partial(self.onChanged, attr=opt))
             grid.addWidget(self.buttons[opt], v[0], v[1])
@@ -1657,29 +1661,39 @@ class showLinesWidget(QWidget):
         self.showdisp.clicked[bool].connect(self.setDisp)
         grid.addWidget(self.showdisp, 13, 1)
 
+        self.showtitle = QCheckBox('show')
+        self.showtitle.setChecked(self.show_title)
+        self.showtitle.clicked[bool].connect(self.setTitle)
+        grid.addWidget(self.showtitle, 18, 1)
+
+        self.showlabels = QCheckBox('show')
+        self.showlabels.setChecked(self.show_labels)
+        self.showlabels.clicked[bool].connect(self.setLabels)
+        grid.addWidget(self.showlabels, 20, 1)
+
         self.labelscorr = QCheckBox('j1 -> *')
         self.labelscorr.setChecked(self.labels_corr)
         self.labelscorr.clicked[bool].connect(self.setLabelsCorr)
-        grid.addWidget(self.labelscorr, 18, 3)
+        grid.addWidget(self.labelscorr, 20, 2)
 
         self.showcont = QCheckBox('show')
         self.showcont.setChecked(self.show_cont)
         self.showcont.clicked[bool].connect(self.setCont)
-        grid.addWidget(self.showcont, 20, 1)
+        grid.addWidget(self.showcont, 22, 1)
 
         self.corrcheb = QCheckBox('cheb. applied')
         self.corrcheb.setChecked(self.corr_cheb)
         self.corrcheb.clicked[bool].connect(self.setCheb)
-        grid.addWidget(self.corrcheb, 20, 2)
+        grid.addWidget(self.corrcheb, 22, 2)
 
         self.showcf = QCheckBox('show')
         self.showcf.setChecked(self.show_cf)
         self.showcf.clicked[bool].connect(self.setCf)
-        grid.addWidget(self.showcf, 22, 1)
+        grid.addWidget(self.showcf, 24, 1)
 
         self.cf = choosePC(self)
         self.cf.fromtext(self.cfs)
-        grid.addWidget(self.cf, 22, 2)
+        grid.addWidget(self.cf, 24, 2)
 
         self.colorComps = colorCompBox(self, num=len(self.parent.fit.sys))
         layout.addLayout(self.colorComps)
@@ -1767,6 +1781,12 @@ class showLinesWidget(QWidget):
 
     def setDisp(self, b):
         self.show_disp = int(self.showdisp.isChecked())
+
+    def setTitle(self, b):
+        self.show_title = int(self.showtitle.isChecked())
+
+    def setLabels(self, b):
+        self.show_labels = int(self.showlabels.isChecked())
 
     def setResidual(self, b):
         self.residuals = int(self.resid.isChecked())
@@ -1893,9 +1913,13 @@ class showLinesWidget(QWidget):
                         p.wavelength = l.line.l()
                 print(p.wavelength)
                 p.show_comps = self.show_comps
+                if self.show_labels:
+                    p.name_pos = [self.name_x_pos, self.name_y_pos]
+                else:
+                    p.name_pos = None
+
                 if any([s in p.name for s in ['H2', 'HD', 'CO']]):
                     p.name = ' '.join([p.name.split()[0][:-2], p.name.split()[1]])
-                p.name_pos = [self.name_x_pos, self.name_y_pos]
                 if self.labels_corr and all([not s in p.name for s in ['H2', 'HD', 'CO']]):
                     if 'j' in p.name:
                         m = re.findall('(j\d+)', p.name)[0]
@@ -1913,6 +1937,10 @@ class showLinesWidget(QWidget):
                                 cf = getattr(self.parent.fit, attr)
                                 if (len(cf.addinfo.split('_')) > 1 and cf.addinfo.split('_')[1] == 'all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
                                     ax.plot([np.max([(cf.min / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_min]), np.min([(cf.max / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_max])], [1-cf.val, 1-cf.val], '--', lw=0.5, color='rebeccapurple')
+
+                if i == 0 and self.show_title:
+                    print('Title:', self.title)
+                    ax.text(self.title_x_pos, self.title_y_pos, str(self.title).strip(), ha='left', va='top', fontsize=self.font_title, transform=ax.transAxes)
 
         else:
             self.ps = plot_spec(len(self.parent.plot.regions), font=self.font, font_labels=self.font_labels, vel_scale=False,
@@ -1982,7 +2010,10 @@ class showLinesWidget(QWidget):
 
                 p.loaddata(d=np.array([s.spec.x(), s.spec.y()/cheb(s.spec.x()), s.spec.err()/cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp)
                 p.show_comps = self.show_comps
-                p.name_pos = [self.name_x_pos, self.name_y_pos]
+                if self.show_labels:
+                    p.name_pos = [self.name_x_pos, self.name_y_pos]
+                else:
+                    p.name_pos = None
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 p.y_formatter = self.y_formatter
                 ax = p.plot_line()
@@ -2386,7 +2417,7 @@ class fitMCMCWidget(QWidget):
 
         self.show_button = QPushButton("Show")
         self.show_button.setFixedSize(100, 30)
-        self.show_button.clicked[bool].connect(self.showMC)
+        self.show_button.clicked[bool].connect(partial(self.showMC, mask=None, pars=None, samples=None, lnprobs=None))
         self.show_comp_button = QPushButton("Show comps")
         self.show_comp_button.setFixedSize(100, 30)
         self.show_comp_button.clicked[bool].connect(self.showCompsMC)
@@ -2630,6 +2661,7 @@ class fitMCMCWidget(QWidget):
         if mask is None:
             mask = np.array([self.parent.fit.list()[[str(i) for i in self.parent.fit.list()].index(p)].show for p in pars])
 
+        print(mask)
         names = [str(p).replace('_', ' ') for i, p in enumerate(self.parent.fit.list_fit()) if mask[i]]
         if self.parent.options('MCMC_likelihood'):
             names = [r'$\chi^2$'] + names
@@ -7057,8 +7089,8 @@ class sviewer(QMainWindow):
                         #while f.readline().startswith('#'):
                         #    header += 1
                         data = np.genfromtxt(args[0], comments='#', unpack=True)
-                        print('args', args[0])
-                        print('data', data)
+                        #print('args', args[0])
+                        #print('data', data)
                         #data[1] *= scale_factor
                         #if len(data) > 2:
                         #    data[2] *= scale_factor
@@ -7183,7 +7215,6 @@ class sviewer(QMainWindow):
         fname = QFileDialog.getSaveFileName(self, 'Export spectrum', self.work_folder)
 
         if fname[0]:
-            
             self.exportSpectrum(fname[0])
             self.statusBar.setText('Spectrum is written to ' + fname[0])
 
@@ -7814,8 +7845,8 @@ class sviewer(QMainWindow):
         for i in range(n):
             print(i)
             self.fit.load()
-            for p in priors.keys():
-                self.fit.setValue(p, priors[p].rvs(repr='dec')[0])
+            #for p in priors.keys():
+            #    self.fit.setValue(p, priors[p].rvs(repr='dec')[0])
             for r in reg:
                 self.s[r[0]].spec.norm.y[r[1][0]:r[1][1]] = r[2] + r[3] * np.random.randn()
             self.fitAbs(timer=False)

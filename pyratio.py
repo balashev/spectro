@@ -2134,7 +2134,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check ionization parameter
-    if 0:
+    if 1:
         pr = pyratio(z=2.0, pumping='simple', radiation='simple', sed_type='AGN', agn={'filter': 'r', 'mag': 18})
         pr.set_pars(['T', 'rad', 'e'])
         pr.pars['T'].value = 4
@@ -2358,7 +2358,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> H2 calculations:
-    if 1:
+    if 0:
         pr = pyratio()
         pr.add_spec('H2', num=7)
         pr.set_pars(['T', 'n', 'f'])

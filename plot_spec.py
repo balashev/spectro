@@ -381,26 +381,27 @@ class plotline():
             print(self.spec.x, self.spec.y)
 
     def correctname(self):
-        self.name = self.name[:self.name.find('.')]
-        self.name = self.name.replace(' n=1', '')
-        self.name = self.name.replace(' n=2 ', '*')
-        self.name = self.name.replace(' n=3 ', '*')
-        self.name = self.name.replace('1215', r' Ly-$\alpha$')
-        self.name = self.name.replace('1025', r' Ly-$\beta$')
-        self.name = self.name.replace('972', r' Ly-$\gamma$')
-        self.name = self.name.replace('949', r' Ly-$\delta$')
-        self.name = self.name.replace('937', r' Ly-5')
-        self.name = self.name.replace('930', r' Ly-6')
-        self.name = self.name.replace('925', r' Ly-7')
-        self.name = self.name.replace('922', r' Ly-8')
-        self.name = self.name.replace('920', r' Ly-9')
-        self.name = self.name.replace('919', r' Ly-10')
-        self.name = self.name.replace('917', r' Ly-11')
-        self.name = self.name.replace('916', r' Ly-12')
-        l = self.name.find('I')
-        if l == -1:
-            l = self.name.find('V')
-        self.name = self.name[:l]+' '+self.name[l:]
+        if self.name is not None:
+            self.name = self.name[:self.name.find('.')]
+            self.name = self.name.replace(' n=1', '')
+            self.name = self.name.replace(' n=2 ', '*')
+            self.name = self.name.replace(' n=3 ', '*')
+            self.name = self.name.replace('1215', r' Ly-$\alpha$')
+            self.name = self.name.replace('1025', r' Ly-$\beta$')
+            self.name = self.name.replace('972', r' Ly-$\gamma$')
+            self.name = self.name.replace('949', r' Ly-$\delta$')
+            self.name = self.name.replace('937', r' Ly-5')
+            self.name = self.name.replace('930', r' Ly-6')
+            self.name = self.name.replace('925', r' Ly-7')
+            self.name = self.name.replace('922', r' Ly-8')
+            self.name = self.name.replace('920', r' Ly-9')
+            self.name = self.name.replace('919', r' Ly-10')
+            self.name = self.name.replace('917', r' Ly-11')
+            self.name = self.name.replace('916', r' Ly-12')
+            l = self.name.find('I')
+            if l == -1:
+                l = self.name.find('V')
+            self.name = self.name[:l]+' '+self.name[l:]
 
     def plot_line(self):
         """
@@ -561,7 +562,9 @@ class plotline():
                     ax.plot([v-81.6, v-81.6], [self.y_min, self.y_max], color=self.parent.color[k], linestyle=':', lw=self.parent.lw[k])
 
         # >>> add text
-        ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font_labels, transform=ax.transAxes)
+        if self.name_pos is not None:
+            ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font_labels, transform=ax.transAxes)
+
         if self.parent.add_ioniz:
             el = element(self.el.name)
             print(el, self.ion_state, el.ionenergies)
@@ -697,7 +700,8 @@ class plotline():
         ax.plot([self.x_min, self.x_max], [0.0, 0.0], 'k--', lw=0.5)
 
         # >>> add text
-        ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font, transform=ax.transAxes)
+        if self.name_pos is not None:
+            ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font, transform=ax.transAxes)
             
         return ax
 
