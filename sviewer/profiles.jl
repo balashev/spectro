@@ -1,5 +1,6 @@
 using AffineInvariantMCMC
 using DataStructures
+using Interpolations
 using LsqFit
 using Roots
 using SpecialFunctions
@@ -157,6 +158,12 @@ function update_pars(pars, spec)
             #println(pars[k].name, " ", pars[k].val, " ", parse(Int, pars[k].addinfo[5:end]))
             spec[parse(Int, pars[k].addinfo[5:end]) + 1].resolution = pars[k].val
         end
+        if occursin("disps", pars[k].name)
+            spec[parse(Int, split(pars[k].name, "_")[2]) + 1].disps = pars[k].val
+        end
+        if occursin("dispz", pars[k].name)
+            spec[parse(Int, split(pars[k].name, "_")[2]) + 1].dispz = pars[k].val
+        end
     end
 end
 
@@ -239,14 +246,17 @@ mutable struct spectrum
     mask::BitArray
     resolution::Float64
     lines::Vector{line}
+    disps::Float64
+    dispz::Float64
 end
 
 
 function prepare(s, pars)
     spec = Vector(undef, size(s)[1])
     for (i, si) in enumerate(s)
-        spec[i] = spectrum(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.resolution, prepare_lines(si.fit_lines, pars))
+        spec[i] = spectrum(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.resolution, prepare_lines(si.fit_lines, pars), 0, 0)
     end
+    update_pars(pars, spec)
     return spec
 end
 
@@ -365,6 +375,26 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
         println("calc lines ", start - time())
         #println(size(x))
     end
+
+    #if any([occursin("disp", p.first) for p in pars])
+    #    n = Int(sum([occursin("disp", p.first) for p in pars]) / 2)
+    #    for i in 0:n-1
+    #        println(i)
+    #        for p in pars
+    #            #println(p.first, " ", occursin("disp", p.first), " ", parse(Int, split(p.first, "_")[2]) == i, " ", occursin("disp", p.first) & (parse(Int, split(p.first, "_")[2]) == i))
+    #            if occursin("disp", p.first) & (parse(Int, split(p.first, "_")[2]) == i)
+    #                println(p.first, " ", p.second.addinfo)
+    #            end
+    #        end
+    #    end
+    #end
+    #println(spec.dispz, " ", spec.disps)
+    if (spec.dispz != 0) & (spec.disps != 0)
+        println(spec.dispz, " ", spec.disps)
+        inter = LinearInterpolation(x, y, extrapolation_bc=Flat())
+        y = inter(x .+ (x .- spec.dispz) .* spec.disps)
+    end
+
 
     if spec.resolution != 0
         y = 1 .- y
