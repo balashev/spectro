@@ -472,6 +472,8 @@ class plotline():
                         self.fit_comp_disp[k][0].mask(self.x_min, self.x_max)
                         self.fit_comp_disp[k][1].mask(self.x_min, self.x_max)
                         ax.fill_between(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, self.fit_comp_disp[k][1].y, fc=self.parent.color[k], alpha=self.parent.disp_alpha, zorder=11)
+                        ax.plot(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
+                        ax.plot(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][1].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
 
             # >>> plot joint fit
             if self.fit_disp is None:
@@ -486,6 +488,8 @@ class plotline():
                 self.fit_disp[0].mask(self.x_min, self.x_max)
                 self.fit_disp[1].mask(self.x_min, self.x_max)
                 ax.fill_between(self.fit_disp[0].x, self.fit_disp[0].y, self.fit_disp[1].y, fc=self.parent.color_total, alpha=self.parent.disp_alpha, zorder=11)
+                ax.plot(self.fit_disp[0].x, self.fit_disp[0].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=10)
+                ax.plot(self.fit_disp[0].x, self.fit_disp[1].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=10)
 
         # >>> add residuals
         if self.add_residual and self.show_fit:
@@ -628,6 +632,8 @@ class plotline():
                     self.fit_comp_disp[k][0].mask(self.x_min, self.x_max)
                     self.fit_comp_disp[k][1].mask(self.x_min, self.x_max)
                     ax.fill_between(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, self.fit_comp_disp[k][1].y, fc=self.parent.color[k], alpha=self.parent.disp_alpha, zorder=11)
+                    ax.plot(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
+                    ax.plot(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][1].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
 
             # >>> plot joint fit
             if self.fit_disp is None:

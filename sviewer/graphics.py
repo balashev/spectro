@@ -416,7 +416,11 @@ class gline():
             mask = np.logical_and(mask, self.y > min)
         if max is not None:
             mask = np.logical_and(mask, self.y < max)
-        self.x, self.y, self.err, self.mask = self.x[mask], self.y[mask], self.err[mask], self.mask[mask]
+        self.x, self.y, self.err = self.x[mask], self.y[mask], self.err[mask]
+        try:
+            self.mask = self.mask[mask]
+        except:
+            pass
         self.n = len(self.x)
 
     def apply_region(self, regions=[]):

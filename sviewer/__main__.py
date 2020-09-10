@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (QApplication, QDesktopWidget)
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = sv.sviewer()
-    if 0:
+    if 1:
         monitor = QDesktopWidget().screenGeometry(2)
         print(monitor)
         ex.move(monitor.left(), monitor.top())

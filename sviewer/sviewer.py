@@ -1461,7 +1461,7 @@ class showLinesWidget(QWidget):
     def __init__(self, parent):
         super().__init__()
         self.parent = parent
-        self.resize(800, 700)
+        self.resize(800, 1100)
         self.move(200, 100)
         #self.setWindowFlags(Qt.FramelessWindowHint)
 
@@ -1530,6 +1530,7 @@ class showLinesWidget(QWidget):
         self.chooseLine.addItems(['choose...'] + [str(l.line) for l in self.parent.abs.lines])
         self.chooseLine.activated[str].connect(self.selectLine)
         l.addWidget(self.chooseLine)
+        l.addStretch()
         hlayout.addLayout(l)
 
         grid = QGridLayout()
@@ -7928,7 +7929,7 @@ class sviewer(QMainWindow):
 
                     ndim, nwalkers, nsteps = 3, 100, 2000
                     p0 = np.asarray([result.params[par].value + np.random.randn(nwalkers) * result.params[par].stderr for par in params]).transpose()
-                    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[x_bin, y - cont, err, cont])
+                    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[x_bin, y, err, cont])
                     sampler.run_mcmc(p0, nsteps)
                     samples = sampler.chain[:, int(nsteps/2):, :].reshape((-1, ndim))
                     samples[:, 2] = samples[:, 0] / (2 * np.pi)**0.5 / samples[:, 2]

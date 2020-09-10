@@ -517,16 +517,20 @@ if __name__ == '__main__':
 
     #print(a(2,4,4, 'd').log())
 
-    if 0:
+    if 1:
         x = a("$11.37\pm0.03", 'l')
-        x = a(13.28, 0.05, 0.04, 'l')
+        x = a(13.78, 0.30, 0.30, 'l')
         y = a("$14.90\pm0.15", 'l')
-        y = a(13.17, 0.10, 0.11, 'l')
+        y = a(13.85, 0.20, 0.20, 'l')
+        print(x.dec())
+        print(y.dec())
         #x = a("$1\pm0.1", 'd')
         #y = a("$10\pm3", 'd')
         #y = a('$2\pm0.3$', 'd')
-        z = x + y
+        z = (x + y)
+        plt.show()
         print(z.log())
+        print(z.dec())
     if 0:
         x = a("1.06^{+0.44}_{-0.10}")
         print(x.dec())
@@ -574,7 +578,7 @@ if __name__ == '__main__':
         x.append(a(11,1,2,'d'))
         for y in x:
             print(y, y.type)
-    if 1:
+    if 0:
         u = a('<19.0', 'l')
         l = a('<2.0', 'l')
         print(l.lnL(3), l.lnL(1))

@@ -1,17 +1,3 @@
-show H2 2 3
-hide H2 2 3
-hide H2
-show H2 0 1
-show CI 
-show SiIIj1
-4800 / 1215
-4650 / 1215.61
-MgII
-show ArI
-CII*
-show CII*
-show ZnII
-show CIIj1
 CIIj1
 NI
 show NI
@@ -19,3 +5,17 @@ show NII
 NII
 NI
 OI
+SiIIj1
+CIIj1
+show CIIj1
+show H2 0 1
+show H2 0 1
+show SiIIJ1
+show SiIIj1
+y 0 1
+y 0 1
+y 0 1
+y 0 1
+y 0 1
+y 0 1
+y 0 1
