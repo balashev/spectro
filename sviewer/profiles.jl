@@ -2,6 +2,7 @@ using AffineInvariantMCMC
 using DataStructures
 using Interpolations
 using LsqFit
+using PeriodicTable
 using Roots
 using SpecialFunctions
 
@@ -149,7 +150,38 @@ function make_pars(p_pars)
             pars[p.__str__()].min, pars[p.__str__()].max = 0, 1
         end
     end
+    #println(pars)
     return pars
+end
+
+function get_element_name(name)
+    st = name
+    if occursin("j", st)
+        st = st[1:findfirst("j", st)]
+    end
+    for s in ["I", "V", "X", "*"]
+        st = replace(st, s => "")
+    end
+    return st
+end
+
+function doppler(name, turb, kin)
+    #println(name)
+    #println(get_element_name(name))
+    name = get_element_name(name)
+    if name == "D"
+        mass = 2
+    else
+        for e in elements
+            if e.symbol == name
+                mass = e.atomic_mass.val
+            end
+        end
+        #mass = element(get_element_name(name)).atomic_mass.val
+    end
+    #println(mass)
+    #println(element(get_element_name(name)).atomic_mass.val)
+    return (turb ^ 2 + 0.0164 * kin / mass) ^ .5
 end
 
 function update_pars(pars, spec)
@@ -213,7 +245,9 @@ end
 function update_lines(lines, pars; ind=0)
     mask = Vector{Bool}(undef, 0)
     for line in lines
-        if pars["b_" * string(line.sys) * "_" * line.name].addinfo != ""
+        if pars["b_" * string(line.sys) * "_" * line.name].addinfo == "consist"
+            line.b = doppler(line.name, pars["turb_" * string(line.sys)].val, pars["kin_" * string(line.sys)].val)
+        elseif pars["b_" * string(line.sys) * "_" * line.name].addinfo != ""
             line.b = pars["b_" * string(line.sys) * "_" * pars["b_" * string(line.sys) * "_" * line.name].addinfo].val
         else
             line.b = pars["b_" * string(line.sys) * "_" * line.name].val

@@ -218,6 +218,7 @@ class distr2d():
     def interpolate(self):
         if 1:
             self.inter = interpolate.interp2d(self.x, self.y, self.z, kind='cubic', fill_value=0)
+            #self.inter = interpolate.Rbf(self.x, self.y, self.z, function='multiquadric', smooth=0.1)
         else:
             self.inter = interpolate.RectBivariateSpline(self.x, self.y, self.z, kx=3, ky=3)
         #xi, yi = 5, 14

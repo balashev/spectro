@@ -309,6 +309,7 @@ class plotline():
         self.xticklabels = None
         self.ylabel = None
         self.xlabel = None
+        self.label = None
         self.x_min, self.x_max, self.y_min, self.y_max = 0, 0, 0, 0
         self.x_minorLocator = AutoMinorLocator(10)
         self.x_locator = MultipleLocator(100)
@@ -568,6 +569,8 @@ class plotline():
         # >>> add text
         if self.name_pos is not None:
             ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font_labels, transform=ax.transAxes)
+            if self.label is not None:
+                ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha='right', va='top', fontsize=self.font_labels, transform=ax.transAxes)
 
         if self.parent.add_ioniz:
             el = element(self.el.name)
@@ -708,7 +711,9 @@ class plotline():
         # >>> add text
         if self.name_pos is not None:
             ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font, transform=ax.transAxes)
-            
+            if self.label is not None:
+                ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha='right', va='top', fontsize=self.font_labels, transform=ax.transAxes)
+
         return ax
 
     def correct_cont(self):

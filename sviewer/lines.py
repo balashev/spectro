@@ -336,7 +336,7 @@ class lineList(list):
             self.add(line)
 
     def __contains__(self, item):
-        return any(' '.join(item.split()[:2]) == ' '.join(x.split()[:2]) for x in self)
+        return any(' '.join(item.split()[:3]) == ' '.join(x.split()[:3]) for x in self)
 
     def __str__(self):
         return '\n'.join([str(l) for l in self])

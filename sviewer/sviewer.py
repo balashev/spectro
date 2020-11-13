@@ -9,6 +9,7 @@ from collections import OrderedDict
 from copy import deepcopy, copy
 import emcee
 import h5py
+import gzip
 import inspect
 from importlib import reload
 from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs, Model
@@ -1435,7 +1436,7 @@ class choosePC(QToolButton):
 
     def fromtext(self, text):
         print(text)
-        if 'all' in text:
+        if 'all' in text or text.strip() == '':
             if hasattr(self, 'setall'):
                 self.setall.setChecked(True)
                 self.set(cf=None)
@@ -1694,6 +1695,7 @@ class showLinesWidget(QWidget):
 
         self.cf = choosePC(self)
         self.cf.fromtext(self.cfs)
+        self.cf.triggered.connect(self.setcfs)
         grid.addWidget(self.cf, 24, 2)
 
         self.colorComps = colorCompBox(self, num=len(self.parent.fit.sys))
@@ -1810,6 +1812,9 @@ class showLinesWidget(QWidget):
     def setCf(self, b):
         self.show_cf = int(self.showcf.isChecked())
 
+    def setcfs(self, b):
+        self.cfs = self.cf.currentText()
+
     def setFilename(self):
         self.plotfile = self.file.text()
 
@@ -1875,10 +1880,13 @@ class showLinesWidget(QWidget):
 
             for i, p in enumerate(self.ps):
                 p.name = ' '.join(self.parent.lines[self.ps.index(p)].split()[:2])
+                ind = self.parent.s.ind
                 if len(self.parent.lines[self.ps.index(p)].split()) > 2:
-                    ind = int(self.parent.lines[self.ps.index(p)].split()[2][4:])
-                else:
-                    ind = self.parent.s.ind
+                    for s in self.parent.lines[self.ps.index(p)].split()[2:]:
+                        if 'exp' in s:
+                            ind = int(s[4:])
+                        if 'note' in s:
+                            p.label = str(s[5:])
                 print(p.name, ind)
                 s = self.parent.s[ind]
 
@@ -1907,8 +1915,12 @@ class showLinesWidget(QWidget):
                     fit_disp, fit_comp_disp = None, None
 
                 p.loaddata(d=np.array([s.spec.x(), s.spec.y()/cheb(s.spec.x()), s.spec.err()/cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp)
-                if len(self.parent.lines[self.ps.index(p)].split()) == 4:
-                    p.y_min, p.y_max = (float(l) for l in self.parent.lines[self.ps.index(p)].split()[2:])
+                if len(self.parent.lines[self.ps.index(p)].split()) > 3:
+                    for s in self.parent.lines[self.ps.index(p)].split()[2:]:
+                        if 'ymin' in s:
+                            p.y_min = float(s[5:])
+                        if 'ymax' in s:
+                            p.y_max = float(s[5:])
                 for l in self.parent.abs.lines:
                     if p.name == str(l.line):
                         p.wavelength = l.line.l()
@@ -1937,7 +1949,7 @@ class showLinesWidget(QWidget):
                             if hasattr(self.parent.fit, attr):
                                 cf = getattr(self.parent.fit, attr)
                                 if (len(cf.addinfo.split('_')) > 1 and cf.addinfo.split('_')[1] == 'all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
-                                    ax.plot([np.max([(cf.min / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_min]), np.min([(cf.max / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_max])], [1-cf.val, 1-cf.val], '--', lw=0.5, color='rebeccapurple')
+                                    ax.plot([np.max([(cf.left / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_min]), np.min([(cf.right / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_max])], [1-cf.val, 1-cf.val], '--', lw=0.5, color='rebeccapurple')
 
                 if i == 0 and self.show_title:
                     print('Title:', self.title)
@@ -1972,15 +1984,14 @@ class showLinesWidget(QWidget):
                 print(st)
                 p.x_min, p.x_max = (float(s) for s in st[0].split('..'))
                 #p.y_formater = '%.1f'
+                ind = self.parent.s.ind
                 for s in st[1:]:
                     if 'name' in s:
                         p.name = s[5:]
                     if 'exp' in s:
                         ind = int(s[4:])
-                if not any(['name' in s for s in st]):
-                    p.name == ''
-                if not any(['exp' in s for s in st]):
-                    ind = self.parent.s.ind
+                    if 'note' in s:
+                        p.label = str(s[5:])
                 print(ind)
                 s = self.parent.s[ind]
 
@@ -2020,12 +2031,12 @@ class showLinesWidget(QWidget):
                 ax = p.plot_line()
                 if self.show_cf and self.parent.fit.cf_fit:
                     for k in range(self.parent.fit.cf_num):
-                        if self.cfs.currentText() == 'all' or 'cf' + str(k) in self.cfs.currentText():
+                        if self.cfs == 'all' or 'cf' + str(k) in self.cfs:
                             attr = 'cf_' + str(k)
                             if hasattr(self.parent.fit, attr):
                                 cf = getattr(self.parent.fit, attr)
                                 if (len(cf.addinfo.split('_')) > 1 and cf.addinfo.split('_')[1] == 'all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
-                                    ax.plot([np.max([cf.min, p.x_min]), np.min([cf.max, p.x_max])], [1-cf.val, 1-cf.val], '--', color='orangered')
+                                    ax.plot([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], [1-cf.val, 1-cf.val], '--', color='orangered')
 
                 if self.show_H2.strip() != '':
                     p.showH2(ax, levels=[int(s) for s in self.show_H2.split()], pos=self.pos_H2)
@@ -2617,6 +2628,7 @@ class fitMCMCWidget(QWidget):
 
                 self.showMC()
 
+        self.parent.MCMC_output = "output/mcmc.hdf5"
         self.start_button.setChecked(False)
 
     def readChain(self, ):
@@ -2843,6 +2855,8 @@ class fitMCMCWidget(QWidget):
                 if n_hor <= 1:
                     n_hor = 2
                 n_vert = len(sp) // n_hor + 1 if len(sp) % n_hor > 0 else len(sp) // n_hor
+                if n_vert <= 1:
+                    n_vert = 2
                 print(self.parent.fit.list())
                 fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
                 i = 0
@@ -6059,7 +6073,12 @@ class sviewer(QMainWindow):
         showFullFit.setShortcut('Shift+F')
         showFullFit.triggered.connect(partial(self.showFit, -1, True))
 
-        fitLM = QAction('&Fit LM', self)        
+        fitResults = QAction('&Fit results', self)
+        fitResults.setStatusTip('Show fit results')
+        fitResults.setShortcut('F8')
+        fitResults.triggered.connect(self.showFitResults)
+
+        fitLM = QAction('&Fit LM', self)
         fitLM.setStatusTip('Fit by Levenberg-Marquadt method')
         fitLM.triggered.connect(self.fitLM)
 
@@ -6080,10 +6099,9 @@ class sviewer(QMainWindow):
         stopFit.setStatusTip('Stop fitting process')
         stopFit.triggered.connect(self.stopFit)
 
-        fitResults = QAction('&Fit results', self)
-        fitResults.setStatusTip('Show fit results')
-        fitResults.setShortcut('F8')
-        fitResults.triggered.connect(self.showFitResults)
+        tempFit = QAction('&Temp Fit', self)
+        tempFit.setStatusTip('Tempopary button for specific actions')
+        tempFit.triggered.connect(self.bootFit)
 
         fitCheb = QAction('&Fit Cheb', self)
         fitCheb.setStatusTip('Adjust continuum by Chebyshev polynomials')
@@ -6132,13 +6150,14 @@ class sviewer(QMainWindow):
         fitMenu.addAction(chooseFitPars)
         fitMenu.addAction(showFit)
         fitMenu.addAction(showFullFit)
+        fitMenu.addAction(fitResults)
         fitMenu.addSeparator()
         fitMenu.addAction(fitLM)
         fitMenu.addAction(fitMCMC)
         fitMenu.addAction(fitGrid)
         fitMenu.addAction(fitCont)
         fitMenu.addAction(stopFit)
-        fitMenu.addAction(fitResults)
+        fitMenu.addAction(tempFit)
         fitMenu.addSeparator()
         fitMenu.addAction(fitCheb)
         fitMenu.addAction(fitExt)
@@ -6986,7 +7005,17 @@ class sviewer(QMainWindow):
                                     s.date = hdulist[0].header['DATE-OBS']
                                 print(s.resolution, s.date)
 
-
+                            if 'COS' in hdulist[0].header['INSTRUME']:
+                                prihdr = hdulist[1].data
+                                s.set_data([np.concatenate([prihdr['WAVELENGTH'][1], prihdr['WAVELENGTH'][0]]),
+                                            1e17 * np.concatenate([prihdr['FLUX'][1], prihdr['FLUX'][0]]),
+                                            1e17 * np.concatenate([prihdr['ERROR'][1], prihdr['ERROR'][0]])
+                                            ])
+                                # for l, f, e in zip(prihdr['WAVELENGTH'], prihdr['FLUX'], prihdr['ERROR']):
+                                #    s.set_data()
+                            if 'ESPRESSO' in hdulist[0].header['INSTRUME']:
+                                print(hdulist)
+                                print(hdulist[3].data)
                             try:
                                 if corr:
                                     s.helio_vel = hdulist[0].header['HIERARCH ESO QC VRAD HELICOR']
@@ -7737,6 +7766,40 @@ class sviewer(QMainWindow):
             self.fitprocess = None
         if self.thread.is_alive():
             self.thread.join()
+
+    def bootFit(self):
+        print('boot')
+        if 1:
+            res = []
+        else:
+            with open('temp/res.pickle', 'rb') as f:
+                res = pickle.load(f)
+            print(res)
+        if 1:
+            for i in range(500):
+                print(i)
+                self.normalize(False)
+                self.openFile("C:/science/Noterdaeme/HE0001/MgII_boot.spv")
+                self.s.remove(self.s.ind)
+                self.generate(template='const', z=self.fit.sys[0].z.val, fit=True, xmin=4054, xmax=4078, resolution=55000, snr=20,
+                             lyaforest=0.0, lycutoff=False, Av=0.0, Av_bump=0.0, z_Av=0.0, redraw=True)
+                self.normalize(True)
+                self.console.exec_command('x 4054 4078')
+                s = self.s[self.s.ind]
+                s.add_points(4060.350, 1.5, 4060.60, -0.5, remove=False, redraw=False)
+                s.add_points(4070.770, 1.5, 4071, -0.5, remove=False, redraw=False)
+                # self.parent.s[i].add_points(self.mousePoint_saved.x(), self.mousePoint_saved.y(), self.mousePoint.x(), self.mousePoint.y(), remove=False)
+                s.set_fit_mask()
+                s.update_points()
+                s.set_res()
+                self.fit.cf_0.val = 0.95
+                self.fitAbs(timer=False)
+                print(self.fit.list_fit())
+                print([self.fit.getValue(str(p)) for p in self.fit.list_fit()])
+                res.append([self.fit.getValue(str(p)) for p in self.fit.list_fit()])
+            with open('temp/res.pickle', 'wb') as f:
+                pickle.dump(res, f)
+        print(res)
 
     def showFitResults(self):
 

@@ -56,7 +56,7 @@ class a:
     Example of usage: 
     
     x = a(19,0.3,0.2)
-    y = a(2,0.5,0.5, 'd')
+    y = a(2,0.5,0.5,'d')
     z = x * y
     z.log()
     print(z)
@@ -429,8 +429,8 @@ class a:
         return np.abs(m.fun - 0.5)
 
     def mini(self, func, other, res):
-        res.plus = res.val * (minimize(self.minim, 1 + res.plus / 2 / res.val, args=(func, other), method=self.method, bounds=[(0.999, None)], options={'ftol':self.tol, 'eps':0.001}).x[0] - 1)
-        res.minus = res.val * (1 - minimize(self.minim, 1 - res.minus / 2 / res.val, args=(func, other), method=self.method, bounds=[(None, 0.999)], options={'ftol':self.tol, 'eps':0.001}).x[0])
+        res.plus = res.val * (minimize(self.minim, 1 + res.plus / 2 / res.val, args=(func, other), method=self.method, bounds=[(0.999, None)], options={'ftol': self.tol, 'eps': 0.001}).x[0] - 1)
+        res.minus = res.val * (1 - minimize(self.minim, 1 - res.minus / 2 / res.val, args=(func, other), method=self.method, bounds=[(None, 0.999)], options={'ftol': self.tol, 'eps': 0.001}).x[0])
 
         return res
 

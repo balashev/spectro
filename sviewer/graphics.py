@@ -150,6 +150,7 @@ class Speclist(list):
             self.parent.julia_spec = self.parent.julia.prepare(self, self.parent.julia_pars)
 
     def calcFit(self, ind=-1, recalc=False, redraw=True, timer=False):
+
         if timer:
             t = Timer()
 
