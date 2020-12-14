@@ -3,6 +3,7 @@ using DataStructures
 using Interpolations
 using LsqFit
 using PeriodicTable
+using Polynomials
 using Roots
 using SpecialFunctions
 
@@ -150,7 +151,6 @@ function make_pars(p_pars)
             pars[p.__str__()].min, pars[p.__str__()].max = 0, 1
         end
     end
-    #println(pars)
     return pars
 end
 
@@ -263,7 +263,7 @@ function update_lines(lines, pars; ind=0)
     return mask
 end
 
-function prepare_lines(lines, pars)
+function prepare_lines(lines)
     fit_lines = Vector{line}(undef, size(lines)[1])
     for (i, l) in enumerate(lines)
         fit_lines[i] = line(l.name, l.sys, l.l(), l.f(), l.g(), l.b, l.logN, l.z, l.l()*(1+l.z), 0, 0, 0, 0, l.cf)
@@ -271,7 +271,30 @@ function prepare_lines(lines, pars)
     return fit_lines
 end
 
+function prepare_cheb(pars, ind)
+    cont = []
+    d = [[parse(Int, split(k, "_")[2]), parse(Int, split(k, "_")[3]), parse(Int, split(v.addinfo, "_")[3]), v] for (k, v) in pars if occursin("cont", k)]
+    d = permutedims(reshape(hcat(d...), (length(d[1]), length(d))))
+    for k in unique(d[:, 1][d[:, 3] .== ind - 1])
+        append!(cont, [cheb([], 0, 0, 0)])
+        for i in sort(d[:, 2][(d[:, 1] .== k) .& (d[:, 3] .== ind - 1)])
+            p = d[:, 4][(d[:, 1] .== k) .& (d[:, 2] .== i) .& (d[:, 3] .== ind - 1)]
+            if i == 0
+                cont[end].left, cont[end].right, cont[end].disp = parse(Float64, split(split(p[1].addinfo, "_")[1], "..")[1]), parse(Float64, split(split(p[1].addinfo, "_")[1], "..")[2]), parse(Float64, split(p[1].addinfo, "_")[4])
+            end
+            append!(cont[end].c, [p[1].name])
+        end
+    end
+    return cont
+end
+
 ##############################################################################
+mutable struct cheb
+    c::Vector{String}
+    left::Float64
+    right::Float64
+    disp::Float64
+end
 
 mutable struct spectrum
     x::Vector{Float64}
@@ -282,16 +305,28 @@ mutable struct spectrum
     lines::Vector{line}
     disps::Float64
     dispz::Float64
+    cont::Vector{Any}
 end
 
-
 function prepare(s, pars)
+    #c = Vector{Any}
+    #println(append!(c,  [cheb([], 0, 0, 0)]))
     spec = Vector(undef, size(s)[1])
     for (i, si) in enumerate(s)
-        spec[i] = spectrum(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.resolution, prepare_lines(si.fit_lines, pars), 0, 0)
+        spec[i] = spectrum(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.resolution, prepare_lines(si.fit_lines), 0, 0, prepare_cheb(pars, i))
     end
     update_pars(pars, spec)
     return spec
+end
+
+function correct_continuum(conts, pars, x)
+    c = ones(size(x))
+    for cont in conts
+         m = (x .> cont.left) .& (x .< cont.right)
+         cheb = ChebyshevT([pars[name].val for name in cont.c])
+         c[m] = cheb.((x[m] .- cont.left) .* 2 ./ (cont.right - cont.left) .- 1)
+    end
+    return c
 end
 
 function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
@@ -424,11 +459,9 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
     #end
     #println(spec.dispz, " ", spec.disps)
     if (spec.dispz != 0) & (spec.disps != 0)
-        println(spec.dispz, " ", spec.disps)
         inter = LinearInterpolation(x, y, extrapolation_bc=Flat())
         y = inter(x .+ (x .- spec.dispz) .* spec.disps)
     end
-
 
     if spec.resolution != 0
         y = 1 .- y
@@ -450,11 +483,17 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
             println("convolve ", start - time())
         end
 
+        if size(spec.cont)[1] > 0
+            y_c = (1 .-y_c) .* correct_continuum(spec.cont, pars, x)
+        else
+            y_c = 1 .- y_c
+        end
+
         if out == "all"
-            return x, 1 .- y_c
+            return x, y_c
         elseif out == "init"
             #println("all done ", sum(y_c[x_mask]))
-            return 1 .- y_c[x_mask]
+            return y_c[x_mask]
         end
     else
         if out == "all"

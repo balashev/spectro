@@ -310,6 +310,88 @@ class fitSystem:
     def __str__(self):
         return '{:.6f} '.format(self.z.val) + str(self.sp)
 
+class cont():
+    def __init__(self, parent):
+        self.parent = parent
+        self.left = 0
+        self.right = 0
+        self.disp = 0
+        self.exp = 0
+        self.num = 0
+        self.pars = []
+
+    def copy(self):
+        c = cont(self.parent)
+        c.left = self.left
+        c.right = self.right
+        c.num = self.num
+        c.disp = self.disp
+        c.pars = self.pars[:]
+        return c
+
+    def update(self):
+        for i in range(self.num):
+            s = '{0:7.1f}'.format(self.left).strip() + '..'
+            s += '{0:7.1f}'.format(self.right).strip()
+            s += '_exp_{0:d}'.format(self.exp).strip()
+            s += '_{0:5.3f}'.format(self.disp).strip()
+            self.parent.setValue(self.pars[i].name, s, attr='addinfo')
+            #print(self.pars[i].addinfo)
+
+    def fromInfo(self, info):
+        s = info.split('_')
+        if len(s) > 0:
+            self.left = float(s[0].split('..')[0])
+            self.right = float(s[0].split('..')[1])
+        if len(s) > 2:
+            self.exp = int(s[2])
+        if len(s) > 3:
+            self.disp = float(s[3])
+
+class fitCont(list):
+    def __init__(self, parent):
+        super(fitCont).__init__()
+        self.parent = parent
+
+    def add(self, name):
+        s = name.split('_')
+        if len(s) > 1:
+            if int(s[1]) <= len(self):
+                if int(s[1]) == len(self):
+                    self.append(cont(self.parent))
+                ind = int(s[1])
+                if int(s[2]) == len(self[ind].pars):
+                    if int(s[2]) == 0:
+                        setattr(self.parent, name, par(self, name, 1, 0, 2, 0.01, addinfo='0..0'))
+                    else:
+                        setattr(self.parent, name, par(self, name, 0, -0.5, 0.5, 0.01, addinfo='0..0'))
+                    self[ind].pars.append(getattr(self.parent, name))
+                #self[ind].left, self[ind].right = [float(r) for r in getattr(self.parent, name).addinfo.split('..')]
+                self[ind].num = len(self[ind].pars)
+
+    def remove(self, name):
+        if isinstance(name, str):
+            s = name.split('_')
+            if len(s) > 1:
+                ind = int(s[1])
+                if ind < len(self):
+                    if int(s[2]) < len(self[ind].pars):
+                        self[ind].pars.pop()
+                        self[ind].num = len(self[ind].pars)
+                        if self[ind].num == 0:
+                            self.pop()
+                        delattr(self.parent, name)
+        elif isinstance(name, int):
+            for i in range(self[name].num-1, -1, -1):
+                self[name].pars.pop()
+                delattr(self.parent, 'cont_' + str(name) + '_' + str(i))
+            self[name].num = 0
+            self.pop()
+
+    def update(self):
+        for c in self.parent.cont_num:
+            c.update()
+
 class fitPars:
     def __init__(self, parent):
         self.parent = parent
@@ -318,8 +400,7 @@ class fitPars:
         self.total.ind = 'total'
         self.cont_fit = False
         self.cont_num = 0
-        self.cont_left = 3500
-        self.cont_right = 4000
+        self.cont = fitCont(self)
         self.res_fit = False
         self.res_num = 0
         self.cf_fit = False
@@ -338,10 +419,9 @@ class fitPars:
         if 'res' in name:
             setattr(self, name, par(self, name, 45000, 1000, 60000, 1, addinfo='exp_0'))
         if 'cont' in name:
-            if name == 'cont_0':
-                setattr(self, name, par(self, name, 1, 0, 2, 0.01))
-            else:
-                setattr(self, name, par(self, name, 0, -0.5, 0.5, 0.01))
+            self.cont.add(name)
+        if name in 'contmcmc':
+            self.contmcmc = par(self, 'contmcmc', 1, 0, 10, 0.1)
         if 'cf' in name:
             setattr(self, name, par(self, name, 0.1, 0, 1, 0.01, addinfo='all', left=3000, right=9000))
         if 'dispz' in name:
@@ -350,9 +430,11 @@ class fitPars:
             setattr(self, name, par(self, name, 1e-5, -1e-4, 1e-4, 1e-6, addinfo='exp_0'))
 
     def remove(self, name):
-        if name in ['mu', 'me', 'dtoh', 'res'] or any([x in name for x in ['cont', 'res', 'cf', 'disp']]):
+        if name in ['mu', 'me', 'dtoh', 'res'] or any([x in name for x in ['res', 'cf', 'disp']]):
             if hasattr(self, name):
                 delattr(self, name)
+        if 'cont' in name:
+            self.cont.remove(name)
                 #gc.collect()
 
     def addTieds(self, p1, p2):
@@ -417,9 +499,13 @@ class fitPars:
                 self.add(s[0])
             res = getattr(self, s[0]).set(val, attr)
 
-        if s[0] in ['cont', 'res', 'cf', 'dispz', 'disps']:
+        if s[0] in ['res', 'cf', 'dispz', 'disps']:
             if not hasattr(self, name):
                 self.add(name)
+            res = getattr(self, name).set(val, attr)
+        if s[0] in ['cont']:
+            if not hasattr(self, name):
+                self.cont.add(name)
             res = getattr(self, name).set(val, attr)
 
         if s[0] in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
@@ -529,10 +615,11 @@ class fitPars:
                     pars[str(p)] = p
             if self.cont_fit and self.cont_num > 0:
                 for i in range(self.cont_num):
-                    attr = 'cont_' + str(i)
-                    if hasattr(self, attr):
-                        p = getattr(self, attr)
-                        pars[str(p)] = p
+                    for k in range(self.cont[i].num):
+                        attr = 'cont_' + str(i) + '_' + str(k)
+                        if hasattr(self, attr):
+                            p = getattr(self, attr)
+                            pars[str(p)] = p
             if self.res_fit and self.res_num > 0:
                 for i in range(self.res_num):
                     attr = 'res_' + str(i)
@@ -586,7 +673,8 @@ class fitPars:
             s.append('')
 
         if 'cont' in s[0]:
-            self.cont_num = max(self.cont_num, int(s[0][5:]) + 1)
+            print(self.cont_num, int(s[0].split('_')[1]))
+            self.cont_num = max(self.cont_num, int(s[0].split('_')[1]) + 1)
             self.cont_fit = True
         if 'res' in s[0]:
             self.res_fit = True
@@ -603,6 +691,8 @@ class fitPars:
             self.setValue(s[0], val, attr)
             if attr == 'val':
                 self.setValue(s[0], float(s[4]), 'unc')
+            if attr == 'addinfo' and 'cont' in s[0]:
+                self.cont[int(s[0].split('_')[1])].fromInfo(val)
 
         if 'cf' in s[0]:
             self.parent.plot.pcRegions[-1].updateFromFit()

@@ -182,8 +182,15 @@ class distr1d():
         return "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.point, self.interval[1] - self.point, self.point - self.interval[0], n=f)
 
 class distr2d():
-    def __init__(self, x, y, z, xtol=1e-5, debug=False):
-        if len(z.shape) == 1 and len(x.shape) == 1 and len(y.shape) == 1:
+    def __init__(self, x, y, z=None, xtol=1e-5, debug=False):
+        if z is None:
+            self.x = np.linspace(np.min(x), np.max(x), int(np.sqrt(len(x))))
+            self.y = np.linspace(np.min(y), np.max(y), int(np.sqrt(len(y))))
+            X, Y = np.meshgrid(self.x, self.y)
+            z = gaussian_kde([x, y])
+            self.z = z(np.vstack([X.flatten(), Y.flatten()])).reshape(X.shape)
+
+        elif len(z.shape) == 1 and len(x.shape) == 1 and len(y.shape) == 1:
             self.x = np.unique(sorted(x))
             self.y = np.unique(sorted(y))
             self.z = np.zeros([len(self.y), len(self.x)])
@@ -196,6 +203,7 @@ class distr2d():
             self.x = x
             self.y = y
             self.z = z
+
         self.X, self.Y = np.meshgrid(self.x, self.y)
         self.zmax = None
         self.xtol = xtol
@@ -351,8 +359,8 @@ class distr2d():
                     w.addItem(line)
         app.instance().exec_()
 
-    def plot_contour(self, conf_levels=None, ax=None, xlabel='', ylabel='', limits=None, ls=None,
-                     color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False,
+    def plot_contour(self, conf_levels=None, ax=None, xlabel='', ylabel='', limits=None, ls=['--'],
+                     color='dodgerblue', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False,
                      font=14, title=None, zorder=1, label=None):
         if ax == None:
             fig, ax = plt.subplots()

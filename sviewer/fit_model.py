@@ -264,7 +264,6 @@ class fitModelWidget(QWidget):
         l.addLayout(layout_left)
         l.addLayout(layout_right)
 
-
         self.setLayout(l)
 
         self.setGeometry(100, 100, 1900, 900)
@@ -283,6 +282,7 @@ class fitModelWidget(QWidget):
 
         attr = ['val', 'min', 'max', 'step']
         sign = ['value: ', 'range: ', '....', 'step: ']
+
         self.cont = self.addParent(self.treeWidget, 'Continuum', expanded=self.parent.fit.cont_fit)
         self.cont.name = 'cont'
 
@@ -293,23 +293,17 @@ class fitModelWidget(QWidget):
         self.cont_num.setFixedSize(30, 30)
         self.cont_num.returnPressed.connect(self.numContChanged)
         self.treeWidget.setItemWidget(self.cont_m, 4, self.cont_num)
-        self.cont_left = FLineEdit(self, str(self.parent.fit.cont_left))
-        self.cont_left.textEdited.connect(self.contRange)
-        self.cont_m.setTextAlignment(5, Qt.AlignRight)
-        self.cont_m.setText(5, 'range: ')
-        self.treeWidget.setItemWidget(self.cont_m, 6, self.cont_left)
-        self.cont_right = FLineEdit(self, str(self.parent.fit.cont_right))
-        self.cont_right.textEdited.connect(self.contRange)
-        self.cont_m.setTextAlignment(7, Qt.AlignRight)
-        self.cont_m.setText(7, '...')
-        self.treeWidget.setItemWidget(self.cont_m, 8, self.cont_right)
-        for i in range(self.parent.fit.cont_num):
-            self.addChild('cont', 'cont_' + str(i))
+        self.cont_reg = QPushButton('from regions')
+        self.cont_reg.setFixedSize(100, 30)
+        self.cont_reg.clicked.connect(self.fromRegions)
+        self.treeWidget.setItemWidget(self.cont_m, 5, self.cont_reg)
         self.cont.setExpanded(self.parent.fit.cont_fit)
+        for i in range(self.parent.fit.cont_num):
+            self.addContParent(self.cont, 'region_'+str(i), expanded=self.parent.fit.cont_fit)
 
         for s, name in zip(['mu', 'me', 'dtoh'], ['mp/me', 'metallicity', 'D/H']):
             setattr(self, s + '_p', self.addParent(self.treeWidget, name, expanded=hasattr(self.parent.fit, s)))
-            getattr(self, s + '_p').name = s
+            #getattr(self, s + '_p').name = s
             self.addChild(s + '_p', s)
         #self.treeWidget.itemChanged.connect(self.stateChanged)
 
@@ -363,15 +357,59 @@ class fitModelWidget(QWidget):
         item = QTreeWidgetItem(parent, [text])
         item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
         item.setExpanded(expanded)
+        item.name = text
+        return item
+
+    def addContParent(self, parent, text, checkable=False, expanded=True, checked=False):
+        item = QTreeWidgetItem(parent, [text])
+        item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
+        item.name = text
+        item.setExpanded(expanded)
+        ind = int(text.split('_')[1])
+        if not hasattr(self.parent.fit, 'cont_' + str(ind) + '_0'):
+            self.parent.fit.add('cont_' + str(ind) + '_0')
+        item.cont_m = QTreeWidgetItem(item)
+        item.cont_m.setTextAlignment(3, Qt.AlignRight)
+        item.cont_m.setText(3, 'num: ')
+        item.cont_num = FLineEdit(self, str(self.parent.fit.cont[ind].num))
+        item.cont_num.setFixedSize(30, 30)
+        item.cont_num.returnPressed.connect(partial(self.numContRegionChanged, ind))
+        self.treeWidget.setItemWidget(item.cont_m, 4, item.cont_num)
+        item.cont_m.setTextAlignment(5, Qt.AlignRight)
+        item.cont_m.setText(5, 'range: ')
+        item.cont_left = FLineEdit(self, '{0:6.1f}'.format(self.parent.fit.cont[ind].left).strip())
+        item.cont_left.textEdited.connect(partial(self.contRange, ind))
+        self.treeWidget.setItemWidget(item.cont_m, 6, item.cont_left)
+        item.cont_m.setTextAlignment(7, Qt.AlignRight)
+        item.cont_m.setText(7, '...')
+        item.cont_right = FLineEdit(self, '{0:6.1f}'.format(self.parent.fit.cont[ind].right).strip())
+        item.cont_right.textEdited.connect(partial(self.contRange, ind))
+        self.treeWidget.setItemWidget(item.cont_m, 8, item.cont_right)
+        item.cont_m.setTextAlignment(9, Qt.AlignRight)
+        item.cont_m.setText(9, 'disp: ')
+        item.cont_disp = FLineEdit(self, '{0:5.3f}'.format(self.parent.fit.cont[ind].disp).strip())
+        item.cont_disp.textEdited.connect(partial(self.contDisp, ind))
+        self.treeWidget.setItemWidget(item.cont_m, 10, item.cont_disp)
+        setattr(self, item.name + '_applied_exp', QComboBox(self))
+        combo = getattr(self, item.name + '_applied_exp')
+        combo.setFixedSize(70, 30)
+        combo.activated.connect(partial(self.setApplied, name=item.name))
+        self.treeWidget.setItemWidget(item.cont_m, 11, combo)
+        setattr(self, item.name, item)
+        for i in range(self.parent.fit.cont[ind].num):
+            self.addChild(text, 'cont_' + str(ind) + '_' + str(i))
+        item.setExpanded(self.parent.fit.cont_fit)
+        self.parent.fit.cont[ind].update()
         return item
 
     def addChild(self, parent, name):
-        if 'cf' not in name:
-            attr = ['val', 'min', 'max', 'step']
-            sign = ['value: ', 'range: ', '....', 'step: ']
-        else:
+        if 'cf' in name:
             attr = ['val', 'left', 'right', 'step']
             sign = ['value: ', 'range: ', '....']
+        else:
+            attr = ['val', 'min', 'max', 'step']
+            sign = ['value: ', 'range: ', '....', 'step: ']
+
         if not hasattr(self.parent.fit, name):
             self.parent.fit.add(name)
         setattr(self, name, QTreeWidgetItem(getattr(self, parent)))
@@ -409,7 +447,7 @@ class fitModelWidget(QWidget):
     def setApplied(self, name):
         combo = getattr(self, name + '_applied_exp')
         sp1 = combo.currentText()
-        print(name, sp1, self.parent.fit.getValue(name, 'addinfo'))
+        print(name, sp1) #, self.parent.fit.getValue(name, 'addinfo'))
         if 'applied' in sp1:
             sp1 = ''
 
@@ -418,9 +456,13 @@ class fitModelWidget(QWidget):
             print(sp + '_' + sp1)
             self.parent.fit.setValue(name, sp + '_' + sp1, 'addinfo')
             self.parent.fit.getValue(name, 'addinfo')
+        elif 'region' in name:
+            self.parent.fit.cont[int(name.split('_')[1])].exp = int(getattr(self, name + '_applied_exp').currentText().split('_')[1])
+            for i in range(self.parent.fit.cont[int(name.split('_')[1])].num):
+                info = self.parent.fit.getValue('cont_' + name.split('_')[1] + '_' + str(i), 'addinfo')
+                self.parent.fit.setValue('cont_' + name.split('_')[1] + '_' + str(i), info.split('_')[0] + '_' + sp1, 'addinfo')
         else:
             self.parent.fit.setValue(name, sp1, 'addinfo')
-        print('setApplied', self.parent.fit.getValue(name, 'addinfo'))
         self.refresh()
 
     def updateRes(self, excl=''):
@@ -505,6 +547,27 @@ class fitModelWidget(QWidget):
                     except:
                         pass
 
+    def updateCont(self, excl=''):
+        try:
+            self.cont_m.setExpanded(self.parent.fit.cont_fit)
+            self.cont_num.setText(str(self.parent.fit.cont_num))
+        except:
+            pass
+        if self.parent.fit.cont_fit:
+            for i, c in enumerate(self.parent.fit.cont):
+                try:
+                    combo = getattr(self, 'region_' + str(i) + '_applied_exp')
+                    combo.clear()
+                    sp = list(['exp_' + str(s) for s in range(len(self.parent.s))])
+                    combo.addItems(sp)
+                    s = 'exp_' + str(getattr(c, 'exp'))
+                    if s != '' and s in sp:
+                        combo.setCurrentText(s)
+                    else:
+                        combo.setCurrentIndex(0)
+                except:
+                    pass
+
     def updateTieWindow(self, init=False):
         if init == False:
             text = self.tieWindow.toPlainText()
@@ -569,10 +632,14 @@ class fitModelWidget(QWidget):
             self.parent.fit.cont_fit = self.cont.isExpanded()
             self.parent.fit.cont_num = int(self.cont_num.text())
             for i in range(self.parent.fit.cont_num):
-                if self.cont.isExpanded():
-                    self.parent.fit.add('cont_'+str(i))
+                getattr(self, 'region_' + str(i)).setExpanded(item.isExpanded())
+
+        if 'region' in item.name:
+            for i in range(self.parent.fit.cont_num):
+                if item.isExpanded():
+                    self.parent.fit.add('cont_' + item.name.split('_')[1] + '_' + str(i))
                 else:
-                    self.parent.fit.remove('cont_'+str(i))
+                    self.parent.fit.remove('cont_' + item.name.split('_')[1] + '_' + str(i))
 
         if item.name == 'res':
             self.parent.fit.res_fit = self.res.isExpanded()
@@ -605,20 +672,45 @@ class fitModelWidget(QWidget):
         if self.refr:
             self.refresh('stateChanged')
 
+    def fromRegions(self):
+        if int(self.cont_num.text()) <= len(self.parent.plot.regions):
+            self.parent.fit.cont_num = len(self.parent.plot.regions)
+            self.cont_num.setText(str(self.parent.fit.cont_num))
+            #self.cont_num.setText('0')
+            #self.numContChanged()
+            self.parent.fit.cont_fit = 1
+
+        for i, r in enumerate(self.parent.plot.regions):
+            if not hasattr(self, 'region_' + str(i)):
+                self.addContParent(self.cont, 'region_' + str(i), expanded=self.parent.fit.cont_fit)
+            self.parent.fit.cont[i].left, self.parent.fit.cont[i].right = r.getRegion()
+            s = self.parent.s[self.parent.fit.cont[i].exp]
+            if self.parent.normview:
+                m = (s.spec.x()[s.cont_mask] > self.parent.fit.cont[i].left) * (s.spec.x()[s.cont_mask] < self.parent.fit.cont[i].right)
+                self.parent.fit.cont[i].disp = np.nanmean(s.spec.err()[s.cont_mask][m] / s.cont.y[m])
+            else:
+                m = (s.spec.x() > self.parent.fit.cont[i].left) * (s.spec.x() < self.parent.fit.cont[i].right)
+                self.parent.fit.cont[i].disp = np.nanmean(s.spec.err()[m])
+            self.parent.fit.cont[i].update()
+            getattr(self, 'region_' + str(i)).cont_left.setText('{0:6.1f}'.format(self.parent.fit.cont[i].left).strip())
+            getattr(self, 'region_' + str(i)).cont_right.setText('{0:6.1f}'.format(self.parent.fit.cont[i].right).strip())
+            getattr(self, 'region_' + str(i)).cont_disp.setText('{0:6.2f}'.format(self.parent.fit.cont[i].disp).strip())
+        #self.parent.fit.cont_num = len(self.parent.plot.regions)
+        #self.cont_num.setText(str(self.parent.fit.cont_num))
+
     def numContChanged(self):
         k = int(self.cont_num.text())
         sign = 1 if k > self.parent.fit.cont_num else -1
-        print(k, self.parent.fit.cont_num, sign)
         if k != self.parent.fit.cont_num:
             rang = range(self.parent.fit.cont_num, k) if sign == 1 else range(self.parent.fit.cont_num-1, k-1, -1)
-            print(list(rang))
             for i in list(rang):
                 if k > self.parent.fit.cont_num:
-                    self.parent.fit.add('cont_'+str(i))
-                    self.addChild('cont', 'cont_'+str(i))
+                    self.addContParent(self.cont, 'region_' + str(i), expanded=self.parent.fit.cont_fit)
                 else:
-                    self.parent.fit.remove('cont_' + str(i))
-                    getattr(self, 'cont').removeChild(getattr(self, 'cont_' + str(i)))
+                    #for l in range(self.parent.fit.cont[k].num):
+                    self.parent.fit.cont.remove(i)
+                    getattr(self, 'cont').removeChild(getattr(self, 'region_' + str(i)))
+                    delattr(self, 'region_' + str(i))
             self.parent.fit.cont_num = k
             if self.refr:
                 self.refresh()
@@ -627,9 +719,27 @@ class fitModelWidget(QWidget):
         else:
             self.parent.fit.cont_fit = 1
 
+    def numContRegionChanged(self, ind):
+        k = int(getattr(self, 'region_' + str(ind)).cont_num.text())
+        if k == -1:
+            pass
+        else:
+            sign = 1 if k > self.parent.fit.cont[ind].num else -1
+            if k != self.parent.fit.cont[ind].num:
+                rang = range(self.parent.fit.cont[ind].num, k) if sign == 1 else range(self.parent.fit.cont[ind].num-1, k-1, -1)
+                for i in list(rang):
+                    if k > self.parent.fit.cont[ind].num:
+                        self.addChild('region_' + str(ind), 'cont_' + str(ind) + '_' + str(i))
+                        self.parent.fit.cont[ind].update()
+                    else:
+                        self.parent.fit.remove('cont_' + str(ind) + '_' + str(i))
+                        getattr(self, 'region_' + str(ind)).removeChild(getattr(self, 'cont_' + str(ind) + '_' + str(i)))
+                self.parent.fit.cont[ind].num = k
+                if self.refr:
+                    self.refresh()
+
     def numResChanged(self):
         k = int(self.res_num.text())
-        print(k)
         sign = 1 if k > self.parent.fit.res_num else -1
         if k != self.parent.fit.res_num:
             rang = range(self.parent.fit.res_num, k) if sign == 1 else range(self.parent.fit.res_num-1, k-1, -1)
@@ -638,7 +748,6 @@ class fitModelWidget(QWidget):
                     self.parent.fit.add('res_' + str(i))
                     self.addChild('res', 'res_' + str(i))
                 else:
-                    print(i)
                     self.parent.fit.remove('res_' + str(i))
                     getattr(self, 'res').removeChild(getattr(self, 'res_' + str(i)))
             self.parent.fit.res_num = k
@@ -681,9 +790,14 @@ class fitModelWidget(QWidget):
             if self.refr:
                 self.refresh()
 
-    def contRange(self):
-        self.parent.fit.cont_left = float(self.cont_left.text())
-        self.parent.fit.cont_right = float(self.cont_right.text())
+    def contRange(self, ind):
+        self.parent.fit.cont[ind].left = float(getattr(self, 'region_' + str(ind)).cont_left.text())
+        self.parent.fit.cont[ind].right = float(getattr(self, 'region_' + str(ind)).cont_right.text())
+        self.parent.fit.cont[ind].update()
+
+    def contDisp(self, ind):
+        self.parent.fit.cont[ind].disp = float(getattr(self, 'region_' + str(ind)).cont_disp.text())
+        self.parent.fit.cont[ind].update()
 
     def onChanged(self, s, attr):
         if s in ['mu', 'me', 'dtoh'] or any([c in s for c in ['cont', 'res', 'cf', 'disp']]):
@@ -712,6 +826,7 @@ class fitModelWidget(QWidget):
         self.updateRes(excl=excl)
         self.updateCF(excl=excl)
         self.updateDisp(excl=excl)
+        self.updateCont(excl=excl)
         if self.tab.currentIndex() > -1:
             self.tab.currentWidget().refresh()
 

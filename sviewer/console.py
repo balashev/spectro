@@ -354,7 +354,13 @@ class Console(QTextEdit):
             if args[0] == 'y':
                 self.parent.plot.vb.setYRange(float(args[1]), float(args[2]))
             elif args[0] == 'x':
-                self.parent.plot.vb.setXRange(float(args[1]), float(args[2]))
+                if args[1] in ['r', 'rest']:
+                    self.parent.plot.vb.setXRange(float(args[2]) * (1 + self.parent.z_abs), float(args[3]) * (1 + self.parent.z_abs))
+                else:
+                    self.parent.plot.vb.setXRange(float(args[1]), float(args[2]))
+
+        elif args[0] in ['xr', 'x_r', 'x']:
+            self.parent.plot.vb.setXRange(float(args[1]) * (1 + self.parent.z_abs), float(args[2]) * (1 + self.parent.z_abs))
 
         elif args[0] == 'logN':
             print(args[1])

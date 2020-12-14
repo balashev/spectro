@@ -62,6 +62,7 @@ class Speclist(list):
                 self.ind = ind
                 self[saved_ind].redraw()
                 self[self.ind].redraw()
+            self.parent.plot.specname.setText(self[self.ind].filename)
 
     def remove(self, ind=None):
         if ind is None:
@@ -120,7 +121,6 @@ class Speclist(list):
         #debug(ind)
         #self[ind].specClicked()
         self.parent.s.redraw(ind)
-        self.parent.plot.specname.setText(self.parent.s[ind].filename)
         self.parent.plot.e_status = 2
         try:
             self.parent.exp.selectRow(self.ind)
@@ -1507,6 +1507,7 @@ class Spectrum():
 
     def set_fit(self, x, y):
         if self.cont.n > 0: # and self.active():
+            print(len(x), len(y))
             self.fit.line.norm.set_data(x=x, y=y)
             self.fit.line.norm.interpolate(fill_value=1)
             if not self.parent.normview:
@@ -1590,7 +1591,6 @@ class Spectrum():
         if self.active() and self.cont_mask is not None:
             if x is None and y is None:
                 self.cheb.norm.set_data(x=self.spec.raw.x[self.cont_mask], y=self.correctContinuum(self.spec.raw.x[self.cont_mask]))
-                print('cont_mask', self.cont_mask)
                 self.cheb.normalize(norm=False, cont_mask=False)
             else:
                 self.cheb.set(x=x, y=y)
@@ -2200,13 +2200,18 @@ class Spectrum():
         """
         Calculate the correction to the continuum given chebyshev polinomial coefficients in self.fit
         """
-        print('correctCont:', self.parent.fit.cont_num, self.parent.fit.cont_left, self.parent.fit.cont_right)
-        mask = (x > self.parent.fit.cont_left) * (x < self.parent.fit.cont_right)
+        print('correctCont:', self.parent.fit.cont_num)
         corr = np.ones_like(x)
-        if len(x[mask]) > 0:
-            cheb = np.array([getattr(self.parent.fit, 'cont_'+str(i)).val for i in range(self.parent.fit.cont_num)])
-            base = (x[mask] - x[mask][0]) * 2 / (x[mask][-1] - x[mask][0]) - 1
-            corr[mask] = np.polynomial.chebyshev.chebval(base, cheb)
+        for k, c in enumerate(self.parent.fit.cont):
+            if c.exp == self.ind():
+                mask = (x > c.left) * (x < c.right)
+                #print(mask)
+                if len(x[mask]) > 0:
+                    cheb = np.array([getattr(self.parent.fit, 'cont_' + str(k) + '_' + str(i)).val for i in range(c.num)])
+                    print(cheb)
+                    #base = (x[mask] - x[mask][0]) * 2 / (x[mask][-1] - x[mask][0]) - 1
+                    base = (x[mask] - c.left) * 2 / (c.right - c.left) - 1
+                    corr[mask] = np.polynomial.chebyshev.chebval(base, cheb)
 
         return corr
 

@@ -8,10 +8,11 @@ from chainconsumer import ChainConsumer
 from collections import OrderedDict
 from copy import deepcopy, copy
 import emcee
-import h5py
 import gzip
+import h5py
 import inspect
 from importlib import reload
+import julia
 from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs, Model
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
@@ -455,6 +456,7 @@ class plotSpectrum(pg.PlotWidget):
 
             if event.key() == Qt.Key_R:
                 self.r_status = False
+                self.regions.sortit()
 
             if event.key() == Qt.Key_S:
                 self.s_status = False
@@ -499,10 +501,9 @@ class plotSpectrum(pg.PlotWidget):
 
         self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
 
-
         if self.r_status:
             self.r_status = 2
-            self.regions.add()
+            self.regions.add(sort=False)
 
     def mouseReleaseEvent(self, event):
         if any([getattr(self, s+'_status') for s in 'abcdrsuwx']):
@@ -598,6 +599,7 @@ class plotSpectrum(pg.PlotWidget):
 
         if self.r_status:
             self.r_status = False
+            self.regions.sortit()
 
         if self.s_status or self.d_status:
             for s in self.parent.s:
@@ -987,6 +989,7 @@ class spec2dWidget(pg.PlotWidget):
 
             if event.key() == Qt.Key_R:
                 self.r_status = False
+                self.parent.regions.sortit()
 
             if event.key() == Qt.Key_S:
                 self.s_status = False
@@ -3840,9 +3843,9 @@ class fitContWidget(QWidget):
 
     def init_Parameters(self):
         self.opts = OrderedDict([
-            ('cont_iter', ['contIter', int, 3]),
-            ('cont_smooth', ['contSmooth', int, 201]),
-            ('cont_clip', ['contClip', float, 3.0]),
+            ('cont_iter', ['contIter', int, 7]),
+            ('cont_smooth', ['contSmooth', int, 501]),
+            ('cont_clip', ['contClip', float, 2.0]),
             ('x_min', ['xmin', float, 3500]),
             ('x_max', ['xmax', float, 4500]),
             ('sg_order', ['sgOrder', int, 5])
@@ -5403,7 +5406,7 @@ class rebinWidget(QWidget):
             if self.parent.s[self.exp_ind].spec.raw.x[0] > x[0] - (x[1] - x[0]) / 2 or self.parent.s[self.exp_ind].spec.raw.x[-1] < x[-1] + (x[-1] - x[-2]) / 2:
                 self.parent.sendMessage('New wavelenght scale beyond the initial spectrum range. Please select appropriate zero point')
             else:
-                y, err = spectres(self.parent.s[self.exp_ind].spec.raw.x[mask], self.parent.s[self.exp_ind].spec.raw.y[mask],
+                y, err = spectres.spectres(self.parent.s[self.exp_ind].spec.raw.x[mask], self.parent.s[self.exp_ind].spec.raw.y[mask],
                                            x, spec_errs=self.parent.s[self.exp_ind].spec.raw.err[mask])
                 self.parent.s.append(Spectrum(self.parent, name='rebinned '+str(self.exp_ind+1)))
                 self.parent.s[-1].set_data([x, y, err])
@@ -6783,9 +6786,12 @@ class sviewer(QMainWindow):
                     i += 1
                     self.fit.addTieds(d[i].strip().split()[0], d[i].strip().split()[1])
 
-            if 'cheb' in d[i]:
-                i += 1
-                self.fit.cont_left, self.fit.cont_right = float(d[i].split()[0]), float(d[i].split()[1])
+            #print(d[i])
+            #if 'cheb' in d[i]:
+            #    self.fit.cont_num = int(d[i].split()[1])
+            #    for k in range(self.fit.cont_num):
+            #        i += 1
+            #        self.fit.cont[k].left, self.fit.cont[k].right = float(d[i].split()[0]), float(d[i].split()[1])
 
             if 'fit_results' in d[i]:
                 num = int(d[i].split()[1])
@@ -6898,10 +6904,11 @@ class sviewer(QMainWindow):
                         f.write(' '.join([k, v]) + '\n')
 
             # >>> save cheb parameters:
-            if 'fit' in self.save_opt:
-                if self.fit.cont_fit:
-                    f.write('cheb: \n')
-                    f.write('{0:.2f} {1:.2f} \n'.format(self.fit.cont_left, self.fit.cont_right))
+            #if 'fit' in self.save_opt:
+            #    if self.fit.cont_fit:
+            #        f.write('cheb: {0:}\n'.format(self.fit.cont_num))
+            #        for i in range(self.fit.cont_num):
+            #            f.write('{0:.2f} {1:.2f} \n'.format(self.fit.cont[i].left, self.fit.cont[i].right))
 
             # >>> save fit result:
             if 'fit_results' in self.save_opt:

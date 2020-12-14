@@ -317,11 +317,17 @@ class line():
         self.ref = [ref]
         self.band = ''
 
-    def add(self, l, f, g, ref=''):
-        self.wavelength.append(l)
-        self.oscillator.append(f)
-        self.gamma.append(g)
-        self.ref.append(ref)
+    def add(self, l, f, g, ref='', pos=None):
+        if pos is None:
+            self.wavelength.append(l)
+            self.oscillator.append(f)
+            self.gamma.append(g)
+            self.ref.append(ref)
+        else:
+            self.wavelength.insert(pos, l)
+            self.oscillator.insert(pos, f)
+            self.gamma.insert(pos, g)
+            self.ref.insert(pos, ref)
 
     def _with_ref(func):
         @wraps(func)
@@ -542,8 +548,10 @@ class atomicData(OrderedDict):
                 if l[:3] == '***':
                     ind = 1
 
-    def readCashman(self, add=True):
+    def readCashman(self, add=False):
         add_names = []
+        update_lines = ['FeII 940.19', 'FeII 935.51']
+        update_names = set([l.split()[0] for l in update_lines])
         with open(self.folder + '/data/Cashman2017.dat', 'r') as f:
             for l in f:
                 name = ''.join(l[3:10].split())
@@ -551,13 +559,21 @@ class atomicData(OrderedDict):
                     self[name] = e(name)
                     self[name].lines = []
                     add_names.append(name)
-                if name in add_names or not add:
+                if name in add_names or add:
                     lam = float(l[90:99]) if l[78:89] else float(l[78:89])
                     lin = line(name, lam, float(l[105:113]), 1e+8, ref='Cashman2017')
                     if lin not in self[name].lines:
                         self[name].lines.append(lin)
-                    else:
-                        self[name].lines[self[name].lines.index(lin)].add(lam, float(l[105:113]), 1e+8, ref='Cashman2017')
+                if name in update_names:
+                    lam = float(l[90:99]) if l[78:89] else float(l[78:89])
+                    lin = line(name, lam, float(l[105:113]), 1e+8, ref='Cashman2017')
+                    if lin in self[name].lines:
+                        pos = None
+                        if str(lin) in update_lines:
+                            pos = 0
+                            print(str(lin))
+                        self[name].lines[self[name].lines.index(lin)].add(lam, float(l[105:113]), 1e+8, ref='Cashman2017', pos=pos)
+
 
     def readH2(self, nu=0, j=[0,1], energy=None):
         if 0:
@@ -735,7 +751,7 @@ class atomicData(OrderedDict):
         data = np.genfromtxt(self.folder + r'/data/NiII_Boisse.dat', comments="#", unpack=True, dtype=None)
         for i, l in enumerate(self["NiII"].lines):
             if len(np.where(np.abs(data[0] / l.l() - 1) < 2e-5)[0]) > 0:
-                self["NiII"].lines[i].oscillator = [data[1][np.where(np.abs(data[0] / l.l() - 1) < 2e-5)[0][0]]]
+                self["NiII"].lines[i].oscillator[0] = data[1][np.where(np.abs(data[0] / l.l() - 1) < 2e-5)[0][0]]
 
     def getfromNIST(self, species, level=None, refresh=False, clean=True, add=False):
         if level is None:
@@ -1483,12 +1499,12 @@ if __name__ == '__main__':
         me = a('-1.2^{+0.1}_{-0.1}', 'l')
         print(abundance('OI', HI, me))
 
-    if 0:
+    if 1:
         A = atomicData()
         #A.getfromNIST('MnII', 3)
         A.makedatabase()
         #A.readdatabase()
-        #print([line.l() for line in A.list('SiII')])
+        #print([str(line) for line in A.list('FeII')])
 
     if 0:
         A = atomicData()
@@ -1498,7 +1514,7 @@ if __name__ == '__main__':
         #A.readH2(j=[0,1,2,3,4,5,6,7])
         A.compareH2()
 
-    if 1:
+    if 0:
         print(oscill_strength(0.122, 2.509e12))
         print(oscill_strength(1.28e-11, 1.665e9))
         print(optical_depth(A=0.122, nu=2.509e12, N=1e14, b=1))

@@ -1,21 +1,21 @@
 stats
 stats
+stats
+stats
+stats
+stats
+x_r 3820 3850
+x r 3820 3840
+x_ r 3820 3840
+xr 3820 3840
+CIV
+stats
 show SiII
-show FeII
-show CII*
-stats
-stats
-stats
-stats
-stats
-stats
-stats
-stats
-stats
-stats
-stats
-show ZnII
-show SII
+CIII
+CII
+SiIII
 show SiII
-show FeII
-show CrII
+stats
+SiIV
+logN SiIV
+CIV
