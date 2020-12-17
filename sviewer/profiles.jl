@@ -274,15 +274,17 @@ end
 function prepare_cheb(pars, ind)
     cont = []
     d = [[parse(Int, split(k, "_")[2]), parse(Int, split(k, "_")[3]), parse(Int, split(v.addinfo, "_")[3]), v] for (k, v) in pars if occursin("cont", k)]
-    d = permutedims(reshape(hcat(d...), (length(d[1]), length(d))))
-    for k in unique(d[:, 1][d[:, 3] .== ind - 1])
-        append!(cont, [cheb([], 0, 0, 0)])
-        for i in sort(d[:, 2][(d[:, 1] .== k) .& (d[:, 3] .== ind - 1)])
-            p = d[:, 4][(d[:, 1] .== k) .& (d[:, 2] .== i) .& (d[:, 3] .== ind - 1)]
-            if i == 0
-                cont[end].left, cont[end].right, cont[end].disp = parse(Float64, split(split(p[1].addinfo, "_")[1], "..")[1]), parse(Float64, split(split(p[1].addinfo, "_")[1], "..")[2]), parse(Float64, split(p[1].addinfo, "_")[4])
+    if length(d) > 0
+        d = permutedims(reshape(hcat(d...), (length(d[1]), length(d))))
+        for k in unique(d[:, 1][d[:, 3] .== ind - 1])
+            append!(cont, [cheb([], 0, 0, 0)])
+            for i in sort(d[:, 2][(d[:, 1] .== k) .& (d[:, 3] .== ind - 1)])
+                p = d[:, 4][(d[:, 1] .== k) .& (d[:, 2] .== i) .& (d[:, 3] .== ind - 1)]
+                if i == 0
+                    cont[end].left, cont[end].right, cont[end].disp = parse(Float64, split(split(p[1].addinfo, "_")[1], "..")[1]), parse(Float64, split(split(p[1].addinfo, "_")[1], "..")[2]), parse(Float64, split(p[1].addinfo, "_")[4])
+                end
+                append!(cont[end].c, [p[1].name])
             end
-            append!(cont[end].c, [p[1].name])
         end
     end
     return cont
