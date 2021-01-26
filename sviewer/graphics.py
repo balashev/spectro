@@ -2200,7 +2200,6 @@ class Spectrum():
         """
         Calculate the correction to the continuum given chebyshev polinomial coefficients in self.fit
         """
-        print('correctCont:', self.parent.fit.cont_num)
         corr = np.ones_like(x)
         for k, c in enumerate(self.parent.fit.cont):
             if c.exp == self.ind():
@@ -2208,7 +2207,6 @@ class Spectrum():
                 #print(mask)
                 if len(x[mask]) > 0:
                     cheb = np.array([getattr(self.parent.fit, 'cont_' + str(k) + '_' + str(i)).val for i in range(c.num)])
-                    print(cheb)
                     #base = (x[mask] - x[mask][0]) * 2 / (x[mask][-1] - x[mask][0]) - 1
                     base = (x[mask] - c.left) * 2 / (c.right - c.left) - 1
                     corr[mask] = np.polynomial.chebyshev.chebval(base, cheb)

@@ -273,7 +273,7 @@ end
 
 function prepare_cheb(pars, ind)
     cont = []
-    d = [[parse(Int, split(k, "_")[2]), parse(Int, split(k, "_")[3]), parse(Int, split(v.addinfo, "_")[3]), v] for (k, v) in pars if occursin("cont", k)]
+    d = [[parse(Int, split(k, "_")[2]), parse(Int, split(k, "_")[3]), parse(Int, split(v.addinfo, "_")[3]), v] for (k, v) in pars if occursin("cont_", k)]
     if length(d) > 0
         d = permutedims(reshape(hcat(d...), (length(d[1]), length(d))))
         for k in unique(d[:, 1][d[:, 3] .== ind - 1])
@@ -327,6 +327,10 @@ function correct_continuum(conts, pars, x)
          m = (x .> cont.left) .& (x .< cont.right)
          cheb = ChebyshevT([pars[name].val for name in cont.c])
          c[m] = cheb.((x[m] .- cont.left) .* 2 ./ (cont.right - cont.left) .- 1)
+         #if any([occursin("hcont", p.first) for p in pars])
+         #   c[m] *= (1 + parse(Float64, split(pars[cont.c[1]].addinfo, "_")[4]) * randn(1)[1] * pars["hcont"].val)
+         #   #println(parse(Float64, split(pars[cont.c[1]].addinfo, "_")[4]), " ", randn(1)[1], " ", pars["hcont"].val)
+         #end
     end
     return c
 end

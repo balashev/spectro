@@ -288,7 +288,7 @@ class fitModelWidget(QWidget):
 
         self.cont_m = QTreeWidgetItem(self.cont)
         self.cont_m.setTextAlignment(3, Qt.AlignRight)
-        self.cont_m.setText(3, 'num: ')
+        self.cont_m.setText(3, 'reg num: ')
         self.cont_num = FLineEdit(self, str(self.parent.fit.cont_num))
         self.cont_num.setFixedSize(30, 30)
         self.cont_num.returnPressed.connect(self.numContChanged)
@@ -297,9 +297,12 @@ class fitModelWidget(QWidget):
         self.cont_reg.setFixedSize(100, 30)
         self.cont_reg.clicked.connect(self.fromRegions)
         self.treeWidget.setItemWidget(self.cont_m, 5, self.cont_reg)
+        self.cont_hier = QTreeWidgetItem(self.cont)
+        self.addChild('cont', 'hcont')
+        #self.treeWidget.setItemWidget(self.cont_m, 5, self.cont_reg)
         self.cont.setExpanded(self.parent.fit.cont_fit)
         for i in range(self.parent.fit.cont_num):
-            self.addContParent(self.cont, 'region_'+str(i), expanded=self.parent.fit.cont_fit)
+            self.addContParent(self.cont, 'region_' + str(i), expanded=self.parent.fit.cont_fit)
 
         for s, name in zip(['mu', 'me', 'dtoh'], ['mp/me', 'metallicity', 'D/H']):
             setattr(self, s + '_p', self.addParent(self.treeWidget, name, expanded=hasattr(self.parent.fit, s)))
@@ -364,13 +367,12 @@ class fitModelWidget(QWidget):
         item = QTreeWidgetItem(parent, [text])
         item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
         item.name = text
-        item.setExpanded(expanded)
         ind = int(text.split('_')[1])
         if not hasattr(self.parent.fit, 'cont_' + str(ind) + '_0'):
             self.parent.fit.add('cont_' + str(ind) + '_0')
         item.cont_m = QTreeWidgetItem(item)
         item.cont_m.setTextAlignment(3, Qt.AlignRight)
-        item.cont_m.setText(3, 'num: ')
+        item.cont_m.setText(3, 'poly num: ')
         item.cont_num = FLineEdit(self, str(self.parent.fit.cont[ind].num))
         item.cont_num.setFixedSize(30, 30)
         item.cont_num.returnPressed.connect(partial(self.numContRegionChanged, ind))
@@ -396,9 +398,9 @@ class fitModelWidget(QWidget):
         combo.activated.connect(partial(self.setApplied, name=item.name))
         self.treeWidget.setItemWidget(item.cont_m, 11, combo)
         setattr(self, item.name, item)
+        item.setExpanded(self.parent.fit.cont_fit)
         for i in range(self.parent.fit.cont[ind].num):
             self.addChild(text, 'cont_' + str(ind) + '_' + str(i))
-        item.setExpanded(self.parent.fit.cont_fit)
         self.parent.fit.cont[ind].update()
         return item
 
@@ -412,6 +414,8 @@ class fitModelWidget(QWidget):
 
         if not hasattr(self.parent.fit, name):
             self.parent.fit.add(name)
+            if 'hcont' in name:
+                self.parent.fit.setValue('hcont', 0, 'vary')
         setattr(self, name, QTreeWidgetItem(getattr(self, parent)))
         for i in [1, 3, 5, 7, 9]:
             getattr(self, name).setTextAlignment(i, Qt.AlignRight)
@@ -553,6 +557,21 @@ class fitModelWidget(QWidget):
             self.cont_num.setText(str(self.parent.fit.cont_num))
         except:
             pass
+        try:
+            if 0:
+                f = 1 - self.parent.fit.getValue('hcont', 'vary')
+                for attr in ['val', 'min', 'max', 'step']:
+                    getattr(self, 'hcont' + '_' + attr).setEnabled(1 - f)
+                for i in range(self.parent.fit.cont_num):
+                    getattr(self, 'region_' + str(i)).cont_num.setEnabled(f)
+                    for k in range(self.parent.fit.cont[i].num):
+                        name = 'cont_' + str(i) + '_' + str(k)
+                        self.parent.fit.setValue(name, f, 'vary')
+                        getattr(self, name + '_vary').setChecked(f)
+                        for attr in ['val', 'min', 'max', 'step', 'vary']:
+                            getattr(self, name + '_' + attr).setEnabled(f)
+        except:
+            pass
         if self.parent.fit.cont_fit:
             for i, c in enumerate(self.parent.fit.cont):
                 try:
@@ -628,18 +647,29 @@ class fitModelWidget(QWidget):
                 self.parent.fit.add(item.name)
             else:
                 self.parent.fit.remove(item.name)
+
         if item.name == 'cont':
             self.parent.fit.cont_fit = self.cont.isExpanded()
             self.parent.fit.cont_num = int(self.cont_num.text())
-            for i in range(self.parent.fit.cont_num):
+            print(self.parent.fit.cont_num)
+            if item.isExpanded():
+                self.parent.fit.add('hcont')
+            else:
+                self.parent.fit.remove('hcont')
+            for i in reversed(range(self.parent.fit.cont_num)):
                 getattr(self, 'region_' + str(i)).setExpanded(item.isExpanded())
+                if item.isExpanded():
+                    self.addContParent(self.cont, 'region_' + str(i), expanded=self.parent.fit.cont_fit)
+                else:
+                    self.cont.removeChild(getattr(self, 'region_' + str(i)))
 
         if 'region' in item.name:
-            for i in range(self.parent.fit.cont_num):
+            for i in range(self.parent.fit.cont[int(item.name.split('_')[1])].num):
                 if item.isExpanded():
                     self.parent.fit.add('cont_' + item.name.split('_')[1] + '_' + str(i))
                 else:
                     self.parent.fit.remove('cont_' + item.name.split('_')[1] + '_' + str(i))
+
 
         if item.name == 'res':
             self.parent.fit.res_fit = self.res.isExpanded()
@@ -686,8 +716,8 @@ class fitModelWidget(QWidget):
             self.parent.fit.cont[i].left, self.parent.fit.cont[i].right = r.getRegion()
             s = self.parent.s[self.parent.fit.cont[i].exp]
             if self.parent.normview:
-                m = (s.spec.x()[s.cont_mask] > self.parent.fit.cont[i].left) * (s.spec.x()[s.cont_mask] < self.parent.fit.cont[i].right)
-                self.parent.fit.cont[i].disp = np.nanmean(s.spec.err()[s.cont_mask][m] / s.cont.y[m])
+                m = (s.spec.x() > self.parent.fit.cont[i].left) * (s.spec.x() < self.parent.fit.cont[i].right)
+                self.parent.fit.cont[i].disp = np.nanmean(s.spec.err()[m] / s.cont.y[m])
             else:
                 m = (s.spec.x() > self.parent.fit.cont[i].left) * (s.spec.x() < self.parent.fit.cont[i].right)
                 self.parent.fit.cont[i].disp = np.nanmean(s.spec.err()[m])

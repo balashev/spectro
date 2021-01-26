@@ -23,7 +23,7 @@ class par:
             self.dec = 8
         else:
             d = {'z': 7, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3, 'me': 3,
-                 'Ntot': 3, 'logn': 3, 'logT': 3, 'logf': 3, 'rad': 3}
+                 'Ntot': 3, 'logn': 3, 'logT': 3, 'logf': 3, 'rad': 3, 'hcont': 3}
             self.dec = d[self.name]
 
         if self.name in ['N', 'Ntot', 'logn', 'logT', 'rad', 'dtoh', 'me', 'mu']:
@@ -388,8 +388,14 @@ class fitCont(list):
             self[name].num = 0
             self.pop()
 
+        self.parent.cont_num = len(self)
+        if len(self) == 0:
+            self.parent.cont_fit = 0
+            self.parent.remove('hcont')
+
+
     def update(self):
-        for c in self.parent.cont_num:
+        for c in self:
             c.update()
 
 class fitPars:
@@ -420,8 +426,8 @@ class fitPars:
             setattr(self, name, par(self, name, 45000, 1000, 60000, 1, addinfo='exp_0'))
         if 'cont' in name:
             self.cont.add(name)
-        if name in 'contmcmc':
-            self.contmcmc = par(self, 'contmcmc', 1, 0, 10, 0.1)
+        if name in 'hcont':
+            self.hcont = par(self, 'hcont', 1, 0, 10, 0.1)
         if 'cf' in name:
             setattr(self, name, par(self, name, 0.1, 0, 1, 0.01, addinfo='all', left=3000, right=9000))
         if 'dispz' in name:
@@ -430,10 +436,10 @@ class fitPars:
             setattr(self, name, par(self, name, 1e-5, -1e-4, 1e-4, 1e-6, addinfo='exp_0'))
 
     def remove(self, name):
-        if name in ['mu', 'me', 'dtoh', 'res'] or any([x in name for x in ['res', 'cf', 'disp']]):
+        if name in ['mu', 'me', 'dtoh', 'res', 'hcont'] or any([x in name for x in ['res', 'cf', 'disp']]):
             if hasattr(self, name):
                 delattr(self, name)
-        if 'cont' in name:
+        if 'cont_' in name:
             self.cont.remove(name)
                 #gc.collect()
 
@@ -499,7 +505,7 @@ class fitPars:
                 self.add(s[0])
             res = getattr(self, s[0]).set(val, attr)
 
-        if s[0] in ['res', 'cf', 'dispz', 'disps']:
+        if s[0] in ['res', 'cf', 'dispz', 'disps', 'hcont']:
             if not hasattr(self, name):
                 self.add(name)
             res = getattr(self, name).set(val, attr)
@@ -569,7 +575,7 @@ class fitPars:
             if hasattr(self, s[0]):
                 par = getattr(self, s[0])
 
-        if s[0] in ['cont', 'res', 'cf', 'dispz', 'disps']:
+        if s[0] in ['cont', 'res', 'cf', 'dispz', 'disps', 'hcont']:
             if hasattr(self, name):
                 par = getattr(self, name)
 
@@ -609,7 +615,7 @@ class fitPars:
     def pars(self, ind=None):
         pars = OrderedDict()
         if ind in [None, -1]:
-            for attr in ['mu', 'me', 'dtoh', 'res']:
+            for attr in ['mu', 'me', 'dtoh', 'res', 'hcont']:
                 if hasattr(self, attr):
                     p = getattr(self, attr)
                     pars[str(p)] = p
@@ -672,7 +678,7 @@ class fitPars:
         if len(s) == len(attrs):
             s.append('')
 
-        if 'cont' in s[0]:
+        if 'cont_' in s[0]:
             print(self.cont_num, int(s[0].split('_')[1]))
             self.cont_num = max(self.cont_num, int(s[0].split('_')[1]) + 1)
             self.cont_fit = True
@@ -691,7 +697,7 @@ class fitPars:
             self.setValue(s[0], val, attr)
             if attr == 'val':
                 self.setValue(s[0], float(s[4]), 'unc')
-            if attr == 'addinfo' and 'cont' in s[0]:
+            if attr == 'addinfo' and 'cont_' in s[0]:
                 self.cont[int(s[0].split('_')[1])].fromInfo(val)
 
         if 'cf' in s[0]:

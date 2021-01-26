@@ -14,6 +14,7 @@ import inspect
 from importlib import reload
 import julia
 from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs, Model
+from matplotlib.colors import to_hex
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
 from multiprocessing import Process
@@ -307,8 +308,9 @@ class plotSpectrum(pg.PlotWidget):
                     self.parent.statusBar.setText('Estimate the width of Instrument function')
 
             if event.key() == Qt.Key_M:
-                self.m_status = True
-                self.parent.statusBar.setText('Rebin mode')
+                if (QApplication.keyboardModifiers() != Qt.ControlModifier):
+                    self.m_status = True
+                    self.parent.statusBar.setText('Rebin mode')
 
             if event.key() == Qt.Key_N:
                 self.parent.normalize(not self.parent.panel.normalize.isChecked())
@@ -647,11 +649,14 @@ class plotSpectrum(pg.PlotWidget):
                 print(self.parent.abs.reference.line.l(), 1 + self.parent.z_abs, (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value)
                 dv = np.cumsum(np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])))
                 dv90 = interp1d(dv/dv[-1], (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value, fill_value='extrapolate')
+                m = np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])) < -0.1
+                vx = (s.spec.x()[mask][m] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value
                 self.w_region = pg.FillBetweenItem(curve1, curve2, brush=pg.mkBrush(44, 160, 44, 150))
                 self.vb.addItem(self.w_region)
-                text = 'w = {:0.5f}+/-{:0.5f}, log(w/l)={:0.2f}, w_r = {:0.5f}+/-{:0.5f}, dv90 = {:0.2f}'.format(w, err_w, np.log10(2 * w / (x[0]+x[-1])), w / (1+self.parent.z_abs), err_w / (1+self.parent.z_abs), dv90(0.95) - dv90(0.05))
+                text = 'w = {0:0.5f}+/-{1:0.5f}, log(w/l)={2:0.2f}, w_r = {3:0.5f}+/-{4:0.5f}, dv90 = {5:0.2f}'.format(w, err_w, np.log10(2 * w / (x[0]+x[-1])), w / (1+self.parent.z_abs), err_w / (1+self.parent.z_abs), dv90(0.95) - dv90(0.05))
                 if self.parent.s[self.parent.s.ind].resolution not in [0, None]:
                     text += ', d90_c = {:0.2f}'.format(np.sqrt((dv90(0.95) - dv90(0.05))**2 - (1.4 * ac.c.to('km/s').value / self.parent.s[self.parent.s.ind].resolution)**2))
+                text += ', dv01={:0.2f}'.format(np.max(vx) - np.min(vx))
                 self.w_label = pg.TextItem(text, anchor=(0, 1), color=(44, 160, 44))
                 self.w_label.setFont(QFont("SansSerif", 14))
                 print(text)
@@ -1488,7 +1493,7 @@ class showLinesWidget(QWidget):
                     ('fit_color', int), ('fit_lw', float), ('fit_ls', str),
                     ('show_comps', int), ('comp_lw', float), ('comp_ls', str),
                     ('z_ref', float), ('sys_ind', int),
-                    ('show_disp', int), ('disp_alpha', float),
+                    ('show_disp', int), ('disp_alpha', float), ('res_style', str),
                     ('comp_colors', str),
                     ('font', int), ('labels_corr', int), ('xlabel', str), ('ylabel', str),
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
@@ -1496,7 +1501,7 @@ class showLinesWidget(QWidget):
                     ('show_labels', int), ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
                     ('plotfile', str), ('show_cont', int), ('corr_cheb', int),
                     ('show_H2', str), ('pos_H2', float),
-                    ('show_cf', int), ('cfs', str),
+                    ('show_cf', int), ('cfs', str), ('show_cf_value', int), ('cf_color', int),
                     ])
 
         for opt, func in self.opts.items():
@@ -1552,11 +1557,11 @@ class showLinesWidget(QWidget):
                  'X-scale:', 'min:', '', 'max:', '',
                  'Y-scale:', 'min:', '', 'max:', '',
                  'Spectrum:', '', '', 'error caps:', '',
-                 'Residuals:', '', '', 'sig:', '',
                  'Fit:', '', '', 'linestyle:', '',
                  'Comps:', '', '', 'linestyle:', '',
                  'Reference z:', '', '', '', '',
-                 'Disp:' , '', '', '', '',
+                 'Residuals:', '', '', 'sig:', '',
+                 'Disp:' , '', '', 'style:', '',
                  'Fonts:', 'axis:', '', '', '',
                  'Labels:', 'x:', '', 'y:', '',
                  'X-ticks:', 'scale:', '', 'num', '',
@@ -1579,8 +1584,9 @@ class showLinesWidget(QWidget):
         self.opt_but = OrderedDict([('width', [0, 2]), ('height', [0, 4]), ('cols', [1, 2]), ('rows', [1, 4]),
                                     ('v_indent', [2, 2]), ('h_indent', [2, 4]), ('col_offset', [4, 2]), ('row_offset', [4, 4]),
                                     ('xmin', [6, 2]), ('xmax', [6, 4]), ('ymin', [7, 2]), ('ymax', [7, 4]),
-                                    ('spec_lw', [8, 1]), ('error_cap', [8, 4]), ('res_sigma', [9, 4]),
-                                    ('fit_lw', [10, 1]), ('comp_lw', [11, 2]), ('z_ref', [12, 1]), ('disp_alpha', [13, 2]),
+                                    ('spec_lw', [8, 1]), ('error_cap', [8, 4]),
+                                    ('fit_lw', [9, 1]), ('comp_lw', [10, 2]), ('z_ref', [11, 1]),
+                                    ('res_sigma', [12, 4]), ('disp_alpha', [13, 2]),
                                     ('font', [14, 2]), ('xlabel', [15, 2]), ('ylabel', [15, 4]),
                                     ('x_ticks', [16, 2]), ('xnum', [16, 4]), ('y_ticks', [17, 2]), ('ynum', [17, 4]),
                                     ('title', [18, 2]), ('font_title', [18, 4]), ('title_x_pos', [19, 2]), ('title_y_pos', [19, 4]),
@@ -1616,34 +1622,24 @@ class showLinesWidget(QWidget):
         self.showerr.clicked[bool].connect(self.setErr)
         grid.addWidget(self.showerr, 8, 2)
 
-        self.resid = QCheckBox('')
-        self.resid.setChecked(self.residuals)
-        self.resid.clicked[bool].connect(self.setResidual)
-        grid.addWidget(self.resid, 9, 1)
-
-        self.gray = QCheckBox('gray')
-        self.gray.setChecked(self.gray_out)
-        self.gray.clicked[bool].connect(self.setGray)
-        grid.addWidget(self.gray, 9, 2)
-
         self.fitcolor = pg.ColorButton()
         #self.fitcolor = QColorDialog()
         self.fitcolor.setFixedSize(30, 30)
         self.fitcolor.setColor(color=self.fit_color.to_bytes(4, byteorder='big'))
         self.fitcolor.sigColorChanged.connect(partial(self.setColor, comp=-1))
         self.fitcolor.setStyleSheet(open('config/styles.ini').read())
-        grid.addWidget(self.fitcolor, 10, 2)
+        grid.addWidget(self.fitcolor, 9, 2)
 
         self.lsfit = QComboBox(self)
         self.lsfit.addItems(['solid', 'dashed', 'dotted', 'dashdot'])
         self.lsfit.setCurrentText(self.fit_ls)
         self.lsfit.currentIndexChanged.connect(self.onFitLsChoose)
-        grid.addWidget(self.lsfit, 10, 4)
+        grid.addWidget(self.lsfit, 9, 4)
 
         self.plotcomps = QCheckBox('show')
         self.plotcomps.setChecked(self.show_comps)
         self.plotcomps.clicked[bool].connect(self.setPlotComps)
-        grid.addWidget(self.plotcomps, 11, 1)
+        grid.addWidget(self.plotcomps, 10, 1)
 
         #self.colorcomps = colorComboBox(self, len(self.parent.fit.sys))
         #grid.addWidget(self.colorcomps, 11, 2)
@@ -1652,19 +1648,35 @@ class showLinesWidget(QWidget):
         self.lscomp.addItems(['solid', 'dashed', 'dotted', 'dashdot'])
         self.lscomp.setCurrentText(self.comp_ls)
         self.lscomp.currentIndexChanged.connect(self.onCompLsChoose)
-        grid.addWidget(self.lscomp, 11, 4)
+        grid.addWidget(self.lscomp, 10, 4)
 
         self.refcomp = QComboBox(self)
         self.refcomp.addItems([str(i) for i in range(len(self.parent.fit.sys))])
         self.sys_ind = min(self.sys_ind, len(self.parent.fit.sys)-1)
         self.refcomp.setCurrentIndex(self.sys_ind)
         self.refcomp.currentIndexChanged.connect(self.onIndChoose)
-        grid.addWidget(self.refcomp, 12, 2)
+        grid.addWidget(self.refcomp, 11, 2)
+
+        self.resid = QCheckBox('')
+        self.resid.setChecked(self.residuals)
+        self.resid.clicked[bool].connect(self.setResidual)
+        grid.addWidget(self.resid, 12, 1)
+
+        self.gray = QCheckBox('gray')
+        self.gray.setChecked(self.gray_out)
+        self.gray.clicked[bool].connect(self.setGray)
+        grid.addWidget(self.gray, 12, 2)
 
         self.showdisp = QCheckBox('show disp')
         self.showdisp.setChecked(self.show_disp)
         self.showdisp.clicked[bool].connect(self.setDisp)
         grid.addWidget(self.showdisp, 13, 1)
+
+        self.resstyle = QComboBox(self)
+        self.resstyle.addItems(['scatter', 'step'])
+        self.resstyle.setCurrentText(self.res_style)
+        self.resstyle.currentIndexChanged.connect(self.onResStyleChoose)
+        grid.addWidget(self.resstyle, 13, 4)
 
         self.showtitle = QCheckBox('show')
         self.showtitle.setChecked(self.show_title)
@@ -1700,6 +1712,19 @@ class showLinesWidget(QWidget):
         self.cf.fromtext(self.cfs)
         self.cf.triggered.connect(self.setcfs)
         grid.addWidget(self.cf, 24, 2)
+
+        self.showcfvalue = QCheckBox('value')
+        self.showcfvalue.setChecked(self.show_cf_value)
+        self.showcfvalue.clicked[bool].connect(self.setCfValue)
+        grid.addWidget(self.showcfvalue, 24, 3)
+
+        self.cfcolor = pg.ColorButton()
+        # self.fitcolor = QColorDialog()
+        self.cfcolor.setFixedSize(30, 30)
+        self.cfcolor.setColor(color=self.cf_color.to_bytes(4, byteorder='big'))
+        self.cfcolor.sigColorChanged.connect(partial(self.setColor, comp='cf'))
+        self.cfcolor.setStyleSheet(open('config/styles.ini').read())
+        grid.addWidget(self.cfcolor, 24, 4)
 
         self.colorComps = colorCompBox(self, num=len(self.parent.fit.sys))
         layout.addLayout(self.colorComps)
@@ -1779,44 +1804,49 @@ class showLinesWidget(QWidget):
         self.units = s
 
     def setColor(self, color, comp=-1):
-        print(comp, color.color(mode="byte"), int.from_bytes(color.color(mode="byte"), byteorder='big'))
-        self.fit_color = int.from_bytes(color.color(mode="byte"), byteorder='big')
+        if comp == -1:
+            self.fit_color = int.from_bytes(color.color(mode="byte"), byteorder='big')
+        if comp == 'cf':
+            self.cf_color = int.from_bytes(color.color(mode="byte"), byteorder='big')
 
-    def setErr(self, b):
+    def setErr(self):
         self.show_err = int(self.showerr.isChecked())
 
-    def setDisp(self, b):
+    def setDisp(self):
         self.show_disp = int(self.showdisp.isChecked())
 
-    def setTitle(self, b):
+    def setTitle(self):
         self.show_title = int(self.showtitle.isChecked())
 
-    def setLabels(self, b):
+    def setLabels(self):
         self.show_labels = int(self.showlabels.isChecked())
 
-    def setResidual(self, b):
+    def setResidual(self):
         self.residuals = int(self.resid.isChecked())
 
-    def setGray(self, b):
+    def setGray(self):
         self.gray_out = int(self.gray.isChecked())
 
-    def setPlotComps(self, b):
+    def setPlotComps(self):
         self.show_comps = int(self.plotcomps.isChecked())
 
-    def setLabelsCorr(self, b):
+    def setLabelsCorr(self):
         self.labels_corr = int(self.labelscorr.isChecked())
 
-    def setCont(self, b):
+    def setCont(self):
         self.show_cont = int(self.showcont.isChecked())
 
-    def setCheb(self, b):
+    def setCheb(self):
         self.corr_cheb = int(self.corrcheb.isChecked())
 
-    def setCf(self, b):
+    def setCf(self):
         self.show_cf = int(self.showcf.isChecked())
 
-    def setcfs(self, b):
+    def setcfs(self):
         self.cfs = self.cf.currentText()
+
+    def setCfValue(self):
+        self.show_cf_value = int(self.showcfvalue.isChecked())
 
     def setFilename(self):
         self.plotfile = self.file.text()
@@ -1845,6 +1875,9 @@ class showLinesWidget(QWidget):
         self.sys_ind = self.refcomp.currentIndex()
         self.buttons['z_ref'].setText(str(self.parent.fit.sys[self.sys_ind].z.val))
 
+    def onResStyleChoose(self):
+        self.res_style = self.resstyle.currentText()
+
     def onFitLsChoose(self):
         self.fit_ls = self.lsfit.currentText()
 
@@ -1871,7 +1904,8 @@ class showLinesWidget(QWidget):
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
             self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw,
                                    ls=self.comp_ls, ls_total=self.fit_ls, color_total=self.fit_color.to_bytes(4, byteorder='big'),
-                                   color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')], disp_alpha=self.disp_alpha)
+                                   color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')],
+                                   disp_alpha=self.disp_alpha, res_style=self.res_style)
             if len(self.parent.fit.sys) > 0:
                 if self.buttons['z_ref'].text().strip() != '':
                     self.ps.z_ref = float(self.buttons['z_ref'].text())
@@ -1899,11 +1933,11 @@ class showLinesWidget(QWidget):
                     cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1)
 
                 if s.fit.n() > 0:
-                    fit = np.array([s.fit.x(), s.fit.y()/cheb(s.fit.x())])
+                    fit = np.array([s.fit.x(), s.fit.y() / cheb(s.fit.x())])
                     if self.show_comps:
                         fit_comp = []
                         for c in s.fit_comp:
-                            fit_comp.append(np.array([c.x(), c.y()/cheb(c.x())]))
+                            fit_comp.append(np.array([c.x(), c.y() / cheb(c.x())]))
                     else:
                         fit_comp = None
                 else:
@@ -1917,7 +1951,7 @@ class showLinesWidget(QWidget):
                 else:
                     fit_disp, fit_comp_disp = None, None
 
-                p.loaddata(d=np.array([s.spec.x(), s.spec.y()/cheb(s.spec.x()), s.spec.err()/cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp)
+                p.loaddata(d=np.array([s.spec.x(), s.spec.y() / cheb(s.spec.x()), s.spec.err() / cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp)
                 if len(self.parent.lines[self.ps.index(p)].split()) > 3:
                     for s in self.parent.lines[self.ps.index(p)].split()[2:]:
                         if 'ymin' in s:
@@ -1952,11 +1986,19 @@ class showLinesWidget(QWidget):
                             if hasattr(self.parent.fit, attr):
                                 cf = getattr(self.parent.fit, attr)
                                 if (len(cf.addinfo.split('_')) > 1 and cf.addinfo.split('_')[1] == 'all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
-                                    ax.plot([np.max([(cf.left / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_min]), np.min([(cf.right / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26, p.x_max])], [1-cf.val, 1-cf.val], '--', lw=0.5, color='rebeccapurple')
+                                    color = to_hex.tuple(c / 255 for c in self.cf_color.to_bytes(4, byteorder='big'))
+                                    if p.fit_disp is None:
+                                        p.ax.plot([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], [1 - cf.val, 1 - cf.val], '--', lw=0.5, color=color)
+                                    else:
+                                        p.ax.plot([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], [1 - cf.unc.val, 1 - cf.unc.val], '--', lw=0.5, color=color)
+                                        p.ax.fill_between([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], 1 - cf.unc.val - cf.unc.plus, 1 - cf.unc.val + cf.unc.minus, ls=':', color=color, alpha=0.1)
+                                    if self.show_cf_value:
+                                        p.ax.text(p.x_max - (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='right', va='bottom', fontsize=p.font_labels, color=color)
+
 
                 if i == 0 and self.show_title:
                     print('Title:', self.title)
-                    ax.text(self.title_x_pos, self.title_y_pos, str(self.title).strip(), ha='left', va='top', fontsize=self.font_title, transform=ax.transAxes)
+                    p.ax.text(self.title_x_pos, self.title_y_pos, str(self.title).strip(), ha='left', va='top', fontsize=self.font_title, transform=p.ax.transAxes)
 
         else:
             self.ps = plot_spec(len(self.parent.plot.regions), font=self.font, font_labels=self.font_labels, vel_scale=False,
@@ -1971,7 +2013,8 @@ class showLinesWidget(QWidget):
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
             self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw,
                                    ls=self.comp_ls, ls_total=self.fit_ls, color_total=self.fit_color.to_bytes(4, byteorder='big'),
-                                   color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')], disp_alpha=self.disp_alpha)
+                                   color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')],
+                                   disp_alpha=self.disp_alpha, res_style=self.res_style)
             if len(self.parent.fit.sys) > 0:
                 if self.buttons['z_ref'].text().strip() != '':
                     self.ps.z_ref = float(self.buttons['z_ref'].text())
@@ -1980,6 +2023,7 @@ class showLinesWidget(QWidget):
                     self.buttons['z_ref'].setText(str(self.ps.z_ref))
             else:
                 self.ps.z_ref = self.parent.z_abs
+
             for i, p in enumerate(self.ps):
                 regions = self.lines.toPlainText().splitlines()
                 #regions = self.parent.plot.regions
@@ -2031,7 +2075,7 @@ class showLinesWidget(QWidget):
                     p.name_pos = None
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 p.y_formatter = self.y_formatter
-                ax = p.plot_line()
+                p.plot_line()
                 if self.show_cf and self.parent.fit.cf_fit:
                     for k in range(self.parent.fit.cf_num):
                         if self.cfs == 'all' or 'cf' + str(k) in self.cfs:
@@ -2039,15 +2083,47 @@ class showLinesWidget(QWidget):
                             if hasattr(self.parent.fit, attr):
                                 cf = getattr(self.parent.fit, attr)
                                 if (len(cf.addinfo.split('_')) > 1 and cf.addinfo.split('_')[1] == 'all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
-                                    ax.plot([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], [1-cf.val, 1-cf.val], '--', color='orangered')
+                                    color = to_hex(tuple(c / 255 for c in self.cf_color.to_bytes(4, byteorder='big')))
+                                    if p.fit_disp is None:
+                                        p.ax.plot([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], [1 - cf.val, 1 - cf.val], '--', lw=0.5, color=color)
+                                    else:
+                                        p.ax.plot([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], [1 - cf.unc.val, 1 - cf.unc.val], '--', lw=0.5, color=color)
+                                        p.ax.fill_between([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], 1 - cf.unc.val - cf.unc.plus, 1 - cf.unc.val + cf.unc.minus, ls=':', color=color, alpha=0.1)
+                                    if self.show_cf_value:
+                                        p.ax.text(p.x_max - (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='right', va='bottom', fontsize=p.font_labels, color=color)
 
                 if self.show_H2.strip() != '':
-                    p.showH2(ax, levels=[int(s) for s in self.show_H2.split()], pos=self.pos_H2)
+                    p.showH2(levels=[int(s) for s in self.show_H2.split()], pos=self.pos_H2)
                 if self.show_cont:
                     print(self.show_cont)
-                    ax.plot(s.cheb.x(), s.cheb.y(), '--k', lw=1)
+                    p.ax.plot(s.cheb.x(), s.cheb.y(), '--k', lw=1)
                     if 0:
                         self.showContCorr(ax=ax)
+
+        if 0:
+            #for fit, color in zip(['C:/science/Noterdaeme/HE0001/FeI_ESPRESSO_model.spv', 'C:/science/Noterdaeme/HE0001/FeI_UVES_model.spv'], ['tab:blue', 'tab:green']):
+            for fit, color in zip(['C:/science/Noterdaeme/HE0001/FeI_ESPRESSO_model.spv'], ['dodgerblue']):
+                self.parent.openFile(fit)
+                self.parent.showFit()
+                self.ps.color_total = color
+                for p in self.ps:
+                    if len(self.parent.lines[self.ps.index(p)].split()) > 2:
+                        for s in self.parent.lines[self.ps.index(p)].split()[2:]:
+                            if 'exp' in s:
+                                ind = int(s[4:])
+                            if 'note' in s:
+                                p.label = str(s[5:])
+                    print(p.name, ind)
+                    s = self.parent.s[ind]
+
+                    if self.corr_cheb and self.parent.fit.cont_fit:
+                        cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
+                    else:
+                        cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1)
+                    self.ps.lw_total = 2
+                    p.loaddata(f=np.array([s.fit.x(), s.fit.y()/cheb(s.fit.x())]))
+                    p.fit_disp = None
+                    p.plot_fit()
 
         if savefig:
             plotfile = self.plotfile
@@ -2115,6 +2191,7 @@ class showLinesWidget(QWidget):
         for opt, func in self.opts.items():
             print(opt, func(getattr(self, opt)))
             self.parent.options(opt, func(getattr(self, opt)))
+        self.parent.showlines = None
         ev.accept()
 
 class snapShotWidget(QWidget):
@@ -2333,6 +2410,14 @@ class fitMCMCWidget(QWidget):
         self.H2_excitation.setChecked(False)
         # self.b_increase.clicked[bool].connect(partial(self.setOpts, 'smooth'))
         grid.addWidget(self.H2_excitation, 5, 1)
+
+        self.hier_continuum = QCheckBox('continuum (hierarchical)')
+        if hasattr(self.parent.fit, 'hcont'):
+            self.hier_continuum.setChecked(self.parent.fit.getValue('hcont', 'vary'))
+        else:
+            self.hier_continuum.setEnabled(False)
+        # self.b_increase.clicked[bool].connect(partial(self.setOpts, 'smooth'))
+        grid.addWidget(self.hier_continuum, 6, 1)
 
         self.chooseFit = chooseFitParsWidget(self.parent, closebutton=False)
         self.chooseFit.setFixedSize(200, 700)
@@ -2571,7 +2656,7 @@ class fitMCMCWidget(QWidget):
         self.parent.setFit(comp=-1)
         nwalkers, nsteps, nthreads = int(self.parent.options('MCMC_walkers')), int(self.parent.options('MCMC_iters')), int(self.parent.options('MCMC_threads'))
 
-        opts = {'b_increase': self.b_increase.isChecked(), 'H2_excitation': self.H2_excitation.isChecked()}
+        opts = {'b_increase': self.b_increase.isChecked(), 'H2_excitation': self.H2_excitation.isChecked(), 'hier_continuum': self.hier_continuum.isChecked()}
 
         if init:
             init = []
@@ -2619,6 +2704,7 @@ class fitMCMCWidget(QWidget):
                 t.time("finished")
             else:
                 if pars == [str(p) for p in self.parent.fit.list_fit()]:
+                    ndims = len(self.parent.fit.list_fit)
                     sampler = emcee.EnsembleSampler(nwalkers, ndims, lnprob, args=[pars, self.priors, self], backend=backend)
 
                     for i, result in enumerate(sampler.sample(pos, iterations=nsteps)):
@@ -5523,6 +5609,8 @@ class GenerateAbsWidget(QWidget):
 
     def generate(self):
         snr = self.gen_snr if self.snr.isChecked() else None
+        if self.parent.normview:
+            self.parent.normalize()
         self.parent.generate(template=self.template.currentText(), z=self.gen_z,
                              xmin=self.gen_xmin, xmax=self.gen_xmax,
                              resolution=self.gen_resolution, snr=snr, lyaforest=self.gen_lyaforest,
@@ -5822,6 +5910,7 @@ class sviewer(QMainWindow):
         self.exp = None
         self.fitResults = None
         self.fitres = None
+        self.showlines = None
         self.MCMC = None
         self.extract2dwindow = None
         self.fitContWindow = None
@@ -6191,11 +6280,16 @@ class sviewer(QMainWindow):
         rescaleErrs.setStatusTip('Adjust uncertainties to dispersion in the spectrum')
         rescaleErrs.triggered.connect(partial(self.rescale))
 
+        stackLines = QAction('&Stack lines', self)
+        stackLines.setStatusTip('Stack chosen absorption lines')
+        stackLines.triggered.connect(partial(self.stackLines))
+
         spec1dMenu.addAction(fitCont)
         spec1dMenu.addAction(Composite)
         spec1dMenu.addAction(rescaleErrs)
+        spec1dMenu.addSeparator()
+        spec1dMenu.addAction(stackLines)
 
-        # >>> create 2d spec Menu items
         # >>> create 2d spec Menu items
 
         extract = QAction('&Extract', self)
@@ -7023,6 +7117,10 @@ class sviewer(QMainWindow):
                             if 'ESPRESSO' in hdulist[0].header['INSTRUME']:
                                 print(hdulist)
                                 print(hdulist[3].data)
+
+                            if 'FUV' in hdulist[0].header['INSTRUME']:
+                                s.set_data([prihdr['WAVE'], prihdr['FLUX'] * 1e17, prihdr['ERROR'] * 1e17])
+
                             try:
                                 if corr:
                                     s.helio_vel = hdulist[0].header['HIERARCH ESO QC VRAD HELICOR']
@@ -7439,10 +7537,12 @@ class sviewer(QMainWindow):
             self.preferences.close()
 
     def showLines(self, show=True):
-        self.showlines = showLinesWidget(self)
-        print(show)
-        if show:
-            self.showlines.show()
+        if self.showlines is None:
+            self.showlines = showLinesWidget(self)
+            if show:
+                self.showlines.show()
+        else:
+            self.showlines.close()
 
     def takeSnapShot(self):
         self.snap = snapShotWidget(self)
@@ -7761,7 +7861,7 @@ class sviewer(QMainWindow):
             self.MCMC = fitMCMCWidget(self)
             self.MCMC.show()
         else:
-            self.MCMC.raise_()
+            self.MCMC.activateWindow()
 
     def stopFit(self):
         """
@@ -8345,7 +8445,6 @@ class sviewer(QMainWindow):
             self.composite.remove()
 
     def rescale(self):
-
         if self.rescale_ind == 0:
 
             s = self.s[self.s.ind]
@@ -8383,6 +8482,41 @@ class sviewer(QMainWindow):
             self.s.redraw()
 
         self.rescale_ind = 1 - self.rescale_ind
+
+    def stackLines(self):
+        if not self.normview:
+            self.normalize(True)
+
+        s = self.s[self.s.ind]
+        dv = 200
+        x = np.linspace(-dv, dv, int(2 * dv / 299792.46 * s.resolution) * 4)
+        y, err, fs = np.zeros_like(x), np.zeros_like(x), 0
+        for line in self.lines:
+            print(line)
+            name = ' '.join(line.split()[:2])
+            for l in self.abs.lines:
+                if name == str(l.line):
+                    wavelength, f = l.line.l(), l.line.f()
+            xv = (s.spec.x() / wavelength / (1 + self.z_abs) - 1) * 299792.46
+            mask = (xv > x[0] - dv / 10) * (xv < x[-1] + dv / 10)
+            yi, erri = spectres.spectres((s.spec.x()[mask] / wavelength / (1 + self.z_abs) - 1) * 299792.46, s.spec.y()[mask], x, spec_errs=s.spec.err()[mask])
+            y += (1 - yi) * f / erri ** 2
+            fs += f
+            err += 1.0 * f / erri ** 2
+        print(x, y, err)
+        y /= err
+        err /= fs
+        err = 1 / np.sqrt(err)
+        if self.normview:
+            self.normalize(False)
+        s = Spectrum(self, name='stack')
+        s.set_data([x, 1 - y, err])
+
+        s.wavelmin = np.min(s.spec.raw.x)
+        s.wavelmax = np.max(s.spec.raw.x)
+        self.s.append(s)
+        self.plot.vb.disableAutoRange()
+        self.s.redraw()
 
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -9029,6 +9163,8 @@ class sviewer(QMainWindow):
     def generate(self, template='current', z=0, fit=True, xmin=3500, xmax=10000, resolution=2000, snr=None,
                  lyaforest=0.0, lycutoff=True, Av=0.0, Av_bump=0.0, z_Av=0.0, redraw=True):
 
+        if self.normview:
+            self.normalize(False)
         if template in ['Slesing', 'VanDenBerk', 'HST', 'const']:
             s = Spectrum(self, name='mock')
             if template == 'Slesing':

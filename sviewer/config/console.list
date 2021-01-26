@@ -1,21 +1,21 @@
+CH+
+high CH+
+high CH
+err 0.1
 stats
-stats
-stats
-stats
-stats
-stats
-x_r 3820 3850
-x r 3820 3840
-x_ r 3820 3840
-xr 3820 3840
-CIV
-stats
-show SiII
-CIII
-CII
-SiIII
-show SiII
-stats
-SiIV
-logN SiIV
-CIV
+rescale err 0.5
+resccale 0.63
+rescale 0.63
+4.04 / 3.3
+rescale 1.22
+rescale 0.97
+rescale 1.05
+rescale 1.03
+rescale 1.03
+rescale 1.2
+rescale 1.1
+rescale 1/1.25
+1/1.25
+rescale 0.8
+rescale 0.95
+SiII

@@ -114,16 +114,16 @@ class plot_spec(list):
         left = rect_pars[0].v_indent 
         top = 1 
         for r in rect_pars:
-            panel_h = (r.height - r.h_indent - r.row_offset*(r.n_rows-1))/r.n_rows
-            panel_w = (r.width - r.v_indent - r.col_offset*(r.n_cols-1))/r.n_cols
-            for i in range(r.n_rows*r.n_cols):        
+            panel_h = (r.height - r.h_indent - r.row_offset * (r.n_rows - 1)) / r.n_rows
+            panel_w = (r.width - r.v_indent - r.col_offset * (r.n_cols - 1)) / r.n_cols
+            for i in range(r.n_rows * r.n_cols):
                 if r.order is 'v':
                     col = i // r.n_rows
                     row = i % r.n_rows
                 if r.order is 'h':
                     col = i % r.n_cols
                     row = i // r.n_cols
-                rects.append(rectangle(left+(panel_w+r.col_offset)*col, top-(panel_h+r.row_offset)*row, panel_w, panel_h))
+                rects.append(rectangle(left + (panel_w + r.col_offset) * col, top - (panel_h + r.row_offset) * row, panel_w, panel_h))
                 #[left+(panel_w+r.col_offset)*col, top-panel_h*(row+1)-r.row_offset*row, panel_w, panel_h])
             top -= r.height
             top -= r.h_indent
@@ -137,11 +137,12 @@ class plot_spec(list):
     def specify_comps(self, *args):
         self.comps = np.array(args)
                 
-    def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, ls_total='solid', disp_alpha=0.7):
+    def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, ls_total='solid',
+                       disp_alpha=0.7, res_style='scatter'):
 
         if color_total is not None:
             if np.max(list(color_total)) > 1:
-                color_total = tuple(c/255 for c in color_total)
+                color_total = tuple(c / 255 for c in color_total)
             self.color_total = color_total
 
         num = len(self.comps+1)
@@ -178,6 +179,7 @@ class plot_spec(list):
         self.lw_spec = lw_spec
         self.ls_total = ls_total
         self.disp_alpha = disp_alpha
+        self.res_style = res_style
 
     def set_limits(self, x_min, x_max, y_min, y_max):
         for p in self:
@@ -326,8 +328,6 @@ class plotline():
         self.sig = 2
 
     def loaddata(self, d=None, f=None, fit_comp=None, fit_disp=None, fit_comp_disp=None, verbose=False):
-        self.spec = data()
-        self.fit = data()
 
         if self.filename is not None:
             print('filename:', self.filename)
@@ -335,13 +335,16 @@ class plotline():
             if Path(self.filename[0].replace('.dat', '_fit.dat')).exists():
                 f = np.genfromtxt(self.filename[0].replace('.dat', '_fit.dat'), skip_header=2, unpack=True)
 
-        self.spec.x = d[0, :]
-        self.spec.y = d[1, :]
-        self.spec.err = d[2, :]
-        if len(d) > 3:
-            self.points = d[3, :]
+        if d is not None:
+            self.spec = data()
+            self.spec.x = d[0, :]
+            self.spec.y = d[1, :]
+            self.spec.err = d[2, :]
+            if len(d) > 3:
+                self.points = d[3, :]
 
         if f is not None:
+            self.fit = data()
             self.fit.x = np.insert(np.append(f[0, :], self.spec.x[-1]), 0, self.spec.x[0])
             self.fit.y = np.insert(np.append(f[1, :], 1), 0, 1)
 
@@ -362,7 +365,6 @@ class plotline():
             self.fit_disp = None
 
         if fit_comp_disp is not None:
-            print(fit_comp_disp)
             self.fit_comp_disp = ['']*len(fit_comp_disp)
             for k in range(len(fit_comp_disp)):
                 self.fit_comp_disp[k] = [data(), data()]
@@ -409,9 +411,9 @@ class plotline():
         Plot the line profile panel
         """
         if self.fig is not None:
-            ax = self.fig.add_axes(self.rect.data)
+            self.ax = self.fig.add_axes(self.rect.data)
         else:
-            ax = plt.axes(self.rect.data)
+            self.ax = plt.axes(self.rect.data)
 
         #t = Timer(self.name)
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -442,147 +444,80 @@ class plotline():
             elinewidth, ecolor, capsize = 0, '1.0', 0
 
         if self.gray_out:
-            ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid', color='0.5', ecolor=ecolor, capsize=capsize, zorder=0)
+            self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid', color='0.5', ecolor=ecolor, capsize=capsize, zorder=0)
             k = (self.points == 0)
             self.spec.y[k] = np.NaN
-        ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid',  color='k', ecolor=ecolor, capsize=capsize, zorder=1)
+        self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid',  color='k', ecolor=ecolor, capsize=capsize, zorder=1)
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         # >>> plot fit
         if self.show_fit:
-
-            # >>> recalculate to velocity offset if necessary
-            if self.vel_scale:
-                self.fit.x = (self.fit.x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
-
-            # >>> mask only selected wavelength range
-            self.fit.mask(self.x_min, self.x_max)
-
-            # >>> plot fit components
-            if self.show_comps:
-                for k in range(self.num_comp):
-                    if self.fit_disp is None:
-                        if self.vel_scale:
-                            self.fit_comp[k].x = (self.fit_comp[k].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
-                        self.fit_comp[k].mask(self.x_min, self.x_max)
-                        ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
-                    else:
-                        if self.vel_scale:
-                            self.fit_comp_disp[k][0].x = (self.fit_comp_disp[k][0].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
-                            self.fit_comp_disp[k][1].x = (self.fit_comp_disp[k][1].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
-                        self.fit_comp_disp[k][0].mask(self.x_min, self.x_max)
-                        self.fit_comp_disp[k][1].mask(self.x_min, self.x_max)
-                        ax.fill_between(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, self.fit_comp_disp[k][1].y, fc=self.parent.color[k], alpha=self.parent.disp_alpha, zorder=11)
-                        ax.plot(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
-                        ax.plot(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][1].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
-
-            # >>> plot joint fit
-            if self.fit_disp is None:
-                print(self.fit.x, self.fit.y)
-                ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=11)
-
-            else:
-                # >>> plot fit dispersion
-                if self.vel_scale:
-                    self.fit_disp[0].x = (self.fit_disp[0].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
-                    self.fit_disp[1].x = (self.fit_disp[1].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
-                self.fit_disp[0].mask(self.x_min, self.x_max)
-                self.fit_disp[1].mask(self.x_min, self.x_max)
-                ax.fill_between(self.fit_disp[0].x, self.fit_disp[0].y, self.fit_disp[1].y, fc=self.parent.color_total, alpha=self.parent.disp_alpha, zorder=11)
-                ax.plot(self.fit_disp[0].x, self.fit_disp[0].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=10)
-                ax.plot(self.fit_disp[0].x, self.fit_disp[1].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=10)
+            self.plot_fit()
 
         # >>> add residuals
         if self.add_residual and self.show_fit:
-            color_res = col.tableau20[7]
-            color_linres = 'mediumaquamarine' #'mediumpurple' #col.tableau20[5]
-            null_res = self.y_max + (self.y_max-self.y_min) * 0.10
-            delt_res = (self.y_max - self.y_min) * 0.08
-            self.y_max = self.y_max + self.add_residual*(self.y_max-self.y_min)*0.28
-            ax.axhline(null_res, color=color_linres, ls='-', lw=0.5, zorder=0)
-            ax.axhline(null_res+delt_res, color=color_linres, ls='--', lw=0.5, zorder=0)
-            ax.axhline(null_res-delt_res, color=color_linres, ls='--', lw=0.5, zorder=0)
-            #ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res-1.1*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
-            #ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res+0.9*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
-            x_pos = self.x_max - 0.01*(self.x_max - self.x_min)
-            ax.text(x_pos, null_res+delt_res, r'+'+str(self.sig)+'$\sigma$', fontsize=self.font-2,
-                    color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
-            ax.text(x_pos, null_res-delt_res, r'-'+str(self.sig)+'$\sigma$', fontsize=self.font-2,
-                    color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
-            #print(self.fit.x, self.fit.y)
-            fit = interpolate.interp1d(self.fit.x, self.fit.y, bounds_error=False, fill_value=1)
-            try:
-                if sum(self.points) > 0:
-                    k = (self.points == 1)
-                    if 1:
-                        size = 10
-                        ax.scatter(self.spec.x[k], ((self.spec.y[k]-fit(self.spec.x[k]))/self.spec.err[k])/self.sig*delt_res+null_res, color=color_res, s=size)
-                    else:
-                        ax.step(self.spec.x[k], ((self.spec.y[k]-fit(self.spec.x[k]))/self.spec.err[k])/self.sig*delt_res+null_res, lw=1, where='mid', color=color_res)
-            except:
-                pass
-
+            self.plot_residuals()
 
         # >>> set axis ranges:
-        ax.axis([self.x_min, self.x_max, self.y_min, self.y_max])
+        self.ax.axis([self.x_min, self.x_max, self.y_min, self.y_max])
 
         # >>> set ticks labels:
         if self.yticklabels is None:
-            ax.set_yticklabels([])
+            self.ax.set_yticklabels([])
         if self.xticklabels is None:
-            ax.set_xticklabels([])
+            self.ax.set_xticklabels([])
 
         # >>> specify ticks:
-        ax.xaxis.set_minor_locator(self.x_minorLocator)
-        ax.xaxis.set_major_locator(self.x_locator)
-        ax.yaxis.set_minor_locator(self.y_minorLocator)
-        ax.yaxis.set_major_locator(self.y_locator)
-        ax.tick_params(which='both', width=1)
-        ax.tick_params(which='major', length=5)
-        ax.tick_params(which='minor', length=3)
-        ax.tick_params(axis='both', which='major', labelsize=self.font-2)
+        self.ax.xaxis.set_minor_locator(self.x_minorLocator)
+        self.ax.xaxis.set_major_locator(self.x_locator)
+        self.ax.yaxis.set_minor_locator(self.y_minorLocator)
+        self.ax.yaxis.set_major_locator(self.y_locator)
+        self.ax.tick_params(which='both', width=1)
+        self.ax.tick_params(which='major', length=5)
+        self.ax.tick_params(which='minor', length=3)
+        self.ax.tick_params(axis='both', which='major', labelsize=self.font-2)
 
         # >>> set axis ticks formater:
         if self.y_formatter is not None:
-            ax.yaxis.set_major_formatter(FormatStrFormatter(self.y_formatter))
+            self.ax.yaxis.set_major_formatter(FormatStrFormatter(self.y_formatter))
         if self.x_formatter is not None:
-            ax.xaxis.set_major_formatter(FormatStrFormatter(self.x_formatter))
+            self.ax.xaxis.set_major_formatter(FormatStrFormatter(self.x_formatter))
 
         # >>> set axis labels:
         if self.ylabel is not None:
-            ax.set_ylabel(self.ylabel, fontsize=self.font, labelpad=2)
+            self.ax.set_ylabel(self.ylabel, fontsize=self.font, labelpad=2)
         if self.xlabel is not None:
-            ax.set_xlabel(self.xlabel, fontsize=self.font, labelpad=2)
+            self.ax.set_xlabel(self.xlabel, fontsize=self.font, labelpad=2)
 
         # >>> add lines
-        ax.plot([self.x_min, self.x_max], [0.0, 0.0], 'k--', lw=0.5)
+        self.ax.plot([self.x_min, self.x_max], [0.0, 0.0], 'k--', lw=0.5)
         if self.show_comps and self.show_fit:
             for k in range(self.num_comp):
                 v = (self.parent.comps[k] - self.parent.z_ref) * 299794.26 / (1 + self.parent.z_ref)
-                ax.plot([v, v], [self.y_min, self.y_max], color=self.parent.color[k], linestyle=':', lw=1.0) #self.parent.lw[k])
+                self.ax.plot([v, v], [self.y_min, self.y_max], color=self.parent.color[k], linestyle=':', lw=1.0) #self.parent.lw[k])
                 if self.parent.comp_names is not None:
-                    ax.text(v, null_res-1.5*delt_res, self.parent.comp_names[k], fontsize=self.font_labels-2,
+                    self.ax.text(v, null_res-1.5*delt_res, self.parent.comp_names[k], fontsize=self.font_labels-2,
                     color=self.parent.color[k], backgroundcolor='w', clip_on=True, ha='center', va='top', zorder=21)
                 if 0 and 'HI' in self.name:
                     ax.plot([v-81.6, v-81.6], [self.y_min, self.y_max], color=self.parent.color[k], linestyle=':', lw=self.parent.lw[k])
 
         # >>> add text
         if self.name_pos is not None:
-            ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font_labels, transform=ax.transAxes)
+            self.ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
             if self.label is not None:
-                ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha='right', va='top', fontsize=self.font_labels, transform=ax.transAxes)
+                self.ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha='right', va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
 
         if self.parent.add_ioniz:
             el = element(self.el.name)
             print(el, self.ion_state, el.ionenergies)
             ion_en = "{:.3f} eV".format(el.ionenergies[self.ion_state])
             print(ion_en)
-            ax.text(1-self.name_pos[0], self.name_pos[1], str(ion_en), ha='right', va='top', fontsize=self.font_labels, transform=ax.transAxes)
+            self.ax.text(1-self.name_pos[0], self.name_pos[1], str(ion_en), ha='right', va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
 
-        return ax
+        return self.ax
     
     def plot_region(self):
-        ax = plt.axes(self.rect.data)
+        self.ax = plt.axes(self.rect.data)
         # >>> auto range of plot
         print(self.x_min, self.x_max)
         if self.x_min == 0 and self.x_max == 0:
@@ -601,120 +536,168 @@ class plotline():
 
         if self.gray_out:
             if self.add_errors:
-                ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=elinewidth, drawstyle='steps-mid',
+                self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=elinewidth, drawstyle='steps-mid',
                             color='k', ecolor='0.3', capsize=capsize, zorder=1)
             else:
-                ax.errorbar(self.spec.x, self.spec.y, lw=1, elinewidth=elinewidth, drawstyle='steps-mid',
+                self.ax.errorbar(self.spec.x, self.spec.y, lw=1, elinewidth=elinewidth, drawstyle='steps-mid',
                             color='k', capsize=capsize, zorder=1)
             k = (self.points == 0)
             self.spec.y[k] = np.NaN
 
-        ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=elinewidth, drawstyle='steps-mid',
+        self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=elinewidth, drawstyle='steps-mid',
                         color='k', ecolor=ecolor, capsize=capsize, zorder=0)
 
         # >>> correct continuum
         try:
             if self.add_cont:
                 cont = np.genfromtxt('_cont.'.join(self.filename[0].rsplit('.', 1)), unpack=True)
-                ax.plot(cont[0], cont[1], '-', color=col.tableau10[0])
+                self.ax.plot(cont[0], cont[1], '-', color=col.tableau10[0])
         except:
             pass
 
         # >>> plot fit
         if self.show_fit:
-            # >>> plot fit components
-            if self.show_comps:
+            self.plot_fit()
+
+        # >>> add residuals
+        if self.add_residual and self.fit:
+            self.plot_residuals()
+
+        # >>> set axis ranges:
+        self.ax.axis([self.x_min, self.x_max, self.y_min, self.y_max])
+
+        # >>> set ticks labels:
+        if self.yticklabels is None:
+            self.ax.set_yticklabels([])
+        if self.xticklabels is None:
+            self.ax.set_xticklabels([])
+
+        # >>> specify ticks:
+        self.ax.xaxis.set_minor_locator(self.x_minorLocator)
+        self.ax.xaxis.set_major_locator(self.x_locator)
+        self.ax.yaxis.set_minor_locator(self.y_minorLocator)
+        self.ax.yaxis.set_major_locator(self.y_locator)
+        self.ax.tick_params(which='both', width=1)
+        self.ax.tick_params(which='major', length=5)
+        self.ax.tick_params(which='minor', length=3)
+        self.ax.tick_params(axis='both', which='major', labelsize=self.font-2)
+
+        # >>> set axis ticks formater:
+        if self.y_formatter is not None:
+            self.ax.yaxis.set_major_formatter(FormatStrFormatter(self.y_formatter))
+        else:
+            self.ax.yaxis.set_major_formatter(FormatStrFormatter('%0.1f'))
+        if self.x_formatter is not None:
+            self.ax.xaxis.set_major_formatter(FormatStrFormatter(self.x_formatter))
+
+        # >>> set axis labels:
+        if self.ylabel is not None:
+            self.ax.set_ylabel(self.ylabel, fontsize=self.font)
+        if self.xlabel is not None:
+            self.ax.set_xlabel(self.xlabel, fontsize=self.font, labelpad=-4)
+
+        # >>> add lines
+        self.ax.plot([self.x_min, self.x_max], [0.0, 0.0], 'k--', lw=0.5)
+
+        # >>> add text
+        if self.name_pos is not None:
+            self.ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font, transform=self.ax.transAxes)
+            if self.label is not None:
+                self.ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha='right', va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
+
+        return self.ax
+
+    def plot_fit(self):
+
+        # >>> recalculate to velocity offset if necessary
+        if self.vel_scale:
+            self.fit.x = (self.fit.x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
+
+        # >>> mask only selected wavelength range
+        self.fit.mask(self.x_min, self.x_max)
+
+        # >>> plot fit components
+        if self.show_comps:
+            for k in range(self.num_comp):
                 if self.fit_disp is None:
-                    for k in range(self.num_comp):
-                        self.fit_comp[k].mask(self.x_min, self.x_max)
-                        ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
+                    if self.vel_scale:
+                        self.fit_comp[k].x = (self.fit_comp[k].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
+                    self.fit_comp[k].mask(self.x_min, self.x_max)
+                    self.ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
                 else:
                     if self.vel_scale:
                         self.fit_comp_disp[k][0].x = (self.fit_comp_disp[k][0].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
                         self.fit_comp_disp[k][1].x = (self.fit_comp_disp[k][1].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
                     self.fit_comp_disp[k][0].mask(self.x_min, self.x_max)
                     self.fit_comp_disp[k][1].mask(self.x_min, self.x_max)
-                    ax.fill_between(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, self.fit_comp_disp[k][1].y, fc=self.parent.color[k], alpha=self.parent.disp_alpha, zorder=11)
-                    ax.plot(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
-                    ax.plot(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][1].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
+                    self.ax.fill_between(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, self.fit_comp_disp[k][1].y, fc=self.parent.color[k], alpha=self.parent.disp_alpha, zorder=11)
+                    self.ax.plot(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
+                    self.ax.plot(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][1].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
 
-            # >>> plot joint fit
-            if self.fit_disp is None:
-                ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=11)
-            else:
-                # >>> plot fit dispersion
-                self.fit_disp[0].mask(self.x_min, self.x_max)
-                self.fit_disp[1].mask(self.x_min, self.x_max)
-                ax.fill_between(self.fit_disp[0].x, self.fit_disp[0].y, self.fit_disp[1].y, fc=self.parent.color_total, alpha=self.parent.disp_alpha, zorder=11)
-
-
-            # >>> add residuals
-            if self.add_residual and self.fit:
-                color_res = col.tableau20[7]
-                null_res = self.y_max + (self.y_max-self.y_min) * 0.06
-                delt_res = (self.y_max - self.y_min) * 0.03
-                self.y_max = self.y_max + self.add_residual*(self.y_max-self.y_min)*0.25
-                ax.axhline(null_res, color=col.tableau20[11], ls='--')
-                ax.axhline(null_res+delt_res*3, color=col.tableau20[11], ls='--')
-                ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res+delt_res*3), 0.04*self.x_max, 6*delt_res, edgecolor='none', facecolor='w'))
-                ax.text(0.98*self.x_max, null_res+delt_res*3, r'+3$\sigma$', fontsize=self.font-4, color=col.tableau20[10], ha='right', va='center')
-                ax.axhline(null_res-delt_res*3, color=col.tableau20[11], ls='--')
-                ax.text(0.98*self.x_max, null_res-delt_res*3, r'-3$\sigma$', fontsize=self.font-4, color=col.tableau20[10], ha='right', va='center')
-                fit = interpolate.interp1d(self.fit.x, self.fit.y, bounds_error=False)
-                try:
-                    if sum(data[3]) > 0:
-                        k = (data[3] == 1)
-                        if 1:
-                            size = 10   
-                            ax.scatter(data[0][k], ((data[1][k]-fit(data[0][k]))/data[2][k])*delt_res+null_res, color=color_res, s=size)
-                        else:
-                            ax.step(data[0][k], ((data[1][k]-fit(data[0][k]))/data[2][k])*delt_res+null_res, lw=1, where='mid', color=color_res)
-                except:
-                    pass
-            
-        # >>> set axis ranges:
-        ax.axis([self.x_min, self.x_max, self.y_min, self.y_max])
-
-        # >>> set ticks labels:
-        if self.yticklabels is None:
-            ax.set_yticklabels([])
-        if self.xticklabels is None:
-            ax.set_xticklabels([])
-
-        # >>> specify ticks:
-        ax.xaxis.set_minor_locator(self.x_minorLocator)
-        ax.xaxis.set_major_locator(self.x_locator)
-        ax.yaxis.set_minor_locator(self.y_minorLocator)
-        ax.yaxis.set_major_locator(self.y_locator)
-        ax.tick_params(which='both', width=1)
-        ax.tick_params(which='major', length=5)
-        ax.tick_params(which='minor', length=3)
-        ax.tick_params(axis='both', which='major', labelsize=self.font-2)
-
-        # >>> set axis ticks formater:
-        if self.y_formatter is not None:
-            ax.yaxis.set_major_formatter(FormatStrFormatter(self.y_formatter))
+        # >>> plot joint fit
+        if self.fit_disp is None:
+            self.ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=11)
         else:
-            ax.yaxis.set_major_formatter(FormatStrFormatter('%0.1f'))
-        if self.x_formatter is not None:
-            ax.xaxis.set_major_formatter(FormatStrFormatter(self.x_formatter))
+            # >>> plot fit dispersion
+            if self.vel_scale:
+                self.fit_disp[0].x = (self.fit_disp[0].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
+                self.fit_disp[1].x = (self.fit_disp[1].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
+            self.fit_disp[0].mask(self.x_min, self.x_max)
+            self.fit_disp[1].mask(self.x_min, self.x_max)
+            self.ax.fill_between(self.fit_disp[0].x, self.fit_disp[0].y, self.fit_disp[1].y, fc=self.parent.color_total, alpha=self.parent.disp_alpha, zorder=11)
+            self.ax.plot(self.fit_disp[0].x, self.fit_disp[0].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=10)
+            self.ax.plot(self.fit_disp[0].x, self.fit_disp[1].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=10)
 
-        # >>> set axis labels:
-        if self.ylabel is not None:
-            ax.set_ylabel(self.ylabel, fontsize=self.font)
-        if self.xlabel is not None:
-            ax.set_xlabel(self.xlabel, fontsize=self.font, labelpad=-4)
+    def plot_residuals(self):
+        color_res = col.tableau20[7]
+        color_linres = 'lightseagreen'  # 'mediumpurple' #col.tableau20[5]
+        null_res = self.y_max + (self.y_max - self.y_min) * 0.10
+        delt_res = (self.y_max - self.y_min) * 0.08
+        self.y_max = self.y_max + self.add_residual * (self.y_max - self.y_min) * 0.28
+        self.ax.axhline(null_res, color=color_linres, ls='-', lw=0.5, zorder=0)
+        self.ax.axhline(null_res + delt_res, color=color_linres, ls='--', lw=0.5, zorder=0)
+        self.ax.axhline(null_res - delt_res, color=color_linres, ls='--', lw=0.5, zorder=0)
+        # ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res-1.1*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
+        # ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res+0.9*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
+        x_pos = self.x_max - 0.01 * (self.x_max - self.x_min)
+        self.ax.text(x_pos, null_res + delt_res, r'+' + str(self.sig) + '$\sigma$', fontsize=self.font - 2,
+                color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
+        self.ax.text(x_pos, null_res - delt_res, r'-' + str(self.sig) + '$\sigma$', fontsize=self.font - 2,
+                color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
+        # print(self.fit.x, self.fit.y)
+        try:
+            if sum(self.points) > 0:
+                k = (self.points != 1)
+                size = 10
+                if self.fit_disp is None:
+                    fit = interpolate.interp1d(self.fit.x, self.fit.y, bounds_error=False, fill_value=1)
+                    y = np.ma.masked_where(k, (
+                                (self.spec.y - fit(self.spec.x)) / self.spec.err) / self.sig * delt_res + null_res)
+                    if self.parent.res_style == 'scatter':
+                        self.ax.scatter(self.spec.x, y, color=color_res, s=size)
+                    if self.parent.res_style == 'step':
+                        self.ax.step(self.spec.x, y, where='mid', color=color_res, ls=self.parent.ls_total,
+                                lw=self.parent.lw_total)
+                    # ax.step(self.spec.x[k], ((self.spec.y[k] - fit_0(self.spec.x[k])) / self.spec.err[k]) / self.sig * delt_res + null_res, lw=1, where='mid', color=color_res)
+                else:
+                    fit_0 = interpolate.interp1d(self.fit_disp[0].x, self.fit_disp[0].y, bounds_error=False,
+                                                 fill_value=1)
+                    fit_1 = interpolate.interp1d(self.fit_disp[0].x, self.fit_disp[1].y, bounds_error=False,
+                                                 fill_value=1)
+                    if self.parent.res_style == 'scatter':
+                        y = np.ma.masked_where(k, ((self.spec.y - (fit_0(self.spec.x) + fit_1(
+                            self.spec.x)) / 2) / self.spec.err) / self.sig * delt_res + null_res)
+                        self.ax.scatter(self.spec.x, y, color=color_res, s=size)
+                    elif self.parent.res_style == 'step':
+                        y0 = np.ma.masked_where(k, ((self.spec.y - fit_0(
+                            self.spec.x)) / self.spec.err) / self.sig * delt_res + null_res)
+                        y1 = np.ma.masked_where(k, ((self.spec.y - fit_1(
+                            self.spec.x)) / self.spec.err) / self.sig * delt_res + null_res)
+                        self.ax.fill_between(self.spec.x, y0, y1, step='mid', facecolor=color_res, ls=self.parent.ls_total,
+                                        lw=self.parent.lw_total, alpha=0.9, edgecolor=color_res)
+        except:
+            pass
 
-        # >>> add lines
-        ax.plot([self.x_min, self.x_max], [0.0, 0.0], 'k--', lw=0.5)
-
-        # >>> add text
-        if self.name_pos is not None:
-            ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font, transform=ax.transAxes)
-            if self.label is not None:
-                ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha='right', va='top', fontsize=self.font_labels, transform=ax.transAxes)
-
-        return ax
 
     def correct_cont(self):
         mask = (self.spec.x > self.cont_range[0]) * (self.spec.x < self.cont_range[1])
@@ -743,11 +726,11 @@ class plotline():
                 for c in self.fit.comp:
                     c = c / sum_cont
 
-    def showH2(self, ax, levels=[0, 1, 2, 3, 4, 5], pos=0.84, dpos=0.03, color='cornflowerblue', show_ticks=True, kind='full'):
+    def showH2(self, levels=[0, 1, 2, 3, 4, 5], pos=0.84, dpos=0.03, color='cornflowerblue', show_ticks=True, kind='full'):
         if 1:
-            ymin, ymax = ax.get_ylim()
+            ymin, ymax = self.ax.get_ylim()
             pos, dpos = ymin + pos * (ymax - ymin), dpos * (ymax - ymin)
-            xmin, xmax = ax.get_xlim()
+            xmin, xmax = self.ax.get_xlim()
         lines = atomicData.H2(levels)
         lines = [l for l in lines if l.l()*(1+self.parent.z_ref) > xmin and l.l()*(1+self.parent.z_ref) < xmax]
         s = set([str(line).split()[1][:str(line).split()[1].index('-')] for line in lines])
@@ -768,16 +751,16 @@ class plotline():
                     if show_ticks:
                         for line in b_lines:
                             if line.j_l in levels:
-                                ax.plot([line.l() * (1 + self.parent.z_ref), line.l() * (1 + self.parent.z_ref)], [pos_y, pos_y + dpos], lw=1.0, color=color, ls='-')
+                                self.ax.plot([line.l() * (1 + self.parent.z_ref), line.l() * (1 + self.parent.z_ref)], [pos_y, pos_y + dpos], lw=1.0, color=color, ls='-')
                                 if kind == 'full':
-                                    texts.append(ax.text(line.l() * (1 + self.parent.z_ref), pos_y + dpos, str(line.j_l), ha='center', va='bottom',
+                                    texts.append(self.ax.text(line.l() * (1 + self.parent.z_ref), pos_y + dpos, str(line.j_l), ha='center', va='bottom',
                                                  fontsize=self.parent.font - 4, color=color))
 
-                        ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)], [pos_y + dpos, pos_y + dpos], lw=1.0, color=color, ls='-')
+                        p.ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)], [pos_y + dpos, pos_y + dpos], lw=1.0, color=color, ls='-')
                 if kind == 'short':
-                    ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0', ha='left', va='bottom', fontsize=self.parent.font-4, color=color)
+                    self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0', ha='left', va='bottom', fontsize=self.parent.font-4, color=color)
                 elif kind == 'full':
-                    ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + ':$\,\,$', ha='right', va='bottom',
+                    self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + ':$\,\,$', ha='right', va='bottom',
                             fontsize=self.parent.font - 4, color=color)
         print(texts)
         adjust_text(texts, only_move={'text': 'x'})

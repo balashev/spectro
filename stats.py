@@ -394,9 +394,9 @@ class distr2d():
                     lolims, uplims = True, False
                 x = np.linspace(x[0], x[-1], 10)
                 ax.errorbar(x, inter(x), yerr=np.abs(limits), lolims=lolims, fmt='o', color=color, uplims=uplims, markersize=0, capsize=0, zorder=zorder, label=label)
-        if ls is not None:
-            for c, s in zip(c.collections[:len(ls)], ls[::-1]):
-                c.set_dashes(s)
+            if ls is not None:
+                for c, s in zip(c.collections[:len(ls)], ls[::-1]):
+                    c.set_dashes(s)
         if color_point is not None:
             ax.scatter(self.point[0], self.point[1], s=200, color=color_point, edgecolors='k', marker='*', zorder=50)
         if colorbar:

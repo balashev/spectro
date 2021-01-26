@@ -1,4 +1,6 @@
+using DelimitedFiles
 using Distributed
+using Random
 import RobustPmap
 
 if nprocs() > 1
@@ -23,17 +25,23 @@ println("procs: ", nprocs())
 @everywhere using SpecialFunctions
 @everywhere include("profiles.jl")
 
-function fitMCMC(spec, par; prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, init=nothing, opts=0)
+function fitMCMC(spec, ppar; prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, init=nothing, opts=0)
 
     #COUNTERS["num"] = nwalkers
 
-    pars = make_pars(par)
+	println(init)
+
+    pars = make_pars(ppar)
     priors = make_priors(prior)
-    println(priors)
     params = [p.val for (k, p) in pars if p.vary == 1]
 
     numdims = size(params)[1]
     thinning = 10
+
+	if opts["hier_continuum"] == true
+		cont = Dict(k => pars[k].val for (k, v) in pars if occursin("cont_", k))
+		println(cont)
+	end
 
     lnlike = p->begin
         #println(p)
@@ -52,6 +60,18 @@ function fitMCMC(spec, par; prior=nothing, nwalkers=100, nsteps=1000, nthreads=1
 
         update_pars(pars, spec)
 
+		#if opts["hier_continuum"] == true
+        #    for (k, v) in pars
+		#		if occursin("cont_", k)
+    	#			if pars[k].vary
+    	#				cont[k] = pars[k].val
+    	#			end
+    	#			pars[k].val = cont[k] * (1 + parse(Float64, split(pars[k].addinfo, "_")[4]) * randn(1)[1] * pars["hcont"].val)
+		#			#println(split(pars[k].addinfo, "_")[4], " ", pars[k].val, " ", r)
+        #   		end
+		#	end
+        #end
+
         retval = 0
 
         if priors != nothing
@@ -63,13 +83,31 @@ function fitMCMC(spec, par; prior=nothing, nwalkers=100, nsteps=1000, nthreads=1
 
         for s in spec
             if sum(s.mask) > 0
-                retval -= .5 * sum(((calc_spectrum(s, pars, out="init") - s.y[s.mask]) ./ s.unc[s.mask]) .^ 2)
+    			model = calc_spectrum(s, pars, out="init")
+                retval -= .5 * sum(((model .- s.y[s.mask]) ./ s.unc[s.mask]) .^ 2)
+				#println("spec ", sum(((model - s.y[s.mask]) ./ s.unc[s.mask]) .^ 2))
+				if opts["hier_continuum"] == true
+    				#c = ones(size(model))
+    				for cont in s.cont
+						mask = (s.x[s.mask] .> cont.left) .& (s.x[s.mask] .< cont.right)
+						c = parse(Float64, split(pars[cont.c[1]].addinfo, "_")[4])
+						A = sum((model[mask] .* c ./ s.unc[s.mask][mask]) .^ 2) + 1 / pars["hcont"].val ^ 2
+						B = sum(model[mask] .* c .* (model[mask] .- s.y[s.mask][mask]) ./ s.unc[s.mask][mask] .^ 2)
+						retval -= .5 * (log(A * pars["hcont"].val ^ 2) - B ^ 2 / A)
+						#c[mask] .= parse(Float64, split(pars[cont.c[1]].addinfo, "_")[4])
+						#println("hier ", sum(((model - s.y[s.mask]) ./ s.unc[s.mask]) .^ 2), " ", log(A * pars["hcont"].val ^ 2), " ", B ^ 2 / A)
+					end
+					#A = sum((model .* c ./ s.unc[s.mask]) .^ 2) + 1 / pars["hcont"].val ^ 2
+					#B = sum(model .* c .* (model .- s.y[s.mask]) ./ s.unc[s.mask] .^ 2)
+					#retval -= .5 * (log(A * pars["hcont"].val ^ 2) - B ^ 2 / A)
+					#println("hier ", sum(((model - s.y[s.mask]) ./ s.unc[s.mask]) .^ 2), " ", log(A * pars["hcont"].val ^ 2), " ", B ^ 2 / A)
+				end
             end
         end
 
         # add constraints to the fit set by opts parameter
 
-        # constraints for H2 on increasing b parameter with J level increase
+		# constraints for H2 on increasing b parameter with J level increase
         if opts["b_increase"] == true
             for (k, v) in pars
                 if occursin("H2j", k) & occursin("b_", k)
@@ -117,6 +155,7 @@ function fitMCMC(spec, par; prior=nothing, nwalkers=100, nsteps=1000, nthreads=1
     end
 
     bounds = hcat([p.min for (k, p) in pars if p.vary], [p.max for (k, p) in pars if p.vary])
+	println(bounds)
     chain, llhoodvals = sample(lnlike, nwalkers, init, nsteps, 1, bounds)
 
 end
@@ -130,7 +169,6 @@ function sample(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thi
     This function is modified version of AffineInvariantMCMC by MADS (see copyright information in initial module)
     """
 	@assert length(size(x0)) == 2
-
 	x = copy(x0)
 	chain = Array{Float64}(undef, size(x0, 1), nwalkers, div(nsteps, thinning))
 	llhoodvals = Array{Float64}(undef, nwalkers, div(nsteps, thinning))
@@ -161,7 +199,9 @@ function sample(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thi
 				end
 			end
 		end
+		open("output/mcmc_last.dat", "w") do io
+			writedlm(io, chain[:, :, i], " ")
+		end
 	end
 	return chain, llhoodvals
-
 end
