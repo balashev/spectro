@@ -142,12 +142,13 @@ class Speclist(list):
         if self.parent.fitType == 'julia':
             #self.parent.reload_julia()
             self.parent.julia_pars = self.parent.julia.make_pars(self.parent.fit.list())
+            self.parent.julia_add = self.parent.julia.prepare_add(self.parent.fit, self.parent.julia_pars)
 
         for s in self:
             s.findFitLines(ind, all=all, debug=False)
 
         if self.parent.fitType == 'julia':
-            self.parent.julia_spec = self.parent.julia.prepare(self, self.parent.julia_pars)
+            self.parent.julia_spec = self.parent.julia.prepare(self, self.parent.julia_pars, self.parent.julia_add)
 
     def calcFit(self, ind=-1, recalc=False, redraw=True, timer=False):
 
@@ -169,8 +170,7 @@ class Speclist(list):
                     s.calcFit_julia(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
 
             else:
-                s.set_fit(x=self[self.ind].spec.raw.x[self[self.ind].cont_mask],
-                                       y=np.ones_like(self[self.ind].spec.raw.x[self[self.ind].cont_mask]))
+                s.set_fit(x=self[self.ind].spec.raw.x[self[self.ind].cont_mask], y=np.ones_like(self[self.ind].spec.raw.x[self[self.ind].cont_mask]))
                 s.set_gfit()
         if timer:
             t.time('fit ' + self.parent.fitType)
@@ -2054,7 +2054,7 @@ class Spectrum():
                         flux += line.profile
                     else:
                         cf = np.min([1, np.sum([getattr(self.parent.fit, 'cf_' + str(i)).val for i in line.cf])])
-                        flux += - np.log(np.exp(-line.profile) * (1 - cf) + cf)
+                        flux += - np.log(np.exp(-line.profile) * cf + (1 - cf))
 
             flux = np.exp(-flux)
 

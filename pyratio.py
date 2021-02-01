@@ -202,9 +202,9 @@ class speci:
                                 i = int(line[0])-1
                                 j = int(line[1])-1
                                 if i <= self.num and j <= self.num:
-                                    #print(coll, i, j, np.log10(Temp), line[2:])
                                     c.append(collision(self, coll, i, j, np.array([np.log10(Temp), [np.log10(float(line[k+2])) for k in range(n_2)]])))
                         self.coll[coll] = c
+                        #print(coll, c, self.coll[coll])
 
     def read_HD(self):
         """
@@ -243,7 +243,7 @@ class speci:
                                 self.g[l] = line.split()[1]
                                 self.E[l] = float(line.split()[0]) * 0.695
                                 self.descr[l] = line.split()[3]
-                                l +=1
+                                l += 1
                             line = f_in.readline()
                     if f == 5:
                         n = int(f_in.readline())
@@ -464,7 +464,7 @@ class speci:
             axs.set_title(self.name + ' collision with ' + part)
         return axs
 
-class coll_list(list):
+class coll_list():
     """
     Class that contains lists of collisional data for specific collisional partner
     """
@@ -910,7 +910,7 @@ class pyratio():
 
         return R
 
-    def balance(self, name, debug=None):
+    def balance(self, name=None, debug=None):
         """
         calculate balance matrix for population of levels
         parameters:
@@ -923,6 +923,9 @@ class pyratio():
                               'UV'   -  by uv pumping
 
         """
+        if name is None:
+            name = next(iter(self.species))
+
         speci = self.species[name]
 
         W = np.zeros([speci.num, speci.num])
@@ -1053,9 +1056,9 @@ class pyratio():
             for l in range(speci.num):
                 for k in range(speci.num, speci.fullnum):
                     if speci.A[k, l] != 0:
-                        print(u, l,  1e8 / np.abs(speci.E[u]-speci.E[k]), self.exc_rate(speci, u, k, logN=logN, b=b) * speci.A[k, l] / np.sum(speci.A[k, :speci.num]))
+                        #print(u, l,  1e8 / np.abs(speci.E[u]-speci.E[k]), self.exc_rate(speci, u, k, logN=logN, b=b) * speci.A[k, l] / np.sum(speci.A[k, :speci.num]))
                         pump[u, l] += self.exc_rate(speci, u, k, logN=logN, b=b) * speci.A[k, l] / np.sum(speci.A[k, :speci.num])
-        print(pump)
+        #print(pump)
         self.species[name].pump_rate = pump
 
     def rad_matrix(self, name):
@@ -1992,6 +1995,87 @@ if __name__ == '__main__':
         #plt.savefig('pyratio.png', bbox_inches='tight', transparent=True)
         plt.show()
 
+    # >>> check CII collisions
+    if 1:
+        pr = pyratio(z=2.65)
+        pr.set_pars(['T', 'n', 'f', 'e'])
+        pr.pars['T'].range = [1, 6]
+        pr.pars['n'].range = [-1, 4]
+        pr.pars['e'].range = [-4, 0]
+        pr.pars['f'].range = [-6, 0]
+        pr.set_fixed('f', -3)
+        pr.set_fixed('e', -4)
+        species = 'CII'
+        pr.add_spec(species, num=2)
+        num = 20
+        if 1:
+            fig, ax = plt.subplots()
+            for t in [100, 800, 8000, 15000]:
+                pr.pars['T'].value = np.log10(t)
+                n = np.linspace(-2, 5, num)
+                z = np.zeros_like(n)
+                for i, ni in enumerate(n):
+                    pr.pars['n'].value = ni
+                    z[i] = pr.predict()[1]
+                ax.plot(n, z - 3.57, '-', label='{0:d}'.format(t))
+            ax.set_xlabel('log n')
+            ax.set_ylabel('CII*/CII')
+            ax.legend()
+
+        if 1:
+            fig, ax = plt.subplots()
+            pr.set_fixed('n', 0)
+            for t in [1000, 6000, 15000]:
+                pr.pars['T'].value = np.log10(t)
+                e = np.linspace(-4, 0, num)
+                z = np.zeros_like(e)
+                for i, ei in enumerate(e):
+                    pr.pars['e'].value = ei
+                    z[i] = pr.predict()[1]
+                ax.plot(e, z - 3.57, '-', label='{0:d}'.format(t))
+            ax.set_xlabel('log $n_e$')
+            ax.set_ylabel('CII*/CII')
+            ax.legend()
+
+        if 0:
+            fig, ax = plt.subplots()
+            for n in [0.1, 1, 10]:
+                pr.pars['n'].value = np.log10(n)
+                T = np.linspace(2, 4, num)
+                z = np.zeros_like(T)
+                for i, ti in enumerate(T):
+                    pr.pars['T'].value = ti
+                    z[i] = pr.predict()[1]
+                ax.plot(T, z, '-')
+                print(T, z)
+            ax.set_xlabel('log T')
+            ax.set_ylabel('CII*/CII')
+
+        if 0:
+            n = np.linspace(-1, 3, num)
+            T = np.linspace(2, 5, num)
+            X, Y = np.meshgrid(n, T)
+            z = np.zeros_like(X)
+            for i, ni in enumerate(n):
+                pr.pars['n'].value = ni
+                for k, tk in enumerate(T):
+                    pr.pars['T'].value = tk
+                    pop = pr.predict()
+                    z[k, i] = pop[1]
+
+            fig, ax = plt.subplots()
+            cs = ax.contourf(X, Y, z, levels=100)
+            cs1 = ax.contour(X, Y, z, levels=[-4, -3, -2, -1, 0.0], linestyles='--', colors='k')
+            # cbar = plt.colorbar(cs)
+            # cbar.ax.set_ylabel('log SiII*/SiII')
+            ax.clabel(cs1, cs1.levels[::2], inline=True, fmt='%3.1f', fontsize=12)
+            ax.set_xlabel('log n')
+            ax.set_ylabel('log T')
+            ax.set_title('log SiII*/SiII')
+            plt.colorbar(cs)
+
+        plt.show()
+
     # check calculation with Ntot
     if 0:
         pr = pyratio(z=2.525, calctype='numbdens')
@@ -2134,7 +2218,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check ionization parameter
-    if 1:
+    if 0:
         pr = pyratio(z=2.0, pumping='simple', radiation='simple', sed_type='AGN', agn={'filter': 'r', 'mag': 18})
         pr.set_pars(['T', 'rad', 'e'])
         pr.pars['T'].value = 4

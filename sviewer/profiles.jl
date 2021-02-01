@@ -184,7 +184,7 @@ function doppler(name, turb, kin)
     return (turb ^ 2 + 0.0164 * kin / mass) ^ .5
 end
 
-function update_pars(pars, spec)
+function update_pars(pars, spec, add)
     for (k, v) in pars
         if occursin("res", pars[k].name)
             #println(pars[k].name, " ", pars[k].val, " ", parse(Int, pars[k].addinfo[5:end]))
@@ -195,6 +195,18 @@ function update_pars(pars, spec)
         end
         if occursin("dispz", pars[k].name)
             spec[parse(Int, split(pars[k].name, "_")[2]) + 1].dispz = pars[k].val
+        end
+        if occursin("Ntot", pars[k].name)
+            ind = split(pars[k].name, "_")[2]
+            pr = add["pyratio"][parse(Int, ind) + 1]
+            x = pyratio_predict(pr, pars)
+            col = [v.val - log10(sum(x)) + log10(x[i]) for i in 1:pr.num]
+            for (k1, v1) in pars
+                if startswith(k1, "N_" * ind * "_" * pr.species) * occursin("Ntot", v1.addinfo)
+                    i = occursin(pr.species * "j", k1) ? parse(Int, replace(k1, "N_" * ind * "_" * pr.species * "j" => "")) + 1 : 1
+                    pars[k1].val = col[i]
+                end
+            end
         end
     end
 end
@@ -290,6 +302,138 @@ function prepare_cheb(pars, ind)
     return cont
 end
 
+function prepare_coll(pr, s)
+    #println(keys(pr.species[s].coll))
+    c = Dict()
+    for sp in keys(pr.species[s].coll)
+        #println(sp)
+        c[sp] = Array{coll}(undef, pr.species[s].num, pr.species[s].num)
+        #println(pr.species[s].num, " ", pr.species[s].coll[sp].c[1].rates)
+        for i in 1:pr.species[s].num
+            for j in 1:pr.species[s].num
+                if i != j
+                    if pr.species[s].coll[sp].c[1].rates == nothing
+                         coll(i, j, LinearInterpolation([0, 6], [0, 0], extrapolation_bc=Flat()))
+                    else
+                        #println(pr.species[s].coll[sp].rate(i-1, j-1, 2), " ", pr.species[s].coll[sp].rate(j-1, i-1, 2))
+                        #println(pr.species[s].coll[sp].c[1].rates[1,:], " ", pr.species[s].coll[sp].rate(i-1, j-1, pr.species[s].coll[sp].c[1].rates[1,:]))
+                        c[sp][i,j] = coll(i, j, LinearInterpolation(pr.species[s].coll[sp].c[1].rates[1,:], pr.species[s].coll[sp].rate(i-1, j-1, pr.species[s].coll[sp].c[1].rates[1,:]), extrapolation_bc=Flat()))
+                    end
+                end
+            end
+        end
+        #for col in pr.species[s].coll[sp].c
+        #    println(col.rate(1, 0, 2), " ", col.rate(0, 1, 2))
+        #end
+    end
+    return c
+end
+
+function prepare_add(fit, pars)
+    add = Dict()
+    if any(occursin("Ntot", k) for k in keys(pars))
+        add["pyratio"] = Dict()
+    end
+    for (k, v) in pars
+        if occursin("Ntot", pars[k].name)
+            ind = split(pars[k].name, "_")[2]
+            #add["pyratio"][parse(Int, split(pars[k].name, "_")[2]) + 1] = fit.sys[parse(Int, split(pars[k].name, "_")[2])+1].pr
+            pr = fit.sys[parse(Int, ind)+1].pr
+            s = collect(keys(pr.species))[1]
+            #println(prepare_coll(pr, s))
+            #println(ind)
+            #println(collect(keys(pr.pars)))
+            #println(keys(pr.species))
+            #println(pr.balance(debug="A"))
+            #println(pr.balance(debug="C"))
+            #println(pr.balance(debug="IR"))
+            #println(pr.balance(debug="UV"))
+            add["pyratio"][parse(Int, ind) + 1] = pyratio(ind, collect(keys(pr.pars)), s, pr.species[s].num, pr.species[s].Aij, pr.balance(debug="C"), pr.balance(debug="CMB"), pr.species[s].rad_rate, pr.species[s].pump_rate, prepare_coll(pr, s))
+        end
+    end
+    #println(add)
+    return add
+end
+
+##############################################################################
+function pyratio_predict(pr, pars)
+    #pars["logT_" * ind].val
+    W = pr.spont_rate .+ pr.cmb_rate
+    update_coll_rate(pr, pars)
+    if any(s in pr.pars for s in ["n", "e"])
+        W = W .+ pr.coll_rate
+    end
+    #if "n" in pr.pars
+    #    W = W .+ pr.coll_rate .* 10 ^ pars["logn_" * pr.ind].val
+    #end
+    #if "e" in pr.pars
+    #    W = W .+ pr.coll_rate .* 10 ^ pars["logn_" * pr.ind].val
+    #end
+    if "rad" in pr.pars
+        W = W .+ pr.rad_rate .* 10 ^ pars["rad_" * pr.ind].val
+    end
+    if "rad" in pr.pars
+        W = W .+ pr.pump_rate .* 10 ^ pars["rad_" * pr.ind].val
+    end
+    #println(W)
+    K = copy(transpose(W))
+    for i = 1:size(W)[1]
+        K[i, i] -= sum(W, dims=2)[i]
+    end
+    #println(K)
+    #println(K[2:end, 2:end])
+    #println(K[2:end, 1])
+    #println(K[2:end, 2:end] \ (-1 .* K[2:end, 1]))
+    return insert!(abs.(K[2:end, 2:end] \ (-1 .* K[2:end, 1])), 1, 1)
+end
+
+function update_coll_rate(pr, pars)
+    f_He = 0.08
+    for i in 1:pr.num
+        for j in 1:pr.num
+            pr.coll_rate[i, j] = 0
+            if i != j
+                for p in pr.pars
+                    if p in ["e", "H"]
+                        pr.coll_rate[i, j] += 10 ^ (pars["logn_" * pr.ind].val) * pr.coll[p][i, j].rate(pars["logT_" * pr.ind].val)
+                    elseif p in ["n"]
+                        m_fr = "f" in pr.pars ? 10 ^ pars["logf_" * pr.ind].val : mol_fr
+                        f_HI, f_H2 = (1 - m_fr) / (f_He + 1 - m_fr / 2), m_fr / 2 / (f_He + 1 - m_fr / 2)
+                        pr.coll_rate[i, j] += 10 ^ (pars["logn_" * pr.ind].val) * (pr.coll["H"][i, j].rate(pars["logT_" * pr.ind].val)) * f_HI
+                        otop = 9 * exp(-170.6 / 10 ^ pars["logT_" * pr.ind].val)
+                        #println(m_fr, " ", f_HI, " ", f_H2, " ", otop)
+                        pr.coll_rate[i, j] += 10 ^ (pars["logn_" * pr.ind].val) * pr.coll["pH2"][i, j].rate(pars["logT_" * pr.ind].val) * f_H2 / (1 + otop)
+                        pr.coll_rate[i, j] += 10 ^ (pars["logn_" * pr.ind].val) * pr.coll["oH2"][i, j].rate(pars["logT_" * pr.ind].val) * f_H2 * otop / (1 + otop)
+                        if f_He != 0
+                            pr.coll_rate[i, j] += 10 ^ (pars["logn_" * pr.ind].val) * pr.coll["He4"][i, j].rate(pars["logT_" * pr.ind].val) * f_He / (f_He + 1 - m_fr / 2)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    #println(pr.coll_rate)
+end
+
+mutable struct coll
+    i::Int64
+    j::Int64
+    rate::Interpolations.Extrapolation
+end
+
+mutable struct pyratio
+    ind::String
+    pars::Array{String}
+    species::String
+    num::Int64
+    spont_rate::Array{Float64, 2}
+    coll_rate::Array{Float64, 2}
+    cmb_rate::Array{Float64, 2}
+    rad_rate::Array{Float64, 2}
+    pump_rate::Array{Float64, 2}
+    coll::Dict{}
+end
+
 ##############################################################################
 mutable struct cheb
     c::Vector{String}
@@ -310,14 +454,14 @@ mutable struct spectrum
     cont::Vector{Any}
 end
 
-function prepare(s, pars)
+function prepare(s, pars, add)
     #c = Vector{Any}
     #println(append!(c,  [cheb([], 0, 0, 0)]))
     spec = Vector(undef, size(s)[1])
     for (i, si) in enumerate(s)
         spec[i] = spectrum(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.resolution, prepare_lines(si.fit_lines), 0, 0, prepare_cheb(pars, i))
     end
-    update_pars(pars, spec)
+    update_pars(pars, spec, add)
     return spec
 end
 
@@ -512,7 +656,7 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
 end
 
 
-function fitLM(spec, p_pars)
+function fitLM(spec, p_pars, add)
 
     function cost(p)
         i = 1
@@ -524,7 +668,7 @@ function fitLM(spec, p_pars)
             end
         end
 
-        update_pars(pars, spec)
+        update_pars(pars, spec, add)
 
         res = Vector{Float64}()
         for s in spec
@@ -532,7 +676,6 @@ function fitLM(spec, p_pars)
                 append!(res, (calc_spectrum(s, pars, out="init") .- s.y[s.mask]) ./ s.unc[s.mask])
             end
         end
-        #println("chi ", sum(res .^ 2))
         return res
     end
 

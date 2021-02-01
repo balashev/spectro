@@ -273,7 +273,7 @@ class fitSystem:
                         d['CO'][0] = 0 if s[3:4].strip() == '' else max(d['CO'][0], int(s[3:4]))
                         pars = ['T', 'n', 'f', 'rad']
                     if 'CI' in s:
-                        d['CO'][0] = 0 if s[3:4].strip() == '' else max(d['CO'][0], int(s[3:4]))
+                        d['CI'][0] = 0 if s[3:4].strip() == '' else max(d['CI'][0], int(s[3:4]))
                         pars = ['T', 'n', 'f', 'rad']
                     if 'FeII' in s:
                         d['FeII'][0] = 0 if s[5:6].strip() == '' else max(d['FeII'][0], int(s[5:6]))
@@ -287,7 +287,6 @@ class fitSystem:
                         self.pr.add_spec(k, num=v[1])
             else:
                 self.pr = deepcopy(self.parent.sys[0].pr)
-            #self.pr.set_prior('f', 0)
 
         #t.time('init')
         if self.pr is not None:
@@ -305,7 +304,8 @@ class fitSystem:
                 for s in self.sp.keys():
                     if k in s and 'Ntot' in self.sp[s].N.addinfo:
                         self.sp[s].N.val = col[self.pr.species[k].names.index(s)]
-            #t.time('predict')
+        #t.time('predict')
+
 
     def __str__(self):
         return '{:.6f} '.format(self.z.val) + str(self.sp)

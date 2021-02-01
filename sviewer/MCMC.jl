@@ -1,7 +1,8 @@
 using DelimitedFiles
 using Distributed
+@everywhere using PyCall
 using Random
-import RobustPmap
+#import RobustPmap
 
 if nprocs() > 1
     rmprocs(2:nprocs())
@@ -25,7 +26,7 @@ println("procs: ", nprocs())
 @everywhere using SpecialFunctions
 @everywhere include("profiles.jl")
 
-function fitMCMC(spec, ppar; prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, init=nothing, opts=0)
+function fitMCMC(spec, ppar, add; prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, init=nothing, opts=0)
 
     #COUNTERS["num"] = nwalkers
 
@@ -38,12 +39,7 @@ function fitMCMC(spec, ppar; prior=nothing, nwalkers=100, nsteps=1000, nthreads=
     numdims = size(params)[1]
     thinning = 10
 
-	if opts["hier_continuum"] == true
-		cont = Dict(k => pars[k].val for (k, v) in pars if occursin("cont_", k))
-		println(cont)
-	end
-
-    lnlike = p->begin
+	lnlike = p->begin
         #println(p)
         i = 1
         for (k, v) in pars
@@ -58,21 +54,9 @@ function fitMCMC(spec, ppar; prior=nothing, nwalkers=100, nsteps=1000, nthreads=
             end
         end
 
-        update_pars(pars, spec)
+        update_pars(pars, spec, add)
 
-		#if opts["hier_continuum"] == true
-        #    for (k, v) in pars
-		#		if occursin("cont_", k)
-    	#			if pars[k].vary
-    	#				cont[k] = pars[k].val
-    	#			end
-    	#			pars[k].val = cont[k] * (1 + parse(Float64, split(pars[k].addinfo, "_")[4]) * randn(1)[1] * pars["hcont"].val)
-		#			#println(split(pars[k].addinfo, "_")[4], " ", pars[k].val, " ", r)
-        #   		end
-		#	end
-        #end
-
-        retval = 0
+		retval = 0
 
         if priors != nothing
             for (k, p) in priors
@@ -85,22 +69,15 @@ function fitMCMC(spec, ppar; prior=nothing, nwalkers=100, nsteps=1000, nthreads=
             if sum(s.mask) > 0
     			model = calc_spectrum(s, pars, out="init")
                 retval -= .5 * sum(((model .- s.y[s.mask]) ./ s.unc[s.mask]) .^ 2)
-				#println("spec ", sum(((model - s.y[s.mask]) ./ s.unc[s.mask]) .^ 2))
+
 				if opts["hier_continuum"] == true
-    				#c = ones(size(model))
     				for cont in s.cont
 						mask = (s.x[s.mask] .> cont.left) .& (s.x[s.mask] .< cont.right)
 						c = parse(Float64, split(pars[cont.c[1]].addinfo, "_")[4])
 						A = sum((model[mask] .* c ./ s.unc[s.mask][mask]) .^ 2) + 1 / pars["hcont"].val ^ 2
 						B = sum(model[mask] .* c .* (model[mask] .- s.y[s.mask][mask]) ./ s.unc[s.mask][mask] .^ 2)
 						retval -= .5 * (log(A * pars["hcont"].val ^ 2) - B ^ 2 / A)
-						#c[mask] .= parse(Float64, split(pars[cont.c[1]].addinfo, "_")[4])
-						#println("hier ", sum(((model - s.y[s.mask]) ./ s.unc[s.mask]) .^ 2), " ", log(A * pars["hcont"].val ^ 2), " ", B ^ 2 / A)
 					end
-					#A = sum((model .* c ./ s.unc[s.mask]) .^ 2) + 1 / pars["hcont"].val ^ 2
-					#B = sum(model .* c .* (model .- s.y[s.mask]) ./ s.unc[s.mask] .^ 2)
-					#retval -= .5 * (log(A * pars["hcont"].val ^ 2) - B ^ 2 / A)
-					#println("hier ", sum(((model - s.y[s.mask]) ./ s.unc[s.mask]) .^ 2), " ", log(A * pars["hcont"].val ^ 2), " ", B ^ 2 / A)
 				end
             end
         end
@@ -155,7 +132,7 @@ function fitMCMC(spec, ppar; prior=nothing, nwalkers=100, nsteps=1000, nthreads=
     end
 
     bounds = hcat([p.min for (k, p) in pars if p.vary], [p.max for (k, p) in pars if p.vary])
-	println(bounds)
+	#println(bounds)
     chain, llhoodvals = sample(lnlike, nwalkers, init, nsteps, 1, bounds)
 
 end
@@ -172,7 +149,8 @@ function sample(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thi
 	x = copy(x0)
 	chain = Array{Float64}(undef, size(x0, 1), nwalkers, div(nsteps, thinning))
 	llhoodvals = Array{Float64}(undef, nwalkers, div(nsteps, thinning))
-	lastllhoodvals = RobustPmap.rpmap(llhood, map(i->x[:, i], 1:size(x, 2)))
+	#lastllhoodvals = RobustPmap.rpmap(llhood, map(i->x[:, i], 1:size(x, 2)))
+	lastllhoodvals = pmap(llhood, map(i->x[:, i], 1:size(x, 2)))
 	chain[:, :, 1] = x0
 	llhoodvals[:, 1] = lastllhoodvals
 	for i = 2:nsteps
@@ -181,7 +159,8 @@ function sample(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thi
 			active, inactive = ensembles
 			zs = map(u->((a - 1) * u + 1)^2 / a, rand(length(active)))
 			proposals = map(i-> min.(max.(zs[i] * x[:, active[i]] + (1 - zs[i]) * x[:, rand(inactive)], bounds[:,1]), bounds[:,2]), 1:length(active))
-            newllhoods = RobustPmap.rpmap(llhood, proposals)
+            #newllhoods = RobustPmap.rpmap(llhood, proposals)
+			newllhoods = pmap(llhood, proposals)
 			for (j, walkernum) in enumerate(active)
 				z = zs[j]
 				newllhood = newllhoods[j]
