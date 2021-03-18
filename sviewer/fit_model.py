@@ -1300,7 +1300,10 @@ class fitResultsWidget(QWidget):
         self.vert = QCheckBox('vertical')
         self.vert.setChecked(True)
         self.vert.clicked.connect(self.refresh)
-        self.showb = QCheckBox('Tied b')
+        self.tiedN = QCheckBox('Tied N')
+        self.tiedN.setChecked(False)
+        self.tiedN.clicked.connect(self.refresh)
+        self.showb = QCheckBox('Show b')
         self.showb.setChecked(False)
         self.showb.clicked.connect(self.refresh)
         self.showv = QCheckBox('Delta v')
@@ -1316,6 +1319,7 @@ class fitResultsWidget(QWidget):
         self.showLFR.clicked.connect(self.refresh)
         hl.addWidget(self.latexTable)
         hl.addWidget(self.vert)
+        hl.addWidget(self.tiedN)
         hl.addWidget(self.showb)
         hl.addWidget(self.showv)
         hl.addWidget(self.vcomp)
@@ -1400,6 +1404,10 @@ class fitResultsWidget(QWidget):
         d = ['comp', 'z']
         if self.showv.isChecked():
             d += ['$\Delta$v, km/s']
+        if self.tiedN.isChecked():
+            d += [r'$\log n [\rm cm^{-3}]$']
+            d += [r'$\log T [\rm cm^{-3}]$']
+            d += [r'$\log N_{\rm tot}$']
         if self.showb.isChecked():
             d += ['b, km/s']
         d += list([r'$\log N$(' + s + ')' for s in sps.keys()])
@@ -1418,6 +1426,11 @@ class fitResultsWidget(QWidget):
             if self.showv.isChecked():
                 d.append('{:.1f}'.format((sys.z.val - fit.sys[self.comp].z.val)/(1 + fit.sys[self.comp].z.val) * 299792.46))
 
+            if self.tiedN.isChecked():
+                d.append(sys.logn.fitres(latex=True, dec=2, showname=False))
+                d.append(sys.logT.fitres(latex=True, dec=2, showname=False))
+                d.append(sys.Ntot.fitres(latex=True, dec=2, showname=False))
+
             if self.showb.isChecked():
                 sp = sys.sp[list(sys.sp.keys())[0]]
                 if sp.b.addinfo is not '':
@@ -1425,7 +1438,7 @@ class fitResultsWidget(QWidget):
                 d.append(sp.b.fitres(latex=True, dec=2, showname=False))
 
             for sp in sps.keys():
-                if sp in sys.sp.keys():
+                if sp in sys.sp.keys() and 'Ntot' not in sys.sp[sp].N.addinfo:
                     sys.sp[sp].N.unc.log()
                     d.append(sys.sp[sp].N.fitres(latex=True, dec=2, showname=False))
                 else:
@@ -1468,7 +1481,7 @@ class fitResultsWidget(QWidget):
             if getattr(self, show).isChecked():
                 if ind > 0 or (ind == 0 and len(self.parent.fit.sys) > 1):
                     d = [name, '']
-                    for show in ['showv', 'showb']:
+                    for show in ['showv', 'showb', 'tiedN']:
                         if getattr(self, show).isChecked():
                             d += ['']
                     for sp in sps.keys():
