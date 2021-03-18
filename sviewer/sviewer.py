@@ -1654,7 +1654,7 @@ class showLinesWidget(QWidget):
         self.refcomp.addItems([str(i) for i in range(len(self.parent.fit.sys))])
         self.sys_ind = min(self.sys_ind, len(self.parent.fit.sys)-1)
         self.refcomp.setCurrentIndex(self.sys_ind)
-        self.refcomp.currentIndexChanged.connect(self.onIndChoose)
+        self.refcomp.activated.connect(self.onIndChoose)
         grid.addWidget(self.refcomp, 11, 2)
 
         self.resid = QCheckBox('')
@@ -2094,6 +2094,7 @@ class showLinesWidget(QWidget):
 
                 if self.show_H2.strip() != '':
                     p.showH2(levels=[int(s) for s in self.show_H2.split()], pos=self.pos_H2)
+
                 if self.show_cont:
                     print(self.show_cont)
                     p.ax.plot(s.cheb.x(), s.cheb.y(), '--k', lw=1)
@@ -2726,13 +2727,13 @@ class fitMCMCWidget(QWidget):
         backend = emcee.backends.HDFBackend(self.parent.MCMC_output)
 
         try:
-            with backend.open('a') as f:
+            with backend.open('r') as f:
                 g = f[backend.name]
-                #print(list(g.keys()))
-                #print(list(g.attrs.keys()))
-                #print([g.attrs[k] for k in list(g.attrs.keys())])
+                print(list(g.keys()))
+                print(list(g.attrs.keys()))
+                print([g.attrs[k] for k in list(g.attrs.keys())])
                 g.attrs['iteration'] = g['chain'][:].shape[0]
-                #print(g.attrs['iteration'])
+                print(g.attrs['iteration'])
                 pars = [p.decode() for p in g.attrs['pars']]
         except:
             pars = [str(p) for p in self.parent.fit.list_fit()]
@@ -7882,7 +7883,7 @@ class sviewer(QMainWindow):
                 res = pickle.load(f)
             print(res)
         if 1:
-            for i in range(500):
+            for i in range(100):
                 print(i)
                 self.normalize(False)
                 self.openFile("C:/science/Noterdaeme/HE0001/MgII_boot.spv")

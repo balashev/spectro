@@ -97,7 +97,7 @@ function voigt_step(a, tau_0; level=0.002, step=0.03)
     end
     append!(x, -x[end:-1:1])
     append!(der, der[end:-1:1])
-    return x, der
+    return x[2:end-1], der
 end
 
 function df(x, a, tau_0)
@@ -184,6 +184,45 @@ function doppler(name, turb, kin)
     return (turb ^ 2 + 0.0164 * kin / mass) ^ .5
 end
 
+function abundance(name, logN_ref, me)
+    d = Dict([
+    ("H", [12, 0, 0]),
+    ("D", [7.4, 0, 0]), # this is not in Asplund
+    ("He", [10.93, 0.01, 0.01]), #be carefull see Asplund 2009
+    ("Li", [1.05, 0.10, 0.10]),
+    ("Be", [1.38, 0.09, 0.09]),
+    ("B", [2.70, 0.20, 0.20]),
+    ("C", [8.43, 0.05, 0.05]),
+    ("N", [7.83, 0.05, 0.05]),
+    ("O", [8.69, 0.05, 0.05]),
+    ("F", [4.56, 0.30, 0.30]),
+    ("Ne", [7.93, 0.10, 0.10]),  #be carefull see Asplund 2009
+    ("Na", [6.24, 0.04, 0.04]),
+    ("Mg", [7.60, 0.04, 0.04]),
+    ("Al", [6.45, 0.03, 0.03]),
+    ("Si", [7.51, 0.03, 0.03]),
+    ("P", [5.41, 0.03, 0.03]),
+    ("S", [7.12, 0.03, 0.03]),
+    ("Cl", [5.50, 0.30, 0.30]),
+    ("Ar", [6.40, 0.13, 0.13]),  #be carefull see Asplund 2009
+    ("K", [5.03, 0.09, 0.09]),
+    ("Ca", [6.34, 0.04, 0.04]),
+    ("Sc", [3.15, 0.04, 0.04]),
+    ("Ti", [4.95, 0.05, 0.05]),
+    ("V", [3.93, 0.08, 0.08]),
+    ("Cr", [5.64, 0.04, 0.04]),
+    ("Mn", [5.43, 0.04, 0.04]),
+    ("Fe", [7.50, 0.04, 0.04]),
+    ("Co", [4.99, 0.07, 0.07]),
+    ("Ni", [6.22, 0.04, 0.04]),
+    ("Cu", [4.19, 0.04, 0.04]),
+    ("Zn", [4.56, 0.05, 0.05]),
+    ("Ga", [3.04, 0.09, 0.09]),
+    ("Ge", [3.65, 0.10, 0.10]),
+    ])
+    return logN_ref - (12 - d[get_element_name(name)][1]) + me
+end
+
 function update_pars(pars, spec, add)
     for (k, v) in pars
         if occursin("res", pars[k].name)
@@ -205,6 +244,20 @@ function update_pars(pars, spec, add)
                 if startswith(k1, "N_" * ind * "_" * pr.species) * occursin("Ntot", v1.addinfo)
                     i = occursin(pr.species * "j", k1) ? parse(Int, replace(k1, "N_" * ind * "_" * pr.species * "j" => "")) + 1 : 1
                     pars[k1].val = col[i]
+                end
+            end
+        end
+        if occursin("dtoh", pars[k].name)
+            for (k1, v1) in pars
+                if occursin("N_", k1) * occursin("DI", k1) * occursin("DtoH", v1.addinfo)
+                    pars[k1].val = pars[replace(k1, "DI" => "HI")].val + pars[k].val
+                end
+            end
+        end
+        if occursin("me", pars[k].name)
+            for (k1, v1) in pars
+                if occursin("me", v1.addinfo)
+                    pars[k1].val = abundance(split(k1, "_")[3], pars[replace(k1, split(k1, "_")[3] => "HI")].val, pars[k].val)
                 end
             end
         end
@@ -363,12 +416,6 @@ function pyratio_predict(pr, pars)
     if any(s in pr.pars for s in ["n", "e"])
         W = W .+ pr.coll_rate
     end
-    #if "n" in pr.pars
-    #    W = W .+ pr.coll_rate .* 10 ^ pars["logn_" * pr.ind].val
-    #end
-    #if "e" in pr.pars
-    #    W = W .+ pr.coll_rate .* 10 ^ pars["logn_" * pr.ind].val
-    #end
     if "rad" in pr.pars
         W = W .+ pr.rad_rate .* 10 ^ pars["rad_" * pr.ind].val
     end
@@ -492,6 +539,12 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
     x_instr = 1.0 / spec.resolution / 2.355
     x_grid = -1 .* ones(Int8, size(spec.x)[1])
     x_grid[spec.mask] = zeros(sum(spec.mask))
+    for i in findall(!=(0), spec.mask[1:end-1] - spec.mask[2:end])
+        for k in binsearch(spec.x, spec.x[i] * (1 - 4 * x_instr), type="min"):binsearch(spec.x, spec.x[i] * (1 + 4 * x_instr), type="max")
+            x_grid[k] = max(x_grid[k], round(Int, (spec.x[i] - spec.x[i-1]) / spec.x[i] / x_instr * 4))
+        end
+    end
+
     for line in spec.lines[line_mask]
         i_min, i_max = binsearch(spec.x, line.l * (1 - 4 * x_instr), type="min"), binsearch(spec.x, line.l * (1 + 4 * x_instr), type="max")
         if i_max - i_min > 1 && i_min > 1
@@ -500,17 +553,19 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
             end
         end
         line.dx = voigt_range(line.a, 0.001 / line.tau0)
-        #println(line.logN, "  ", line.b)
         x, r = voigt_step(line.a, line.tau0)
         x = line.l .+ x * line.ld
-        i_min, i_max = binsearch(spec.x, x[1], type="min"), binsearch(spec.x, x[end], type="max")-1
-        if i_max - i_min > 1 && i_min > 1
-            for i in i_min:i_max
-                k_min, k_max = binsearch(x, spec.x[i]), binsearch(x, spec.x[i+1])
-                x_grid[i] = max(x_grid[i], Int(floor((spec.x[i+1] - spec.x[i]) / (0.2  / maximum(r[k_min:k_max]) * line.ld)))+1)
+        if size(x)[1] > 0
+            i_min, i_max = binsearch(spec.x, x[1], type="min"), binsearch(spec.x, x[end], type="max") - 1
+            if i_max - i_min > 1 && i_min > 0
+                for i in i_min:i_max
+                    k_min, k_max = binsearch(x, spec.x[i]), binsearch(x, spec.x[i+1])
+                    x_grid[i] = max(x_grid[i], Int(floor((spec.x[i+1] - spec.x[i]) / (0.2  / maximum(r[k_min:k_max]) * line.ld)))+1)
+                end
             end
         end
     end
+
 
     if timeit == 1
         println("update ", start - time())

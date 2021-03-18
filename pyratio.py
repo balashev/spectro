@@ -99,9 +99,9 @@ class speci:
     
     def set_stats(self):
         if self.name == 'SiII':
-            self.g = [i*2+1 for i in range(self.num)]
+            self.g = [i * 2 + 1 for i in range(self.num)]
         if self.name == 'CII':
-            self.g = [i*2 for i in range(self.num)]
+            self.g = [i * 2 for i in range(self.num)]
 
     def set_names(self):
         if self.name in ['CI', 'CII', 'SiII', 'OI', 'FeII']:
@@ -110,9 +110,9 @@ class speci:
             self.names = [self.name + 'j' + str(k) for k in range(self.num)]
 
     def coll_rate(self, part, i, j, T):
-        l = self.coll[part].rate(i, j)
+        l = self.coll[part].rate(i, j, T)
         #print(l, part, i, j)
-        if l!=0:
+        if l != 0:
             return self.coll[abs(l)-1].rate(T, sign=np.sign(l))
         else:
             return 0
@@ -133,11 +133,11 @@ class speci:
             f = 0
             n_coll = 0
             while True:
-                line=f_in.readline()
+                line = f_in.readline()
                 if not line:
                     break
                 if line.strip() == '#': 
-                    f +=1
+                    f += 1
                     if f == 4:
                         l = 0
                         line = f_in.readline()
@@ -147,7 +147,7 @@ class speci:
                                 self.g[l] = line.split()[1]
                                 self.E[l] = line.split()[0]
                                 self.descr[l] = line.split()[3]+line.split()[4]+line.split()[5]
-                                l +=1
+                                l += 1
                             line = f_in.readline()
                     if f == 5:
                         n = int(f_in.readline())
@@ -552,7 +552,6 @@ class collision():
         #    u, l = l, u
 
         if self.part == 'e':
-            #print(np.exp(-(self.parent.E[u] - self.parent.E[l]) / 0.695 / 10**T))
             c1 = self.parent.const2 * 10 ** (- T * 0.5) / self.parent.g[self.i] * np.exp(-(self.parent.E[self.j] - self.parent.E[self.i]) / 0.695 / 10**T)
         else:
             c1 = 1
@@ -942,9 +941,9 @@ class pyratio():
                         W[u, l] += self.collision_rate(speci, u, l)
 
         if 'rad' in self.pars:
-            if debug in [None, 'CMB']:
-                if 'rad' in self.pars:
-                    W += speci.Bij * self.rad_field(speci.Eij, sed_type='CMB')
+            #if debug in [None, 'CMB']:
+            #    if 'rad' in self.pars:
+            #        W += np.multiply(speci.Bij, self.rad_field(speci.Eij, sed_type='CMB'))
 
             if debug in [None, 'UV']:
                 if self.pumping == 'full':
@@ -960,6 +959,7 @@ class pyratio():
                     for u in range(speci.num):
                         for l in range(speci.num):
                             W[u, l] += speci.Bij[u, l] * self.rad_field(speci.Eij[u, l])
+
                 if self.radiation == 'simple':
                     W += self.species[name].rad_rate * 10 ** self.pars['rad'].value
 
@@ -1095,7 +1095,7 @@ class pyratio():
         e = np.asarray(e)
         field = np.zeros_like(e)
         m = e != 0
-        #print(e[m])
+        print(e[m])
 
         if sed_type is None and self.CMB or 'CMB' == s:
             temp = self.pars['CMB'].value if 'CMB' in self.pars.keys() else 2.72548 * (1 + self.z)
@@ -1110,6 +1110,7 @@ class pyratio():
 
         if s == 'Draine':
             field[m] += self.draine(e[m]) * 10 ** self.pars['rad'].value
+            print(e[m], field[m], self.draine(e[m]))
 
         if s == 'Mathis':
             field[m] += self.mathis(e[m]) * 10 ** self.pars['rad'].value
@@ -1996,52 +1997,72 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check CII collisions
-    if 1:
+    if 0:
         pr = pyratio(z=2.65)
         pr.set_pars(['T', 'n', 'f', 'e'])
         pr.pars['T'].range = [1, 6]
         pr.pars['n'].range = [-1, 4]
         pr.pars['e'].range = [-4, 0]
         pr.pars['f'].range = [-6, 0]
-        pr.set_fixed('f', -3)
+        pr.set_fixed('f', -5)
         pr.set_fixed('e', -4)
         species = 'CII'
         pr.add_spec(species, num=2)
         num = 20
         if 1:
             fig, ax = plt.subplots()
-            for t in [100, 800, 8000, 15000]:
+            for t, f, ls in zip([100, 100, 10000, 15000], [0, -4, -4, -4], ['--', '-', '-', '-']):
                 pr.pars['T'].value = np.log10(t)
+                pr.set_fixed('f', f)
                 n = np.linspace(-2, 5, num)
                 z = np.zeros_like(n)
                 for i, ni in enumerate(n):
                     pr.pars['n'].value = ni
                     z[i] = pr.predict()[1]
-                ax.plot(n, z - 3.57, '-', label='{0:d}'.format(t))
+                ax.plot(n, z, ls=ls, label='{0:d}'.format(t))
+            for n in [10, 40]:
+                ax.axvline(np.log10(n))
             ax.set_xlabel('log n')
-            ax.set_ylabel('CII*/CII')
+            ax.set_ylabel('CII*/HI/Z')
             ax.legend()
 
-        if 1:
+        if 0:
             fig, ax = plt.subplots()
-            pr.set_fixed('n', 0)
-            for t in [1000, 6000, 15000]:
+            pr.set_fixed('n', -4)
+            for t in [1000, 6000, 10000]:
                 pr.pars['T'].value = np.log10(t)
                 e = np.linspace(-4, 0, num)
                 z = np.zeros_like(e)
                 for i, ei in enumerate(e):
                     pr.pars['e'].value = ei
                     z[i] = pr.predict()[1]
-                ax.plot(e, z - 3.57, '-', label='{0:d}'.format(t))
+                ax.plot(e, z, '-', label='{0:d}'.format(t))
+                #ax.plot(e, z - 3.57, '-', label='{0:d}'.format(t))
             ax.set_xlabel('log $n_e$')
             ax.set_ylabel('CII*/CII')
             ax.legend()
 
         if 0:
             fig, ax = plt.subplots()
-            for n in [0.1, 1, 10]:
+            for t, f, ls in zip([100, 100, 8000, 15000], [0, -4, -4, -4], ['--', '-', '-', '-']):
+                pr.pars['T'].value = np.log10(t)
+                pr.set_fixed('f', f)
+                p = np.linspace(3, 5, num)
+                z = np.zeros_like(p)
+                for i, pi in enumerate(p):
+                    pr.pars['n'].value = pi - np.log10(t) + 0.3 * 10**pr.pars['f'].value
+                    z[i] = pr.predict()[1]
+                ax.plot(p, z - 3.57, ls=ls, label='{0:d}'.format(t))
+
+            ax.set_xlabel('log p')
+            ax.set_ylabel('CII*/CII')
+            ax.legend()
+
+        if 0:
+            fig, ax = plt.subplots()
+            for n in [0.1, 1, 100]:
                 pr.pars['n'].value = np.log10(n)
-                T = np.linspace(2, 4, num)
+                T = np.linspace(1, 4, num)
                 z = np.zeros_like(T)
                 for i, ti in enumerate(T):
                     pr.pars['T'].value = ti
@@ -2182,7 +2203,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check SiII collisions
-    if 0:
+    if 1:
         pr = pyratio(z=2.65)
         pr.set_pars(['T', 'n', 'f'])
         pr.pars['T'].range = [1, 6]
@@ -2478,9 +2499,9 @@ if __name__ == '__main__':
 
     # >>> CI calculations:
     if 0:
-        pr = pyratio()
+        pr = pyratio(z=2.6)
         pr.add_spec('CI', num=3)
-        pr.set_pars(['T', 'n', 'f'])
+        pr.set_pars(['T', 'n', 'f', 'rad'])
         pr.pars['n'].value = 4
         pr.pars['T'].value = np.log10(100)
         pr.pars['f'].value = 0

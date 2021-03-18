@@ -1,21 +1,21 @@
-CH+
-high CH+
-high CH
-err 0.1
+high CI
+show H2 2 3
+show HDj0\
+show HDj0
+show CI
+show CIj1
+show CIj2
+show H2 0 1
+show H2 2 3
+show ClI
 stats
-rescale err 0.5
-resccale 0.63
-rescale 0.63
-4.04 / 3.3
-rescale 1.22
-rescale 0.97
-rescale 1.05
-rescale 1.03
-rescale 1.03
-rescale 1.2
-rescale 1.1
-rescale 1/1.25
-1/1.25
-rescale 0.8
-rescale 0.95
-SiII
+show DI
+show CI
+show FeII
+show SiII
+show NII
+show NiII
+show S
+show SII
+show MnII
+MnII

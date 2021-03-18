@@ -544,7 +544,8 @@ class fitPars:
                         if s.N.addinfo == 'me' and 'HI' in sys.sp.keys():
                             if 'DI' not in k and hasattr(self, 'me'):
                                 s.N.val = abundance(k, sys.sp['HI'].N.val, self.me.val)
-                            elif 'DI' in k and hasattr(self, 'dtoh'):
+                        if s.N.addinfo == 'DtoH' and 'HI' in sys.sp.keys():
+                            if 'DI' in k and hasattr(self, 'dtoh'):
                                 s.N.val = sys.sp['HI'].N.val + self.dtoh.val
 
                 if what in ['all', 'Ntot', 'logn', 'logT', 'logf', 'rad']:

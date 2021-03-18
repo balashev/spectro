@@ -287,6 +287,7 @@ class fitModelWidget(QWidget):
         self.cont.name = 'cont'
 
         self.cont_m = QTreeWidgetItem(self.cont)
+        self.cont_m.name = 'cont_m'
         self.cont_m.setTextAlignment(3, Qt.AlignRight)
         self.cont_m.setText(3, 'reg num: ')
         self.cont_num = FLineEdit(self, str(self.parent.fit.cont_num))
@@ -306,7 +307,7 @@ class fitModelWidget(QWidget):
 
         for s, name in zip(['mu', 'me', 'dtoh'], ['mp/me', 'metallicity', 'D/H']):
             setattr(self, s + '_p', self.addParent(self.treeWidget, name, expanded=hasattr(self.parent.fit, s)))
-            #getattr(self, s + '_p').name = s
+            getattr(self, s + '_p').name = s
             self.addChild(s + '_p', s)
         #self.treeWidget.itemChanged.connect(self.stateChanged)
 
@@ -360,7 +361,7 @@ class fitModelWidget(QWidget):
         item = QTreeWidgetItem(parent, [text])
         item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
         item.setExpanded(expanded)
-        item.name = text
+        #item.name = text
         return item
 
     def addContParent(self, parent, text, checkable=False, expanded=True, checked=False):
@@ -414,6 +415,7 @@ class fitModelWidget(QWidget):
 
         if not hasattr(self.parent.fit, name):
             self.parent.fit.add(name)
+            print(name)
             if 'hcont' in name:
                 self.parent.fit.setValue('hcont', 0, 'vary')
         setattr(self, name, QTreeWidgetItem(getattr(self, parent)))
@@ -446,6 +448,7 @@ class fitModelWidget(QWidget):
         getattr(self, name + '_vary').setChecked(self.parent.fit.getValue(name, 'vary'))
         self.treeWidget.setItemWidget(getattr(self, name), 2, getattr(self, name + '_vary'))
         if not getattr(self, parent).isExpanded():
+            print('remove', name)
             self.parent.fit.remove(name)
 
     def setApplied(self, name):
@@ -1088,11 +1091,13 @@ class fitModelSysWidget(QFrame):
             combo.addItems(['tie to'])
             if hasattr(self.parent.parent.fit, 'me'):
                 combo.addItems(['me'])
+            if hasattr(self.parent.parent.fit, 'dtoh'):
+                combo.addItems(['DtoH'])
             if self.Ncons.isExpanded():
                 combo.addItems(['Ntot'])
             try:
                 s = getattr(getattr(self.fit.sys[self.ind].sp[species], 'N'), 'addinfo').strip()
-                if s in ['Ntot', 'me']:
+                if s in ['Ntot', 'me', 'DtoH']:
                     combo.setCurrentText(s)
                 else:
                     combo.setCurrentIndex(0)

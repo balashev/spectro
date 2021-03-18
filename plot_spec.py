@@ -734,6 +734,7 @@ class plotline():
         lines = atomicData.H2(levels)
         lines = [l for l in lines if l.l()*(1+self.parent.z_ref) > xmin and l.l()*(1+self.parent.z_ref) < xmax]
         s = set([str(line).split()[1][:str(line).split()[1].index('-')] for line in lines])
+        #print(lines)
         texts = []
         for band in s:
             if ('L' in band and (int(band.split('-')[0][1:]) % 2 == 0 or (np.max(levels) < 5 and int(band.split('-')[0][1:]) < 10))):
@@ -756,7 +757,7 @@ class plotline():
                                     texts.append(self.ax.text(line.l() * (1 + self.parent.z_ref), pos_y + dpos, str(line.j_l), ha='center', va='bottom',
                                                  fontsize=self.parent.font - 4, color=color))
 
-                        p.ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)], [pos_y + dpos, pos_y + dpos], lw=1.0, color=color, ls='-')
+                        self.ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)], [pos_y + dpos, pos_y + dpos], lw=1.0, color=color, ls='-')
                 if kind == 'short':
                     self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0', ha='left', va='bottom', fontsize=self.parent.font-4, color=color)
                 elif kind == 'full':
