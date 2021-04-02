@@ -34,6 +34,7 @@ function fitMCMC(spec, ppar, add; prior=nothing, nwalkers=100, nsteps=1000, nthr
 
     pars = make_pars(ppar)
     priors = make_priors(prior)
+	println(priors)
     params = [p.val for (k, p) in pars if p.vary == 1]
 
     numdims = size(params)[1]

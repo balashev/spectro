@@ -1326,6 +1326,7 @@ class fitResultsWidget(QWidget):
         hl.addWidget(self.showLFR)
         hl.addStretch(0)
         layout.addLayout(hl)
+
         hl = QHBoxLayout()
         self.showtotal = QCheckBox('Total')
         self.showtotal.setChecked(False)
@@ -1353,7 +1354,6 @@ class fitResultsWidget(QWidget):
         self.ratios.setFixedSize(90, 30)
         self.ratios.setEnabled(self.showratios.isChecked())
         self.ratios.returnPressed.connect(self.refresh)
-
         hl.addWidget(self.showtotal)
         hl.addWidget(self.showme)
         hl.addWidget(self.HIvalue)
@@ -1363,6 +1363,14 @@ class fitResultsWidget(QWidget):
         hl.addWidget(self.ratios)
         hl.addStretch(0)
         layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        restoval = QPushButton('set Values')
+        restoval.clicked.connect(self.restoval)
+        hl.addWidget(restoval)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
         self.setLayout(layout)
 
     def refresh(self, view=None):
@@ -1542,6 +1550,14 @@ class fitResultsWidget(QWidget):
                 s += v.N.fitres(classview=True).replace(')', '') + b + '\n'
             s += 'q.comp.append(co)\n'
         self.output.setText(s)
+
+    def restoval(self):
+        for p in self.parent.fit.pars():
+            print(p)
+            res = self.parent.fit.getValue(p, 'unc')
+            print(res)
+            self.parent.fit.setValue(p, res.val)
+            self.parent.fit.setValue(p, (res.plus + res.minus) / 2, 'step')
 
     def keyPressEvent(self, event):
         super(fitResultsWidget, self).keyPressEvent(event)

@@ -1507,7 +1507,6 @@ class Spectrum():
 
     def set_fit(self, x, y):
         if self.cont.n > 0: # and self.active():
-            print(len(x), len(y))
             self.fit.line.norm.set_data(x=x, y=y)
             self.fit.line.norm.interpolate(fill_value=1)
             if not self.parent.normview:

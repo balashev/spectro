@@ -236,6 +236,7 @@ class a:
             self.val = float(text.split('^')[0])
             self.plus = abs(float(re.findall(r'\^\{([^}]*)\}', text)[0]))/10**(len(text.split('^')[0])-2)
             self.minus = abs(float(re.findall(r'_\{([^}]*)\}', text)[0]))/10**(len(text.split('^')[0])-2)
+            self.type = 'm'
         else:
             self.val = float(text.split('^')[0])
             self.plus = abs(float(re.findall(r'\^\{([^}]*)\}', text)[0]))

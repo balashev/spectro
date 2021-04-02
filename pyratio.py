@@ -858,7 +858,7 @@ class pyratio():
             mask = (x * (1 + self.z) > fil[0][0]) * (x * (1 + self.z) < fil[0][-1])
             fil = interpolate.interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
             scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux[mask], x[mask] * (1 + self.z), b[self.agn_pars['filter']], fil, self.agn_pars['mag']))
-            print(scale, flux_to_mag(flux * scale, x * (1 + self.z), self.agn_pars['filter']), self.agn_pars['mag'])
+            #print(scale, flux_to_mag(flux * scale, x * (1 + self.z), self.agn_pars['filter']), self.agn_pars['mag'])
             self.qso = interpolate.interp1d(1e8 / x, scale * flux * (self.DL / ac.kpc.cgs.value) ** 2 * x ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=0, fill_value=0)
 
         if 'AGN' in self.sed_type:
@@ -869,7 +869,7 @@ class pyratio():
                 data = np.genfromtxt(self.folder + '/data/pyratio/QSO1_template_norm.sed', unpack=True, comments='#')
                 mask = (data[0] * (1 + self.z) > fil[0][0]) * (data[0] * (1 + self.z) < fil[0][-1])
                 scale = 10 ** bisect(self.flux_to_mag_solve, -25, 25, args=(data[1][mask], data[0][mask] * (1 + self.z), b[self.agn_pars['filter']], filter, self.agn_pars['mag']))
-                print(scale)
+                #print(scale)
                 self.agn = interpolate.interp1d(1e8 / data[0], scale * data[1] * (self.DL / ac.kpc.cgs.value) ** 2 * data[0] ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=0, fill_value=0)
 
             else:
@@ -1095,7 +1095,6 @@ class pyratio():
         e = np.asarray(e)
         field = np.zeros_like(e)
         m = e != 0
-        print(e[m])
 
         if sed_type is None and self.CMB or 'CMB' == s:
             temp = self.pars['CMB'].value if 'CMB' in self.pars.keys() else 2.72548 * (1 + self.z)
@@ -1110,7 +1109,7 @@ class pyratio():
 
         if s == 'Draine':
             field[m] += self.draine(e[m]) * 10 ** self.pars['rad'].value
-            print(e[m], field[m], self.draine(e[m]))
+            #print(e[m], field[m], self.draine(e[m]))
 
         if s == 'Mathis':
             field[m] += self.mathis(e[m]) * 10 ** self.pars['rad'].value

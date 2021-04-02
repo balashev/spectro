@@ -632,37 +632,49 @@ class plotSpectrum(pg.PlotWidget):
             if np.sum(mask) > 0:
                 curve1 = plotStepSpectrum(x=s.spec.x()[mask], y=s.spec.y()[mask], pen=pg.mkPen())
                 x, y = curve1.returnPathData()
-                if QApplication.keyboardModifiers() != Qt.ShiftModifier:
-                    if self.parent.normview:
-                        cont = interp1d(x, np.ones_like(x), fill_value=1)
+                if len(s.cont.x) > 0 and s.cont.x[0] < x[0] and s.cont.x[-1] > x[-1]:
+                    if QApplication.keyboardModifiers() != Qt.ShiftModifier:
+                        if self.parent.normview:
+                            cont = interp1d(x, np.ones_like(x), fill_value=1)
+                        else:
+                             s.cont.interpolate()
+                             cont = s.cont.inter
                     else:
-                        s.cont.interpolate()
-                        cont = s.cont.inter
+                        s.fit.interpolate()
+                        cont = s.fit.inter
+                    curve2 = pg.PlotCurveItem(x=x, y=cont(x), pen=pg.mkPen())
+                    w = np.trapz(1.0 - y / cont(x), x=x)
+                    err_w = np.sqrt(np.sum((s.spec.err()[mask] / cont(x)[:-1:2] * np.diff(x)[::2])**2))
+                    self.w_region = pg.FillBetweenItem(curve1, curve2, brush=pg.mkBrush(44, 160, 44, 150))
+                    self.vb.addItem(self.w_region)
+                    text = 'w = {0:0.5f}+/-{1:0.5f}'.format(w, err_w)
+                    if hasattr(self.parent.abs, 'reference'):
+                        #print(self.parent.abs.reference.line.l(), 1 + self.parent.z_abs, (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value)
+                        dv = np.cumsum(np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])))
+                        dv90 = interp1d(dv/dv[-1], (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value, fill_value='extrapolate')
+                        m = np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])) < -0.1
+                        vx = (s.spec.x()[mask][m] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value
+                        text += ', log(w/l)={0:0.2f}, w_r = {1:0.5f}+/-{2:0.5f}, dv90 = {3:0.2f}'.format(np.log10(2 * w / (x[0]+x[-1])), w / (1+self.parent.z_abs), err_w / (1+self.parent.z_abs), dv90(0.95) - dv90(0.05))
+                        if self.parent.s[self.parent.s.ind].resolution not in [0, None]:
+                            text += ', d90_c = {:0.2f}'.format(np.sqrt((dv90(0.95) - dv90(0.05))**2 - (1.4 * ac.c.to('km/s').value / self.parent.s[self.parent.s.ind].resolution)**2))
+                        text += ', dv01={:0.2f}'.format(np.max(vx) - np.min(vx))
+                    self.w_label = pg.TextItem(text, anchor=(0, 1), color=(44, 160, 44))
+                    self.w_label.setFont(QFont("SansSerif", 14))
+                    self.parent.console.set(text)
+                    self.w_label.setPos((x[0] + x[-1]) / 2, cont((x[0] + x[-1]) / 2))
+                    self.vb.addItem(self.w_label)
                 else:
-                    s.fit.interpolate()
-                    cont = s.fit.inter
-                curve2 = pg.PlotCurveItem(x=x, y=cont(x), pen=pg.mkPen())
+                    w = np.trapz(y, x=x)
+                    err_w = np.sqrt(np.sum((s.spec.err()[mask] * np.diff(x)[::2]) ** 2))
+                    self.w_region = pg.FillBetweenItem(curve1, pg.PlotCurveItem(x=x, y=np.zeros_like(x), pen=pg.mkPen()), brush=pg.mkBrush(44, 160, 44, 150))
+                    self.vb.addItem(self.w_region)
+                    text = 'w = {0:0.5f}+/-{1:0.5f}'.format(w, err_w)
+                    self.w_label = pg.TextItem(text, anchor=(0, 1), color=(44, 160, 44))
+                    self.w_label.setFont(QFont("SansSerif", 14))
+                    self.parent.console.set(text)
+                    self.w_label.setPos((x[0] + x[-1]) / 2, np.max(y))
+                    self.vb.addItem(self.w_label)
 
-                w = np.trapz(1.0 - y / cont(x), x=x)
-                err_w = np.sqrt(np.sum((s.spec.err()[mask] / cont(x)[:-1:2] * np.diff(x)[::2])**2))
-                print(w, err_w, w / (1+self.parent.z_abs))
-                print(self.parent.abs.reference.line.l(), 1 + self.parent.z_abs, (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value)
-                dv = np.cumsum(np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])))
-                dv90 = interp1d(dv/dv[-1], (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value, fill_value='extrapolate')
-                m = np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])) < -0.1
-                vx = (s.spec.x()[mask][m] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value
-                self.w_region = pg.FillBetweenItem(curve1, curve2, brush=pg.mkBrush(44, 160, 44, 150))
-                self.vb.addItem(self.w_region)
-                text = 'w = {0:0.5f}+/-{1:0.5f}, log(w/l)={2:0.2f}, w_r = {3:0.5f}+/-{4:0.5f}, dv90 = {5:0.2f}'.format(w, err_w, np.log10(2 * w / (x[0]+x[-1])), w / (1+self.parent.z_abs), err_w / (1+self.parent.z_abs), dv90(0.95) - dv90(0.05))
-                if self.parent.s[self.parent.s.ind].resolution not in [0, None]:
-                    text += ', d90_c = {:0.2f}'.format(np.sqrt((dv90(0.95) - dv90(0.05))**2 - (1.4 * ac.c.to('km/s').value / self.parent.s[self.parent.s.ind].resolution)**2))
-                text += ', dv01={:0.2f}'.format(np.max(vx) - np.min(vx))
-                self.w_label = pg.TextItem(text, anchor=(0, 1), color=(44, 160, 44))
-                self.w_label.setFont(QFont("SansSerif", 14))
-                print(text)
-                self.parent.console.set(text)
-                self.w_label.setPos((x[0]+x[-1])/2, cont((x[0]+x[-1])/2))
-                self.vb.addItem(self.w_label)
         if self.x_status:
             self.parent.s[self.parent.s.ind].add_points(self.mousePoint_saved.x(), self.mousePoint_saved.y(), self.mousePoint.x(), self.mousePoint.y(), remove=(QApplication.keyboardModifiers() == Qt.ShiftModifier), bad=True)
 
@@ -1986,7 +1998,7 @@ class showLinesWidget(QWidget):
                             if hasattr(self.parent.fit, attr):
                                 cf = getattr(self.parent.fit, attr)
                                 if (len(cf.addinfo.split('_')) > 1 and cf.addinfo.split('_')[1] == 'all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
-                                    color = to_hex.tuple(c / 255 for c in self.cf_color.to_bytes(4, byteorder='big'))
+                                    color = to_hex(tuple(c / 255 for c in self.cf_color.to_bytes(4, byteorder='big')))
                                     if p.fit_disp is None:
                                         p.ax.plot([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], [1 - cf.val, 1 - cf.val], '--', lw=0.5, color=color)
                                     else:
@@ -2603,12 +2615,18 @@ class fitMCMCWidget(QWidget):
         self.priors = {}
         for line in self.priorField.toPlainText().splitlines():
             if not line.startswith('#'):
+                line = line.replace('=', '')
                 words = line.split()
+                print(words)
                 if words[0] in self.parent.fit.pars():
-                    if len(words) == 3:
+                    if len(words) == 2:
+                        self.priors[words[0]] = a(words[1], 'd')
+                        print(words[0], self.priors[words[0]])
+                    elif len(words) == 3:
                         self.priors[words[0]] = a(float(words[1]), float(words[2]), 'd')
                     elif len(words) == 4:
                         self.priors[words[0]] = a(float(words[1]), float(words[2]), float(words[3]), 'd')
+        print(self.priors)
 
     def fitresChanged(self):
         for line in self.results.toPlainText().splitlines():
@@ -2654,7 +2672,7 @@ class fitMCMCWidget(QWidget):
         self.start(init=False)
 
     def MCMC(self, init=True):
-        self.parent.setFit(comp=-1)
+        #self.parent.setFit(comp=-1)
         nwalkers, nsteps, nthreads = int(self.parent.options('MCMC_walkers')), int(self.parent.options('MCMC_iters')), int(self.parent.options('MCMC_threads'))
 
         opts = {'b_increase': self.b_increase.isChecked(), 'H2_excitation': self.H2_excitation.isChecked(), 'hier_continuum': self.hier_continuum.isChecked()}
