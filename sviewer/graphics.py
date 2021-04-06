@@ -451,12 +451,20 @@ class gline():
     def copy(self):
         return gline(x=self.x[:], y=self.y[:], err=self.err[:])
 
-class plotStepSpectrum(pg.PlotCurveItem):
+class plotSpectrum(pg.PlotCurveItem):
     """
     class for plotting step spectrum centered at pixels
     slightly modified from PlotCurveItem
     """
-    def generatePath(self, xi, yi, path=True):
+    def __init__(self, *args, **kwargs):
+        self.parent = kwargs['parent']
+        self.view = kwargs['view']
+        self.parent.spec_save = self.parent.spec.raw.copy()
+        print(self.view)
+        #print({k: v for k, v in kwargs.items() if k not in ['parent', 'view']})
+        super().__init__(*args, **{k: v for k, v in kwargs.items() if k not in ['parent', 'view']})
+
+    def generateStepPath(self, xi, yi, path=True):
         ## each value in the x/y arrays generates 2 points.
         x = xi[:, np.newaxis] + [0,0]
         dx = np.diff(xi) / 2
@@ -472,8 +480,52 @@ class plotStepSpectrum(pg.PlotCurveItem):
             return x, y
 
     def returnPathData(self):
-        return self.generatePath(self.xData, self.yData, path=False)
+        if self.view == 'step':
+            return self.generateStepPath(self.xData, self.yData, path=False)
+        elif self.view == 'line':
+            return self.generatePath(self.xData, self.yData, path=False)
 
+    def mouseDragEvent(self, ev):
+        if QApplication.keyboardModifiers() in [Qt.ShiftModifier, Qt.ControlModifier]:
+            if ev.button() != Qt.LeftButton:
+                ev.ignore()
+                return
+
+            if ev.isStart():
+                self.start = self.parent.parent.vb.mapSceneToView(ev.buttonDownPos())
+            elif ev.isFinish():
+                self.start = None
+                return
+            else:
+                if QApplication.keyboardModifiers() == Qt.ShiftModifier:
+                    self.shift(start=self.start, finish=self.parent.parent.vb.mapSceneToView(ev.pos()))
+                if QApplication.keyboardModifiers() == Qt.ControlModifier:
+                    self.rescale(start=self.start, finish=self.parent.parent.vb.mapSceneToView(ev.pos()))
+                self.start = self.parent.parent.vb.mapSceneToView(ev.pos())
+                if self.start is None:
+                    ev.ignore()
+                    return
+
+            ev.accept()
+
+    def shift(self, start, finish):
+        if not self.parent.parent.normview:
+            self.parent.spec.raw.x += finish.x() - start.x()
+            self.parent.spec.raw.y += finish.y() - start.y()
+            self.setData(x=self.parent.spec.raw.x, y=self.parent.spec.raw.y)
+        self.parent.redraw()
+
+    def rescale(self, start, finish):
+        if not self.parent.parent.normview:
+            self.parent.spec.raw.x += finish.x() - start.x()
+            self.parent.spec.raw.y *= finish.y() / start.y()
+            self.parent.spec.raw.err *= finish.y() / start.y()
+            self.setData(x=self.parent.spec.raw.x, y=self.parent.spec.raw.y)
+        self.parent.redraw()
+
+    #def mouseClickEvent(self, ev):
+    #    if QApplication.keyboardModifiers() == Qt.ControlModifier and ev.button() == Qt.LeftButton:
+    #        self.parent.remove()
 
 class fitLineProfile(pg.PlotCurveItem):
     def __init__(self, **kwargs):
@@ -1270,16 +1322,10 @@ class Spectrum():
                 self.g_point = pg.ScatterPlotItem(x=x, y=y, size=10, brush=self.brush, pen=self.pen)
                 self.g_point.setZValue(2)
                 self.parent.vb.addItem(self.g_point)
-            if 'step' in self.view:
-                self.g_line = plotStepSpectrum(x=x, y=y, clickable=True)
+            if 'step' in self.view or 'line' in self.view:
+                self.g_line = plotSpectrum(parent=self, view=self.view, x=x, y=y, clickable=True)
                 self.g_line.setPen(self.pen)
                 self.g_line.sigClicked.connect(self.specClicked)
-                self.g_line.setZValue(2)
-                self.parent.vb.addItem(self.g_line)
-            if 'line' in self.view:
-                self.g_line = pg.PlotCurveItem(x=x, y=y, clickable=True)
-                self.g_line.sigClicked.connect(self.specClicked)
-                self.g_line.setPen(self.pen)
                 self.g_line.setZValue(2)
                 self.parent.vb.addItem(self.g_line)
 
@@ -1298,10 +1344,7 @@ class Spectrum():
                 x, y = np.copy(self.spec.x()), np.copy(self.spec.y())
                 if len(x) > 0:
                     y[np.logical_not(self.fit_mask.x())] = np.NaN
-                if 'line' in self.parent.specview:
-                    self.points = pg.PlotCurveItem(connect='finite', pen=self.fit_pixels_pen)
-                else:
-                    self.points = plotStepSpectrum(connect='finite', pen=self.fit_pixels_pen)
+                self.points = pg.PlotCurveItem(parent=self, view=self.view, connect='finite', pen=self.fit_pixels_pen)
                 if self.active:
                     self.points.setZValue(3)
                 else:
@@ -2736,3 +2779,5 @@ class CompositeGraph(pg.PlotCurveItem):
 
         if QApplication.keyboardModifiers() == Qt.ControlModifier and ev.button() == Qt.LeftButton:
             self.parent.remove()
+
+

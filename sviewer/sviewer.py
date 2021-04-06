@@ -9204,7 +9204,7 @@ class sviewer(QMainWindow):
             bin = (xmin + xmax) / 2 / resolution / 4
             x = np.linspace(xmin, xmax, int((xmax - xmin) / bin))
             #debug(len(x), 'lenx')
-            s.set_data([x, inter(x), np.ones_like(x) * 0.1])
+            s.set_data([x, inter(x), np.ones_like(x) * 0.01])
             self.s.append(s)
             self.s.ind = len(self.s) - 1
         s = self.s[self.s.ind]

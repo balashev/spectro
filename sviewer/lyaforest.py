@@ -7,7 +7,7 @@ import pickle
 from PyQt5.QtCore import Qt
 import pyqtgraph as pg
 from scipy.interpolate import interp1d
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, minimize, least_squares
 from scipy.signal import correlate, argrelextrema
 
 from ..profiles import tau, convolveflux, fisherbN
@@ -16,6 +16,7 @@ from .external import spectres
 from .fit import fitPars
 from .graphics import Spectrum
 from .utils import Timer
+import emcee
 
 def correl(y, fit, err=None):
     stride = y.strides[0]
@@ -54,7 +55,7 @@ def correlnew(y, fit, mask, err=None):
     #t.time('3')
     return np.sum(y_s * mask, axis=1)
 
-def Lyaforest_scan(parent, data, do='corr'):
+def Lyaforest_scan(parent, data, do='all'):
     """
     Scan for individual Lya forest lines and fit them
     paremeters:
@@ -65,7 +66,7 @@ def Lyaforest_scan(parent, data, do='corr'):
                                 'fit'  -  only fit lines using loaded correlation array from "pickle/<filename>.pkl" file
     """
 
-    sample = np.genfromtxt('C:/science/Telikova/Lyasample/lines.dat', usecols=(0, 8), skip_header=1, dtype=[('z', '<f8'), ('name', '|S40')], unpack=True)
+    sample = np.genfromtxt('C:/Users/ksush/work/Lyasample/lines.dat', usecols=(0, 8), skip_header=1, dtype=[('z', '<f8'), ('name', '|S40')], unpack=True)
 
     print('scan')
     t = Timer()
@@ -77,18 +78,21 @@ def Lyaforest_scan(parent, data, do='corr'):
     else:
         x = np.logspace(np.log10(data[0][1]), np.log10(data[0][-2]), int((data[0][-2]-data[0][1])/0.017))
     y, err = spectres.spectres(data[0], data[1], x, spec_errs=data[2])
+    print('1')
     s = Spectrum(parent, name='rebinned')
     parent.normview = False
+    print('1')
     s.set_data([x, y, err])
     s.spec.norm.set_data(x, y, err=err)
     s.cont.set_data(x, np.ones_like(x))
     s.resolution = parent.s[0].resolution
+    print('2')
     if 1:
-        mask = np.abs((y - 1) / err) < 5
+        mask = (np.abs((y - 1) / err) < 5) * (err > 0)
         window = 300
         box = np.ones(window) / window
         snr = interp1d(x[mask], np.convolve(y[mask]/err[mask], box, mode='same'), fill_value='extrapolate')
-
+    print('3')
     parent.normview = True
     #parent.s.append(s)
     parent.s.ind = 0
@@ -112,6 +116,7 @@ def Lyaforest_scan(parent, data, do='corr'):
         else:
             max_ston = np.max(snr(np.linspace(x[0], x[-1], 50)))
             print('max_ston:', max_ston)
+            print('res:',s.resolution)
             N_grid, b_grid, xf, f = makeLyagrid_fisher(N_range=[13.0, 14.5], b_range=[10, 50], z=(zmin+zmax)/2, ston=max_ston, resolution=s.resolution, plot=0)
         #N_grid, b_grid, xf, f = makeLyagrid(N_range=[14.39, 14.39], b_range=[28, 28], N_num=1, b_num=1, resolution=s.resolution)
         xl = xf * x[int(len(x)/2)] / 1215.6701
@@ -170,11 +175,11 @@ def Lyaforest_scan(parent, data, do='corr'):
                         lines.append((x_corr[ind[0][imin]] / 1215.6701 - 1, i, k, corr[ind[0][imin], ind[1][imin]], typ[ind[1, imin]]))
                 #t.time('find local minima')
             t.time('loop')
-        with open('C:/science/Telikova/Lyasample/pickle/' + qsoname, 'wb') as fil:
+        with open('C:/Users/ksush/work/Lyasample/pickle/' + qsoname, 'wb') as fil:
             pickle.dump((N_grid, b_grid, xf, f, lines), fil)
         t.time('fit lines')
     else:
-        with open('C:/science/Telikova/Lyasample/pickle/' + qsoname, 'rb') as fil:
+        with open('C:/Users/ksush/work/Lyasample/pickle/' + qsoname, 'rb') as fil:
             N_grid, b_grid, xf, f, lines = pickle.load(fil)
 
     zi = [l[0] for l in lines]
@@ -202,14 +207,15 @@ def Lyaforest_scan(parent, data, do='corr'):
     #print(ind)
     #print(types)
     check_doublicates = 0
+    dynamic_mask = 1
     if do in ['all', 'fit']:
         parent.fit = fitPars(parent)
         if check_doublicates:
-            old_lines = np.genfromtxt('C:/science/Telikova/Lyasample/lines.dat', names=True, dtype=None)
+            old_lines = np.genfromtxt('C:/Users/ksush/work/Lyasample//lines.dat', names=True, dtype=None)
         if 0:
-            filename = open('C:/science/Telikova/Lyasample/lines.dat', 'a')
+            filename = open('C:/Users/ksush/work/Lyasample/lines.dat', 'a')
         else:
-            filename = open('C:/science/Telikova/Lyasample/lines/'+qsoname, 'w')
+            filename = open('C:/Users/ksush/work/Lyasample/lines/'+qsoname, 'w')
 
         def fcn2min(params, x, y, err, line):
             line.z, line.logN, line.b = params['z'].value, params['N'].value, params['b'].value
@@ -224,6 +230,75 @@ def Lyaforest_scan(parent, data, do='corr'):
                              bounds_error=False, fill_value=1)
             return inter(x)
 
+        def VoigtProfile_mask(params, x, y, err, line, typ):
+            line_.z, line_.logN, line_.b = tuple(params)
+            #line.z, line.logN, line.b = params['z'].value, params['N'].value, params['b'].value
+            line_.calctau()
+            inter = interp1d(line_.x, convolveflux(line_.x, np.exp(-line_.tau), res=parent.s[0].resolution), bounds_error=False, fill_value=1)
+
+
+            intx=inter(x)
+            if 0:
+                chi = (y - intx) / err
+                #print(line.z, line.logN, line.b, np.sum(chi ** 2) / (len(y) - 3))
+                return np.sum(chi**2)/(len(y)-3)
+            else:
+                mask = intx < flux_limit
+
+                if len(x[mask]) <= 3:
+                    #print(line.z, line.logN, line.b)
+                    return 1e10
+                else:
+                    xmin, xmax = x[mask][0], x[mask][-1]
+
+                    if typ == 'l':
+                        mask = mask&((intx < 1 - (1 - np.min(intx)) / 2) | (x < (xmin + xmax) / 2))
+                    elif typ == 'r':
+                        mask = mask&((intx < 1 - (1 - np.min(intx)) / 2) | (x > (xmin + xmax) / 2))
+
+                    elif typ == 'b':
+                        mask = mask&(intx < 1 - (1 - np.min(intx)) / 3)
+
+                    intx,y,err = intx[mask], y[mask], err[mask]
+
+                    chi = (y - intx) / err
+                    if np.prod(err) == 0:
+                        print("zero err:")
+                        print(typ, line.z, line.logN, line.b, y, err)
+
+                    return np.sum(chi**2)/(len(y)-3)
+
+
+
+        # def VoigtProfile_mask(params, x, y, err, line, typ):
+        #     line_.z, line_.logN, line_.b = tuple(params)
+        #     #line.z, line.logN, line.b = params['z'].value, params['N'].value, params['b'].value
+        #     line.calctau()
+        #     inter = interp1d(line.x, convolveflux(line.x, np.exp(-line.tau), res=parent.s[0].resolution), bounds_error=False, fill_value=1)
+        #     intx=inter(x)
+        #     mask = intx < flux_limit
+        #
+        #     if len(x[mask]) == 0:
+        #         print(line.z, line.logN, line.b)
+        #         return 1e10*np.ones_like(x)
+        #     else:
+        #         xmin, xmax = x[mask][0], x[mask][-1]
+        #
+        #         if typ == 'l':
+        #             mask = mask&(intx < 1 - (1 - np.min(intx)) / 2) | (x < (xmin + xmax) / 2)
+        #         elif typ == 'r':
+        #             mask = mask&(intx < 1 - (1 - np.min(intx)) / 2) | (x > (xmin + xmax) / 2)
+        #
+        #         elif typ == 'b':
+        #             mask = mask&(intx < 1 - (1 - np.min(intx)) / 3)
+        #
+        #         #intx,y,err = intx[mask], y[mask], err[mask]
+        #         mask = mask.astype(int)
+        #         chi = (y - intx) / err
+        #         redchi = mask*(chi**2) / (len(mask[mask>0])-3)
+        #         print(line.z, line.logN, line.b, np.sum(redchi))
+        #
+        #         return redchi
 
         # create a set of Parameters
         params = Parameters()
@@ -243,8 +318,46 @@ def Lyaforest_scan(parent, data, do='corr'):
             elif typ == 'b':
                 mask2 = f[l[1], l[2]] < 1 - (1 - np.min(f[l[1], l[2]])) / 3
                 xmin, xmax = xf[np.min(np.where(np.diff(mask2) > 0)[0])], xf[np.max(np.where(np.diff(mask2) > 0)[0])]
-            mask = (x > xmin * (1 + l[0])) * (x < xmax * (1 + l[0]))
+            elif typ == 'over':
+                # imin, imax = np.argmin(np.abs(xf - (2*xmin - xmax))), np.argmin(
+                #      np.abs(xf -(2*xmax - xmin)))
+                imin, imax = np.argmin(np.abs(xf - (3*xmin - xmax) / 2)), np.argmin(
+                    np.abs(xf -(3*xmax - xmin) / 2))
+                xmin, xmax = xf[imin], xf[imax]
+            mask = (x > xmin * (1 + l[0])) * (x < xmax * (1 + l[0])) * (err > 0 )
             return mask
+
+        #---------------------------------------------------------------------------------------------------------------
+        #---------------------------------------------------------------------------------------------------------------
+        #to update old mask for drawing actual profiles for dynamic_mask regime
+
+        def update_mask(z,N,b,typ):
+            line_ = tau(line=line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=z, logN=N, b=b), resolution=parent.s[0].resolution)
+            line_.calctau()
+            flux = convolveflux(line_.x, np.exp(-line_.tau), res=parent.s[0].resolution)
+            x, y, err = parent.s[0].spec.x(), parent.s[0].spec.y(), parent.s[0].spec.err()
+            inter = interp1d(line_.x, flux, bounds_error=False, fill_value=1)
+            xx = xf*(1+z)
+            intx = inter(xx)
+            mask = intx < flux_limit
+            xmin, xmax = xx[mask][0], xx[mask][-1]
+            if typ == 'l':
+                mask2 = intx < 1 - (1 - np.min(intx)) / 2
+                xmax = xx[np.max(np.where(np.diff(mask2) > 0)[0])]
+
+            elif typ == 'r':
+                mask2 = intx < 1 - (1 - np.min(intx)) / 2
+                xmin = xx[np.min(np.where(np.diff(mask2) > 0)[0])]
+            elif typ == 'b':
+                mask2 = intx < 1 - (1 - np.min(intx)) / 3
+                xmin, xmax = xx[np.min(np.where(np.diff(mask2) > 0)[0])], xx[np.max(np.where(np.diff(mask2) > 0)[0])]
+
+
+            mask = (x > xmin ) * (x < xmax ) * (err > 0 )
+
+            return mask
+
+        #---------------------------------------------------------------------------------------------------------------
 
         m = np.zeros_like(parent.s[0].spec.x(), dtype=bool)
         lines = [lines[i] for i in sortind]
@@ -263,6 +376,8 @@ def Lyaforest_scan(parent, data, do='corr'):
                 if np.sum(mask * mask_next) > 4:
                     i += 1
                 else:
+                    mask_over = calc_mask(l, 'over')
+                    x_over, y_over, err_over = x[mask_over], y[mask_over], err[mask_over]
                     x, y, err = x[mask], y[mask], err[mask]
                     global line_
 
@@ -271,28 +386,54 @@ def Lyaforest_scan(parent, data, do='corr'):
                         save_N, save_b = line_.logN, line_.b
 
                         params['z'].value, params['N'].value, params['b'].value = line_.z, line_.logN, line_.b
-                        params['z'].min, params['z'].max = line_.z * (1 - 7. / parent.s[0].resolution), line_.z * (1 + 7. / parent.s[0].resolution)
+                        params['z'].min, params['z'].max = line_.z * (1 - 5 / parent.s[0].resolution), line_.z * (1 + 5 / parent.s[0].resolution)
 
-                        dN, db, F, Fmin = fisherbN(save_N, save_b, [line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=line_.z)], ston=float(snr(1215.67 * (1 + line_.z))), resolution=parent.s[0].resolution)
+                        #dN, db, F, Fmin = fisherbN(save_N, save_b, [line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=line_.z)], ston=float(snr(1215.67 * (1 + line_.z))), resolution=parent.s[0].resolution)
 
-                        if 1:
+
+
+
+
+                        # ===============================================================================================
+                        # new minimization within varied mask, calculated on each (z,N,b) point
+                        # errors were estimated via Fisher matrix
+                        if dynamic_mask:
+                            print(types[i])
+                            result = minimize(VoigtProfile_mask, x0=(l[0], save_N, save_b), method='TNC', args=(x_over, y_over, err_over, line_, types[i]),
+                                              bounds=((params['z'].min,params['z'].max),(params['N'].min, params['N'].max),(params['b'].min, params['b'].max)))
+
+
+
+                            z, N, b = tuple(result.x)
+                            Nerr, berr, F, Fmin = fisherbN(N, b,
+                                                       [line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=z)],
+                                                       ston=float(snr(1215.67 * (1 + z))),
+                                                       resolution=parent.s[0].resolution)
+                            chi = result.fun
+
+
+                        #===============================================================================================
+                        #old minimization within static mask, calculated from save_N, save_b and z:
+                        else:
                             popt, pcov = curve_fit(VoigtProfile, x, y, p0=(l[0], save_N, save_b), sigma=err, method='dogbox', bounds=([params['z'].min, params['N'].min, params['b'].min], [params['z'].max, params['N'].max, params['b'].max]))
                             z, N, Nerr, b, berr = popt[0], popt[1], np.sqrt(pcov[1, 1]), popt[2], np.sqrt(pcov[2, 2])
                             chi = np.sum(((VoigtProfile(x, z, N, b) - y) / err) ** 2) / (len(x) - 3)
-                        else:
-                            minner = Minimizer(fcn2min, params, fcn_args=(x, y, err, line_))
-                            # kws = {'options': {'maxiter': 50}}
-                            result = minner.minimize(method='leastsq')  # maxfev=200)
-                            z, N, Nerr, b, berr, chi = result.params['z'].value, result.params['N'].value, result.params['N'].stderr, result.params['b'].value, result.params['b'].stderr, result.redchi
-
-                        Nerr, berr = np.max([Nerr, dN]), np.max([berr, db])
-
-                        #if np.sqrt(pcov[1, 1]) > fisherbN(N, b, [line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=z)], ston=float(snr(1215.67*(1+z))), resolution=parent.s[0].resolution)
+                        # ----------------------------------------------------------------------------------------------
+                        print('diference, fit results:')
+                        print(z - l[0], N - save_N, b - save_b)
+                        print(l[0], save_N, save_b)
+                        #print(new_z, new_N, new_Nerr,  new_b, new_berr, new_chi)
                         print(z, N, Nerr,  b, berr, chi)
 
-                        plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')
-                        plt.arrow(save_N, save_b, N-save_N, b-save_b, fc='orangered', ec='orangered')
+                        #if np.sqrt(pcov[1, 1]) > fisherbN(N, b, [line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=z)], ston=float(snr(1215.67*(1+z))), resolution=parent.s[0].resolution)
+                        #print(z, N, Nerr,  b, berr, chi)
+
+                        # plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')
+                        # plt.arrow(save_N, save_b, N-save_N, b-save_b, fc='orangered', ec='orangered')
+                        #if 1:
                         if chi < 3 and N / Nerr > 5 and b / berr > 5: #and Nerr != 0 and berr != 0 and np.sum(m * mask) == 0:
+                            plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')
+                            plt.arrow(save_N, save_b, N - save_N, b - save_b, fc='orangered', ec='orangered')
                             lyb = True
                             if lyb:
                                 lyb = False
@@ -303,7 +444,7 @@ def Lyaforest_scan(parent, data, do='corr'):
                                     x, y, err = parent.s[0].spec.x(), parent.s[0].spec.y(), parent.s[0].spec.err()
                                     m_lyb = (x > line_.x[0]) * (x < line_.x[-1])
                                     inter = interp1d(line_.x, flux, bounds_error=False, fill_value=1)
-                                    m1 = y[m_lyb] > inter(x[m_lyb])
+                                    m1 = (y[m_lyb] > inter(x[m_lyb])) * (err[m_lyb] > 0)
                                     print(np.sum(m_lyb), np.sum(m1))
                                     if np.sum(m1) > 10 and np.sum(((y[m_lyb][m1] - inter(x[m_lyb])[m1])/err[m_lyb][m1])**2)/np.sum(m1) > 4:
                                         fig, ax = plt.subplots()
@@ -312,7 +453,11 @@ def Lyaforest_scan(parent, data, do='corr'):
                                         lyb = True
                                         break
                             if not lyb:
-                                m = np.logical_or(m, mask)
+                                if dynamic_mask:
+                                    m =np.logical_or(m, update_mask(z,N,b,typ))
+                                else:
+                                    m = np.logical_or(m, mask)
+
                                 if check_doublicates:
                                     if len(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0]) > 0:
                                         print(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0])
