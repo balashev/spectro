@@ -141,15 +141,20 @@ mutable struct par
     step::Float64
     vary::Bool
     addinfo::String
+    tied::String
 end
 
-function make_pars(p_pars)
+function make_pars(p_pars; tieds=Dict())
     pars = OrderedDict{String, par}()
     for p in p_pars
-        pars[p.__str__()] = par(p.__str__(), p.val, p.min, p.max, p.step, p.fit * p.vary, p.addinfo)
+        pars[p.__str__()] = par(p.__str__(), p.val, p.min, p.max, p.step, p.fit * p.vary, p.addinfo, "")
         if occursin("cf", p.__str__())
             pars[p.__str__()].min, pars[p.__str__()].max = 0, 1
         end
+    end
+    for (k, v) in tieds
+        pars[k].vary = false
+        pars[k].tied = v
     end
     return pars
 end
@@ -225,6 +230,9 @@ end
 
 function update_pars(pars, spec, add)
     for (k, v) in pars
+        if v.tied != ""
+            pars[k].val = pars[v.tied].val
+        end
         if occursin("res", pars[k].name)
             #println(pars[k].name, " ", pars[k].val, " ", parse(Int, pars[k].addinfo[5:end]))
             spec[parse(Int, pars[k].addinfo[5:end]) + 1].resolution = pars[k].val

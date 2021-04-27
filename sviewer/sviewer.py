@@ -388,6 +388,7 @@ class plotSpectrum(pg.PlotWidget):
                     self.parent.statusBar.setText('Zooming mode')
                     if not event.isAutoRepeat():
                         self.saveState = self.vb.getState()
+                    self.parent.s[self.parent.s.ind].g_line.initial()
                 else:
                     if self.saveState is not None:
                         if 1:
@@ -630,7 +631,7 @@ class plotSpectrum(pg.PlotWidget):
             mask = np.logical_and(s.spec.x() > min(self.mousePoint.x(), self.mousePoint_saved.x()),
                                   s.spec.x() < max(self.mousePoint.x(), self.mousePoint_saved.x()))
             if np.sum(mask) > 0:
-                curve1 = plotStepSpectrum(x=s.spec.x()[mask], y=s.spec.y()[mask], pen=pg.mkPen())
+                curve1 = plotLineSpectrum(parent=s, view='step', x=s.spec.x()[mask], y=s.spec.y()[mask], pen=pg.mkPen())
                 x, y = curve1.returnPathData()
                 if len(s.cont.x) > 0 and s.cont.x[0] < x[0] and s.cont.x[-1] > x[-1]:
                     if QApplication.keyboardModifiers() != Qt.ShiftModifier:
@@ -2709,7 +2710,7 @@ class fitMCMCWidget(QWidget):
                 self.julia = julia.Julia()
                 self.julia.include("MCMC.jl")
                 t = Timer("Julia MCMC")
-                chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add, prior=self.priors, nwalkers=nwalkers,
+                chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add, tieds=self.parent.fit.tieds, prior=self.priors, nwalkers=nwalkers,
                                                        nsteps=nsteps, nthreads=nthreads, init=np.transpose(init), opts=opts)
 
                 backend.grow(nsteps, None)

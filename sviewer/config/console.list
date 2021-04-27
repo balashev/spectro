@@ -1,21 +1,21 @@
-show DI
-show CI
-show FeII
-show SiII
-show NII
-show NiII
-show S
-show SII
-show MnII
-MnII
-show H2 0 1
-CaII
-HeIj1
-shift -0.1
-shift 0.02
-show H2 0 1 2 3
-show HDj0
 show HD
 show H2 2 3 4
 logN H2
 rescale err 0.1
+stats
+show H2 0 1
+show H2
+hide H2
+show H2 0 1
+show SiII*
+show CII*
+show CII*
+show NV
+5.7 / (4.026)
+show SiII
+show SiII*
+show H2 0 1
+HD
+CII*
+show H2j4
+show HDj1

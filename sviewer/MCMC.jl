@@ -26,13 +26,13 @@ println("procs: ", nprocs())
 @everywhere using SpecialFunctions
 @everywhere include("profiles.jl")
 
-function fitMCMC(spec, ppar, add; prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, init=nothing, opts=0)
+function fitMCMC(spec, ppar, add; tieds=Dict(), prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, init=nothing, opts=0)
 
     #COUNTERS["num"] = nwalkers
 
 	println(init)
 
-    pars = make_pars(ppar)
+    pars = make_pars(ppar, tieds=tieds)
     priors = make_priors(prior)
 	println(priors)
     params = [p.val for (k, p) in pars if p.vary == 1]

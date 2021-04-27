@@ -106,7 +106,7 @@ class a:
                     self.type = 'f'
                 else:
                     self.type = 'm'
-            elif isinstance(args[0], (float, int)):
+            elif isinstance(args[0], (float, int, np.floating)):
                 self.val = float(args[0])
                 if len(args) > 1 and isinstance(args[1], (float, int)):
                     self.plus = float(args[1])
@@ -122,7 +122,7 @@ class a:
         elif len(args) in [3, 4]:
             self.val = float(args[0])
             self.plus = abs(float(args[1]))
-            if isinstance(args[2], (int, float)):
+            if isinstance(args[2], (int, float, np.floating)):
                 self.minus = abs(float(args[2]))
             elif isinstance(args[2], (str)):
                 self.minus = abs(float(args[1]))

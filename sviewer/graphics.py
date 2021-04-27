@@ -141,7 +141,7 @@ class Speclist(list):
 
         if self.parent.fitType == 'julia':
             #self.parent.reload_julia()
-            self.parent.julia_pars = self.parent.julia.make_pars(self.parent.fit.list())
+            self.parent.julia_pars = self.parent.julia.make_pars(self.parent.fit.list(), tieds=self.parent.fit.tieds)
             self.parent.julia_add = self.parent.julia.prepare_add(self.parent.fit, self.parent.julia_pars)
 
         for s in self:
@@ -451,7 +451,7 @@ class gline():
     def copy(self):
         return gline(x=self.x[:], y=self.y[:], err=self.err[:])
 
-class plotSpectrum(pg.PlotCurveItem):
+class plotLineSpectrum(pg.PlotCurveItem):
     """
     class for plotting step spectrum centered at pixels
     slightly modified from PlotCurveItem
@@ -463,6 +463,10 @@ class plotSpectrum(pg.PlotCurveItem):
         print(self.view)
         #print({k: v for k, v in kwargs.items() if k not in ['parent', 'view']})
         super().__init__(*args, **{k: v for k, v in kwargs.items() if k not in ['parent', 'view']})
+
+    def initial(self):
+        self.parent.spec.raw = self.parent.spec_save.copy()
+        self.parent.redraw()
 
     def generateStepPath(self, xi, yi, path=True):
         ## each value in the x/y arrays generates 2 points.
@@ -487,7 +491,7 @@ class plotSpectrum(pg.PlotCurveItem):
 
     def mouseDragEvent(self, ev):
         if QApplication.keyboardModifiers() in [Qt.ShiftModifier, Qt.ControlModifier]:
-            if ev.button() != Qt.LeftButton:
+            if ev.button() != Qt.RightButton:
                 ev.ignore()
                 return
 
@@ -1323,7 +1327,7 @@ class Spectrum():
                 self.g_point.setZValue(2)
                 self.parent.vb.addItem(self.g_point)
             if 'step' in self.view or 'line' in self.view:
-                self.g_line = plotSpectrum(parent=self, view=self.view, x=x, y=y, clickable=True)
+                self.g_line = plotLineSpectrum(parent=self, view=self.view, x=x, y=y, clickable=True)
                 self.g_line.setPen(self.pen)
                 self.g_line.sigClicked.connect(self.specClicked)
                 self.g_line.setZValue(2)
@@ -2749,6 +2753,7 @@ class CompositeGraph(pg.PlotCurveItem):
     def __init__(self, parent, **kwargs):
         super().__init__(**kwargs)
         self.parent = parent
+        self.setZValue(5)
 
     def mouseDragEvent(self, ev):
         if QApplication.keyboardModifiers() == Qt.ShiftModifier:
