@@ -39,6 +39,7 @@ from threading import Thread
 
 from ..a_unc import a
 from ..absorption_systems import vel_offset
+from ..atomic import *
 from ..plot_spec import *
 from ..profiles import add_LyaForest, add_ext, add_ext_bump, add_LyaCutoff, convolveflux, tau
 from ..stats import distr1d, distr2d
@@ -8517,7 +8518,7 @@ class sviewer(QMainWindow):
                 if name == str(l.line):
                     wavelength, f = l.line.l(), l.line.f()
             xv = (s.spec.x() / wavelength / (1 + self.z_abs) - 1) * 299792.46
-            mask = (xv > x[0] - dv / 10) * (xv < x[-1] + dv / 10)
+            mask = (xv > x[0] - 299792.46 / s.resolution) * (xv < x[-1] + 299792.46 / s.resolution)
             yi, erri = spectres.spectres((s.spec.x()[mask] / wavelength / (1 + self.z_abs) - 1) * 299792.46, s.spec.y()[mask], x, spec_errs=s.spec.err()[mask])
             y += (1 - yi) * f / erri ** 2
             fs += f

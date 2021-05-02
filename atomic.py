@@ -429,7 +429,7 @@ class atomicData(OrderedDict):
         if els is not None and isinstance(els, str):
             els = [els]
         if els is None and linelist is None:
-            els = self.data.keys()
+            els = self.keys()
         if els is None and linelist is not None:
             els = np.unique([l.split()[0] for l in linelist])
 
