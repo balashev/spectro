@@ -204,22 +204,41 @@ class plot_spec(list):
                 p.yticklabels = 1
 
         for p in self:
-            p.xlabel = None
-            p.ylabel = None
+            p.xlabel, p.ylabel = None, None
+            p.ylabel_pos, p.xlabel_pos = None, None
+
+        #if xlabels is not None:
+        #    for i, p in enumerate(self):
+        #        if i in xlabels:
+        #            p.xlabel = xlabel
+        #else:
+        #    print('ticks', self.rect.order)
+        #    if self.rect.order == 'h':
+        #        inds = list(range(len(self)-self.rect.n_cols, len(self)))
+        #    if self.rect.order == 'v':
+        #        inds = np.append(self.rect.n_rows * np.arange(1, len(self) // self.rect.n_rows+1) - 1, len(self)-1)
+        #    for i, p in enumerate(self):
+        #        if i in inds:
+        #            p.xlabel = xlabel
 
         if xlabels is not None:
             for i, p in enumerate(self):
                 if i in xlabels:
                     p.xlabel = xlabel
         else:
-            print('ticks', self.rect.order)
-            if self.rect.order == 'h':
-                inds = list(range(len(self)-self.rect.n_cols, len(self)))
-            if self.rect.order == 'v':
-                inds = np.append(self.rect.n_rows * np.arange(1, len(self) // self.rect.n_rows+1) - 1, len(self)-1)
             for i, p in enumerate(self):
-                if i in inds:
-                    p.xlabel = xlabel
+                if self.rect.order == 'v':
+                    k = (len(self) - 1) // self.rect.n_rows
+                    inds_x = [(k // 2 + 1) * self.rect.n_rows - 1]
+                    if k % 2 == 1:
+                        p.xlabel_pos = 1
+                if self.rect.order == 'h':
+                    k = min(self.rect.n_cols, len(self)) - 1
+                    inds_x = [(self.rect.n_rows - 1) * (len(self) // self.rect.n_rows) + (k // 2)]
+                    if k % 2 == 1:
+                        p.xlabel_pos = 1
+
+        print(inds_x)
 
         if ylabels is not None:
             for i, p in enumerate(self):
@@ -228,24 +247,38 @@ class plot_spec(list):
         else:
             for i, p in enumerate(self):
                 if self.rect.order == 'h':
-                    k = (len(self) - 1)  // self.rect.n_cols
-                    if k == 0:
-                        inds = [0]
-                    elif k == 1:
-                        inds = [0, self.rect.n_cols]
+                    k = (len(self) - 1) // self.rect.n_cols
+                    if 1:
+                        inds_y = [(k // 2) * self.rect.n_cols]
+                        if k % 2 == 1:
+                            p.ylabel_pos = 0
                     else:
-                        inds = [(k // 2) * self.rect.n_cols]
+                        if k == 0:
+                            inds_y = [0]
+                        elif k == 1:
+                            inds_y = [0, self.rect.n_cols]
+                        else:
+                            inds_y = [(k // 2) * self.rect.n_cols]
                 if self.rect.order == 'v':
-                    k = min(self.rect.n_rows, len(self))
-                    if k == 0:
-                        inds = [0]
-                    elif k == 1:
-                        inds = [0, 1]
+                    k = min(self.rect.n_rows, len(self)) - 1
+                    if 1:
+                        inds_y = [(k // 2)]
+                        if k % 2 == 1:
+                            p.ylabel_pos = 0
                     else:
-                        inds = [(k // 2)]
-            for i, p in enumerate(self):
-                if i in inds:
-                    p.ylabel = ylabel
+                        if k == 0:
+                            inds_y = [0]
+                        elif k == 1:
+                            inds_y = [0, 1]
+                        else:
+                            inds_y = [(k // 2)]
+
+        for i, p in enumerate(self):
+            if i in inds_y:
+                p.ylabel = ylabel
+            if i in inds_x:
+                p.xlabel = xlabel
+
 
     def set_ticks(self, x_tick=100, x_num=10, y_tick=1, y_num=10):
         for p in self:
@@ -485,9 +518,19 @@ class plotline():
 
         # >>> set axis labels:
         if self.ylabel is not None:
-            self.ax.set_ylabel(self.ylabel, fontsize=self.font, labelpad=2)
+            self.ax.set_ylabel(self.ylabel, fontsize=self.font)
+            if self.ylabel_pos is not None:
+                tr = self.ax.yaxis.label.get_transform()
+                self.ax.yaxis.set_label_coords(self.ax.yaxis.label.get_position()[0], self.ylabel_pos)
+                self.ax.yaxis._autolabelpos = True
+                self.ax.yaxis.label.set_transform(tr)
         if self.xlabel is not None:
             self.ax.set_xlabel(self.xlabel, fontsize=self.font, labelpad=2)
+            if self.xlabel_pos is not None:
+                tr = self.ax.xaxis.label.get_transform()
+                self.ax.xaxis.set_label_coords(self.xlabel_pos, self.ax.xaxis.label.get_position()[1])
+                self.ax.xaxis._autolabelpos = True
+                self.ax.xaxis.label.set_transform(tr)
 
         # >>> add lines
         self.ax.plot([self.x_min, self.x_max], [0.0, 0.0], 'k--', lw=0.5)
@@ -503,7 +546,8 @@ class plotline():
 
         # >>> add text
         if self.name_pos is not None:
-            self.ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
+            ha = 'left' if self.name_pos[0] < 0.5 else 'right'
+            self.ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha=ha, va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
             if self.label is not None:
                 self.ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha='right', va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
 
@@ -593,6 +637,8 @@ class plotline():
         # >>> set axis labels:
         if self.ylabel is not None:
             self.ax.set_ylabel(self.ylabel, fontsize=self.font)
+            if self.ylabel_pos is not None:
+                self.ax.yaxis.set_label_coords(self.ylabel_pos)
         if self.xlabel is not None:
             self.ax.set_xlabel(self.xlabel, fontsize=self.font, labelpad=-4)
 
