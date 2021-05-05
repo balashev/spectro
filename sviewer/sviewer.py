@@ -2694,7 +2694,11 @@ class fitMCMCWidget(QWidget):
 
         print(self.priors)
 
+        if not self.parent.normview:
+            self.parent.normalize(True)
+
         self.parent.s.prepareFit(ind=-1, all=False)
+        self.parent.s.calcFit(ind=-1, redraw=False)
 
         if 1:
             backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
@@ -2712,6 +2716,7 @@ class fitMCMCWidget(QWidget):
                 self.julia = julia.Julia()
                 self.julia.include("MCMC.jl")
                 t = Timer("Julia MCMC")
+
                 chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add, tieds=self.parent.fit.tieds, prior=self.priors, nwalkers=nwalkers,
                                                        nsteps=nsteps, nthreads=nthreads, init=np.transpose(init), opts=opts)
 

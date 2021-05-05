@@ -460,7 +460,6 @@ class plotLineSpectrum(pg.PlotCurveItem):
         self.parent = kwargs['parent']
         self.view = kwargs['view']
         self.parent.spec_save = self.parent.spec.raw.copy()
-        print(self.view)
         #print({k: v for k, v in kwargs.items() if k not in ['parent', 'view']})
         super().__init__(*args, **{k: v for k, v in kwargs.items() if k not in ['parent', 'view']})
 
@@ -468,26 +467,25 @@ class plotLineSpectrum(pg.PlotCurveItem):
         self.parent.spec.raw = self.parent.spec_save.copy()
         self.parent.redraw()
 
-    def generateStepPath(self, xi, yi, path=True):
-        ## each value in the x/y arrays generates 2 points.
-        x = xi[:, np.newaxis] + [0,0]
-        dx = np.diff(xi) / 2
-        dx = np.append(dx, dx[-1])
-        x[:, 0] -= dx
-        x[:, 1] += dx
-        x = x.flatten()
-        y = as_strided(yi, shape=[len(yi), 2], strides=[yi.strides[0], 0]).flatten()
+    def generatePath(self, xi, yi, path=True):
+        if 'step' in self.view:
+            ## each value in the x/y arrays generates 2 points.
+            x = xi[:, np.newaxis] + [0,0]
+            dx = np.diff(xi) / 2
+            dx = np.append(dx, dx[-1])
+            x[:, 0] -= dx
+            x[:, 1] += dx
+            x = x.flatten()
+            y = as_strided(yi, shape=[len(yi), 2], strides=[yi.strides[0], 0]).flatten()
+        if 'line' in self.view:
+            x, y = xi[:], yi[:]
         if path:
-            path = pg.functions.arrayToQPath(x, y, connect=self.opts['connect'])
-            return path
+            return pg.functions.arrayToQPath(x, y, connect=self.opts['connect'])
         else:
             return x, y
 
     def returnPathData(self):
-        if self.view == 'step':
-            return self.generateStepPath(self.xData, self.yData, path=False)
-        elif self.view == 'line':
-            return self.generatePath(self.xData, self.yData, path=False)
+        return self.generatePath(self.xData, self.yData, path=False)
 
     def mouseDragEvent(self, ev):
         if QApplication.keyboardModifiers() in [Qt.ShiftModifier, Qt.ControlModifier]:
