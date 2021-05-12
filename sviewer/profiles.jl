@@ -232,6 +232,7 @@ function update_pars(pars, spec, add)
     for (k, v) in pars
         if v.tied != ""
             pars[k].val = pars[v.tied].val
+            println(k, " ", v.tied)
         end
         if occursin("res", pars[k].name)
             #println(pars[k].name, " ", pars[k].val, " ", parse(Int, pars[k].addinfo[5:end]))
@@ -719,7 +720,7 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
 end
 
 
-function fitLM(spec, p_pars, add)
+function fitLM(spec, p_pars, add; tieds=Dict())
 
     function cost(p)
         i = 1
@@ -742,7 +743,7 @@ function fitLM(spec, p_pars, add)
         return res
     end
 
-    pars = make_pars(p_pars)
+    pars = make_pars(p_pars, tieds=tieds)
 
     println("fitLM ", pars)
     params = [p.val for (k, p) in pars if p.vary == true]

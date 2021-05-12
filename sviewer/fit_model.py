@@ -228,6 +228,20 @@ class fitModelWidget(QWidget):
         speciesbox.addStretch(1)
         # self.setLayout(layout)
 
+        rangebox = QHBoxLayout()
+        self.setrange = QPushButton("Set range:")
+        self.setrange.setFixedSize(80, 30)
+        self.setrange.clicked[bool].connect(self.setRange)
+        lbl = QLabel("   unc x")
+        lbl.setFixedSize(40, 30)
+        self.rangeValue = QLineEdit("1")
+        self.rangeValue.setFixedSize(60, 30)
+        self.rangeValue.returnPressed.connect(self.setRange)
+        rangebox.addWidget(self.setrange)
+        rangebox.addWidget(lbl)
+        rangebox.addWidget(self.rangeValue)
+        rangebox.addStretch(1)
+
         self.addSys = QPushButton("Add system")
         self.addSys.setFixedSize(120, 30)
         self.addSys.clicked[bool].connect(self.addSystem)
@@ -247,6 +261,7 @@ class fitModelWidget(QWidget):
         layout_left.addWidget(self.tab)
         layout_left.addWidget(QLabel('add species: '))
         layout_left.addLayout(speciesbox)
+        layout_left.addLayout(rangebox)
         layout_left.addSpacing(50)
         #layout.addStretch(1)
         layout_left.addLayout(hbox)
@@ -603,6 +618,17 @@ class fitModelWidget(QWidget):
         else:
             head = '# tie par1 to par2 by printing: <par1> <par2>'
             self.tieWindow.setText('\n'.join([head] + [' '.join([k, v]) for k, v in self.parent.fit.tieds.items()]))
+
+    def setRange(self):
+        x = float(self.rangeValue.text())
+        for p in self.parent.fit.list_fit():
+            if p.unc.val != 0:
+                self.parent.fit.setValue(str(p), p.unc.val - p.unc.minus * x, attr='min')
+                self.parent.fit.setValue(str(p), p.unc.val + p.unc.plus * x, attr='max')
+            else:
+                self.parent.fit.setValue(str(p), p.val - p.step * x, attr='min')
+                self.parent.fit.setValue(str(p), p.val + p.step * x, attr='max')
+        self.update()
 
     def addSystem(self):
         self.tabNum += 1

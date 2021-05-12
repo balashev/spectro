@@ -2387,45 +2387,54 @@ class fitMCMCWidget(QWidget):
         locale = QLocale('C')
         validator.setLocale(locale)
         # validator.ScientificNotation
-        names = ['Walkers:     ', '',
+        names = ['Sampler:     ', '',
+                 'Walkers:     ', '',
                  'Iterations:   ', '',
                  'Threads:', '',
                  'Priors:    ', '',
                  'Constraints:', '',
                  '', '',
                  ]
-        positions = [(i, j) for i in range(6) for j in range(2)]
+        positions = [(i, j) for i in range(7) for j in range(2)]
 
         for position, name in zip(positions, names):
             if name == '':
                 continue
             grid.addWidget(QLabel(name), *position)
 
-        self.opt_but = OrderedDict([('MCMC_walkers', [0, 1]),
-                                    ('MCMC_iters', [1, 1]),
-                                    ('MCMC_threads', [2, 1]),
+        self.sampler = QComboBox()
+        self.sampler.addItems(['AffineMCMC', 'UltraNest'])
+        self.sampler.setFixedSize(120, 30)
+        self.sampler.activated[str].connect(self.selectSampler)
+        self.sampler.setCurrentIndex(['AffineMCMC', 'UltraNest'].index(self.parent.options('MCMC_sampler')))
+        grid.addWidget(self.sampler, 0, 1)
+
+        self.opt_but = OrderedDict([('MCMC_walkers', [1, 1]),
+                                    ('MCMC_iters', [2, 1]),
+                                    ('MCMC_threads', [3, 1]),
                                     ])
         for opt, v in self.opt_but.items():
-            b = QLineEdit(str(getattr(self, opt)))
-            b.setFixedSize(80, 30)
-            b.setValidator(validator)
-            b.textChanged[str].connect(partial(self.onChanged, attr=opt))
-            grid.addWidget(b, v[0], v[1])
+            setattr(self, opt, QLineEdit(str(getattr(self, opt))))
+            getattr(self, opt).setFixedSize(80, 30)
+            getattr(self, opt).setValidator(validator)
+            getattr(self, opt).textChanged[str].connect(partial(self.onChanged, attr=opt))
+            getattr(self, opt).setEnabled(self.parent.options('MCMC_sampler') == 'AffineMCMC')
+            grid.addWidget(getattr(self, opt), v[0], v[1])
         self.priorField = QTextEdit('')
         self.priorField.setFixedSize(300, 400)
         self.priorField.textChanged.connect(self.priorsChanged)
         self.priorField.setText('# you can specify prior here \n# N_0_HI 19 0.2 0.3 \n# for comment use #')
-        grid.addWidget(self.priorField, 3, 1)
+        grid.addWidget(self.priorField, 4, 1)
 
         self.b_increase = QCheckBox('b increase')
         self.b_increase.setChecked(False)
         #self.b_increase.clicked[bool].connect(partial(self.setOpts, 'smooth'))
-        grid.addWidget(self.b_increase, 4, 1)
+        grid.addWidget(self.b_increase, 5, 1)
 
         self.H2_excitation = QCheckBox('H2 excitation')
         self.H2_excitation.setChecked(False)
         # self.b_increase.clicked[bool].connect(partial(self.setOpts, 'smooth'))
-        grid.addWidget(self.H2_excitation, 5, 1)
+        grid.addWidget(self.H2_excitation, 6, 1)
 
         self.hier_continuum = QCheckBox('continuum (hierarchical)')
         if hasattr(self.parent.fit, 'hcont'):
@@ -2433,7 +2442,7 @@ class fitMCMCWidget(QWidget):
         else:
             self.hier_continuum.setEnabled(False)
         # self.b_increase.clicked[bool].connect(partial(self.setOpts, 'smooth'))
-        grid.addWidget(self.hier_continuum, 6, 1)
+        grid.addWidget(self.hier_continuum, 7, 1)
 
         self.chooseFit = chooseFitParsWidget(self.parent, closebutton=False)
         self.chooseFit.setFixedSize(200, 700)
@@ -2614,6 +2623,12 @@ class fitMCMCWidget(QWidget):
             setattr(self, attr, self.opts[attr](text))
             self.parent.options(attr, self.opts[attr](text))
 
+    def selectSampler(self):
+        print(self.sampler.currentText())
+        self.parent.options('MCMC_sampler', self.sampler.currentText())
+        for attr in ['MCMC_walkers', 'MCMC_iters', 'MCMC_threads']:
+            getattr(self, attr).setEnabled(self.sampler.currentText() == 'AffineMCMC')
+
     def priorsChanged(self):
         self.priors = {}
         for line in self.priorField.toPlainText().splitlines():
@@ -2717,14 +2732,23 @@ class fitMCMCWidget(QWidget):
                 self.julia.include("MCMC.jl")
                 t = Timer("Julia MCMC")
 
-                chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add, tieds=self.parent.fit.tieds, prior=self.priors, nwalkers=nwalkers,
+                chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add,
+                                                       sampler=self.sampler.currentText(),
+                                                       tieds=self.parent.fit.tieds, prior=self.priors, nwalkers=nwalkers,
                                                        nsteps=nsteps, nthreads=nthreads, init=np.transpose(init), opts=opts)
 
+                print(chain)
+                from ultranest.plot import cornerplot
+                cornerplot(chain)
+                plt.show()
+
+                print(lns)
                 backend.grow(nsteps, None)
                 with backend.open("a") as f:
                     g = f[backend.name]
                     g.attrs["iteration"] = nsteps
-                    g["log_prob"][...] = lns.transpose()
+                    if lns is not None:
+                        g["log_prob"][...] = lns.transpose()
                     g["chain"][...] = chain.transpose(2, 1, 0)
                     g.attrs["pars"] = [p.encode() for p in pars]
 
@@ -7796,7 +7820,7 @@ class sviewer(QMainWindow):
 
         self.s.prepareFit(all=False)
         #self.julia_spec = self.julia.prepare(self.s, self.julia_pars)
-        dof, res, unc = self.julia.fitLM(self.julia_spec, self.fit.list(), self.julia_add)
+        dof, res, unc = self.julia.fitLM(self.julia_spec, self.fit.list(), self.julia_add, tieds=self.fit.tieds)
         s = self.fit.fromJulia(res, unc)
 
         self.console.set(s)

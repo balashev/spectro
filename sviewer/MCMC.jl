@@ -25,8 +25,9 @@ println("procs: ", nprocs())
 
 @everywhere using SpecialFunctions
 @everywhere include("profiles.jl")
+@everywhere using PyCall
 
-function fitMCMC(spec, ppar, add; tieds=Dict(), prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, init=nothing, opts=0)
+function fitMCMC(spec, ppar, add; sampler="AffineMCMC", tieds=Dict(), prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, init=nothing, opts=0)
 
     #COUNTERS["num"] = nwalkers
 
@@ -41,38 +42,39 @@ function fitMCMC(spec, ppar, add; tieds=Dict(), prior=nothing, nwalkers=100, nst
     thinning = 10
 
 	lnlike = p->begin
-        #println(p)
-        i = 1
-        for (k, v) in pars
-            if v.vary == 1
-                if p[i] < v.min
-                    p[i] = v.min
-                elseif p[i] > v.max
-                    p[i] = v.max
-                end
-                pars[k].val = p[i]
-                i += 1
-            end
-        end
+		i = 1
+		#println(pars)
+		for (k, v) in pars
+			if v.vary == 1
+				#println(i, " ", p[i], " ", v.min)
+				if p[i] < v.min
+					p[i] = v.min
+				elseif p[i] > v.max
+					p[i] = v.max
+				end
+				pars[k].val = p[i]
+				i += 1
+			end
+		end
 
-        update_pars(pars, spec, add)
+		update_pars(pars, spec, add)
 
 		retval = 0
 
-        if priors != nothing
-            for (k, p) in priors
-                #println(p.name, " ", pars[p.name].val, " ", use_prior(p, pars[p.name].val))
-                retval -= use_prior(p, pars[p.name].val)
-            end
-        end
+		if priors != nothing
+			for (k, p) in priors
+				#println(p.name, " ", pars[p.name].val, " ", use_prior(p, pars[p.name].val))
+				retval -= use_prior(p, pars[p.name].val)
+			end
+		end
 
-        for s in spec
-            if sum(s.mask) > 0
-    			model = calc_spectrum(s, pars, out="init")
-                retval -= .5 * sum(((model .- s.y[s.mask]) ./ s.unc[s.mask]) .^ 2)
+		for s in spec
+			if sum(s.mask) > 0
+				model = calc_spectrum(s, pars, out="init")
+				retval -= .5 * sum(((model .- s.y[s.mask]) ./ s.unc[s.mask]) .^ 2)
 
 				if opts["hier_continuum"] == true
-    				for cont in s.cont
+					for cont in s.cont
 						mask = (s.x[s.mask] .> cont.left) .& (s.x[s.mask] .< cont.right)
 						c = parse(Float64, split(pars[cont.c[1]].addinfo, "_")[4])
 						A = sum((model[mask] .* c ./ s.unc[s.mask][mask]) .^ 2) + 1 / pars["hcont"].val ^ 2
@@ -80,62 +82,98 @@ function fitMCMC(spec, ppar, add; tieds=Dict(), prior=nothing, nwalkers=100, nst
 						retval -= .5 * (log(A * pars["hcont"].val ^ 2) - B ^ 2 / A)
 					end
 				end
-            end
-        end
+			end
+		end
 
-        # add constraints to the fit set by opts parameter
+		# add constraints to the fit set by opts parameter
 
 		# constraints for H2 on increasing b parameter with J level increase
-        if opts["b_increase"] == true
-            for (k, v) in pars
-                if occursin("H2j", k) & occursin("b_", k)
-                    for (k1, v1) in pars
-                        if occursin(k[1:7], k1) & ~occursin(k, k1)
-                            j, j1 = parse(Int64, k[8:end]), parse(Int64, k1[8:end])
-                            x = sign(j - j1) * (v.val / v1.val - 1) * 10
-                            retval -= (x < 0 ? x : 0) ^ 2
-                        end
-                    end
-                end
-            end
-        end
+		if opts["b_increase"] == true
+			for (k, v) in pars
+				if occursin("H2j", k) & occursin("b_", k)
+					for (k1, v1) in pars
+						if occursin(k[1:7], k1) & ~occursin(k, k1)
+							j, j1 = parse(Int64, k[8:end]), parse(Int64, k1[8:end])
+							x = sign(j - j1) * (v.val / v1.val - 1) * 10
+							retval -= (x < 0 ? x : 0) ^ 2
+						end
+					end
+				end
+			end
+		end
 
-        # constraints for H2 on on excitation diagram to be gradually increasing with J
-        if opts["H2_excitation"] == true
-            T = Dict()
-            E = [170.5, 339.35, 505.31, 666.53, 822.20, 970.58, 1111.96, 1243.40, 1367.25, 1480.35] #Energy difference in K
-            g = [(2 * level + 1) * ((level % 2) * 2 + 1) for level in 0:11]  #statweights
-            for (k, v) in pars
-                if occursin("H2j", k) & occursin("N_", k)
-                    j = parse(Int64, k[8:end])
-                    if haskey(pars, k[1:7] * string(j+1))
-                        if ~haskey(T, k[3])
-                            T[k[3]] = Dict()
-                        end
-                        #println(j, " ", v.val, " ", E[j+1], " ", g[j+1])
-                        T[k[3]][j] = E[j+1] / log(10^v.val / 10^pars[k[1:7] * string(j+1)].val * g[j+2] / g[j+1])
-                    end
-                end
-            end
-            for (k, d) in T
-                #println(k)
-                for (k, v) in d
-                    if haskey(d, k+1)
-                        #println(k, " ", v, " ", d[k+1])
-                        retval -= (d[k+1] - v < 0 ? (d[k+1] - v) / 50 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2
-                    end
-                end
-            end
-            #println(T)
-        end
+		# constraints for H2 on on excitation diagram to be gradually increasing with J
+		if opts["H2_excitation"] == true
+			T = Dict()
+			E = [170.5, 339.35, 505.31, 666.53, 822.20, 970.58, 1111.96, 1243.40, 1367.25, 1480.35] #Energy difference in K
+			g = [(2 * level + 1) * ((level % 2) * 2 + 1) for level in 0:11]  #statweights
+			for (k, v) in pars
+				if occursin("H2j", k) & occursin("N_", k)
+					j = parse(Int64, k[8:end])
+					if haskey(pars, k[1:7] * string(j+1))
+						if ~haskey(T, k[3])
+							T[k[3]] = Dict()
+						end
+						#println(j, " ", v.val, " ", E[j+1], " ", g[j+1])
+						T[k[3]][j] = E[j+1] / log(10^v.val / 10^pars[k[1:7] * string(j+1)].val * g[j+2] / g[j+1])
+					end
+				end
+			end
+			for (k, d) in T
+				#println(k)
+				for (k, v) in d
+					if haskey(d, k+1)
+						#println(k, " ", v, " ", d[k+1])
+						retval -= (d[k+1] - v < 0 ? (d[k+1] - v) / 50 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2
+					end
+				end
+			end
+			#println(T)
+		end
 
-        return retval
-    end
+		return retval
+	end
 
-    bounds = hcat([p.min for (k, p) in pars if p.vary], [p.max for (k, p) in pars if p.vary])
-	#println(bounds)
-    chain, llhoodvals = sample(lnlike, nwalkers, init, nsteps, 1, bounds)
 
+	if sampler == "AffineMCMC"
+		bounds = hcat([p.min for (k, p) in pars if p.vary], [p.max for (k, p) in pars if p.vary])
+		#println(bounds)
+		chain, llhoodvals = sample(lnlike, nwalkers, init, nsteps, 1, bounds)
+
+elseif sampler == "UltraNest"
+		ultranest = pyimport("ultranest")
+
+		mytransform = cube->begin
+			params = copy(cube)
+			hi, lo = [p.max for (k, p) in pars if p.vary], [p.min for (k, p) in pars if p.vary]
+			for (i, c) in enumerate(cube)
+				params[i] = c * (hi[i] - lo[i]) + lo[i]
+			end
+			return params
+		end
+
+		lnlike_vec = p-> begin
+			return pmap(lnlike, mapslices(x->[x], p, dims=2)[:])
+		end
+
+		mytransform_vec = cube->begin
+			return transpose(reduce(hcat, map(i->mytransform(cube[i, :]), 1:size(cube, 1))))
+		end
+
+		paramnames = [replace(p.name, "_"=>"") for (k, p) in pars if p.vary]
+		sampler = ultranest.ReactiveNestedSampler(paramnames, lnlike_vec, transform=mytransform_vec, vectorized=true)
+		results = sampler.run()
+		print("result has these keys:", keys(results), "\n")
+
+		println(results["samples"])
+		println(results["maximum_likelihood"])
+
+		sampler.print_results()
+		#sampler.plot_run()
+		#sampler.plot()
+		#return results["samples"], nothing
+		return results, nothing
+	end
 end
 
 function check_pars(proposal, pars)
@@ -160,7 +198,8 @@ function sample(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thi
 			active, inactive = ensembles
 			zs = map(u->((a - 1) * u + 1)^2 / a, rand(length(active)))
 			proposals = map(i-> min.(max.(zs[i] * x[:, active[i]] + (1 - zs[i]) * x[:, rand(inactive)], bounds[:,1]), bounds[:,2]), 1:length(active))
-            #newllhoods = RobustPmap.rpmap(llhood, proposals)
+            println("pr ", proposals)
+			#newllhoods = RobustPmap.rpmap(llhood, proposals)
 			newllhoods = pmap(llhood, proposals)
 			for (j, walkernum) in enumerate(active)
 				z = zs[j]
