@@ -198,7 +198,7 @@ function sample(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thi
 			active, inactive = ensembles
 			zs = map(u->((a - 1) * u + 1)^2 / a, rand(length(active)))
 			proposals = map(i-> min.(max.(zs[i] * x[:, active[i]] + (1 - zs[i]) * x[:, rand(inactive)], bounds[:,1]), bounds[:,2]), 1:length(active))
-            println("pr ", proposals)
+            #println("pr ", proposals)
 			#newllhoods = RobustPmap.rpmap(llhood, proposals)
 			newllhoods = pmap(llhood, proposals)
 			for (j, walkernum) in enumerate(active)

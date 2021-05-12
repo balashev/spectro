@@ -232,7 +232,6 @@ function update_pars(pars, spec, add)
     for (k, v) in pars
         if v.tied != ""
             pars[k].val = pars[v.tied].val
-            println(k, " ", v.tied)
         end
         if occursin("res", pars[k].name)
             #println(pars[k].name, " ", pars[k].val, " ", parse(Int, pars[k].addinfo[5:end]))

@@ -2737,10 +2737,11 @@ class fitMCMCWidget(QWidget):
                                                        tieds=self.parent.fit.tieds, prior=self.priors, nwalkers=nwalkers,
                                                        nsteps=nsteps, nthreads=nthreads, init=np.transpose(init), opts=opts)
 
-                print(chain)
-                from ultranest.plot import cornerplot
-                cornerplot(chain)
-                plt.show()
+
+                if self.sampler.currentText() == 'UltraNest':
+                    from ultranest.plot import cornerplot
+                    cornerplot(chain)
+                    plt.show()
 
                 print(lns)
                 backend.grow(nsteps, None)
