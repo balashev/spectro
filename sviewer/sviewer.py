@@ -1945,6 +1945,8 @@ class showLinesWidget(QWidget):
                             ind = int(s[4:])
                         if 'note' in s:
                             p.label = str(s[5:])
+                        if 'nofit' in s:
+                            p.show_fit = False
                 print(p.name, ind)
                 s = self.parent.s[ind]
 
@@ -1999,7 +2001,7 @@ class showLinesWidget(QWidget):
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 p.y_formatter = self.y_formatter
                 ax = p.plot_line()
-                if self.show_cf and self.parent.fit.cf_fit:
+                if self.show_cf and self.parent.fit.cf_fit and p.show_fit:
                     def conv(x):
                         return (x / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26
                     for k in range(self.parent.fit.cf_num):
@@ -2061,6 +2063,8 @@ class showLinesWidget(QWidget):
                         ind = int(s[4:])
                     if 'note' in s:
                         p.label = str(s[5:])
+                    if 'nofit' in s:
+                        p.show_fit = False
                 print(ind)
                 s = self.parent.s[ind]
 
@@ -2098,7 +2102,7 @@ class showLinesWidget(QWidget):
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 p.y_formatter = self.y_formatter
                 p.plot_line()
-                if self.show_cf and self.parent.fit.cf_fit:
+                if self.show_cf and self.parent.fit.cf_fit and p.show_fit:
                     for k in range(self.parent.fit.cf_num):
                         if self.cfs == 'all' or 'cf' + str(k) in self.cfs:
                             attr = 'cf_' + str(k)
