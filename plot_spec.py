@@ -238,8 +238,6 @@ class plot_spec(list):
                     if k % 2 == 1:
                         p.xlabel_pos = 1
 
-        print(inds_x)
-
         if ylabels is not None:
             for i, p in enumerate(self):
                 if i in ylabels:
@@ -456,7 +454,7 @@ class plotline():
             if not self.vel_scale:
                 self.x_min, self.x_max = self.spec.x[0], self.spec.x[-1]
             else:
-                self.x_min, self.x_max = (self.spec.x[0]/self.wavelength/(1+self.parent.z_ref)-1)*299794.26, (self.spec.x[-1]/self.wavelength/(1+self.parent.z_ref)-1)*299794.26
+                self.x_min, self.x_max = (self.spec.x[0] / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26, (self.spec.x[-1] / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
             self.y_min, self.y_max = min(self.spec.y), max(self.spec.y)
 
         # >>> correct continuum
@@ -706,9 +704,9 @@ class plotline():
         # ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res-1.1*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
         # ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res+0.9*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
         x_pos = self.x_max - 0.01 * (self.x_max - self.x_min)
-        self.ax.text(x_pos, null_res + delt_res, r'+' + str(self.sig) + '$\sigma$', fontsize=self.font - 2,
+        self.ax.text(x_pos, null_res + delt_res, r'$+$' + str(self.sig) + '$\sigma$', fontsize=self.font - 2,
                 color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
-        self.ax.text(x_pos, null_res - delt_res, r'-' + str(self.sig) + '$\sigma$', fontsize=self.font - 2,
+        self.ax.text(x_pos, null_res - delt_res, r'$-$' + str(self.sig) + '$\sigma$', fontsize=self.font - 2,
                 color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
         # print(self.fit.x, self.fit.y)
         try:

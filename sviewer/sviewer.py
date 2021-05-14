@@ -405,6 +405,13 @@ class plotSpectrum(pg.PlotWidget):
                     self.vb.setMouseMode(self.vb.RectMode)
                     self.vb.rbScaleBox.hide()
 
+        if event.key() in [Qt.Key_Right, Qt.Key_Left]:
+            if not self.e_status and not self.p_status:
+                self.parent.setz_abs(self.parent.z_abs + (-1 + 2 * (event.key() == Qt.Key_Right))
+                                     * (self.viewRange()[0][-1] - self.viewRange()[0][0]) / (np.sum(self.viewRange()[0]) / 2) / 3000 * (1 + 9 * (QApplication.keyboardModifiers() == Qt.ShiftModifier))
+                                     * (self.parent.z_abs + 1))
+
+
     def keyReleaseEvent(self, event):
 
         if not event.isAutoRepeat():
@@ -1992,8 +1999,9 @@ class showLinesWidget(QWidget):
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 p.y_formatter = self.y_formatter
                 ax = p.plot_line()
-
                 if self.show_cf and self.parent.fit.cf_fit:
+                    def conv(x):
+                        return (x / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26
                     for k in range(self.parent.fit.cf_num):
                         if self.cfs == 'all' or 'cf' + str(k) in self.cfs:
                             attr = 'cf_' + str(k)
@@ -2002,10 +2010,10 @@ class showLinesWidget(QWidget):
                                 if (len(cf.addinfo.split('_')) > 1 and cf.addinfo.split('_')[1] == 'all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
                                     color = to_hex(tuple(c / 255 for c in self.cf_color.to_bytes(4, byteorder='big')))
                                     if p.fit_disp is None:
-                                        p.ax.plot([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], [1 - cf.val, 1 - cf.val], '--', lw=0.5, color=color)
+                                        p.ax.plot([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], [1 - cf.val, 1 - cf.val], '--', lw=0.5, color=color)
                                     else:
-                                        p.ax.plot([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], [1 - cf.unc.val, 1 - cf.unc.val], '--', lw=0.5, color=color)
-                                        p.ax.fill_between([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], 1 - cf.unc.val - cf.unc.plus, 1 - cf.unc.val + cf.unc.minus, ls=':', color=color, alpha=0.1)
+                                        p.ax.plot([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], [1 - cf.unc.val, 1 - cf.unc.val], '--', lw=0.5, color=color)
+                                        p.ax.fill_between([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], 1 - cf.unc.val - cf.unc.plus, 1 - cf.unc.val + cf.unc.minus, ls=':', color=color, alpha=0.1)
                                     if self.show_cf_value:
                                         p.ax.text(p.x_max - (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='right', va='bottom', fontsize=p.font_labels, color=color)
 
