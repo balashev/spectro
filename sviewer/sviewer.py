@@ -2399,6 +2399,7 @@ class fitMCMCWidget(QWidget):
         names = ['Sampler:     ', '',
                  'Walkers:     ', '',
                  'Iterations:   ', '',
+                 'Thinning:   ', '',
                  'Threads:', '',
                  'Priors:    ', '',
                  'Constraints:', '',
@@ -2411,40 +2412,43 @@ class fitMCMCWidget(QWidget):
                 continue
             grid.addWidget(QLabel(name), *position)
 
+        self.sampler_opts = {'emcee': ['MCMC_threads'], 'Affine': [], 'ESS': [], 'UltraNest': ['MCMC_walkers', 'MCMC_iters'],
+             'Hamiltonian': ['MCMC_walkers', 'MCMC_threads']}
+        self.sampler = QComboBox()
+        self.sampler.addItems(['emcee', 'Affine', 'ESS', 'UltraNest', 'Hamiltonian'])
+        self.sampler.setFixedSize(120, 30)
+        self.sampler.currentTextChanged.connect(self.selectSampler)
+        self.sampler.setCurrentText(self.parent.options('MCMC_sampler'))
+        grid.addWidget(self.sampler, 0, 1)
+
         self.opt_but = OrderedDict([('MCMC_walkers', [1, 1]),
                                     ('MCMC_iters', [2, 1]),
-                                    ('MCMC_threads', [3, 1]),
+                                    ('MCMC_thinning', [3, 1]),
+                                    ('MCMC_threads', [4, 1]),
                                     ])
         for opt, v in self.opt_but.items():
             setattr(self, opt, QLineEdit(str(self.parent.options(opt))))
             getattr(self, opt).setFixedSize(80, 30)
             getattr(self, opt).setValidator(validator)
             getattr(self, opt).textChanged[str].connect(partial(self.onChanged, attr=opt))
-            getattr(self, opt).setEnabled(self.parent.options('MCMC_sampler') == 'AffineMCMC')
+            getattr(self, opt).setEnabled(opt not in self.sampler_opts[self.parent.options('MCMC_sampler')])
             grid.addWidget(getattr(self, opt), v[0], v[1])
-
-        self.sampler = QComboBox()
-        self.sampler.addItems(['AffineMCMC', 'UltraNest', 'Hamiltonian'])
-        self.sampler.setFixedSize(120, 30)
-        self.sampler.currentTextChanged.connect(self.selectSampler)
-        self.sampler.setCurrentText(self.parent.options('MCMC_sampler'))
-        grid.addWidget(self.sampler, 0, 1)
 
         self.priorField = QTextEdit('')
         self.priorField.setFixedSize(300, 400)
         self.priorField.textChanged.connect(self.priorsChanged)
         self.priorField.setText('# you can specify prior here \n# N_0_HI 19 0.2 0.3 \n# for comment use #')
-        grid.addWidget(self.priorField, 4, 1)
+        grid.addWidget(self.priorField, 5, 1)
 
         self.b_increase = QCheckBox('b increase')
         self.b_increase.setChecked(False)
         #self.b_increase.clicked[bool].connect(partial(self.setOpts, 'smooth'))
-        grid.addWidget(self.b_increase, 5, 1)
+        grid.addWidget(self.b_increase, 6, 1)
 
         self.H2_excitation = QCheckBox('H2 excitation')
         self.H2_excitation.setChecked(False)
         # self.b_increase.clicked[bool].connect(partial(self.setOpts, 'smooth'))
-        grid.addWidget(self.H2_excitation, 6, 1)
+        grid.addWidget(self.H2_excitation, 7, 1)
 
         self.hier_continuum = QCheckBox('continuum (hierarchical)')
         if hasattr(self.parent.fit, 'hcont'):
@@ -2452,7 +2456,7 @@ class fitMCMCWidget(QWidget):
         else:
             self.hier_continuum.setEnabled(False)
         # self.b_increase.clicked[bool].connect(partial(self.setOpts, 'smooth'))
-        grid.addWidget(self.hier_continuum, 7, 1)
+        grid.addWidget(self.hier_continuum, 8, 1)
 
         self.chooseFit = chooseFitParsWidget(self.parent, closebutton=False)
         self.chooseFit.setFixedSize(200, 700)
@@ -2635,9 +2639,8 @@ class fitMCMCWidget(QWidget):
 
     def selectSampler(self):
         self.parent.options('MCMC_sampler', self.sampler.currentText())
-        d = {'AffineMCMC': [], 'UltraNest': ['MCMC_walkers', 'MCMC_iters'], 'Hamiltonian': ['MCMC_walkers', 'MCMC_threads']}
-        for attr in ['MCMC_walkers', 'MCMC_iters', 'MCMC_threads']:
-            getattr(self, attr).setEnabled(attr not in d[self.sampler.currentText()])
+        for attr in ['MCMC_walkers', 'MCMC_iters', 'MCMC_thinning', 'MCMC_threads']:
+            getattr(self, attr).setEnabled(attr not in self.sampler_opts[self.sampler.currentText()])
 
     def priorsChanged(self):
         self.priors = {}
@@ -2701,7 +2704,7 @@ class fitMCMCWidget(QWidget):
 
     def MCMC(self, init=True):
         #self.parent.setFit(comp=-1)
-        nwalkers, nsteps, nthreads = int(self.parent.options('MCMC_walkers')), int(self.parent.options('MCMC_iters')), int(self.parent.options('MCMC_threads'))
+        nwalkers, nsteps, nthreads, thinning = int(self.parent.options('MCMC_walkers')), int(self.parent.options('MCMC_iters')), int(self.parent.options('MCMC_threads')), int(self.parent.options('MCMC_thinning'))
 
         opts = {'b_increase': self.b_increase.isChecked(), 'H2_excitation': self.H2_excitation.isChecked(), 'hier_continuum': self.hier_continuum.isChecked()}
 
@@ -2725,59 +2728,69 @@ class fitMCMCWidget(QWidget):
         self.parent.s.prepareFit(ind=-1, all=False)
         self.parent.s.calcFit(ind=-1, redraw=False)
 
-        if 1:
-            backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
+        pars = [str(p) for p in self.parent.fit.list_fit()]
+        print(pars)
 
-            pars = [str(p) for p in self.parent.fit.list_fit()]
-            print(pars)
+        backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
+        backend.reset(nwalkers, np.sum([p.vary for p in self.parent.julia_pars.values()]))
 
-            #with open("output/MCMC_pars.pkl", "wb") as f:
-            #    pickle.dump([str(p.name) for p in self.parent.julia_pars if p.vary], f)
+        t = Timer("MCMC run")
 
-            if self.parent.options('fitType') == 'julia':
+        if self.sampler.currentText() in ['Affine', 'ESS', 'UltraNest', 'Hamiltonian']:
 
-                backend.reset(nwalkers, np.sum([p.vary for p in self.parent.julia_pars.values()]))
+            self.julia = julia.Julia()
+            self.julia.include("MCMC.jl")
 
-                self.julia = julia.Julia()
-                self.julia.include("MCMC.jl")
-                t = Timer("Julia MCMC")
+            chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add,
+                                                   sampler=self.sampler.currentText(), tieds=self.parent.fit.tieds,
+                                                   prior=self.priors, nwalkers=nwalkers, nsteps=nsteps,
+                                                   nthreads=nthreads, thinning=thinning, init=init, opts=opts)
 
-                chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add,
-                                                       sampler=self.sampler.currentText(),
-                                                       tieds=self.parent.fit.tieds, prior=self.priors, nwalkers=nwalkers,
-                                                       nsteps=nsteps, nthreads=nthreads, init=np.transpose(init), opts=opts)
+            if self.sampler.currentText() == 'UltraNest':
+                from ultranest.plot import cornerplot
+                cornerplot(chain)
+                plt.show()
+
+            backend.grow(nsteps, None)
+            with backend.open("a") as f:
+                g = f[backend.name]
+                g.attrs["iteration"] = nsteps
+                if lns is not None:
+                    g["log_prob"][...] = lns.transpose()
+                print(chain.shape, chain.transpose(2, 0, 1).shape)
+                g["chain"][...] = chain.transpose(2, 0, 1)
+                g.attrs["pars"] = [p.encode() for p in pars]
+
+        elif self.sampler.currentText() in ['emcee']:
+
+            def lnprob(params, pars, priors, self):
+                #print(params)
+                for v, p in zip(params, pars):
+                    if not self.parent.fit.setValue(p, v):
+                        return -np.inf
+                self.parent.fit.update(redraw=False)
+                self.parent.julia_pars = self.parent.julia.make_pars(self.parent.fit.list(), tieds=self.parent.fit.tieds)
+                #self.parent.s.prepareFit(all=False)
+                self.parent.s.calcFit(recalc=True)
+                lp = 0
+                for k, v in priors.items():
+                    print(k, v)
+                    lp += v.lnL(p)
+                return lp - 0.5 * self.parent.s.chi2()
+
+            ndims = len(pars)
+            sampler = emcee.EnsembleSampler(nwalkers, ndims, lnprob, args=[pars, self.priors, self], backend=backend)
+
+            for i, result in enumerate(sampler.sample(init, iterations=nsteps)):
+                print(i)
+                self.parent.MCMCprogress.setText('     MCMC is running: {0:d} / {1:d}'.format(i, nsteps))
+
+            with backend.open("a") as f:
+                g = f[backend.name]
+                f[backend.name].attrs["pars"] = [p.encode() for p in pars]
 
 
-                if self.sampler.currentText() == 'UltraNest':
-                    from ultranest.plot import cornerplot
-                    cornerplot(chain)
-                    plt.show()
-
-                print(lns)
-                backend.grow(nsteps, None)
-                with backend.open("a") as f:
-                    g = f[backend.name]
-                    g.attrs["iteration"] = nsteps
-                    if lns is not None:
-                        g["log_prob"][...] = lns.transpose()
-                    g["chain"][...] = chain.transpose(2, 1, 0)
-                    g.attrs["pars"] = [p.encode() for p in pars]
-
-                t.time("finished")
-            else:
-                if pars == [str(p) for p in self.parent.fit.list_fit()]:
-                    ndims = len(self.parent.fit.list_fit)
-                    sampler = emcee.EnsembleSampler(nwalkers, ndims, lnprob, args=[pars, self.priors, self], backend=backend)
-
-                    for i, result in enumerate(sampler.sample(pos, iterations=nsteps)):
-                        print(i)
-                        self.parent.MCMCprogress.setText('     MCMC is running: {0:d} / {1:d}'.format(i, nsteps))
-
-                    with backend.open("a") as f:
-                        g = f[backend.name]
-                        f[backend.name].attrs["pars"] = [p.encode() for p in pars]
-
-                self.showMC()
+        t.time("finished")
 
         self.parent.MCMC_output = "output/mcmc.hdf5"
         self.start_button.setChecked(False)
@@ -2792,7 +2805,7 @@ class fitMCMCWidget(QWidget):
                 g = f[backend.name]
                 print(list(g.keys()))
                 print(list(g.attrs.keys()))
-                print([g.attrs[k] for k in list(g.attrs.keys())])
+                #print([g.attrs[k] for k in list(g.attrs.keys())])
                 g.attrs['iteration'] = g['chain'][:].shape[0]
                 print(g.attrs['iteration'])
                 pars = [p.decode() for p in g.attrs['pars']]

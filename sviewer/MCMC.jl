@@ -7,8 +7,10 @@ using Random
 @everywhere using SpecialFunctions
 @everywhere include("profiles.jl")
 @everywhere using PyCall
+@everywhere using Combinatorics
 
-function fitMCMC(spec, ppar, add; sampler="AffineMCMC", tieds=Dict(), prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, init=nothing, opts=0)
+
+function fitMCMC(spec, ppar, add; sampler="Affine", tieds=Dict(), prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
 
     #COUNTERS["num"] = nwalkers
 
@@ -115,7 +117,7 @@ function fitMCMC(spec, ppar, add; sampler="AffineMCMC", tieds=Dict(), prior=noth
 		return retval
 	end
 
-	if sampler in ["AffineMCMC", "UltraNest"]
+	if sampler in ["Affine", "ESS", "UltraNest"]
 		if nprocs() > 1
 			rmprocs(2:nprocs())
 		end
@@ -140,10 +142,14 @@ function fitMCMC(spec, ppar, add; sampler="AffineMCMC", tieds=Dict(), prior=noth
 		println("procs: ", nprocs())
 	end
 
-	if sampler == "AffineMCMC"
+	if sampler == "Affine"
 		bounds = hcat([p.min for (k, p) in pars if p.vary], [p.max for (k, p) in pars if p.vary])
 		#println(bounds)
-		chain, llhoodvals = sample(lnlike, nwalkers, init, nsteps, 1, bounds)
+		chain, llhoodvals = sampleAffine(lnlike, nwalkers, init, nsteps, thinning, bounds)
+
+	elseif sampler == "ESS"
+		bounds = hcat([p.min for (k, p) in pars if p.vary], [p.max for (k, p) in pars if p.vary])
+		chain, llhoodvals = sampleESS(lnlike, nwalkers, init, nsteps, thinning, bounds)
 
 	elseif sampler == "Hamiltonian"
 		"""
@@ -170,7 +176,7 @@ function fitMCMC(spec, ppar, add; sampler="AffineMCMC", tieds=Dict(), prior=noth
 		# Run the sampler to draw samples from the specified Gaussian, where
 		#   - `samples` will store the samples
 		#   - `stats` will store diagnostic statistics for each sample
-		samples, stats = sample(hamiltonian, proposal, initial_θ, nsteps, adaptor, nsteps/2; progress=true)
+		samples, stats = sampleAffine(hamiltonian, proposal, initial_θ, nsteps, adaptor, nsteps/2; progress=true)
 
 	elseif sampler == "UltraNest"
 		ultranest = pyimport("ultranest")
@@ -212,40 +218,34 @@ function check_pars(proposal, pars)
     return all([proposal[i] > p.min && proposal[i] < p.max for (i, p) in enumerate([p for p in pars if p.vary])])
 end
 
-function sample(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thinning::Integer, bounds::Array; a::Number=2.)
+function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thinning::Integer, bounds::Array; a::Number=2.)
     """
     Modified version of AffineInvariantMCMC by MADS (see copyright information in initial module)
     """
 	@assert length(size(x0)) == 2
 	x = copy(x0)
-	chain = Array{Float64}(undef, size(x0, 1), nwalkers, div(nsteps, thinning))
+	print(size(x))
+	chain = Array{Float64}(undef, nwalkers, size(x0, 2), div(nsteps, thinning))
 	llhoodvals = Array{Float64}(undef, nwalkers, div(nsteps, thinning))
-	#lastllhoodvals = RobustPmap.rpmap(llhood, map(i->x[:, i], 1:size(x, 2)))
-	lastllhoodvals = pmap(llhood, map(i->x[:, i], 1:size(x, 2)))
+	lastllhoodvals = pmap(llhood, map(i->x[i, :], 1:size(x, 1)))
 	chain[:, :, 1] = x0
 	llhoodvals[:, 1] = lastllhoodvals
 	for i = 2:nsteps
 		println(i)
-		for ensembles in [(1:div(nwalkers, 2), div(nwalkers, 2) + 1:nwalkers), (div(nwalkers, 2) + 1:nwalkers, 1:div(nwalkers, 2))]
+		s = shuffle(collect(1:nwalkers))
+		for ensembles in [(s[1:div(nwalkers, 2)], s[div(nwalkers, 2) + 1:nwalkers]), (s[div(nwalkers, 2) + 1:nwalkers], s[1:div(nwalkers, 2)])]
 			active, inactive = ensembles
 			zs = map(u->((a - 1) * u + 1)^2 / a, rand(length(active)))
-			proposals = map(i-> min.(max.(zs[i] * x[:, active[i]] + (1 - zs[i]) * x[:, rand(inactive)], bounds[:,1]), bounds[:,2]), 1:length(active))
-            #println("pr ", proposals)
-			#newllhoods = RobustPmap.rpmap(llhood, proposals)
-			newllhoods = pmap(llhood, proposals)
+			proposals = map(i-> min.(max.(zs[i] * x[active[i], :] + (1 - zs[i]) * x[rand(inactive), :], bounds[:,1]), bounds[:,2]), 1:length(active))
+            newllhoods = pmap(llhood, proposals)
 			for (j, walkernum) in enumerate(active)
-				z = zs[j]
-				newllhood = newllhoods[j]
-				proposal = proposals[j]
-				logratio = (size(x, 1) - 1) * log(z) + newllhood - lastllhoodvals[walkernum]
+				logratio = (size(x, 2) - 1) * log(zs[j]) + newllhoods[j] - lastllhoodvals[walkernum]
 				if log(rand()) < logratio
-					lastllhoodvals[walkernum] = newllhood
-					x[:, walkernum] = proposal
-			    else
-    			    x[:, walkernum] = chain[:, walkernum, i-1]
-                end
+					lastllhoodvals[walkernum] = newllhoods[j]
+					x[walkernum, :] = proposals[j]
+			    end
 				if i % thinning == 0
-					chain[:, walkernum, div(i, thinning)] = x[:, walkernum]
+					chain[walkernum, :, div(i, thinning)] = x[walkernum, :]
 					llhoodvals[walkernum, div(i, thinning)] = lastllhoodvals[walkernum]
 				end
 			end
@@ -256,6 +256,158 @@ function sample(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thi
 	end
 	return chain, llhoodvals
 end
+
+function sampleESS(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thinning::Integer, bounds::Array; mu::Number=1.)
+	"""
+	Ensamble Slice Sampler. Rewritten based on zeus python package
+	"""
+	function get_directions(x, mu)
+		nsamples = size(x, 1)
+		inds = hcat(rand(collect(permutations((1:nsamples), 2)), nsamples)...)
+		return 2. .* mu .* (x[inds[1,:], :] .- x[inds[2,:], :])
+	end
+
+	maxsteps, maxiters = 100, 100
+	#println(bounds)
+	@assert length(size(x0)) == 2
+	ndims = size(x0, 2)
+	x = copy(x0)
+	chain = Array{Float64}(undef, nwalkers, ndims, div(nsteps, thinning))
+	llhoodvals = Array{Float64}(undef, nwalkers, div(nsteps, thinning))
+	lastllhoodvals = pmap(llhood, map(i->x[i, :], 1:nwalkers))
+	chain[:, :, 1] = x0
+	llhoodvals[:, 1] = lastllhoodvals
+	ncalls = 0
+
+	for i = 2:nsteps
+		println(i)
+		# Initialise number of Log prob calls
+		nexp, ncon, ncall = 0, 0, 0
+
+		s = shuffle(collect(1:nwalkers))
+		for ensembles in [(s[1:div(nwalkers, 2)], s[div(nwalkers, 2) + 1:nwalkers]), (s[div(nwalkers, 2) + 1:nwalkers], s[1:div(nwalkers, 2)])]
+			# Define active-inactive ensembles
+			active, inactive = ensembles
+			#println(active, " ", inactive)
+
+			# Compute directions
+			directions = get_directions(x[inactive, :], mu)
+			#println("direct ", directions)
+
+			# Get Z0 = LogP(x0)
+			z0 = lastllhoodvals[active] .- randexp(div(nwalkers, 2))
+
+			# Set Initial Interval Boundaries
+			L = - rand(Float64, div(nwalkers, 2))
+			R = L .+ 1.0
+			#println(L, " ", R)
+
+			# Parallel stepping-out
+			J = rand(0:maxsteps-1, div(nwalkers, 2))
+			K = (maxsteps .- 1) .- J
+			#println(J, " ", K)
+
+			# Stepping-out initialisation
+			mask_J, Z_L, X_L = trues(div(nwalkers, 2)), Array{Float64}(undef, div(nwalkers, 2)), Array{Float64}(undef, div(nwalkers, 2), ndims)
+			mask_K, Z_R, X_R = trues(div(nwalkers, 2)), Array{Float64}(undef, div(nwalkers, 2)), Array{Float64}(undef, div(nwalkers, 2), ndims)
+			#println(mask_K, Z_R, X_R)
+
+			cnt = 0
+			# Stepping-Out procedure
+			while (sum(mask_J) > 0) | (sum(mask_K) > 0)
+				cnt = sum(mask_J) > 0 ? cnt + 1 : cnt
+				cnt = sum(mask_K) > 0 ? cnt + 1 : cnt
+				if cnt > maxiters
+					throw(DomainError("Number of expansion exceed limit"))
+				end
+
+				mask_J[mask_J] = J[mask_J] .> 0
+				mask_K[mask_K] = K[mask_K] .> 0
+				#println(cnt, " mask ", mask_J, " ", mask_K)
+
+				X_L[mask_J, :] = min.(max.(directions[mask_J, :] .* L[mask_J] .+ x[active, :][mask_J, :], transpose(bounds[:, 1])), transpose(bounds[:, 2]))
+				X_R[mask_K, :] = min.(max.(directions[mask_K, :] .* R[mask_K] .+ x[active, :][mask_K, :], transpose(bounds[:, 1])), transpose(bounds[:, 2]))
+				#println("X: ", X_L, " ", X_R)
+
+				if sum(mask_J) + sum(mask_K) < 1
+					cnt -= 1
+				else
+					Z_LR_masked = pmap(llhood, map(i->vcat(X_L[mask_J, :], X_R[mask_K, :])[i, :], 1:sum(mask_J)+sum(mask_K)))
+					Z_L[mask_J] .= Z_LR_masked[begin:sum(mask_J)]
+					Z_R[mask_K] .= Z_LR_masked[sum(mask_J)+1:end]
+					ncall += sum(mask_J) + sum(mask_K)
+				end
+
+				m = z0[mask_J] .< Z_L[mask_J]
+				mask_J[mask_J] .= m
+				if sum(m) > 0
+					L[mask_J] .-= 1
+					J[mask_J] .-= 1
+				end
+				nexp += sum(m)
+				m = z0[mask_K] .< Z_R[mask_K]
+				mask_K[mask_K] .= m
+				if sum(m) > 0
+					R[mask_K] .+= 1
+					K[mask_K] .-= 1
+				end
+				nexp += sum(m)
+			end
+			#println(X_L, " ", X_R)
+
+			# Shrinking procedure
+			Widths, z_prime, x_prime = Array{Float64}(undef, div(nwalkers, 2)), Array{Float64}(undef, div(nwalkers, 2)), Array{Float64}(undef, div(nwalkers, 2), ndims)
+			mask = trues(div(nwalkers, 2))
+
+			cnt = 0
+			while sum(mask) > 0
+				# Update Widths of intervals
+				Widths[mask] = L[mask] .+ rand(Float64, sum(mask)) .* (R[mask] .- L[mask])
+
+				# Compute New Positions
+				x_prime[mask, :] .= min.(max.(directions[mask, :] .* Widths[mask] .+ x[active, :][mask, :], transpose(bounds[:, 1])), transpose(bounds[:, 2]))
+
+				# Calculate LogP of New Positions
+				z_prime[mask] = pmap(llhood, map(i->x_prime[mask, :][i, :], 1:sum(mask)))
+
+				ncall += sum(mask)
+
+				# Shrink slices
+				mask[mask] .= z0[mask] .> z_prime[mask]
+				#println(mask)
+				#println(L, " ", R)
+				for (j, w) in enumerate(Widths)
+					if mask[j] == 1
+						if Widths[j] < 0
+							L[j] = Widths[j]
+						else
+							R[j] = Widths[j]
+						end
+					end
+				end
+				#println(L, " ", R)
+				ncon += sum(mask)
+
+				cnt += 1
+				if cnt > maxiters
+					throw(DomainError("Number of contractions exceeded maximum limit!"))
+				end
+			end
+			x[active, :] = x_prime[:, :]
+			lastllhoodvals[active] = z_prime[:]
+			if i % thinning == 0
+				chain[active, :, i] .= x_prime[:, :]
+				llhoodvals[active, i] .= z_prime[:]
+			end
+		end
+		#println(mu)
+		nexp = max(1, nexp)
+		mu *= 2.0 * nexp / (nexp + ncon)
+		ncalls += ncall
+	end
+	return chain, llhoodvals
+end
+
 
 @everywhere using AdvancedHMC, ForwardDiff
 
