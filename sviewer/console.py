@@ -459,6 +459,9 @@ class Console(QTextEdit):
                     self.parent.s[self.parent.s.ind].set_spline([self.parent.s[self.parent.s.ind].spec.raw.x[mask][0], self.parent.s[self.parent.s.ind].spec.raw.x[mask][-1]], [float(args[2]), float(args[2])])
                     #self.parent.s.redraw()
 
+        if args[0] == 'cont':
+            self.parent.s[self.parent.s.ind].set_spline([self.parent.s[self.parent.s.ind].spec.raw.x[mask][0], self.parent.s[self.parent.s.ind].spec.raw.x[mask][-1]], [float(args[1]), float(args[1])])
+
         elif args[0] == 'divide':
             if len(args) == 3:
                 i1, i2 = int(args[1]), int(args[2])

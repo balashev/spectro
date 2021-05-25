@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.transforms import Affine2D
 import mpl_toolkits.axisartist.floating_axes as floating_axes
 import numpy as np
-from pyqtgraph.Qt import QtCore, QtGui
+#from pyqtgraph.Qt import QtGui
 import pyqtgraph.opengl as gl
 from scipy import interpolate, integrate, optimize
 from scipy.stats import gaussian_kde, rv_continuous, norm

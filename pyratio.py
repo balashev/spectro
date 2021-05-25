@@ -1996,7 +1996,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check CII collisions
-    if 0:
+    if 1:
         pr = pyratio(z=2.65)
         pr.set_pars(['T', 'n', 'f', 'e'])
         pr.pars['T'].range = [1, 6]
@@ -2238,7 +2238,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check ionization parameter
-    if 1:
+    if 0:
         pr = pyratio(z=2.0, pumping='simple', radiation='simple', sed_type='AGN', agn={'filter': 'r', 'mag': 18})
         pr.set_pars(['T', 'rad', 'e'])
         pr.pars['T'].value = 4

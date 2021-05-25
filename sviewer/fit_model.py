@@ -22,7 +22,7 @@ class FLineEdit(QLineEdit):
         self.parent = parent
         self.var = var
         self.name = name
-        if self.name is not '' and 'val' in self.name:
+        if self.name != '' and 'val' in self.name:
             self.returnPressed.connect(self.calcFit)
         self.setLength()
         if 1:
@@ -1205,7 +1205,7 @@ class fitModelSysWidget(QFrame):
             setattr(getattr(self.fit.sys[self.ind], s), attr, float(getattr(self, s + '_' + attr).text()))
         if s in ['b', 'N']:
             setattr(getattr(self.fit.sys[self.ind].sp[species], s), attr, float(getattr(self, species + '_' + s + '_' + attr).text()))
-        if attr is 'val':
+        if attr == 'val':
             excl = species + '_' + s + '_' + attr if species is not None else s + '_' + attr
             self.refresh(excl, what=s)
 
@@ -1467,7 +1467,7 @@ class fitResultsWidget(QWidget):
 
             if self.showb.isChecked():
                 sp = sys.sp[list(sys.sp.keys())[0]]
-                if sp.b.addinfo is not '':
+                if sp.b.addinfo != '':
                     sp = sys.sp[sp.b.addinfo]
                 d.append(sp.b.fitres(latex=True, dec=2, showname=False))
 

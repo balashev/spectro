@@ -1,27 +1,8 @@
 using DelimitedFiles
 using Distributed
-@everywhere using PyCall
 using Random
+
 #import RobustPmap
-
-if nprocs() > 1
-    rmprocs(2:nprocs())
-end
-
-nthreads = 1
-open("config/options.ini") do f
-    for l in eachline(f)
-        if occursin("MCMC_threads", l)
-            global nthreads = parse(Int64, split(l)[3])
-        end
-    end
-end
-
-if nthreads > 1
-    addprocs(nthreads - 1)
-end
-
-println("procs: ", nprocs())
 
 @everywhere using SpecialFunctions
 @everywhere include("profiles.jl")
@@ -39,9 +20,9 @@ function fitMCMC(spec, ppar, add; sampler="AffineMCMC", tieds=Dict(), prior=noth
     params = [p.val for (k, p) in pars if p.vary == 1]
 
     numdims = size(params)[1]
-    thinning = 10
 
-	lnlike = p->begin
+	#lnlike = p->begin
+	function lnlike(p)
 		i = 1
 		#println(pars)
 		for (k, v) in pars
@@ -134,13 +115,64 @@ function fitMCMC(spec, ppar, add; sampler="AffineMCMC", tieds=Dict(), prior=noth
 		return retval
 	end
 
+	if sampler in ["AffineMCMC", "UltraNest"]
+		if nprocs() > 1
+			rmprocs(2:nprocs())
+		end
+
+		nthreads = 1
+		open("config/options.ini") do f
+			for l in eachline(f)
+				if occursin("MCMC_threads", l)
+					nthreads = parse(Int64, split(l)[3])
+					println(nthreads)
+				end
+			end
+		end
+
+		println(nthreads)
+		if nthreads > 1
+			addprocs(nthreads - 1)
+		end
+
+		@everywhere include("profiles.jl")
+
+		println("procs: ", nprocs())
+	end
 
 	if sampler == "AffineMCMC"
 		bounds = hcat([p.min for (k, p) in pars if p.vary], [p.max for (k, p) in pars if p.vary])
 		#println(bounds)
 		chain, llhoodvals = sample(lnlike, nwalkers, init, nsteps, 1, bounds)
 
-elseif sampler == "UltraNest"
+	elseif sampler == "Hamiltonian"
+		"""
+		does not work yet
+		"""
+		#chain = sampleHMC(lnlike, init, nsteps)
+		x0 = init[:,1]
+
+		# Define a Hamiltonian system
+		metric = DiagEuclideanMetric(size(x0)[1])
+		hamiltonian = Hamiltonian(metric, lnlike, ForwardDiff)
+
+		# Define a leapfrog solver, with initial step size chosen heuristically
+		initial_ϵ = find_good_stepsize(hamiltonian, x0)
+		integrator = Leapfrog(initial_ϵ)
+
+		# Define an HMC sampler, with the following components
+		#   - multinomial sampling scheme,
+		#   - generalised No-U-Turn criteria, and
+		#   - windowed adaption for step-size and diagonal mass matrix
+		proposal = NUTS{MultinomialTS, GeneralisedNoUTurn}(integrator)
+		adaptor = StanHMCAdaptor(MassMatrixAdaptor(metric), StepSizeAdaptor(0.8, integrator))
+
+		# Run the sampler to draw samples from the specified Gaussian, where
+		#   - `samples` will store the samples
+		#   - `stats` will store diagnostic statistics for each sample
+		samples, stats = sample(hamiltonian, proposal, initial_θ, nsteps, adaptor, nsteps/2; progress=true)
+
+	elseif sampler == "UltraNest"
 		ultranest = pyimport("ultranest")
 
 		mytransform = cube->begin
@@ -182,7 +214,7 @@ end
 
 function sample(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thinning::Integer, bounds::Array; a::Number=2.)
     """
-    This function is modified version of AffineInvariantMCMC by MADS (see copyright information in initial module)
+    Modified version of AffineInvariantMCMC by MADS (see copyright information in initial module)
     """
 	@assert length(size(x0)) == 2
 	x = copy(x0)
@@ -223,4 +255,35 @@ function sample(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thi
 		end
 	end
 	return chain, llhoodvals
+end
+
+@everywhere using AdvancedHMC, ForwardDiff
+
+function sampleHMC(llhood::Function, x0::Array, nsteps::Integer)
+    """
+    Hamiltonian MCMC sampling using Turing.jl package
+    """
+	init = x0[:,1]
+	#lastllhoodvals = RobustPmap.rpmap(llhood, map(i->x[:, i], 1:size(x, 2)))
+
+	# Define a Hamiltonian system
+	metric = DiagEuclideanMetric(size(init)[1])
+	hamiltonian = Hamiltonian(metric, llhood, ForwardDiff)
+
+	# Define a leapfrog solver, with initial step size chosen heuristically
+	initial_ϵ = find_good_stepsize(hamiltonian, init)
+	integrator = Leapfrog(initial_ϵ)
+
+	# Define an HMC sampler, with the following components
+	#   - multinomial sampling scheme,
+	#   - generalised No-U-Turn criteria, and
+	#   - windowed adaption for step-size and diagonal mass matrix
+	proposal = NUTS{MultinomialTS, GeneralisedNoUTurn}(integrator)
+	adaptor = StanHMCAdaptor(MassMatrixAdaptor(metric), StepSizeAdaptor(0.8, integrator))
+
+	# Run the sampler to draw samples from the specified Gaussian, where
+	#   - `samples` will store the samples
+	#   - `stats` will store diagnostic statistics for each sample
+	samples, stats = sample(hamiltonian, proposal, initial_θ, nsteps, adaptor, nsteps/2; progress=true)
+	return samples
 end

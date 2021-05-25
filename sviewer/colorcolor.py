@@ -291,9 +291,9 @@ class colorColorWidget(QWidget):
             x = data[c[0]] - data[c[1]]
             c = p.y_axis.split('_')
             y = data[c[0]] - data[c[1]]
-            if typ is 'points':
+            if typ == 'points':
                 d[p.name] = p.plotData(x=x, y=y, color=color, size=size, rescale=rescale)
-            elif typ is 'isocurves':
+            elif typ == 'isocurves':
                 d[p.name] = p.plotIsoCurves(data=np.vstack([x,y]), color=color, rescale=rescale, levels=levels)
                 #d[p.name] = p.plotData(x=x, y=y, color=color, size=size, rescale=rescale)
 

@@ -1,12 +1,3 @@
-ArI
-CII
-CII
-show CII*
-PI
-PII
-show PI
-
-MgII
 OI
 show OI
 CII*
@@ -19,3 +10,12 @@ show FeIIj9
 show FeIIj10
 high HeIj1
 MgII
+show H2 0 1
+show CII*
+CII*
+high CIIj1
+cont 1
+cont 1 1
+set cont 1
+set cont 1
+set cont 1

@@ -22,8 +22,8 @@ import numdifftools as nd
 import pickle
 import os
 import platform
-from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget, QDesktopWidget,
-                             QAction, QActionGroup, qApp, QFileDialog, QTextEdit, QVBoxLayout,
+from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget,
+                             QFileDialog, QTextEdit, QVBoxLayout,
                              QSplitter, QFrame, QLineEdit, QLabel, QPushButton, QCheckBox,
                              QGridLayout, QTabWidget, QFormLayout, QHBoxLayout, QRadioButton,
                              QTreeWidget, QComboBox, QTreeWidgetItem, QAbstractItemView,
@@ -816,11 +816,8 @@ class residualsWidget(pg.PlotWidget):
     """
     def __init__(self, parent):
         bottomaxis = pg.AxisItem(orientation='bottom')
-        #stringaxis.setTickSpacing(minor=[(10, 0)])
         bottomaxis.setStyle(tickLength=-15, tickTextOffset=2)
-        topaxis = pg.AxisItem(orientation='top')
-        #topaxis.setStyle(tickLength=-15, tickTextOffset=2, stopAxisAtTick=(True, True))
-        pg.PlotWidget.__init__(self, axisItems={'bottom': bottomaxis, 'top': topaxis}, background=(29,29,29))
+        pg.PlotWidget.__init__(self, axisItems={'bottom': bottomaxis}, background=(29, 29, 29))
 
         self.scene().removeItem(bottomaxis)
         self.parent = parent
@@ -851,7 +848,7 @@ class residualsWidget(pg.PlotWidget):
             l.setPen(pg.mkPen(None))
             l.setHoverPen(pg.mkPen(None))
         self.addItem(self.region)
-        levels = [1,2,3]
+        levels = [1, 2, 3]
         colors = [(100, 100, 100), (100, 100, 100), (100, 100, 100)]
         widths = [1.5, 1.0, 0.5]
         for l, color, width in zip(levels, colors, widths):
@@ -1919,7 +1916,7 @@ class showLinesWidget(QWidget):
                                v_indent=self.v_indent, h_indent=self.h_indent,
                                col_offset=self.col_offset, row_offset=self.row_offset)
             self.ps.specify_rects(rects)
-            self.ps.set_ticklabels()
+            self.ps.set_ticklabels(xlabel=self.xlabel,  ylabel=self.ylabel)
             self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
@@ -2031,7 +2028,7 @@ class showLinesWidget(QWidget):
                                v_indent=self.v_indent, h_indent=self.h_indent,
                                col_offset=self.col_offset, row_offset=self.row_offset)
             self.ps.specify_rects(rects)
-            self.ps.set_ticklabels(xlabel=self.xlabel if self.xlabel.strip() != '' else None,  ylabel=self.ylabel if self.ylabel.strip() != '' else None)
+            self.ps.set_ticklabels(xlabel=self.xlabel,  ylabel=self.ylabel)
             self.ps.set_limits(x_min=self.xmin, x_max=self.xmax, y_min=self.ymin, y_max=self.ymax)
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
@@ -2414,24 +2411,25 @@ class fitMCMCWidget(QWidget):
                 continue
             grid.addWidget(QLabel(name), *position)
 
-        self.sampler = QComboBox()
-        self.sampler.addItems(['AffineMCMC', 'UltraNest'])
-        self.sampler.setFixedSize(120, 30)
-        self.sampler.activated[str].connect(self.selectSampler)
-        self.sampler.setCurrentIndex(['AffineMCMC', 'UltraNest'].index(self.parent.options('MCMC_sampler')))
-        grid.addWidget(self.sampler, 0, 1)
-
         self.opt_but = OrderedDict([('MCMC_walkers', [1, 1]),
                                     ('MCMC_iters', [2, 1]),
                                     ('MCMC_threads', [3, 1]),
                                     ])
         for opt, v in self.opt_but.items():
-            setattr(self, opt, QLineEdit(str(getattr(self, opt))))
+            setattr(self, opt, QLineEdit(str(self.parent.options(opt))))
             getattr(self, opt).setFixedSize(80, 30)
             getattr(self, opt).setValidator(validator)
             getattr(self, opt).textChanged[str].connect(partial(self.onChanged, attr=opt))
             getattr(self, opt).setEnabled(self.parent.options('MCMC_sampler') == 'AffineMCMC')
             grid.addWidget(getattr(self, opt), v[0], v[1])
+
+        self.sampler = QComboBox()
+        self.sampler.addItems(['AffineMCMC', 'UltraNest', 'Hamiltonian'])
+        self.sampler.setFixedSize(120, 30)
+        self.sampler.currentTextChanged.connect(self.selectSampler)
+        self.sampler.setCurrentText(self.parent.options('MCMC_sampler'))
+        grid.addWidget(self.sampler, 0, 1)
+
         self.priorField = QTextEdit('')
         self.priorField.setFixedSize(300, 400)
         self.priorField.textChanged.connect(self.priorsChanged)
@@ -2636,10 +2634,10 @@ class fitMCMCWidget(QWidget):
             self.parent.options(attr, self.opts[attr](text))
 
     def selectSampler(self):
-        print(self.sampler.currentText())
         self.parent.options('MCMC_sampler', self.sampler.currentText())
+        d = {'AffineMCMC': [], 'UltraNest': ['MCMC_walkers', 'MCMC_iters'], 'Hamiltonian': ['MCMC_walkers', 'MCMC_threads']}
         for attr in ['MCMC_walkers', 'MCMC_iters', 'MCMC_threads']:
-            getattr(self, attr).setEnabled(self.sampler.currentText() == 'AffineMCMC')
+            getattr(self, attr).setEnabled(attr not in d[self.sampler.currentText()])
 
     def priorsChanged(self):
         self.priors = {}
@@ -6106,7 +6104,7 @@ class sviewer(QMainWindow):
         exitAction = QAction('&Exit', self)
         #exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
-        exitAction.triggered.connect(qApp.quit)
+        exitAction.triggered.connect(QApplication.instance().quit)
         
         fileMenu.addAction(openAction)
         fileMenu.addAction(saveAction)
@@ -6744,16 +6742,16 @@ class sviewer(QMainWindow):
             setattr(self, status, value)
         else:
             setattr(self, status, 1 - getattr(self, status))
-        if value is not 0:
-            if status == 'abs_H2_status' and value is not 0:
+        if value != 0:
+            if status == 'abs_H2_status':
                 lines, color, va = self.atomic.list(['H2j'+str(i) for i in range(3)]), (229, 43, 80), 'down'
-            if status == 'abs_DLA_status' and value is not 0:
+            if status == 'abs_DLA_status':
                 lines, color, va = self.atomic.DLA_list(), (105, 213, 105), 'down'
-            if status == 'abs_DLAmajor_status' and value is not 0:
+            if status == 'abs_DLAmajor_status':
                 lines, color, va = self.atomic.DLA_major_list(), (105, 213, 105), 'down'
-            if status == 'abs_Molec_status' and value is not 0:
+            if status == 'abs_Molec_status':
                 lines, color, va = self.atomic.Molecular_list(), (255, 111, 63), 'down'
-            if status == 'abs_SF_status' and value is not 0:
+            if status == 'abs_SF_status':
                 lines, color, va = self.atomic.EmissionSF_list(), (0, 204, 255), 'up'
 
             if verbose:
@@ -8474,7 +8472,7 @@ class sviewer(QMainWindow):
         res = {}
         for k, v in sp.items():
             try:
-                if dep_ref is '':
+                if dep_ref == '':
                     res[k] = [v, metallicity(k, v, HI)]
                 else:
                     res[k] = [v, metallicity(k, v, HI), depletion(k, v, sp[dep_ref], ref=dep_ref)]
@@ -8730,7 +8728,7 @@ class sviewer(QMainWindow):
             try:
                 sdss = self.IGMspec['BOSS_DR12']
 
-                if name is None or name is '':
+                if name is None or name == '':
                     ind = np.where((sdss['meta']['PLATE'] == plate) & (sdss['meta']['FIBERID'] == fiber))[0][0]
                 else:
                     ind = np.argmin((sdss['meta']['RA_GROUP'] - ra) ** 2 + (sdss['meta']['DEC_GROUP'] - dec) ** 2)
