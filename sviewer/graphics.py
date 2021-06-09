@@ -319,6 +319,14 @@ class gline():
         if self.x.shape != self.y.shape:
             raise IndexError("Dimensions of x and y data are not the same")
 
+    def initial(self, save=True):
+        if save:
+            self.saved = [self.x[:], self.y[:], self.err[:]]
+            print('saved', self.saved)
+        else:
+            print(self.saved)
+            self.x, self.y, self.err = self.saved[0][:], self.saved[1][:], self.saved[2][:]
+
     def set_data(self, *args, **kwargs):
         self.delete()
         self.add(*args, **kwargs)
@@ -459,12 +467,12 @@ class plotLineSpectrum(pg.PlotCurveItem):
     def __init__(self, *args, **kwargs):
         self.parent = kwargs['parent']
         self.view = kwargs['view']
-        self.parent.spec_save = self.parent.spec.raw.copy()
+        #self.parent.spec_save = self.parent.spec.raw.copy()
         #print({k: v for k, v in kwargs.items() if k not in ['parent', 'view']})
         super().__init__(*args, **{k: v for k, v in kwargs.items() if k not in ['parent', 'view']})
 
     def initial(self):
-        self.parent.spec.raw = self.parent.spec_save.copy()
+        self.parent.spec.raw.initial(False)
         self.parent.redraw()
 
     def generatePath(self, xi, yi, path=True):
@@ -526,7 +534,7 @@ class plotLineSpectrum(pg.PlotCurveItem):
         self.parent.redraw()
 
     #def mouseClickEvent(self, ev):
-    #    if QApplication.keyboardModifiers() == Qt.ControlModifier and ev.button() == Qt.LeftButton:
+    #    if QApplication.keyboardModifiers() == Qt.Key_I and ev.button() == Qt.LeftButton:
     #        self.parent.remove()
 
 class fitLineProfile(pg.PlotCurveItem):
@@ -2588,23 +2596,23 @@ class SpectrumFilter():
     def __init__(self, parent, name=None):
         self.parent = parent
         self.name = name
-        if name is 'u':
+        if name == 'u':
             self.color = (23, 190, 207)
             self.m0 = 22.12
             self.b = 1.4e-10
-        if name is 'g':
+        if name == 'g':
             self.color = (44, 160, 44)
             self.m0 = 22.60
             self.b = 0.9e-10
-        if name is 'r':
+        if name == 'r':
             self.color = (214, 39, 40)
             self.m0 = 22.29
             self.b = 1.2e-10
-        if name is 'i':
+        if name == 'i':
             self.color = (227, 119, 194)
             self.m0 = 21.85
             self.b = 1.8e-10
-        if name is 'z':
+        if name == 'z':
             self.color = (31, 119, 180)
             self.m0 = 20.32
             self.b = 7.4e-10

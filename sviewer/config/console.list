@@ -1,21 +1,21 @@
-OI
-show OI
-CII*
-1334 * 3
-NaI
-high CaII
-CaII
-show CaII
-show FeIIj9
-show FeIIj10
-high HeIj1
-MgII
-show H2 0 1
-show CII*
-CII*
-high CIIj1
+show FeI
+FeI
+hide FeI
+show SiII8
+show SiII*
+show SiII
+show CI
+show CIj1
+show MgI
+show FeI
+FeI
+SiI
+show SiI
+MgI
+show CI
 cont 1
-cont 1 1
 set cont 1
-set cont 1
-set cont 1
+CIj1
+show CaII
+CaII
+5892 / 3934

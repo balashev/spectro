@@ -8,13 +8,12 @@ from chainconsumer import ChainConsumer
 from collections import OrderedDict
 from copy import deepcopy, copy
 import emcee
-import gzip
 import h5py
-import inspect
 from importlib import reload
 import julia
 from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs, Model
 from matplotlib.colors import to_hex
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
 from multiprocessing import Process
@@ -139,7 +138,6 @@ class plotSpectrum(pg.PlotWidget):
         self.doublets = doubletList(self)
         self.pcRegions = []
         self.instr_file = None
-        self.instr_widget = None
         self.instr_plot = None
         self.showfullfit = False
         self.restframe = True
@@ -291,19 +289,8 @@ class plotSpectrum(pg.PlotWidget):
 
             if event.key() == Qt.Key_I:
                 if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
-                    if self.instr_file is None:
-                        self.instr_file = open('temp/instr_func.dat', 'w')
-                    if self.instr_widget is None:
-                        self.instr_widget = MatplotlibWidget()
-                        self.instr_plot = self.instr_widget.getFigure().add_subplot(111)
-                        self.instr_widget.show()
-                    l, res, err = (self.parent.fit.getValue('z_0')+1)*1215.6701, int(self.parent.fit.getValue('res')), int(self.parent.fit.getValue('res', attr='unc'))
-                    s = '{0:6.1f} {1:5d} {2:5d} \n'.format(l, res, err)
-                    self.instr_file.write(s)
-                    self.instr_file.flush()
-                    self.instr_plot.errorbar([l], [res], yerr=[err])
-                    self.instr_widget.draw()
-                    self.parent.statusBar.setText('data added to temp/instr_func.dat')
+                    print('initial', self.parent.s[self.parent.s.ind].g_line)
+                    self.parent.s[self.parent.s.ind].g_line.initial()
                 else:
                     self.i_status = True
                     self.parent.statusBar.setText('Estimate the width of Instrument function')
@@ -1905,6 +1892,8 @@ class showLinesWidget(QWidget):
     def showPlot(self, savefig=True, showH2=[]):
         fig = plt.figure(figsize=(self.width, self.height), dpi=300)
         #self.subplot = self.mw.getFigure().add_subplot(self.rows, self.cols, 1)
+
+        mpl.rcParams["axes.formatter.useoffset"] = False
 
         if not self.regions:
             if not self.parent.normview:
@@ -7190,10 +7179,12 @@ class sviewer(QMainWindow):
                                 # for l, f, e in zip(prihdr['WAVELENGTH'], prihdr['FLUX'], prihdr['ERROR']):
                                 #    s.set_data()
                             if 'ESPRESSO' in hdulist[0].header['INSTRUME']:
-                                print(hdulist)
-                                print(hdulist[3].data)
+                                prihdr = hdulist[1].data
+                                print(prihdr['WAVE'])
+                                s.set_data([prihdr['WAVE'][0], prihdr['FLUX'][0] * 1e17, prihdr['ERR'][0] * 1e17])
 
                             if 'FUV' in hdulist[0].header['INSTRUME']:
+                                prihdr = hdulist[1].data
                                 s.set_data([prihdr['WAVE'], prihdr['FLUX'] * 1e17, prihdr['ERROR'] * 1e17])
 
                             try:

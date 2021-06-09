@@ -1,4 +1,3 @@
-using AffineInvariantMCMC
 using DataStructures
 using Interpolations
 using LsqFit
@@ -750,7 +749,7 @@ function fitLM(spec, p_pars, add; tieds=Dict())
     upper = [p.max for (k, p) in pars if p.vary == true]
 
     println(params, " ", lower, " ", upper)
-    fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=300, lower=lower, upper=upper, show_trace=true)
+    fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=200, lower=lower, upper=upper, show_trace=true, x_tol=1e-4)
     sigma = stderror(fit)
     covar = estimate_covar(fit)
 

@@ -1,14 +1,11 @@
 using DelimitedFiles
 using Distributed
 using Random
-
-#import RobustPmap
-
 @everywhere using SpecialFunctions
 @everywhere include("profiles.jl")
 @everywhere using PyCall
 @everywhere using Combinatorics
-
+@everywhere using AdvancedHMC, ForwardDiff
 
 function fitMCMC(spec, ppar, add; sampler="Affine", tieds=Dict(), prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
 
@@ -127,12 +124,10 @@ function fitMCMC(spec, ppar, add; sampler="Affine", tieds=Dict(), prior=nothing,
 			for l in eachline(f)
 				if occursin("MCMC_threads", l)
 					nthreads = parse(Int64, split(l)[3])
-					println(nthreads)
 				end
 			end
 		end
 
-		println(nthreads)
 		if nthreads > 1
 			addprocs(nthreads - 1)
 		end
@@ -177,6 +172,7 @@ function fitMCMC(spec, ppar, add; sampler="Affine", tieds=Dict(), prior=nothing,
 		#   - `samples` will store the samples
 		#   - `stats` will store diagnostic statistics for each sample
 		samples, stats = sampleAffine(hamiltonian, proposal, initial_θ, nsteps, adaptor, nsteps/2; progress=true)
+		return samples, stats
 
 	elseif sampler == "UltraNest"
 		ultranest = pyimport("ultranest")
@@ -212,6 +208,11 @@ function fitMCMC(spec, ppar, add; sampler="Affine", tieds=Dict(), prior=nothing,
 		#return results["samples"], nothing
 		return results, nothing
 	end
+
+	rmprocs(workers())
+	println(nprocs())
+
+	return chain, llhoodvals
 end
 
 function check_pars(proposal, pars)
@@ -408,8 +409,6 @@ function sampleESS(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, 
 	return chain, llhoodvals
 end
 
-
-@everywhere using AdvancedHMC, ForwardDiff
 
 function sampleHMC(llhood::Function, x0::Array, nsteps::Integer)
     """
