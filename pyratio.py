@@ -110,12 +110,12 @@ class speci:
             self.names = [self.name + 'j' + str(k) for k in range(self.num)]
 
     def coll_rate(self, part, i, j, T):
-        l = self.coll[part].rate(i, j, T)
-        #print(l, part, i, j)
-        if l != 0:
-            return self.coll[abs(l)-1].rate(T, sign=np.sign(l))
-        else:
-            return 0
+        return self.coll[part].rate(i, j, T)
+        #print(l, part, i, j, T)
+        #if l != 0:
+        #    return self.coll[self.coll_ind(part, i, j)].rate(T, sign=np.sign(l))
+        #else:
+        #    return 0
             
     def coll_ind(self, part, i, j):
         for l in range(len(self.coll)):
@@ -279,7 +279,7 @@ class speci:
                 self.A[np.argwhere(self.E==l['E_k'])[0], np.argwhere(self.E==l['E_i'])[0]] = l['A_ki']
 
             if 1:
-                E = np.genfromtxt(folder + 'FeII/table3.dat', unpack=True, delimiter='|', dtype=[('J', 'i4'), ('term', '|S14'), ('name', '|S10'), ('energy', '<f8')])
+                E = np.genfromtxt(folder + 'FeII/table3.dat', delimiter='|', dtype=[('J', 'i4'), ('term', '|S14'), ('name', '|S10'), ('energy', '<f8')])
                 inds = [np.argmin(np.abs(self.E - e)) for e in E['energy'] * 109737.31568160]
                 Ai = np.genfromtxt(folder + 'FeII/apj516563t4_ascii.txt', comments='#', unpack=True)
                 Ai = np.insert(Ai[25] * 10 ** (- Ai[27]), 0, 0)
@@ -292,7 +292,7 @@ class speci:
                             print(inds[tr['Ju'] - 1], tr['Jl'] - 1, self.A[inds[tr['Ju'] - 1], inds[tr['Jl'] - 1]], Ai[tr['Ju'] - 1] * tr['br'])
 
         elif source == 'bautista':
-            E = np.genfromtxt(folder + 'FeII/table3.dat', unpack=True, delimiter='|', dtype=[('J', 'i4'), ('term', '|S14'), ('name', '|S10'), ('energy', '<f8')])
+            E = np.genfromtxt(folder + 'FeII/table3.dat', delimiter='|', dtype=[('J', 'i4'), ('term', '|S14'), ('name', '|S10'), ('energy', '<f8')])
             self.E = E['energy'] * 109737.31568160
             for e1, e2 in zip(np.sort(np.unique(lines['E_i'])), np.sort(self.E)):
                 print(e1/e2 - 1, e1, np.argmin(np.abs(np.sort(self.E) - e1)))
@@ -448,6 +448,9 @@ class speci:
 
     def setAij(self):
         self.Aij = self.A[:self.num, :self.num]
+
+    def critical_density(self, part, i, j, T):
+        return self.A[i, j] / self.coll_rate(part, i, j, T)
 
     def plot_allCollCrossSect(self, ax=None):
         """
@@ -830,56 +833,57 @@ class pyratio():
     def load_sed(self):
         """
         """
-        if 'Mathis' in self.sed_type:
-            l = np.linspace(912, 2460, 100)
-            uv = np.zeros_like(l)
-            mask = np.logical_and(912 <= l, l <= 1100)
-            uv[mask] = 1.287e-9 * (l[mask] / 1e4) ** 4.4172
-            mask = np.logical_and(1110 < l, l <= 1340)
-            uv[mask] = 6.825e-13 * (l[mask] / 1e4)
-            mask = np.logical_and(1340 < l, l <= 2460)
-            uv[mask] = 2.373e-14 * (l[mask] / 1e4) ** (-0.6678)
-            self.mathis = interpolate.interp1d(1e8 / l, uv / (ac.c.cgs.value / l / 1e-8), bounds_error=0, fill_value=0)
+        if self.sed_type != None:
+            if 'Mathis' in self.sed_type:
+                l = np.linspace(912, 2460, 100)
+                uv = np.zeros_like(l)
+                mask = np.logical_and(912 <= l, l <= 1100)
+                uv[mask] = 1.287e-9 * (l[mask] / 1e4) ** 4.4172
+                mask = np.logical_and(1110 < l, l <= 1340)
+                uv[mask] = 6.825e-13 * (l[mask] / 1e4)
+                mask = np.logical_and(1340 < l, l <= 2460)
+                uv[mask] = 2.373e-14 * (l[mask] / 1e4) ** (-0.6678)
+                self.mathis = interpolate.interp1d(1e8 / l, uv / (ac.c.cgs.value / l / 1e-8), bounds_error=0, fill_value=0)
 
-        if 'Draine' in self.sed_type:
-            l = np.linspace(0.912, 3.1, 100)
-            self.draine = interpolate.interp1d(1e5 / l, 6.84e-14 * l ** (-5) * (31.016 * l ** 2 - 49.913 * l + 19.897) / (ac.c.cgs.value / l / 1e-5), bounds_error=0, fill_value=0)
+            if 'Draine' in self.sed_type:
+                l = np.linspace(0.912, 3.1, 100)
+                self.draine = interpolate.interp1d(1e5 / l, 6.84e-14 * l ** (-5) * (31.016 * l ** 2 - 49.913 * l + 19.897) / (ac.c.cgs.value / l / 1e-5), bounds_error=0, fill_value=0)
 
-        if self.sed_type in ['QSO', 'AGN', 'GRB']:
-            self.DL = FlatLambdaCDM(70, 0.3, Tcmb0=2.725, Neff=0).luminosity_distance(self.z).to('cm').value
+            if self.sed_type in ['QSO', 'AGN', 'GRB']:
+                self.DL = FlatLambdaCDM(70, 0.3, Tcmb0=2.725, Neff=0).luminosity_distance(self.z).to('cm').value
 
-        if 'QSO' in self.sed_type:
-            from astroquery.sdss import SDSS
-            qso = SDSS.get_spectral_template('qso')
-            x, flux = 10 ** (np.arange(len(qso[0][0].data[0])) * 0.0001 + qso[0][0].header['CRVAL1']), qso[0][0].data[0] * 1e-17
-            cosmo = FlatLambdaCDM(70, 0.3, Tcmb0=2.725, Neff=0)
-            b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
-            fil = np.genfromtxt(self.folder + r'/data/SDSS/' + self.agn_pars['filter'] + '.dat', skip_header=6, usecols=(0, 1), unpack=True)
-            mask = (x * (1 + self.z) > fil[0][0]) * (x * (1 + self.z) < fil[0][-1])
-            fil = interpolate.interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
-            scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux[mask], x[mask] * (1 + self.z), b[self.agn_pars['filter']], fil, self.agn_pars['mag']))
-            #print(scale, flux_to_mag(flux * scale, x * (1 + self.z), self.agn_pars['filter']), self.agn_pars['mag'])
-            self.qso = interpolate.interp1d(1e8 / x, scale * flux * (self.DL / ac.kpc.cgs.value) ** 2 * x ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=0, fill_value=0)
-
-        if 'AGN' in self.sed_type:
-            b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
-            fil = np.genfromtxt(self.folder + r'/data/SDSS/' + self.agn_pars['filter'] + '.dat', skip_header=6, usecols=(0, 1), unpack=True)
-            filter = interpolate.interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
-            if 1:
-                data = np.genfromtxt(self.folder + '/data/pyratio/QSO1_template_norm.sed', unpack=True, comments='#')
-                mask = (data[0] * (1 + self.z) > fil[0][0]) * (data[0] * (1 + self.z) < fil[0][-1])
-                scale = 10 ** bisect(self.flux_to_mag_solve, -25, 25, args=(data[1][mask], data[0][mask] * (1 + self.z), b[self.agn_pars['filter']], filter, self.agn_pars['mag']))
-                #print(scale)
-                self.agn = interpolate.interp1d(1e8 / data[0], scale * data[1] * (self.DL / ac.kpc.cgs.value) ** 2 * data[0] ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=0, fill_value=0)
-
-            else:
-                data = np.genfromtxt(self.folder + '/data/pyratio/Richards2006.dat', unpack=True, comments='#')
-                x = 1e8 * ac.c.cgs.value / 10 ** data[0]
+            if 'QSO' in self.sed_type:
+                from astroquery.sdss import SDSS
+                qso = SDSS.get_spectral_template('qso')
+                x, flux = 10 ** (np.arange(len(qso[0][0].data[0])) * 0.0001 + qso[0][0].header['CRVAL1']), qso[0][0].data[0] * 1e-17
+                cosmo = FlatLambdaCDM(70, 0.3, Tcmb0=2.725, Neff=0)
+                b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
+                fil = np.genfromtxt(self.folder + r'/data/SDSS/' + self.agn_pars['filter'] + '.dat', skip_header=6, usecols=(0, 1), unpack=True)
                 mask = (x * (1 + self.z) > fil[0][0]) * (x * (1 + self.z) < fil[0][-1])
-                flux = 10 ** data[1][mask] / 4 / np.pi / self.DL ** 2 / x[mask] * (1 + self.z)
-                scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux, x[mask] * (1 + self.z), b[self.agn_pars['filter']], filter, self.agn_pars['mag']))
-                print(scale, flux_to_mag(flux * scale, x[mask] * (1 + self.z), self.agn_pars['filter']), self.agn_pars['mag'])
-                self.agn = interpolate.interp1d(10 ** data[0] / ac.c.cgs.value, scale * 10 ** data[1] / 4 / np.pi / (ac.kpc.cgs.value) ** 2 / 10 ** data[0] / ac.c.cgs.value, bounds_error=0, fill_value=0)
+                fil = interpolate.interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
+                scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux[mask], x[mask] * (1 + self.z), b[self.agn_pars['filter']], fil, self.agn_pars['mag']))
+                #print(scale, flux_to_mag(flux * scale, x * (1 + self.z), self.agn_pars['filter']), self.agn_pars['mag'])
+                self.qso = interpolate.interp1d(1e8 / x, scale * flux * (self.DL / ac.kpc.cgs.value) ** 2 * x ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=0, fill_value=0)
+
+            if 'AGN' in self.sed_type:
+                b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
+                fil = np.genfromtxt(self.folder + r'/data/SDSS/' + self.agn_pars['filter'] + '.dat', skip_header=6, usecols=(0, 1), unpack=True)
+                filter = interpolate.interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
+                if 1:
+                    data = np.genfromtxt(self.folder + '/data/pyratio/QSO1_template_norm.sed', unpack=True, comments='#')
+                    mask = (data[0] * (1 + self.z) > fil[0][0]) * (data[0] * (1 + self.z) < fil[0][-1])
+                    scale = 10 ** bisect(self.flux_to_mag_solve, -25, 25, args=(data[1][mask], data[0][mask] * (1 + self.z), b[self.agn_pars['filter']], filter, self.agn_pars['mag']))
+                    #print(scale)
+                    self.agn = interpolate.interp1d(1e8 / data[0], scale * data[1] * (self.DL / ac.kpc.cgs.value) ** 2 * data[0] ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=0, fill_value=0)
+
+                else:
+                    data = np.genfromtxt(self.folder + '/data/pyratio/Richards2006.dat', unpack=True, comments='#')
+                    x = 1e8 * ac.c.cgs.value / 10 ** data[0]
+                    mask = (x * (1 + self.z) > fil[0][0]) * (x * (1 + self.z) < fil[0][-1])
+                    flux = 10 ** data[1][mask] / 4 / np.pi / self.DL ** 2 / x[mask] * (1 + self.z)
+                    scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux, x[mask] * (1 + self.z), b[self.agn_pars['filter']], filter, self.agn_pars['mag']))
+                    print(scale, flux_to_mag(flux * scale, x[mask] * (1 + self.z), self.agn_pars['filter']), self.agn_pars['mag'])
+                    self.agn = interpolate.interp1d(10 ** data[0] / ac.c.cgs.value, scale * 10 ** data[1] / 4 / np.pi / (ac.kpc.cgs.value) ** 2 / 10 ** data[0] / ac.c.cgs.value, bounds_error=0, fill_value=0)
 
     def set_EBL(self):
         """
@@ -1109,7 +1113,6 @@ class pyratio():
 
         if s == 'Draine':
             field[m] += self.draine(e[m]) * 10 ** self.pars['rad'].value
-            #print(e[m], field[m], self.draine(e[m]))
 
         if s == 'Mathis':
             field[m] += self.mathis(e[m]) * 10 ** self.pars['rad'].value
@@ -1640,38 +1643,41 @@ class pyratio():
         """
         if verbose:
             print('critical densities for:')
-        
-        for s in self.species:
-            if species is None or species == s.name:
+
+        for sp in self.species.values():
+            if species is None or species == sp.name:
                 if depend in ['T'] and ax is None:
-                    fig, axi = plt.subplots(s.num-1, s.num-1, sharex=True, sharey=True)
+                    fig, axi = plt.subplots(sp.num-1, sp.num-1, sharex=True, sharey=True)
                 if verbose:
-                    print('species: ', s.name)
-                for i in range(s.num-1):
-                    for j in range(i+1, s.num):
-                        if s.num > 2 and ax is None:
-                            axs = axi[i,j-1]
-                        elif s.num == 1 and ax is None:
+                    print('species: ', sp.name)
+                for i in range(sp.num-1):
+                    for j in range(i+1, sp.num):
+                        if sp.num > 2 and ax is None:
+                            axs = axi[i, j-1]
+                        elif sp.num == 2 and ax is None:
                             axs = axi
                         elif ax is not None:
                             axs = ax
                         if verbose:
                             coll = 0
-                            for k in range(s.num):
-                                coll += self.collision_rate(s, j, k) / 10 ** self.pars['n'].value
+                            for k in range(sp.num):
+                                coll += self.collision_rate(sp, j, k) / 10 ** self.pars['n'].value
                         if depend in ['T']:
                             pars_range = np.linspace(self.pars[depend].range[0], self.pars[depend].range[1], 10)
                             y = []
                             for t in pars_range:
                                 self.pars[depend].value = t
                                 coll = 0
-                                for k in range(s.num):
-                                    coll += self.collision_rate(s, j, k)
+                                for k in range(sp.num):
+                                    coll += self.collision_rate(sp, j, k)
                                 y.append(coll/10**self.pars['n'].value)
-                            axs.plot(pars_range, np.log10((y/s.A[j, i])**(-1)), '-b')
+                            axs.plot(pars_range, np.log10((y/sp.A[j, i])**(-1)), '-b')
                             axs.text(0.9, 0.9, "{:0}-{:1}".format(j, i), transform=axs.transAxes, fontsize=20)
-    
-    def calc_cooling(self, verbose=0, depend=None, ax=None, species=None, color='k', factor=0):
+                            axs.set_xlabel(r'$\log T$')
+                            axs.set_ylabel(r'$\log n_{\rm cr}$')
+
+
+    def plot_cooling(self, verbose=0, depend=None, ax=None, species=None, color='k', factor=0):
         """
         Function for calculation cooling function by spontangeous transitions 
         in different species, like HD, H2, CII, OI, CI by 1 atom (molecule)
@@ -1684,12 +1690,12 @@ class pyratio():
         """    
         print(factor)
         out = []
-        for s in self.species:
-            if species is None or s.name == species: 
+        for sp in self.species.values():
+            if species is None or sp.name == species:
                 if verbose == 1:        
-                    print('species: ', s)
-                    print('column densities: ', s.n)
-                    print('data ratios: ', s.y)
+                    print('species: ', sp)
+                    print('column densities: ', sp.n)
+                    print('data ratios: ', sp.y)
                 if depend in ['T', 'n']:
                     if ax is None:
                         fig, ax = plt.subplots()
@@ -1697,43 +1703,86 @@ class pyratio():
                     L = np.zeros_like(pars_range)
                 else: 
                     L = 0
-                for u in range(s.num-1,0,-1):
+                for u in range(sp.num-1, 0, -1):
                     for l in range(u):
                         y = np.zeros_like(L)
                         if depend in ['T', 'n']:
                             for i, value in enumerate(pars_range):
                                 self.pars[depend].value = value
-                                y[i] = self.cooling_rate(s, u, l).value
+                                y[i] = self.cooling_rate(sp, u, l).value
                             if 0:
-                                ax.plot(pars_range, np.log10(y)+factor, '--', color=color, label="{0} {1}-{2}".format(s.name, u, l))
+                                ax.plot(pars_range, np.log10(y)+factor, '--', color=color, label="{0} {1}-{2}".format(sp.name, u, l))
                         else:
-                            y = self.cooling_rate(s, u, l).value
+                            y = self.cooling_rate(sp, u, l).value
                         L += y
                 if depend in ['T', 'n']:            
-                    ax.plot(pars_range, np.log10(L)+factor, '-', color=color, lw=1.5, label=s.name+" total")
+                    ax.plot(pars_range, np.log10(L)+factor, '-', color=color, lw=1.5, label=sp.name+" total")
                 out.append([s.name, L])
-        return out 
-    
-    def cooling_rate(self, s, u, l):
+        return out
+
+    def calc_cooling(self, species=None, n=[], T=[], verbose=0):
         """
-        calculate the colling rate of the medium due to transition <u> -> <l> for <s> species
+        Function for calculation cooling function by spontangeous transitions
+        in different species, like HD, H2, CII, OI, CI by 1 atom (molecule)
+
+        Cooling function is derived using formula
+
+        L_ij = \sum_i A_ij E_ij n_i
+
+        applied to measured populations of fine structure levels, or rotational levels
+        """
+        if species is None and len(self.species) > 0:
+            species = list(self.species.keys())[0]
+        if species is not None:
+            sp = self.species[species]
+            if verbose:
+                print('species: ', sp.name)
+                print('number of levels: ', sp.num)
+            if isinstance(n, (int, float)):
+                n = [n]
+            if isinstance(T, (int, float)):
+                T = [T]
+            if len(n) == 0 and len(T) != 0:
+                n = np.ones_like(T) * self.pars['n'].value
+            if len(T) == 0 and len(n) != 0:
+                T = np.ones_like(n) * self.pars['T'].value
+            if len(n) == 0 and len(T) == 0:
+                n, T = [self.pars['n'].value], [self.pars['T'].value]
+            if len(n) == 1 or len(T) == 1:
+                if len(n) > len(T):
+                    T = np.ones_like(n) * T[0]
+                else:
+                    n = np.ones_like(T) * n[0]
+            L = np.zeros(len(n))
+            for ni, Ti, i in zip(n, T, range(len(n))):
+                self.pars['n'].value, self.pars['T'].value = ni, Ti
+                for u in range(sp.num - 1, 0, -1):
+                    for l in range(u):
+                        #print(ni, Ti, self.balance(sp.name), self.cooling_rate(sp, u, l).value)
+                        L[i] += self.cooling_rate(sp, u, l).value
+
+            return L
+
+
+    def cooling_rate(self, sp, u, l):
+        """
+        calculate the colling rate of the medium due to transition <u> -> <l> for <s> species per one atom of species
         parameters:
-            - s      :  species
+            - sp     :  species
             - u      :  upper level
             - l      :  lower level
         return: L
             - L      :  coollinf rate in erg/s/cm^3 
         """
-        hu = (s.E[u] - s.E[l]) / au.cm * ac.c.cgs * ac.h.cgs  # in ergs
+        hu = (sp.E[u] - sp.E[l]) / au.cm * ac.c.cgs * ac.h.cgs  # in ergs
         if 0:
             stat = s.g[u]/s.g[l]*np.exp(-hu/(ac.k_B.cgs*10**self.pars['T'].value*au.K))
             #print(u, l, s.A[u,l], stat, s.A[u,l]/self.collision_rate(s, u, l)/10**self.pars['n'].value)
-            L = s.A[u,l]/au.s * hu * \
-                stat / (1 + stat + s.A[u,l]/self.collision_rate(s, u, l)) 
+            L = s.A[u,l] / au.s * hu * stat / (1 + stat + s.A[u,l]/self.collision_rate(s, u, l))
         else:
-            x = self.balance(s.name)
-            L = s.A[u,l] / au.s * hu * x[u]
-        #L *= 10**self.pars['n'].value * au.cm**3
+            x = self.balance(sp.name)
+            L = sp.A[u, l] / au.s * hu * x[u]
+        #print(sp.name, u, l, (sp.A[u, l] / au.s * hu).to('erg/s'))
         return L
         
     def calc_cooling_Wolfe(self, logHI, plot=1, verbose=0):
@@ -1750,7 +1799,7 @@ class pyratio():
         """    
         
         out = []
-        for i,s in enumerate(self.species):
+        for i, s in enumerate(self.species):
             if verbose == 1:        
                 print('species: ', s)
                 print('column densities: ', s.n)
@@ -1996,7 +2045,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check CII collisions
-    if 1:
+    if 0:
         pr = pyratio(z=2.65)
         pr.set_pars(['T', 'n', 'f', 'e'])
         pr.pars['T'].range = [1, 6]
@@ -2007,8 +2056,10 @@ if __name__ == '__main__':
         pr.set_fixed('e', -4)
         species = 'CII'
         pr.add_spec(species, num=2)
+        pr.critical_density(depend='T')
+        print(pr.calc_cooling(n=np.linspace(-5, 6, 20), T=4, verbose=1))
         num = 20
-        if 1:
+        if 0:
             fig, ax = plt.subplots()
             for t, f, ls in zip([100, 100, 10000, 15000], [0, -4, -4, -4], ['--', '-', '-', '-']):
                 pr.pars['T'].value = np.log10(t)
@@ -2398,17 +2449,19 @@ if __name__ == '__main__':
             plt.show()
 
     # >>> OI calculations
-    if 0:
-        pr = pyratio(z=2.8, pumping='simple', radiation='simple')
+    if 1:
+        pr = pyratio(z=0, pumping='simple', radiation='simple')
         pr.set_pars(['T', 'n', 'f', 'rad'])
         pr.pars['T'].range = [1, 4]
         pr.pars['n'].range = [1, 4]
         pr.pars['rad'].range = [0, 4]
         pr.pars['n'].value = 2.3
-        pr.pars['rad'].value = np.log10(10)
+        pr.pars['rad'].value = -4
         pr.pars['T'].value = np.log10(150)
         pr.set_prior('f', a(-3, 0, 0))
         pr.add_spec('OI', num=3)
+        pr.critical_density(depend='T')
+        #print(pr.calc_cooling(n=np.linspace(-5, 6, 20), T=4, verbose=1))
         print(pr.balance('OI', debug='A'))
         print(pr.balance('OI', debug='C'))
         print(pr.balance('OI', debug='UV'))
@@ -2437,7 +2490,7 @@ if __name__ == '__main__':
                 ax[i].legend(frameon=False, fontsize=14)
                 if i == 0:
                     ax[i].set_ylabel(r'log(n$_i$/n$_0$)')
-        else:
+        if 0:
             for i, T in enumerate([150, 1000, 5000]):
                 ax[i].set_prop_cycle(None)
                 pr.pars['T'].value = np.log10(T)
@@ -2458,7 +2511,7 @@ if __name__ == '__main__':
                 if i == 0:
                     ax[i].set_ylabel(r'log(n$_i$/n$_0$)')
         plt.tight_layout()
-        plt.savefig('C:/users/serj/desktop/OI.png')
+        #plt.savefig('C:/users/serj/desktop/OI.png')
         plt.show()
 
     # >>> H2 calculations:

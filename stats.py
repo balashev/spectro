@@ -182,10 +182,12 @@ class distr1d():
         return "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.point, self.interval[1] - self.point, self.point - self.interval[0], n=f)
 
 class distr2d():
-    def __init__(self, x, y, z=None, xtol=1e-5, debug=False):
+    def __init__(self, x, y, z=None, num=None, xtol=1e-5, debug=False):
         if z is None:
-            self.x = np.linspace(np.min(x), np.max(x), int(np.sqrt(len(x))))
-            self.y = np.linspace(np.min(y), np.max(y), int(np.sqrt(len(y))))
+            if num is None:
+                num = int(np.sqrt(len(x)))
+            self.x = np.linspace(np.min(x), np.max(x), num)
+            self.y = np.linspace(np.min(y), np.max(y), num)
             X, Y = np.meshgrid(self.x, self.y)
             z = gaussian_kde([x, y])
             self.z = z(np.vstack([X.flatten(), Y.flatten()])).reshape(X.shape)

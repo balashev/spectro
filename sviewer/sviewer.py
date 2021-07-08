@@ -3078,8 +3078,6 @@ class fitMCMCWidget(QWidget):
         plt.subplots_adjust(wspace=0)
         plt.tight_layout()
 
-        plt.show()
-
         if any([s in qc for s in ['moments', 'all']]):
             ind = np.random.randint(0, nwalkers)
             SomeChain = samples[:, 1+ind, :]
@@ -3133,7 +3131,7 @@ class fitMCMCWidget(QWidget):
                 for k, sys in enumerate(self.parent.fit.sys):
                     fit_comp[i].append(self.parent.s[i].fit_comp[k].line.norm.x[:])
                     fit_comp_disp[i].append(s.fit_comp[k].line.norm.y)
-                    print(i, k, self.parent.s[i].fit_comp[k].line.norm.x[0], fit_comp[i][k], fit_comp[i][k][-1])
+                    print(i, k, self.parent.s[i].fit_comp[k].line.norm.x[0], fit_comp[i][k][-1])
 
         #for i, s in enumerate(self.parent.s):
         #    for k, sys in enumerate(self.parent.fit.sys):
@@ -3143,18 +3141,30 @@ class fitMCMCWidget(QWidget):
         pars, samples, lnprobs = self.readChain()
         samples[burnin:, :, :]
         num = int(self.parent.options('MCMC_disp_num'))
-        for i1, i2 in zip(np.random.randint(burnin, high=samples.shape[0], size=num), np.random.randint(0, high=samples.shape[1], size=num)):
-            for p, t in zip(pars, samples[i1, i2, :]):
-                self.parent.fit.setValue(p, t)
-            self.parent.s.prepareFit()
-            self.parent.s.calcFit(recalc=True, redraw=False)
-            self.parent.s.calcFitComps(recalc=True)
+        if 0:
+            self.julia = julia.Julia()
+            self.julia.include("MCMC.jl")
+            ret = self.parent.julia.fit_disp([f.x for f in fit], samples[burnin:, :, :], self.parent.julia_spec, self.parent.fit.list(),
+                                       self.parent.julia_add, tieds=self.parent.fit.tieds,
+                                       nthreads=int(self.parent.options('MCMC_threads')), nums=int(self.parent.options('MCMC_disp_num')))
 
-            for i, s in enumerate(self.parent.s):
-                if s.fit.line.norm.n > 0:
-                    fit_disp[i] = np.c_[fit_disp[i], s.fit.line.norm.inter(fit[i].x)]
-                    for k, sys in enumerate(self.parent.fit.sys):
-                        fit_comp_disp[i][k] = np.c_[fit_comp_disp[i][k], s.fit_comp[k].line.norm.inter(fit_comp[i][k])]
+            fit_disp = np.asarray(ret).transpose()
+            print(fit_disp)
+            print(fit_disp.shape)
+        else:
+            for i1, i2, k in zip(np.random.randint(burnin, high=samples.shape[0], size=num), np.random.randint(0, high=samples.shape[1], size=num), range(num)):
+                print(k)
+                for p, t in zip(pars, samples[i1, i2, :]):
+                    self.parent.fit.setValue(p, t)
+                self.parent.s.prepareFit()
+                self.parent.s.calcFit(recalc=True, redraw=False)
+                self.parent.s.calcFitComps(recalc=True)
+
+                for i, s in enumerate(self.parent.s):
+                    if s.fit.line.norm.n > 0:
+                        fit_disp[i] = np.c_[fit_disp[i], s.fit.line.norm.inter(fit[i].x)]
+                        for k, sys in enumerate(self.parent.fit.sys):
+                            fit_comp_disp[i][k] = np.c_[fit_comp_disp[i][k], s.fit_comp[k].line.norm.inter(fit_comp[i][k])]
 
         for i, s in enumerate(self.parent.s):
             if s.fit.line.norm.n > 0:

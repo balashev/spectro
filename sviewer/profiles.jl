@@ -1,5 +1,6 @@
 using DataStructures
 using Interpolations
+using ImageFiltering
 using LsqFit
 using PeriodicTable
 using Polynomials
@@ -547,13 +548,13 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
     x_grid = -1 .* ones(Int8, size(spec.x)[1])
     x_grid[spec.mask] = zeros(sum(spec.mask))
     for i in findall(!=(0), spec.mask[1:end-1] - spec.mask[2:end])
-        for k in binsearch(spec.x, spec.x[i] * (1 - 4 * x_instr), type="min"):binsearch(spec.x, spec.x[i] * (1 + 4 * x_instr), type="max")
+        for k in binsearch(spec.x, spec.x[i] * (1 - 6 * x_instr), type="min"):binsearch(spec.x, spec.x[i] * (1 + 6 * x_instr), type="max")
             x_grid[k] = max(x_grid[k], round(Int, (spec.x[i] - spec.x[i-1]) / spec.x[i] / x_instr * 4))
         end
     end
 
     for line in spec.lines[line_mask]
-        i_min, i_max = binsearch(spec.x, line.l * (1 - 4 * x_instr), type="min"), binsearch(spec.x, line.l * (1 + 4 * x_instr), type="max")
+        i_min, i_max = binsearch(spec.x, line.l * (1 - 6 * x_instr), type="min"), binsearch(spec.x, line.l * (1 + 6 * x_instr), type="max")
         if i_max - i_min > 1 && i_min > 1
             for i in i_min:i_max
                 x_grid[i] = max(x_grid[i], round(Int, (spec.x[i] - spec.x[i-1]) / line.l / x_instr * 4))
@@ -567,15 +568,20 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
             if i_max - i_min > 1 && i_min > 0
                 for i in i_min:i_max
                     k_min, k_max = binsearch(x, spec.x[i]), binsearch(x, spec.x[i+1])
-                    x_grid[i] = max(x_grid[i], Int(floor((spec.x[i+1] - spec.x[i]) / (0.2  / maximum(r[k_min:k_max]) * line.ld)))+1)
+                    x_grid[i] = max(x_grid[i], Int(floor((spec.x[i+1] - spec.x[i]) / (0.1  / maximum(r[k_min:k_max]) * line.ld)))+1)
                 end
             end
         end
     end
 
+    if timeit == 1
+        println("update ", time() - start)
+    end
+
+    x_grid[x_grid .>= 0] = round.(imfilter(x_grid[x_grid .>= 0], ImageFiltering.Kernel.gaussian((2,))))
 
     if timeit == 1
-        println("update ", start - time())
+        println("grid conv ", time() - start)
     end
 
     if regular == 0
@@ -615,7 +621,7 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
     end
 
     if timeit == 1
-        println("make grid ", start - time())
+        println("make grid ", time() - start)
     end
 
     if ~any([occursin("cf", p.first) for p in pars])
@@ -653,7 +659,7 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
     end
 
     if timeit == 1
-        println("calc lines ", start - time())
+        println("calc lines ", time() - start)
         #println(size(x))
     end
 
@@ -692,7 +698,7 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
         end
 
         if timeit == 1
-            println("convolve ", start - time())
+            println("convolve ", time() - start)
         end
 
         if size(spec.cont)[1] > 0
@@ -749,7 +755,7 @@ function fitLM(spec, p_pars, add; tieds=Dict())
     upper = [p.max for (k, p) in pars if p.vary == true]
 
     println(params, " ", lower, " ", upper)
-    fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=200, lower=lower, upper=upper, show_trace=true, x_tol=1e-4)
+    fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=50, lower=lower, upper=upper, show_trace=true, x_tol=1e-4)
     sigma = stderror(fit)
     covar = estimate_covar(fit)
 

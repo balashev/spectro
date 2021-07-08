@@ -1,21 +1,21 @@
-show FeI
-FeI
-hide FeI
-show SiII8
-show SiII*
-show SiII
-show CI
-show CIj1
-show MgI
-show FeI
-FeI
-SiI
-show SiI
-MgI
-show CI
-cont 1
 set cont 1
 CIj1
 show CaII
 CaII
 5892 / 3934
+show CI*
+hide CI*
+show CII*
+show H2 0 1
+show SiII
+show SiII
+cont 1
+set cont 1
+show H2 0 1
+CII*
+show CII*
+set cont 1
+show H2 2 3 4
+high H2j0
+show SiII
+set cont 1

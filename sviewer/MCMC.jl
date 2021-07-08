@@ -119,14 +119,14 @@ function fitMCMC(spec, ppar, add; sampler="Affine", tieds=Dict(), prior=nothing,
 			rmprocs(2:nprocs())
 		end
 
-		nthreads = 1
-		open("config/options.ini") do f
-			for l in eachline(f)
-				if occursin("MCMC_threads", l)
-					nthreads = parse(Int64, split(l)[3])
-				end
-			end
-		end
+		#nthreads = 1
+		#open("config/options.ini") do f
+		#	for l in eachline(f)
+		#		if occursin("MCMC_threads", l)
+		#			nthreads = parse(Int64, split(l)[3])
+		#		end
+		#	end
+		#end
 
 		if nthreads > 1
 			addprocs(nthreads - 1)
@@ -437,4 +437,73 @@ function sampleHMC(llhood::Function, x0::Array, nsteps::Integer)
 	#   - `stats` will store diagnostic statistics for each sample
 	samples, stats = sample(hamiltonian, proposal, initial_θ, nsteps, adaptor, nsteps/2; progress=true)
 	return samples
+end
+
+
+function fit_disp(x, samples, spec, ppar, add; tieds=Dict(), nums=100, nthreads=1)
+	"""
+	Calculate the dispersion of the fit
+	"""
+	pars = make_pars(ppar, tieds=tieds)
+	inds = hcat(rand(1:size(samples, 1), nums), rand(1:size(samples, 2), nums))
+	pp = map(x->samples[x[1], x[2], :], eachrow(inds))
+	function spectrum(p)
+		i = 1
+		for (k, v) in pars
+			if v.vary == 1
+				pars[k].val = p[i]
+				i += 1
+			end
+		end
+
+		update_pars(pars, spec, add)
+
+		y = Any[]
+		for (i, s) in enumerate(spec)
+			if sum(s.mask) > 0
+				w, f = calc_spectrum(s, pars)
+				inter = LinearInterpolation(w, f, extrapolation_bc=Flat())
+				push!(y, inter(x[i]))
+			end
+		end
+		println("y: ", y)
+		return y
+	end
+
+	if 0 == 1
+		ntheards = 1
+		if nprocs() > 1
+			rmprocs(2:nprocs())
+		end
+		if nthreads > 1
+			addprocs(nthreads - 1)
+		end
+		@everywhere include("profiles.jl")
+		println("procs: ", nprocs())
+	end
+
+	ret = pmap(spectrum, pp)
+
+	if 1 == 0
+		for (i, s) in enumerate(spec)
+			for k in 1:nums
+				push!(d, ret[k][i, :])
+			end
+			#d = hcat([ret[k][i, :] for k in 1:nums])
+			println(i, " ", d)
+			println(size(d))
+			sd = sort(d, dims=(2))
+			println(sd[1, :])
+			println(sd[:, 1])
+		end
+	end
+
+	rmprocs(workers())
+	println(nprocs())
+
+	return ret
+	#for ind in eachrow(inds)
+	#	p = samples[ind[1], ind[2], :]
+	#	println(p)
+	#end
 end

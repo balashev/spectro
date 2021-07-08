@@ -6,6 +6,7 @@ from scipy.optimize import minimize, fsolve
 import os, sys
 sys.path.append('C:/Science/python')
 from spectro.atomic import Asplund2009
+from spectro.pyratio import pyratio
 
 class par():
     """
@@ -34,13 +35,13 @@ class par():
         # >>> metallicity
         if name == 'Z':
             self.init = 1
-            self.range = [1e-5, 100]
+            self.range = [1e-6, 100]
             self.label = r'$\rm Z$'
 
         # >>> particle number density
         if name == 'n':
             self.init = 1
-            self.range = [1e-2, 1e5]
+            self.range = [1e-4, 1e7]
             self.label = r'$n$'
 
         # >>> temperature
@@ -81,6 +82,12 @@ class par():
             self.range = [1, 20]
             self.label = r'T$_{\rm CMB}$'
 
+        # >>> Turbulence heating
+        if name == 'turb':
+            self.init = 1e-27
+            self.range = [0, 1e-24]
+            self.label = r'$\lambda_{\rm turb}$'
+
         self.value = self.init
 
     def set(self, x):
@@ -93,6 +100,9 @@ class par():
         print('prior:', self.prior)
         print('initial value range (for MCMC): ', self.init_range)
 
+    def draw(self, mu=0, sigma=0.5):
+        self.set(self.init * 10 ** (np.random.normal(mu, sigma)))
+
     def __repr__(self):
         return '{:s}: {:.2f}'.format(self.name, self.value)
 
@@ -102,18 +112,41 @@ class par():
 
 class ISM():
     def __init__(self, **kwargs):
+
+        # the redshift determines the CMB intensity and impact on the cooling due to fine-structure excitation.
         if 'z' in kwargs.keys():
             self.z = kwargs['z']
+
+        # Default velues of dtg_cutoff and dtg_alpha is from the fit of Remy-Ruyer+2014.
+        if 'dtg_cutoff' in kwargs.keys():
+            self.dtg_cutoff = kwargs['dtg_cutoff']
+        else:
+            self.dtg_cutoff = 0.2
+        if 'dtg_slope' in kwargs.keys():
+            self.dtg_slope = kwargs['dtg_slope']
+        else:
+            self.dtg_slope = 3
+        if 'dtg_disp' in kwargs.keys():
+            self.dtg_disp = kwargs['dtg_disp']
+        else:
+            self.dtg_disp = 0
         self.initialize_pars(**kwargs)
-        self.heating_types = ['photoelectric', 'cosmicray']
+        self.heating_types = ['photoelectric', 'cosmicray', 'photo_c', 'turb'] # , 'grav']
         self.cooling_types = ['Lya', 'CII', 'OI', 'rec']
+        z = kwargs['z'] if 'z' in kwargs.keys() else 0
+        self.pr = pyratio(z=z, sed_type=None)
+        self.pr.set_pars(['T', 'n', 'f', 'rad'])
+        self.pr.set_fixed('f', -10)
+        for sp in ['OI', 'CII']:
+            self.pr.add_spec(sp)
+        #print(self.pr.species['CII'].coll_rate('H', 1, 0, 2))
 
     def initialize_pars(self, **kwargs):
         self.pars = collections.OrderedDict()
-        for name in ['Z', 'n', 'T', 'UV', 'CR', 'n_e', 'mol']:
+        for name in ['Z', 'n', 'T', 'UV', 'CR', 'n_e', 'mol', 'turb']:
             self.pars[name] = par(name, parent=self)
             if name in kwargs.keys():
-                print(name, kwargs[name])
+                self.pars[name].init = kwargs[name]
                 self.pars[name].value = kwargs[name]
 
     def p(self, attr):
@@ -129,13 +162,12 @@ class ISM():
             return 1
 
     def dust_to_gas_ratio(self, Z=None):
-        Z_0, alpha = 0.2, 3
         if Z == None:
             Z = self.p('Z')
-        if Z > Z_0:
-            return Z
+        if Z > self.dtg_cutoff:
+            return Z * 10 ** (self.dtg_disp)
         else:
-            return Z_0 * (Z / Z_0) ** alpha
+            return self.dtg_cutoff * (Z / self.dtg_cutoff) ** self.dtg_slope * 10 ** (self.dtg_disp)
 
     def abundance(self, element, Z=None, depl_kind='Bialy'):
         if Z == None:
@@ -144,7 +176,7 @@ class ISM():
         if element == 'dust':
             return self.dust_to_gas_ratio(Z=Z)
         else:
-            return 10**Asplund2009(element)[0] * Z * self.depletion(element, kind=depl_kind)
+            return 10**Asplund2009(element)[0] * Z * self.depletion(element, Z=Z, kind=depl_kind)
 
     def alpha_rr(self):
         T4 = self.p('T') / 10000
@@ -178,26 +210,62 @@ class ISM():
         #return 0.049 / (1 + (psi / 1925) ** 0.73) + 0.037 * (self.p('T') / 10 ** 4) ** 0.7 / (1 + psi / 5000)
 
     def heating(self, kind=''):
-        if kind == 'photoelectric':
+        """
+        provides various heating rates in [erg cm-3 s-1]
+        :param kind:   type of heating
+        :return:       heating rate in [erg cm-3 s-1]
+        """
+        kind = kind.split('_') + ['']
+        if kind[0] == 'photoelectric':
             return 2.2e-24 * self.abundance('dust') * self.p('n') * self.p('UV') * self.g_PE()
 
-        if kind == 'cosmicray':
+        if kind[0] == 'cosmicray':
             x_e = self.x_e()
-            return 1.03e-11 * self.p('n') * self.p('CR') * (1 + 4.06 * (x_e / (x_e + 0.07)) ** 0.5) + 4.6e-10 * self.p('CR') * x_e * self.p('n')
+            return 1.03e-11 * self.p('CR') * self.p('n') * (1 + 4.06 * (x_e / (x_e + 0.07)) ** 0.5) + 4.6e-10 * self.p('CR') * x_e * self.p('n')
+
+        if kind[0] == 'photo_c':
+            return 2e-22 * self.abundance('C') * 1e-2 * self.p('n')
+
+        if kind[0] == 'turb':
+            return self.p('turb') * self.p('n')  #* 1 / (1 + np.exp(-(np.log10(self.p('n')) - 1.5) / 0.3))
+
+        if kind[0] == 'grav':
+            return 2.6e-31 * self.p('n') * self.p('T') * 1 / (1 + np.exp(-(np.log10(self.p('n')) - 2) / 0.5))
 
         return 0
 
     def cooling(self, kind=''):
-        if kind == 'Lya':
-            return 7.3e-19 * self.n_e() * self.p('n') * np.exp(-118400 / self.p('T'))
+        """
+        provides various colling rates in [erg cm-3 s-1]
+        :param kind:   type of cooling
+        :return:       colling rate in [erg cm-3 s-1]
+        """
+        kind = kind.split('_') + ['']
+        if kind[0] == 'Lya':
+            # from Klessen & Glover
+            return 7.3e-19 * self.n_e() * self.p('n') * np.exp(-118400 / self.p('T')) / (1 + (self.p('T') / 1e5) ** 0.5)
 
-        if kind == 'CII':
-            return 2.54e-14 * (2.8e-6 * self.n_e() / self.p('n') * self.p('T') ** -0.5 + 8e-10) * self.abundance('C') * np.exp(-92 / self.p('T')) * self.p('n') ** 2
+        if kind[0] == 'CII':
+            if kind[1] in ['Klessen']:
+                #return 2.88e-20 * self.p('n') * self.abundance('C') * (2 * np.exp(-91.21 / self.p('T'))) / (1 + 2e3 / self.p('n') + 2 * np.exp(-91.21 / self.p('T')))
+                return 2.88e-20 * self.p('n') * self.abundance('C') * (2 * np.exp(-91.21 / self.p('T'))) / (1 + self.pr.species['CII'].critical_density('H', 1, 0, np.log10(self.p('T'))) / self.p('n') + 2 * np.exp(-91.21 / self.p('T')))
+            if kind[1] in ['Wolfire']:
+                return (3.15e-27 * self.p('n') + 1.4e-24 * self.p('T')**-0.5 * self.n_e()) * np.exp(-92 / self.p('T')) * self.p('Z') * self.p('n')
+            if kind[1] in ['Bialy']:
+                print(self.n_e() / self.p('n'))
+                return 2.54e-14 * (2.8e-6 * self.n_e() / self.p('n') * self.p('T') ** -0.5 + 8e-10) * self.abundance('C') * np.exp(-92 / self.p('T')) * self.p('n') ** 2
+            if kind[1] in ['pyratio', '']:
+                return self.pr.calc_cooling(species='CII', n=np.log10(self.p('n')), T=np.log10(self.p('T'))) * self.abundance('C') * self.p('n')
 
-        if kind == 'OI':
-            return 1e-26 * self.p('T') ** 0.5 * self.abundance('O') * (24 * np.exp(-228 / self.p('T')) + 7 * np.exp(-326 / self.p('T'))) * self.p('n') ** 2
+        if kind[0] == 'OI':
+            if kind[1] in ['Wolfire']:
+                return 2.5e-27 * (self.p('T') / 100) ** 0.4 * (np.exp(-228 / self.p('T'))) * self.p('Z') * self.p('n') ** 2
+            if kind[1] in ['Klessen']:
+                return 2.79e-18 * self.p('n') * self.abundance('O') * (3 / 5 * np.exp(-228 / self.p('T'))) / (1 + self.pr.species['OI'].critical_density('H', 1, 0, np.log10(self.p('T'))) / self.p('n') + 3 / 5 * np.exp(-228 / self.p('T')))
+            if kind[1] in ['pyratio', '']:
+                return self.pr.calc_cooling(species='OI', n=np.log10(self.p('n')), T=np.log10(self.p('T'))) * self.abundance('O') * self.p('n')
 
-        if kind == 'rec':
+        if kind[0] == 'rec':
             return 4.65e-30 * self.p('T') ** 0.94 * (self.p('UV') * self.p('T') ** 0.5 / self.n_e() / 0.5) ** (0.73 / self.p('T') ** 0.068) * self.n_e() * self.p('n') * 0.5
 
         return 0
@@ -235,14 +303,14 @@ class ISM():
         return self.thermal_balance()
 
 
-    def phase_diagram(self, n=None, method='Nelder-Mead'):
-        if n == None:
-            n = np.logspace(-2, 4, 100)
+    def phase_diagram(self, n=[], method='Nelder-Mead'):
+        if len(n) == 0:
+            n = np.logspace(-2, 4, 50)
         T = np.zeros_like(n)
+        T[-1] = 1e4
         for i, ni in enumerate(n):
             self.pars['n'].value = ni
-            T[i] = minimize(self.thermal_mini, 100, args=(), method=method).x[0]
-
+            T[i] = minimize(self.thermal_mini, T[i-1], args=(), method=method, options={'fatol': 1}).x[0]
         # >> calc mask for thermally stable regions dP/dn > 0
         m = np.diff(np.concatenate([n*T, [(n*T)[-1]]])) >= 0
 
@@ -251,22 +319,28 @@ class ISM():
 
 if __name__ == '__main__':
     print('executing main program code')
-    ism = ISM(Z=1)
+    ism = ISM(z=0, Z=1, UV=1, CR=1e-16, turb=1e-27)
     print(ism.pars)
+    #print(ism.n_e())
 
     # >>> check cooling heating rates:
     if 0:
         fig, ax = plt.subplots()
+        #ism.cooling_types.append('CII_Wolfire')
+        #ism.cooling_types.append('CII_Klessen')
+        #ism.cooling_types.append('OI_Wolfire')
+        #ism.cooling_types.append('OI_Klessen')
 
-        n, T, m = ism.phase_diagram()
+        n, T, m = ism.phase_diagram(n=np.logspace(-4, 4, 100))
+
         for c in ism.cooling_types:
-            ax.plot(np.log10(n), np.log10(ism.thermal_rates(kind=c, n=n, T=T) / n), ls='-', label=c)
+            ax.plot(np.log10(n), np.log10(ism.thermal_rates(kind=c, n=n, T=T) / n), ls='-', label=f'${c}$')
         for h in ism.heating_types:
-            ax.plot(np.log10(n), np.log10(ism.thermal_rates(kind=h, n=n, T=T) / n), ls='--', label=h)
+            ax.plot(np.log10(n), np.log10(ism.thermal_rates(kind=h, n=n, T=T) / n), ls='--', label=f'${h}$')
             #print(c, ism.cooling_rate(kind=c, n=n, T=T))
         #for ni, Ti in zip()
-        ax.set_xlim([-2, 4])
-        ax.set_ylim([-30, -25])
+        ax.set_xlim([-4, 4.5])
+        ax.set_ylim([-30, -24])
         fig.legend()
         plt.show()
     if 0:
@@ -274,22 +348,63 @@ if __name__ == '__main__':
             ism.pars['mol'].value = f
             #print(f, ism.x_e(force=True))
 
-    if 1:
+    if 0:
         fig, ax = plt.subplots()
         cmap = cm.get_cmap('winter')
-        Z_range = [0.001, 0.01, 0.2, 1]
         if 1:
+            Z_range = [0.001, 0.01, 0.1, 1]
             for Z in Z_range:
                 ism.pars['Z'].value = Z
-                for f in [0, 1]:
+                c = cmap((np.log10(Z) - np.log10(np.min(Z_range))) / (np.log10(np.max(Z_range)) - np.log10(np.min(Z_range))))
+                for f in [0]:
+                    ism.pars['mol'].value = f
+                    n, T, m = ism.phase_diagram(n=np.logspace(-4, 4, 100))
+                    P = T * n
+                    ax.plot(np.log10(n), np.log10(P), '--', c=c, label=f"Z={Z}")
+                    P[~m] = np.nan
+                    ax.plot(np.log10(n), np.log10(P), c=c)
+        if 0:
+            UV_range = [0.3, 1, 3, 10]
+            for UV in UV_range:
+                ism.pars['UV'].value = UV
+                c = cmap((np.log10(UV) - np.log10(np.min(UV_range))) / (np.log10(np.max(UV_range)) - np.log10(np.min(UV_range))))
+                for f in [0]:
                     ism.pars['mol'].value = f
                     n, T, m = ism.phase_diagram()
                     P = T * n
-                    print((np.log10(Z) - np.log10(np.min(Z_range))) / (np.log10(np.max(Z_range)) - np.log10(np.min(Z_range))))
-                    c = cmap((np.log10(Z) - np.log10(np.min(Z_range))) / (np.log10(np.max(Z_range)) - np.log10(np.min(Z_range))))
-                    ax.plot(np.log10(n), np.log10(P), '--', c=c, label=f"Z={Z}")
+                    ax.plot(np.log10(n), np.log10(P), '--', c=c, label=f"UV={UV}")
+                    P[~m] = np.nan
+                    ax.plot(np.log10(n), np.log10(P), c=c)
+
+        if 0:
+            CR_range = [0.3e-16, 1e-16, 3e-16, 1e-15]
+            UV_range = [0.3, 1, 3, 10]
+            for CR, UV in zip(CR_range, UV_range):
+                ism.pars['CR'].value, ism.pars['UV'].value = CR, UV
+                c = cmap((np.log10(UV) - np.log10(np.min(UV_range))) / (np.log10(np.max(UV_range)) - np.log10(np.min(UV_range))))
+                for f in [0]:
+                    ism.pars['mol'].value = f
+                    n, T, m = ism.phase_diagram()
+                    P = T * n
+                    ax.plot(np.log10(n), np.log10(P), '--', c=c, label=f"CR, UV={UV}")
                     P[~m] = np.nan
                     ax.plot(np.log10(n), np.log10(P), c=c)
 
         fig.legend()
         plt.show()
+
+    if 1:
+
+        ism = ISM(z=0, Z=1, UV=1, CR=1e-16, turb=1e-27, dtg_cutoff=0.1, dtg_slope=2.5, dtg_disp=0.4)
+        x, y = [], []
+        for Z in 10**(-2 * np.random.rand(100)):
+            ism.pars['Z'].value = Z
+            ism.dtg_disp = np.random.randn() * 0.4
+            x.append(Z)
+            y.append(ism.abundance("dust"))
+
+        print(x, y)
+        fig, ax = plt.subplots()
+        ax.plot(np.log10(x), np.log10(162) - np.log10(y), 'ok')
+        plt.show()
+
