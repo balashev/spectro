@@ -129,6 +129,14 @@ function voigt_grid(l, a, tau_0; step=0.03)
     return k_min:k_max, g
 end
 
+function z_to_v(;z=nothing, v=nothing, z_ref=0)
+    c = 299792.458
+    if v == nothing
+        return c * (z - z_ref) / (1 + z_ref)
+    elseif z == nothing
+        return z_ref + v / c * (1 + z_ref)
+    end
+end
 ##############################################################################
 ##############################################################################
 ##############################################################################
@@ -142,15 +150,21 @@ mutable struct par
     vary::Bool
     addinfo::String
     tied::String
+    ref::Float64
 end
 
 function make_pars(p_pars; tieds=Dict())
     pars = OrderedDict{String, par}()
     for p in p_pars
-        pars[p.__str__()] = par(p.__str__(), p.val, p.min, p.max, p.step, p.fit * p.vary, p.addinfo, "")
+        if occursin("z_", p.__str__())
+            pars[p.__str__()] = par(p.__str__(), 0.0, z_to_v(z=p.min, z_ref=p.val), z_to_v(z=p.max, z_ref=p.val), p.step, p.fit * p.vary, p.addinfo, "", p.val)
+        else
+            pars[p.__str__()] = par(p.__str__(), p.val, p.min, p.max, p.step, p.fit * p.vary, p.addinfo, "", 0)
+        end
         if occursin("cf", p.__str__())
             pars[p.__str__()].min, pars[p.__str__()].max = 0, 1
         end
+
     end
     for (k, v) in tieds
         pars[k].vary = false
@@ -326,7 +340,7 @@ function update_lines(lines, pars; ind=0)
             line.b = pars["b_" * string(line.sys) * "_" * line.name].val
         end
         line.logN = pars["N_" * string(line.sys) * "_" * line.name].val
-        line.z = pars["z_" * string(line.sys)].val
+        line.z = z_to_v(v=pars["z_" * string(line.sys)].val, z_ref=pars["z_" * string(line.sys)].ref)
         line.l = line.lam * (1 + line.z)
         line.tau0 = sqrt(π) * 0.008447972556327578 * (line.lam * 1e-8) * line.f * 10 ^ line.logN / (line.b * 1e5)
         line.a = line.g / 4 / π / line.b / 1e5 * line.lam * 1e-8
@@ -756,15 +770,22 @@ function fitLM(spec, p_pars, add; tieds=Dict())
 
     println(params, " ", lower, " ", upper)
     fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=50, lower=lower, upper=upper, show_trace=true, x_tol=1e-4)
-    sigma = stderror(fit)
-    covar = estimate_covar(fit)
+    param, sigma, covar = copy(fit.param), stderror(fit), estimate_covar(fit)
 
     println(dof(fit))
-    println(fit.param)
-    println(sigma)
-    println(covar)
+    i = 1
+    for (k, p) in pars
+        if p.vary == true
+            if occursin("z", p.name)
+                param[i] = z_to_v(v=param[i], z_ref=p.ref)
+                sigma[i] = z_to_v(v=sigma[i], z_ref=p.ref) - p.ref
+            end
+            println(k, ": ", param[i], " ± ", sigma[i])
+            i += 1
+        end
+    end
+    #println(covar)
 
-    return dof(fit), fit.param, sigma
-
+    return dof(fit), param, sigma
 end
 

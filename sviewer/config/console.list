@@ -1,13 +1,3 @@
-set cont 1
-CIj1
-show CaII
-CaII
-5892 / 3934
-show CI*
-hide CI*
-show CII*
-show H2 0 1
-show SiII
 show SiII
 cont 1
 set cont 1
@@ -19,3 +9,13 @@ show H2 2 3 4
 high H2j0
 show SiII
 set cont 1
+MnII
+MiIIj1
+MniIIj1
+MniIIj1
+MniIIj1
+MnIIj1
+FeIIj12
+FeIIj11
+FeIIj10
+FeIIj9
