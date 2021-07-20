@@ -1987,7 +1987,7 @@ class showLinesWidget(QWidget):
                         if int(m[1:]) < 3:
                             p.name = p.name.replace(m, '*'*int(m[1:]))
                         else:
-                            p.name = p.name.replace(m, r"$^{" + str(m[1:]) + "*}$")
+                            p.name = p.name.replace(m, r"$^{" + str(m[1:]) + "}$*")
 
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 p.y_formatter = self.y_formatter
