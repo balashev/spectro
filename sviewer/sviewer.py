@@ -1606,6 +1606,8 @@ class showLinesWidget(QWidget):
             self.buttons[opt].textChanged[str].connect(partial(self.onChanged, attr=opt))
             grid.addWidget(self.buttons[opt], v[0], v[1])
 
+        self.buttons['z_ref'].setMaxLength(10)
+
         self.orderh = QCheckBox("hor.", self)
         self.orderh.clicked.connect(partial(self.setOrder, 'h'))
         self.orderv = QCheckBox("vert.", self)
@@ -1982,7 +1984,10 @@ class showLinesWidget(QWidget):
                 if self.labels_corr and all([not s in p.name for s in ['H2', 'HD', 'CO']]):
                     if 'j' in p.name:
                         m = re.findall('(j\d+)', p.name)[0]
-                        p.name = p.name.replace(m, '*'*int(m[1:]))
+                        if int(m[1:]) < 3:
+                            p.name = p.name.replace(m, '*'*int(m[1:]))
+                        else
+                            p.name = p.name.replace(m, str(int(m[1:]))+'*')
 
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 p.y_formatter = self.y_formatter

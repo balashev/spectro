@@ -1332,14 +1332,23 @@ class fitResultsWidget(QWidget):
         self.showb = QCheckBox('Show b')
         self.showb.setChecked(False)
         self.showb.clicked.connect(self.refresh)
-        self.showv = QCheckBox('Delta v')
+        self.showv = QCheckBox('Delta v, z_ref:')
         self.showv.setChecked(False)
         self.showv.clicked.connect(self.refresh)
-        self.comp = 0
-        self.vcomp = QLineEdit(str(self.comp+1))
-        self.vcomp.setFixedSize(20, 30)
-        self.vcomp.setEnabled(self.showv.isChecked())
-        self.vcomp.returnPressed.connect(self.refresh)
+        self.zref = FLineEdit(self, 0.0, var='z', name='z_ref')
+        #self.zref = QLineEdit(self.z_ref)
+        self.zref.setFixedSize(80, 30)
+        self.zref.setEnabled(self.showv.isChecked())
+        self.zref.returnPressed.connect(self.refresh)
+        self.vcomp = QComboBox(self)
+        self.vcomp.setFixedSize(40, 30)
+        self.vcomp.addItems([str(i+1) for i in range(len(self.parent.fit.sys))])
+        self.vcomp.activated.connect(self.set_zref)
+        if len(self.parent.fit.sys) > 0:
+            self.comp = 1
+            self.zref.setText(str(self.parent.fit.sys[self.comp - 1].z.val))
+            self.vcomp.setCurrentIndex(self.comp)
+
         self.showLFR = QCheckBox('LFR')
         self.showLFR.setChecked(True)
         self.showLFR.clicked.connect(self.refresh)
@@ -1348,6 +1357,7 @@ class fitResultsWidget(QWidget):
         hl.addWidget(self.tiedN)
         hl.addWidget(self.showb)
         hl.addWidget(self.showv)
+        hl.addWidget(self.zref)
         hl.addWidget(self.vcomp)
         hl.addWidget(self.showLFR)
         hl.addStretch(0)
@@ -1399,9 +1409,18 @@ class fitResultsWidget(QWidget):
 
         self.setLayout(layout)
 
+    def set_zref(self):
+        self.comp = self.vcomp.currentIndex() + 1
+        if len(self.parent.fit.sys) > 0:
+            self.z_ref = self.parent.fit.sys[self.comp-1].z.val
+            self.zref.setText(str(self.z_ref))
+
     def refresh(self, view=None):
-        self.vcomp.setEnabled(self.showv.isChecked())
-        self.comp = int(self.vcomp.text())-1
+        self.zref.setEnabled(self.showv.isChecked() * len(self.parent.fit.sys) > 0)
+        self.vcomp.setEnabled(self.showv.isChecked() * len(self.parent.fit.sys) > 0)
+        if len(self.parent.fit.sys) > 0:
+            self.z_ref = float(self.zref.text())
+            self.comp = self.vcomp.currentIndex() + 1
         self.HIvalue.setEnabled(self.showme.isChecked())
         self.HI = a(self.HIvalue.text())
         self.depRef.setEnabled(self.showdep.isChecked())
@@ -1438,12 +1457,12 @@ class fitResultsWidget(QWidget):
         d = ['comp', 'z']
         if self.showv.isChecked():
             d += ['$\Delta$v, km/s']
+        if self.showb.isChecked():
+            d += ['b, km/s']
         if self.tiedN.isChecked():
             d += [r'$\log n [\rm cm^{-3}]$']
             d += [r'$\log T [\rm cm^{-3}]$']
             d += [r'$\log N_{\rm tot}$']
-        if self.showb.isChecked():
-            d += ['b, km/s']
         d += list([r'$\log N$(' + s + ')' for s in sps.keys()])
         if self.showtotal.isChecked() and any([all([el in sp for sp in sys.sp.keys()]) for el in ['H2', 'CO', 'HD', 'CI']]):
             d += [r'$\log N_{\rm tot}$']
@@ -1458,18 +1477,18 @@ class fitResultsWidget(QWidget):
             d.append(sys.z.fitres(latex=True, showname=False))
 
             if self.showv.isChecked():
-                d.append('{:.1f}'.format((sys.z.val - fit.sys[self.comp].z.val)/(1 + fit.sys[self.comp].z.val) * 299792.46))
-
-            if self.tiedN.isChecked():
-                d.append(sys.logn.fitres(latex=True, dec=2, showname=False))
-                d.append(sys.logT.fitres(latex=True, dec=2, showname=False))
-                d.append(sys.Ntot.fitres(latex=True, dec=2, showname=False))
+                d.append('{:.1f}'.format((sys.z.val - self.z_ref)/(1 + self.z_ref) * 299792.46))
 
             if self.showb.isChecked():
                 sp = sys.sp[list(sys.sp.keys())[0]]
                 if sp.b.addinfo != '':
                     sp = sys.sp[sp.b.addinfo]
                 d.append(sp.b.fitres(latex=True, dec=2, showname=False))
+
+            if self.tiedN.isChecked():
+                d.append(sys.logn.fitres(latex=True, dec=2, showname=False))
+                d.append(sys.logT.fitres(latex=True, dec=2, showname=False))
+                d.append(sys.Ntot.fitres(latex=True, dec=2, showname=False))
 
             for sp in sps.keys():
                 if sp in sys.sp.keys() and 'Ntot' not in sys.sp[sp].N.addinfo:
