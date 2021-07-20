@@ -2426,7 +2426,7 @@ class fitMCMCWidget(QWidget):
         self.priorField = QTextEdit('')
         self.priorField.setFixedSize(300, 400)
         self.priorField.textChanged.connect(self.priorsChanged)
-        self.priorField.setText('# you can specify prior here \n# N_0_HI 19 0.2 0.3 \n# for comment use #')
+        self.priorField.setText('# you can specify priors here, e.g. \n# N_0_HI 19 0.2 0.3 \n # otherwise assume to be flat \n # for comments use #')
         grid.addWidget(self.priorField, 5, 1)
 
         self.b_increase = QCheckBox('b increase')

@@ -1,16 +1,3 @@
-show SiII
-cont 1
-set cont 1
-show H2 0 1
-CII*
-show CII*
-set cont 1
-show H2 2 3 4
-high H2j0
-show SiII
-set cont 1
-MnII
-MiIIj1
 MniIIj1
 MniIIj1
 MniIIj1
@@ -19,3 +6,16 @@ FeIIj12
 FeIIj11
 FeIIj10
 FeIIj9
+show SiII*
+show H2 0 1
+show CI
+show CO
+show COj0
+show COj1
+hide CO
+hide COj2
+show COj1
+hide CO
+show CIj1
+show CIj2
+show SiIIj1
