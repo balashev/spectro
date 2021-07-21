@@ -11,14 +11,12 @@ function fitMCMC(spec, ppar, add; sampler="Affine", tieds=Dict(), prior=nothing,
 
     #COUNTERS["num"] = nwalkers
 
-	println(init)
+	println("init: ", init)
 
     pars = make_pars(ppar, tieds=tieds)
     priors = make_priors(prior)
-	println(priors)
-    params = [p.val for (k, p) in pars if p.vary == 1]
-
-    numdims = size(params)[1]
+	println("priors: ", priors)
+    #params = [p.val for (k, p) in pars if p.vary == 1]
 
 	#lnlike = p->begin
 	function lnlike(p)
