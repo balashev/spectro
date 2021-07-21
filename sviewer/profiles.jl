@@ -561,9 +561,12 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
     x_instr = 1.0 / spec.resolution / 2.355
     x_grid = -1 .* ones(Int8, size(spec.x)[1])
     x_grid[spec.mask] = zeros(sum(spec.mask))
+    for i in findall(!=(0), spec.mask[2:end])
+        x_grid[i] = max(x_grid[i], round(Int, (spec.x[i] - spec.x[i-1]) / spec.x[i] / x_instr * 2))
+    end
     for i in findall(!=(0), spec.mask[1:end-1] - spec.mask[2:end])
         for k in binsearch(spec.x, spec.x[i] * (1 - 6 * x_instr), type="min"):binsearch(spec.x, spec.x[i] * (1 + 6 * x_instr), type="max")
-            x_grid[k] = max(x_grid[k], round(Int, (spec.x[i] - spec.x[i-1]) / spec.x[i] / x_instr * 4))
+            x_grid[k] = max(x_grid[k], round(Int, (spec.x[i] - spec.x[i-1]) / spec.x[i] / x_instr * 2))
         end
     end
 
@@ -571,7 +574,7 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
         i_min, i_max = binsearch(spec.x, line.l * (1 - 6 * x_instr), type="min"), binsearch(spec.x, line.l * (1 + 6 * x_instr), type="max")
         if i_max - i_min > 1 && i_min > 1
             for i in i_min:i_max
-                x_grid[i] = max(x_grid[i], round(Int, (spec.x[i] - spec.x[i-1]) / line.l / x_instr * 4))
+                x_grid[i] = max(x_grid[i], round(Int, (spec.x[i] - spec.x[i-1]) / line.l / x_instr * 3))
             end
         end
         line.dx = voigt_range(line.a, 0.001 / line.tau0)
@@ -769,7 +772,7 @@ function fitLM(spec, p_pars, add; tieds=Dict())
     upper = [p.max for (k, p) in pars if p.vary == true]
 
     println(params, " ", lower, " ", upper)
-    fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=50, lower=lower, upper=upper, show_trace=true, x_tol=1e-4)
+    fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=50, lower=lower, upper=upper, show_trace=true, x_tol=1e-3)
     param, sigma, covar = copy(fit.param), stderror(fit), estimate_covar(fit)
 
     println(dof(fit))
