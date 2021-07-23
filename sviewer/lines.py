@@ -73,7 +73,7 @@ class absSystemIndicator():
         self.update()
         if z is not None:
             self.parent.z_abs = z
-            self.parent.panel.z_panel.setText(str(z))
+            self.parent.panel.z_panel.setText("{:20.10f}".format(self.parent.z_abs).strip().rstrip("0"))
         if hasattr(self.parent, 's') and len(self.parent.s) > 0:
             for line in self.lines:
                 #print(line.line.name, line.active)

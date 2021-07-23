@@ -1,21 +1,21 @@
-FeIIj11
-FeIIj10
-FeIIj9
-show SiII*
-show H2 0 1
+rescale y 1e12
+rescale y 1e12
+rescale y 1e12
+show ClI
 show CI
-show CO
-show COj0
-show COj1
-hide CO
-hide COj2
-show COj1
-hide CO
+rescale y 1e12
+show ClI
+rescale y 1e12
+show ClI
+y 0 1e-12
+show ClI
+y 0 1e-12
+y 0 1e-11
+y 0 1e-10
+show ClI
+y 0 1e-10
+show ClI
+show ClI
+show CI
 show CIj1
 show CIj2
-show SiIIj1
-show SiII
-set cont 1
-ClI
-1347.23 * 3
-set cont 1

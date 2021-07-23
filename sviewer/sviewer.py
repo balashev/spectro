@@ -5876,7 +5876,7 @@ class buttonpanel(QFrame):
         """)
 
     def refresh(self):
-        self.z_panel.setText(str(self.parent.z_abs))
+        self.z_panel.setText("{:20.10f}".format(self.parent.z_abs).strip().rstrip("0"))
     
     def zChanged(self, text=None):
         if text is None:
@@ -6793,7 +6793,7 @@ class sviewer(QMainWindow):
 
     def setz_abs(self, text):
         self.z_abs = float(text)
-        self.panel.z_panel.setText(str(self.z_abs))
+        self.panel.z_panel.setText("{:20.10f}".format(self.z_abs).strip().rstrip("0"))
         if self.plot.restframe:
             self.plot.updateVelocityAxis()
         self.abs.redraw()
