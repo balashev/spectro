@@ -4,6 +4,7 @@ import astropy.coordinates
 from astropy.io import ascii, fits
 from astropy.table import Table
 import astropy.time
+from astroquery.sdss import SDSS
 from chainconsumer import ChainConsumer
 from collections import OrderedDict
 from copy import deepcopy, copy
@@ -2110,6 +2111,7 @@ class showLinesWidget(QWidget):
                                         #p.ax.text(p.x_max - (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='right', va='bottom', fontsize=p.font_labels, color=color)
                                         p.ax.text(p.x_min + (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='left', va='bottom', fontsize=p.font_labels, color=color)
 
+                print(self.show_H2)
                 if self.show_H2.strip() != '':
                     p.showH2(levels=[int(s) for s in self.show_H2.split()], pos=self.pos_H2)
 
@@ -5001,7 +5003,7 @@ class ExportDataWidget(QWidget):
 
         if self.type == 'export':
             self.check = OrderedDict([('spectrum', 'Spectrum'), ('cont', 'Continuum'),
-                                      ('fit', 'Fit model'), ('fit_regions', 'Fit regions'), ('lines', 'Lines')])
+                                      ('fit', 'Fit model'), ('fit_comps', 'Fit comps')])
             self.opt = self.parent.export_opt
         elif self.type == 'save':
             self.check = OrderedDict([('spectrum', 'Spectrum'), ('cont', 'Continuum'),
@@ -5045,6 +5047,18 @@ class ExportDataWidget(QWidget):
                 getattr(self, s).clicked[bool].connect(partial(self.rangeChanged, s))
                 hbox.addWidget(getattr(self, s))
             self.rangeChanged(self.range)
+            hbox.addStretch(1)
+            layout.addLayout(hbox)
+
+            hbox = QHBoxLayout()
+            hbox.addWidget(QLabel('fit:  '))
+            self.fit_types = ['full', 'masked']
+            self.fit_type = 'full'
+            for s in self.fit_types:
+                setattr(self, 'fit_'+s, QCheckBox(s))
+                getattr(self, 'fit_'+s).clicked[bool].connect(partial(self.fitChanged, s))
+                hbox.addWidget(getattr(self, 'fit_'+s))
+            self.fitChanged(self.fit_type)
             hbox.addStretch(1)
             layout.addLayout(hbox)
 
@@ -5108,6 +5122,12 @@ class ExportDataWidget(QWidget):
             getattr(self, s).setChecked(False)
         getattr(self, unit).setChecked(True)
 
+    def fitChanged(self, unit):
+        self.fit_type = unit
+        for s in self.fit_types:
+            getattr(self, 'fit_'+s).setChecked(False)
+        getattr(self, 'fit_'+unit).setChecked(True)
+
     def export(self):
         s = self.parent.s[self.parent.s.ind]
         kwargs = {'fmt':'%.5f', 'delimiter': ' '}
@@ -5115,15 +5135,23 @@ class ExportDataWidget(QWidget):
         if self.waveunit == 'nm':
             unit = 10
 
+        if self.fit_type == 'full':
+            fit_mask = np.ones_like(s.fit.x(), dtype=bool)
+        elif self.fit_type == 'masked':
+            fit_mask = mask[s.fit_mask.x()]
+
         if self.range == 'window':
             print(s.spec.x())
             print(self.parent.plot.vb.getState()['viewRange'][0][0], self.parent.plot.vb.getState()['viewRange'][0][-1])
             mask = (s.spec.x() > self.parent.plot.vb.getState()['viewRange'][0][0]) * (s.spec.x() < self.parent.plot.vb.getState()['viewRange'][0][-1])
             cont_mask = (s.cont.x > self.parent.plot.vb.getState()['viewRange'][0][0]) * (s.cont.x < self.parent.plot.vb.getState()['viewRange'][0][-1])
+            fit_mask *= (s.fit.x() > self.parent.plot.vb.getState()['viewRange'][0][0]) * (s.fit.x() < self.parent.plot.vb.getState()['viewRange'][0][-1])
         else:
             mask, cont_mask = np.isfinite(s.spec.x()), np.isfinite(s.cont.x)
         print(np.sum(mask))
         print(np.sum(s.cont_mask))
+        print(np.sum(fit_mask))
+
 
         if self.cheb_applied.isChecked() and self.parent.fit.cont_fit:
             cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
@@ -5135,11 +5163,20 @@ class ExportDataWidget(QWidget):
         if self.cont.isChecked():
             np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x[cont_mask] / unit, s.cont.y[cont_mask] / cheb(s.cont.x[cont_mask])], **kwargs)
         if self.fit.isChecked():
-            np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x()[mask[s.fit_mask.x()]] / unit, s.fit.y()[mask[s.fit_mask.x()]] / cheb(s.fit.x()[mask[s.fit_mask.x()]])], **kwargs)
-        if self.fit.isChecked():
-            np.savetxt('_fit_regions.'.join(self.filename.rsplit('.', 1)), np.c_[s.spec.x()[np.logical_and(mask, s.fit_mask.x())] / unit, (s.spec.y() / cheb(s.spec.x()))[np.logical_and(mask, s.fit_mask.x())]], **kwargs)
-        if self.lines.isChecked():
-            np.savetxt('_fit_comps.'.join(self.filename.rsplit('.', 1)), np.column_stack([s.fit.x()[mask] / unit] + [c.y()[mask] / cheb(s.fit.x()[mask]) for c in s.fit_comp]), **kwargs)
+            np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x()[fit_mask] / unit, s.fit.y()[fit_mask] / cheb(s.fit.x()[fit_mask])], **kwargs)
+        #if self.fit.isChecked():
+        #    np.savetxt('_fit_regions.'.join(self.filename.rsplit('.', 1)), np.c_[s.spec.x()[np.logical_and(mask, fit_mask)] / unit, (s.spec.y() / cheb(s.spec.x()))[np.logical_and(mask, fit_mask)]], **kwargs)
+        if self.fit_comps.isChecked():
+            for i, c in enumerate(s.fit_comp):
+                if self.range == 'window':
+                    fit_mask = (c.x() > self.parent.plot.vb.getState()['viewRange'][0][0]) * (c.x() < self.parent.plot.vb.getState()['viewRange'][0][-1])
+                else:
+                    fit_mask = np.ones_like(c.x(), dtype=bool)
+                np.savetxt(f'_fit_comps_{i}.'.join(self.filename.rsplit('.', 1)), np.c_[c.x()[fit_mask] / unit, c.y()[fit_mask] / cheb(c.x()[fit_mask])], **kwargs)
+
+            #print([[len(c.x()), len(c.y())] for c in s.fit_comp])
+            #print([c.y()[fit_mask] / cheb(s.fit.x()[fit_mask]) for c in s.fit_comp])
+            #np.savetxt('_fit_comps.'.join(self.filename.rsplit('.', 1)), np.column_stack([s.fit.x()[fit_mask] / unit] + [c.y()[fit_mask] / cheb(s.fit.x()[fit_mask]) for c in s.fit_comp]), **kwargs)
 
     def save(self):
         self.parent.save_opt = self.opt
@@ -8781,7 +8818,6 @@ class sviewer(QMainWindow):
             pass
         elif self.SDSScat == 'Astroquery':
             if self.SDSSquery is None:
-                from astroquery.sdss import SDSS
                 self.SDSSquery = SDSS
             if name is not None and len(name) > 0:
                 qso = self.SDSSquery.get_spectra(coordinates=astropy.coordinates.SkyCoord(ra, dec, frame='icrs', unit='deg'))[0]
@@ -8824,7 +8860,7 @@ class sviewer(QMainWindow):
                 with open(filename) as f:
                     n = np.min([len(line.split()) for line in f])
                 print(n)
-                self.SDSSdata = np.genfromtxt(filename, names=True, dtype=None, unpack=True, usecols=range(n), comments='#', encoding=None)
+                self.SDSSdata = np.genfromtxt(filename, names=True, dtype=None, usecols=range(n), comments='#', encoding=None)
                 print(self.SDSSdata)
             elif '.fits' in filename:
                 hdulist = fits.open(filename)

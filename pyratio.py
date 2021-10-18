@@ -85,8 +85,29 @@ class speci:
             self.read_FeII()
         elif name == 'H2':
             self.read_H2()
-        else:    
+        else:
             self.read_popratio()
+            # replace CII collisional rates from Barinovs+2005 paper
+            if 1:
+                if self.name == 'CII':
+                    plot = 0
+                    if plot:
+                        fig, ax = plt.subplots(figsize=(8,5))
+                        ax.plot(self.coll['H'].c[0].rates[0], self.coll['H'].c[0].rates[1], label=r'Launay \& Roueff 1977 + Keenan et al. 1986')
+                    def Barinovs2005(t):
+                        return 7.938e-11 * np.exp(-91.2 / t) * (16 + 0.344 * np.sqrt(t) - 47.7 / t)
+                    x = np.logspace(np.log10(5), 5, 100)
+                    self.coll['H'].c[0].rates = [np.log10(x), np.log10(Barinovs2005(x))]
+                    self.coll['H'].c[0].rate_int = interpolate.InterpolatedUnivariateSpline(self.coll['H'].c[0].rates[0], self.coll['H'].c[0].rates[1], k=3)
+                    if plot:
+                        ax.plot(self.coll['H'].c[0].rates[0], self.coll['H'].c[0].rates[1], label='Barinovs et al. 2005')
+                        ax.set_xlim([1.2, 4.5])
+                        ax.set_ylim([-10.5, -7.9])
+                        ax.set_xlabel("$\log T$\,[K]")
+                        ax.set_ylabel("$\log$ Collision rate [cm$^{3}$ s$^{-1}$]")
+                        fig.legend()
+                        fig.savefig("CII_rates.pdf")
+                        plt.show()
 
         self.fullnum = self.E.shape[0] # full number of levels
 
@@ -538,10 +559,8 @@ class collision():
         self.i = i
         self.j = j
         self.rates = rate
-        try:
+        if rate is not None:
             self.rate_int = interpolate.InterpolatedUnivariateSpline(rate[0], rate[1], k=2)
-        except:
-            pass
 
     def __str__(self):
         return "{0} collision rate with {1} for {2} --> {3}".format(self.parent.name, self.part, self.i, self.j)
@@ -736,15 +755,14 @@ class pyratio():
         self.f_He = f_He
         self.theta_range = []
         self.calctype = calctype
-        self.sed_type = sed_type
-        #if isinstance(self.sed_type, str):
-        #    self.sed_type = [self.sed_type]
-        self.agn_pars = agn
-        self.load_sed()
         self.EBL = EBL
         if self.EBL:
             self.set_EBL()
         self.CMB = CMB
+        self.sed_type = sed_type
+        self.agn_pars = agn
+        self.load_sed()
+
         if self.calctype == 'numbdens':
             self.set_pars(['Ntot'])
         elif pars is not None:
@@ -849,30 +867,28 @@ class pyratio():
                 l = np.linspace(0.912, 3.1, 100)
                 self.draine = interpolate.interp1d(1e5 / l, 6.84e-14 * l ** (-5) * (31.016 * l ** 2 - 49.913 * l + 19.897) / (ac.c.cgs.value / l / 1e-5), bounds_error=0, fill_value=0)
 
-            if self.sed_type in ['QSO', 'AGN', 'GRB']:
+            if self.sed_type in ['QSO', 'AGN', 'GRB', 'power']:
                 self.DL = FlatLambdaCDM(70, 0.3, Tcmb0=2.725, Neff=0).luminosity_distance(self.z).to('cm').value
+
+            if self.sed_type in ['QSO', 'AGN', 'power']:
+                b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
+                fil = np.genfromtxt(self.folder + r'/data/SDSS/' + self.agn_pars['filter'] + '.dat', skip_header=6, usecols=(0, 1), unpack=True)
+                filt = interpolate.interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
 
             if 'QSO' in self.sed_type:
                 from astroquery.sdss import SDSS
                 qso = SDSS.get_spectral_template('qso')
                 x, flux = 10 ** (np.arange(len(qso[0][0].data[0])) * 0.0001 + qso[0][0].header['CRVAL1']), qso[0][0].data[0] * 1e-17
-                cosmo = FlatLambdaCDM(70, 0.3, Tcmb0=2.725, Neff=0)
-                b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
-                fil = np.genfromtxt(self.folder + r'/data/SDSS/' + self.agn_pars['filter'] + '.dat', skip_header=6, usecols=(0, 1), unpack=True)
                 mask = (x * (1 + self.z) > fil[0][0]) * (x * (1 + self.z) < fil[0][-1])
-                fil = interpolate.interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
-                scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux[mask], x[mask] * (1 + self.z), b[self.agn_pars['filter']], fil, self.agn_pars['mag']))
+                scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux[mask], x[mask] * (1 + self.z), b[self.agn_pars['filter']], filt, self.agn_pars['mag']))
                 #print(scale, flux_to_mag(flux * scale, x * (1 + self.z), self.agn_pars['filter']), self.agn_pars['mag'])
                 self.qso = interpolate.interp1d(1e8 / x, scale * flux * (self.DL / ac.kpc.cgs.value) ** 2 * x ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=0, fill_value=0)
 
             if 'AGN' in self.sed_type:
-                b = {'u': 1.4e-10, 'g': 0.9e-10, 'r': 1.2e-10, 'i': 1.8e-10, 'z': 7.4e-10}
-                fil = np.genfromtxt(self.folder + r'/data/SDSS/' + self.agn_pars['filter'] + '.dat', skip_header=6, usecols=(0, 1), unpack=True)
-                filter = interpolate.interp1d(fil[0], fil[1], bounds_error=False, fill_value=0, assume_sorted=True)
                 if 1:
                     data = np.genfromtxt(self.folder + '/data/pyratio/QSO1_template_norm.sed', unpack=True, comments='#')
                     mask = (data[0] * (1 + self.z) > fil[0][0]) * (data[0] * (1 + self.z) < fil[0][-1])
-                    scale = 10 ** bisect(self.flux_to_mag_solve, -25, 25, args=(data[1][mask], data[0][mask] * (1 + self.z), b[self.agn_pars['filter']], filter, self.agn_pars['mag']))
+                    scale = 10 ** bisect(self.flux_to_mag_solve, -25, 25, args=(data[1][mask], data[0][mask] * (1 + self.z), b[self.agn_pars['filter']], filt, self.agn_pars['mag']))
                     #print(scale)
                     self.agn = interpolate.interp1d(1e8 / data[0], scale * data[1] * (self.DL / ac.kpc.cgs.value) ** 2 * data[0] ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=0, fill_value=0)
 
@@ -881,9 +897,18 @@ class pyratio():
                     x = 1e8 * ac.c.cgs.value / 10 ** data[0]
                     mask = (x * (1 + self.z) > fil[0][0]) * (x * (1 + self.z) < fil[0][-1])
                     flux = 10 ** data[1][mask] / 4 / np.pi / self.DL ** 2 / x[mask] * (1 + self.z)
-                    scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux, x[mask] * (1 + self.z), b[self.agn_pars['filter']], filter, self.agn_pars['mag']))
+                    scale = 10 ** bisect(self.flux_to_mag_solve, -5, 5, args=(flux, x[mask] * (1 + self.z), b[self.agn_pars['filter']], filt, self.agn_pars['mag']))
                     print(scale, flux_to_mag(flux * scale, x[mask] * (1 + self.z), self.agn_pars['filter']), self.agn_pars['mag'])
                     self.agn = interpolate.interp1d(10 ** data[0] / ac.c.cgs.value, scale * 10 ** data[1] / 4 / np.pi / (ac.kpc.cgs.value) ** 2 / 10 ** data[0] / ac.c.cgs.value, bounds_error=0, fill_value=0)
+
+            if 'power' in self.sed_type:
+                alpha = 1.2
+                lmin, lmax = 0.1,  20000
+                l = np.logspace(np.log10(lmin), np.log10(lmax), 1000)
+                mask = (l * (1 + self.z) > fil[0][0]) * (l * (1 + self.z) < fil[0][-1])
+                scale = 10 ** bisect(self.flux_to_mag_solve, -25, 25, args=((l[mask] / lmax) ** (alpha), l[mask] * (1 + self.z), b[self.agn_pars['filter']], filt, self.agn_pars['mag']))
+                #scale = np.trapz(self.power(x) / (ac.h.cgs.value * x), x)
+                self.power = interpolate.interp1d(1e8 / l, scale * (l / lmax) ** (alpha) * (self.DL / ac.kpc.cgs.value) ** 2 * l ** 2 / 1e8 / ac.c.cgs.value ** 2 * (1 + self.z), bounds_error=False, fill_value=0)
 
     def set_EBL(self):
         """
@@ -1077,6 +1102,7 @@ class pyratio():
         self.CMB, self.EBL = CMB, EBL
         #print(self.species[name].rad_rate, self.species[name].Aij)
 
+
     def rad_field(self, e, sed_type=None):
         """
         radiation field density in [erg/cm^3/Hz]
@@ -1123,6 +1149,9 @@ class pyratio():
         if s == 'QSO':
             field[m] += self.qso(e[m]) * 10 ** self.pars['rad'].value
 
+        if s == 'power':
+            field[m] += self.power(e[m]) * 10 ** self.pars['rad'].value
+
         if s == 'GRB':
             t_obs, alpha, beta, z = 393, -1.1, -0.5, 1.5
             field[m] += 1.12e-25 * (t_obs / 393) ** alpha * (1e8 / e[m] / 5439) ** (-beta) * 1.083e+7 ** 2 / (1 + z) / ac.c.cgs.value * 10 ** self.pars['rad'].value
@@ -1131,10 +1160,12 @@ class pyratio():
 
         return field
 
-    def ionization_parameter(self):
-        if self.sed_type == 'AGN':
+    def ionization_parameter(self, ne=None):
+        if self.sed_type in ['AGN', 'power']:
+            if ne == None:
+                ne = 10 ** self.pars['e'].value
             x = np.logspace(np.log10(1e8/912), 8, 100)
-            return np.trapz(self.rad_field(x) / (ac.h.cgs.value * x), x) * 10**self.pars['rad'].value / 10**self.pars['e'].value
+            return np.trapz(self.rad_field(x) / (ac.h.cgs.value * x), x) * 10**self.pars['rad'].value / ne
 
     def lnpops(self):
         """
@@ -2045,7 +2076,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check CII collisions
-    if 0:
+    if 1:
         pr = pyratio(z=2.65)
         pr.set_pars(['T', 'n', 'f', 'e'])
         pr.pars['T'].range = [1, 6]
@@ -2059,7 +2090,7 @@ if __name__ == '__main__':
         pr.critical_density(depend='T')
         print(pr.calc_cooling(n=np.linspace(-5, 6, 20), T=4, verbose=1))
         num = 20
-        if 0:
+        if 1:
             fig, ax = plt.subplots()
             for t, f, ls in zip([100, 100, 10000, 15000], [0, -4, -4, -4], ['--', '-', '-', '-']):
                 pr.pars['T'].value = np.log10(t)
@@ -2347,9 +2378,16 @@ if __name__ == '__main__':
             plot_cont(ax[i, 2], np.log10(d[l]['r'] / d[l]['f']), -2, 0, ylabel='radiative', cmap='RdBu_r')
         plt.show()
 
-
     # >>> check radiation fields
     if 0:
+        z, r, d = 2.65, 20.2, 5
+        pr = pyratio(z=z, pumping='simple', radiation='simple', sed_type='power', agn={'filter': 'r', 'mag': r})
+        pr.set_pars(['T', 'rad'])
+        print(pr.ionization_parameter())
+
+
+    # >>> check radiation fields
+    if 1:
         z, r, d = 2.8, 17.7, 150
         z, r, d = 2.65, 20.2, 5
         pr = pyratio(z=z, pumping='simple', radiation='simple', sed_type='Draine', agn={'filter': 'r', 'mag': r})
@@ -2366,11 +2404,15 @@ if __name__ == '__main__':
         ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='CMB')), label='CMB, z={0:3.1f}'.format(z))
         ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='EBL')), label='EBL, z={0:3.1f}'.format(z))
         ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type='Draine') * 1000), label='Draine x1000')
-        for sed, label in zip(['AGN', 'QSO', 'GRB'], ['AGN, r={0:4.1f}, z={1:3.1f}, d={2:d}kpc'.format(r, z, d), 'QSO, r={0:4.1f}, z={1:3.1f}, d={2:d}kpc'.format(r, z, d), 'GRB, d={0:d}kpc'.format(d)]):
+        for sed, label in zip(['AGN', 'QSO', 'GRB', 'power'], ['AGN, r={0:4.1f}, z={1:3.1f}, d={2:d}kpc'.format(r, z, d), 'QSO, r={0:4.1f}, z={1:3.1f}, d={2:d}kpc'.format(r, z, d), 'GRB, d={0:d}kpc'.format(d), 'power, d={0:d}kpc'.format(d)]):
             if sed not in ['GRB']:
                 pr.sed_type = sed
                 pr.load_sed()
+                if sed == 'power':
+                    print(np.sum(pr.rad_field(e, sed_type=sed) != 0))
+                print(sed, pr.ionization_parameter(ne=1e4))
                 ax.plot(np.log10(e), np.log10(pr.rad_field(e, sed_type=sed)) - np.log10(d)*2, label=label)
+
         ax.set_ylim([-39, -18])
         ax.set_xlim(ax.get_xlim())
         ax.set_ylabel(r'log u$_{\nu}$ [$\rm erg\,cm^{-3}\,Hz^{-1}$]')
@@ -2449,7 +2491,7 @@ if __name__ == '__main__':
             plt.show()
 
     # >>> OI calculations
-    if 1:
+    if 0:
         pr = pyratio(z=0, pumping='simple', radiation='simple')
         pr.set_pars(['T', 'n', 'f', 'rad'])
         pr.pars['T'].range = [1, 4]

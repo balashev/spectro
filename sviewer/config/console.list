@@ -1,21 +1,21 @@
-rescale y 1e12
-rescale y 1e12
-rescale y 1e12
-show ClI
-show CI
-rescale y 1e12
-show ClI
-rescale y 1e12
-show ClI
-y 0 1e-12
-show ClI
-y 0 1e-12
-y 0 1e-11
-y 0 1e-10
-show ClI
-y 0 1e-10
-show ClI
-show ClI
-show CI
-show CIj1
-show CIj2
+show CII*
+x 4000 5000
+x 4000 5000
+x 4000 5000
+show SiII
+show CIIj1
+logN CII
+logN CII
+logN CIIj1
+logN CIIj1
+logN SiII
+show CIIj1
+show CII*
+logN CIIj1
+logN CIIj1
+show FeII
+show FeII
+logN CIIj1
+logN CIIj1
+logN CIIj1
+logN CIIj1

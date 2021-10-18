@@ -759,8 +759,8 @@ class atomicData(OrderedDict):
                 species = self.correct_name(species)
             if 'j' in species:
                 species, level = species[:species.find('j')], int(species[species.find('j')+1:])+1
+
         name = f'{species}j{level-1}' if level > 1 else 'species'
-        print(name)
         if clean:
             self.pop(name, None)
         filename = self.folder + f'/data/nist/{species}_{level}.dat'

@@ -528,7 +528,8 @@ class Doublet():
             self.name = ind[i][0] #.decode('UTF-8').replace('_', '')
             self.z = x1 / ind[i][1] - 1
             if show:
-                self.parent.parent.console.exec_command('show '+self.name)
+                if self.name != 'DLA':
+                    self.parent.parent.console.exec_command('show '+self.name)
                 self.parent.parent.setz_abs(self.z)
                 self.draw()
             else:

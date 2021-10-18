@@ -116,6 +116,8 @@ class ISM():
         # the redshift determines the CMB intensity and impact on the cooling due to fine-structure excitation.
         if 'z' in kwargs.keys():
             self.z = kwargs['z']
+        else:
+            self.z = 0
 
         # Default velues of dtg_cutoff and dtg_alpha is from the fit of Remy-Ruyer+2014.
         if 'dtg_cutoff' in kwargs.keys():
@@ -133,8 +135,8 @@ class ISM():
         self.initialize_pars(**kwargs)
         self.heating_types = ['photoelectric', 'cosmicray', 'photo_c', 'turb'] # , 'grav']
         self.cooling_types = ['Lya', 'CII', 'OI', 'rec']
-        z = kwargs['z'] if 'z' in kwargs.keys() else 0
-        self.pr = pyratio(z=z, sed_type=None)
+
+        self.pr = pyratio(z=self.z, sed_type=None)
         self.pr.set_pars(['T', 'n', 'f', 'rad'])
         self.pr.set_fixed('f', -10)
         for sp in ['OI', 'CII']:
@@ -220,14 +222,18 @@ class ISM():
             return 2.2e-24 * self.abundance('dust') * self.p('n') * self.p('UV') * self.g_PE()
 
         if kind[0] == 'cosmicray':
+            # >> from Bialy+2019
             x_e = self.x_e()
-            return 1.03e-11 * self.p('CR') * self.p('n') * (1 + 4.06 * (x_e / (x_e + 0.07)) ** 0.5) + 4.6e-10 * self.p('CR') * x_e * self.p('n')
+            return self.p('CR') * 6.43 * 1.602e-12 * (1 + 4.06 * (x_e / (x_e + 0.07)) ** 0.5) * self.p('n') * (1 + x_e)
 
         if kind[0] == 'photo_c':
             return 2e-22 * self.abundance('C') * 1e-2 * self.p('n')
 
         if kind[0] == 'turb':
-            return self.p('turb') * self.p('n')  #* 1 / (1 + np.exp(-(np.log10(self.p('n')) - 1.5) / 0.3))
+            if 0:
+                return self.p('turb') * (self.p('n')) ** 0.5
+            else:
+                return self.p('turb') * self.p('n')  #* 1 / (1 + np.exp(-(np.log10(self.p('n')) - 1.5) / 0.3))
 
         if kind[0] == 'grav':
             return 2.6e-31 * self.p('n') * self.p('T') * 1 / (1 + np.exp(-(np.log10(self.p('n')) - 2) / 0.5))
@@ -256,6 +262,8 @@ class ISM():
                 return 2.54e-14 * (2.8e-6 * self.n_e() / self.p('n') * self.p('T') ** -0.5 + 8e-10) * self.abundance('C') * np.exp(-92 / self.p('T')) * self.p('n') ** 2
             if kind[1] in ['pyratio', '']:
                 return self.pr.calc_cooling(species='CII', n=np.log10(self.p('n')), T=np.log10(self.p('T'))) * self.abundance('C') * self.p('n')
+            if kind[1] in ['Barinovs']:
+                return 1e-24 * np.exp(-91.2 / self.p('T')) * (16 + 0.344 * np.sqrt(self.p('T')) + 47.7 / self.p('T')) * self.abundance('C') * self.p('n') * self.p('n')
 
         if kind[0] == 'OI':
             if kind[1] in ['Wolfire']:
@@ -319,15 +327,16 @@ class ISM():
 
 if __name__ == '__main__':
     print('executing main program code')
-    ism = ISM(z=0, Z=1, UV=1, CR=1e-16, turb=1e-27)
+    ism = ISM(z=0, Z=0.01, UV=1, CR=1e-16, turb=1e-27)
     print(ism.pars)
     #print(ism.n_e())
 
     # >>> check cooling heating rates:
-    if 0:
+    if 1:
         fig, ax = plt.subplots()
         #ism.cooling_types.append('CII_Wolfire')
         #ism.cooling_types.append('CII_Klessen')
+        #ism.cooling_types.append('CII_Barinovs')
         #ism.cooling_types.append('OI_Wolfire')
         #ism.cooling_types.append('OI_Klessen')
 
@@ -343,6 +352,7 @@ if __name__ == '__main__':
         ax.set_ylim([-30, -24])
         fig.legend()
         plt.show()
+
     if 0:
         for f in [0, 1]:
             ism.pars['mol'].value = f
@@ -393,8 +403,7 @@ if __name__ == '__main__':
         fig.legend()
         plt.show()
 
-    if 1:
-
+    if 0:
         ism = ISM(z=0, Z=1, UV=1, CR=1e-16, turb=1e-27, dtg_cutoff=0.1, dtg_slope=2.5, dtg_disp=0.4)
         x, y = [], []
         for Z in 10**(-2 * np.random.rand(100)):

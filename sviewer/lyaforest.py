@@ -109,6 +109,7 @@ def Lyaforest_scan(parent, data, do='all'):
     t.time('prepare')
 
     typ = {0: 'c', 1: 'r', 2: 'l', 3: 'b'}
+
     if do in ['all', 'corr']:
         # >>> make Lya line grid
         if 0:
@@ -117,7 +118,7 @@ def Lyaforest_scan(parent, data, do='all'):
             max_ston = np.max(snr(np.linspace(x[0], x[-1], 50)))
             print('max_ston:', max_ston)
             print('res:',s.resolution)
-            N_grid, b_grid, xf, f = makeLyagrid_fisher(N_range=[13.0, 14.5], b_range=[10, 50], z=(zmin+zmax)/2, ston=max_ston, resolution=s.resolution, plot=0)
+            N_grid, b_grid, xf, f = makeLyagrid_fisher(N_range=[12.5, 14.6], b_range=[8, 50], z=(zmin+zmax)/2, ston=max_ston, resolution=s.resolution, plot=1)
         #N_grid, b_grid, xf, f = makeLyagrid(N_range=[14.39, 14.39], b_range=[28, 28], N_num=1, b_num=1, resolution=s.resolution)
         xl = xf * x[int(len(x)/2)] / 1215.6701
         t.time('make Lya grid')
@@ -208,7 +209,9 @@ def Lyaforest_scan(parent, data, do='all'):
     #print(types)
     check_doublicates = 0
     dynamic_mask = 1
+
     if do in ['all', 'fit']:
+        print('dynamic mask status:',dynamic_mask)
         parent.fit = fitPars(parent)
         if check_doublicates:
             old_lines = np.genfromtxt('C:/Users/ksush/work/Lyasample//lines.dat', names=True, dtype=None)
@@ -238,67 +241,89 @@ def Lyaforest_scan(parent, data, do='all'):
 
 
             intx=inter(x)
+            #print(line_.z, line_.logN, line_.b)
             if 0:
                 chi = (y - intx) / err
                 #print(line.z, line.logN, line.b, np.sum(chi ** 2) / (len(y) - 3))
                 return np.sum(chi**2)/(len(y)-3)
             else:
-                mask = intx < flux_limit
-
-                if len(x[mask]) <= 3:
-                    #print(line.z, line.logN, line.b)
+                mask0 = intx <= flux_limit
+                #print(len(x[mask]),len(x_over))
+                if (len(x[mask0]) <= 3)|(len(x[(mask0)*(mask_over)])<len(x[(mask0)])):
+                    #print(len(summary), line_.z, line_.logN, line_.b, typ)
+                    summary.append(1e10)
+                    #print('chi:', summary[-1])
+                    #print('min chi:', np.min(summary), np.argmin(summary))
                     return 1e10
+
                 else:
-                    xmin, xmax = x[mask][0], x[mask][-1]
-
+                    xmin, xmax = x[mask0][0], x[mask0][-1]
                     if typ == 'l':
-                        mask = mask&((intx < 1 - (1 - np.min(intx)) / 2) | (x < (xmin + xmax) / 2))
+                        mask2 = intx <= 1 - (1 - np.min(intx)) / 2
+                        if len(x[mask2])>=len(x[mask0]):
+                            #print('calculated mask is larger than flux-limited mask')
+                            #print(len(summary), line_.z, line_.logN, line_.b, typ)
+                            summary.append(1e10)
+                            #print('chi:', summary[-1])
+                            #print('min chi:', np.min(summary), np.argmin(summary))
+                            return 1e10
+                        else:
+                            #xmax = x[np.max(np.where(np.abs(np.diff(mask2)) > 0)[0])]
+                            xmax = x[np.max(np.where(np.diff(mask2) > 0)[0])]
+                            # print('min ind, max ind')
+                            # print(np.diff(mask2))
+                            # print(np.min(np.where(np.abs(np.diff(mask2)) > 0)[0]),np.max(np.where(np.abs(np.diff(mask2)) > 0)[0]))
+                            # print(np.min(np.where(np.diff(mask2) > 0)[0]), np.max(np.where(np.diff(mask2) > 0)[0]))
+
                     elif typ == 'r':
-                        mask = mask&((intx < 1 - (1 - np.min(intx)) / 2) | (x > (xmin + xmax) / 2))
-
+                        mask2 = intx <= 1 - (1 - np.min(intx)) / 2
+                        if len(x[mask2]) >= len(x[mask0]):
+                            #print('calculated mask is larger than flux-limited mask')
+                            #print(len(summary), line_.z, line_.logN, line_.b, typ)
+                            summary.append(1e10)
+                            #print('chi:', summary[-1])
+                            #print('min chi:', np.min(summary), np.argmin(summary))
+                            return 1e10
+                        else:
+                            #xmin = x[np.min(np.where(np.abs(np.diff(mask2)) > 0)[0])+1]
+                            xmin = x[np.min(np.where(np.diff(mask2) > 0)[0]) + 1]
                     elif typ == 'b':
-                        mask = mask&(intx < 1 - (1 - np.min(intx)) / 3)
+                        mask2 = intx <= 1 - (1 - np.min(intx)) / 3
+                        #print(np.shape(mask2),np.count_nonzero(mask2))
+                        #print('non zeros', np.count_nonzero(np.diff(mask2)))
+                        if len(x[mask2])>=len(x[mask0]):
+                            #print('calculated mask is larger than flux-limited mask')
+                            #print(len(summary), line_.z, line_.logN, line_.b, typ)
+                            summary.append(1e10)
+                            #print('chi:', summary[-1])
+                            #print('min chi:', np.min(summary), np.argmin(summary))
+                            return 1e10
+                        else:
+                            # xmin, xmax = x[np.min(np.where(np.abs(np.diff(mask2)) > 0)[0])+1], x[
+                            #     np.max(np.where(np.abs(np.diff(mask2)) > 0)[0])]
+                            xmin, xmax = x[np.min(np.where(np.diff(mask2) > 0)[0]) + 1], x[
+                                np.max(np.where(np.diff(mask2) > 0)[0])]
 
-                    intx,y,err = intx[mask], y[mask], err[mask]
 
+                    mask = (x >= xmin) * (x <= xmax) * (err > 0)
+                    if len(x[mask])<=3:
+                        #print(len(summary), line_.z, line_.logN, line_.b, typ)
+                        summary.append(1e10)
+                        #print('chi:', summary[-1])
+                        #print('min chi:', np.min(summary), np.argmin(summary))
+                        return 1e10
+
+                    intx, y, err = intx[mask], y[mask], err[mask]
                     chi = (y - intx) / err
-                    if np.prod(err) == 0:
-                        print("zero err:")
-                        print(typ, line.z, line.logN, line.b, y, err)
+                    if 1:
+                        #print(len(summary), line_.z, line_.logN, line_.b, typ)
+                        #print(len(x_over), len(x[mask]), np.sum(chi ** 2) / (len(y) - 3))
+                        summary.append(np.sum(chi ** 2) / (len(y) - 3))
+                        #print('chi:', summary[-1])
+                        #print('min chi:', np.min(summary), np.argmin(summary))
 
                     return np.sum(chi**2)/(len(y)-3)
 
-
-
-        # def VoigtProfile_mask(params, x, y, err, line, typ):
-        #     line_.z, line_.logN, line_.b = tuple(params)
-        #     #line.z, line.logN, line.b = params['z'].value, params['N'].value, params['b'].value
-        #     line.calctau()
-        #     inter = interp1d(line.x, convolveflux(line.x, np.exp(-line.tau), res=parent.s[0].resolution), bounds_error=False, fill_value=1)
-        #     intx=inter(x)
-        #     mask = intx < flux_limit
-        #
-        #     if len(x[mask]) == 0:
-        #         print(line.z, line.logN, line.b)
-        #         return 1e10*np.ones_like(x)
-        #     else:
-        #         xmin, xmax = x[mask][0], x[mask][-1]
-        #
-        #         if typ == 'l':
-        #             mask = mask&(intx < 1 - (1 - np.min(intx)) / 2) | (x < (xmin + xmax) / 2)
-        #         elif typ == 'r':
-        #             mask = mask&(intx < 1 - (1 - np.min(intx)) / 2) | (x > (xmin + xmax) / 2)
-        #
-        #         elif typ == 'b':
-        #             mask = mask&(intx < 1 - (1 - np.min(intx)) / 3)
-        #
-        #         #intx,y,err = intx[mask], y[mask], err[mask]
-        #         mask = mask.astype(int)
-        #         chi = (y - intx) / err
-        #         redchi = mask*(chi**2) / (len(mask[mask>0])-3)
-        #         print(line.z, line.logN, line.b, np.sum(redchi))
-        #
-        #         return redchi
 
         # create a set of Parameters
         params = Parameters()
@@ -325,6 +350,7 @@ def Lyaforest_scan(parent, data, do='all'):
                     np.abs(xf -(3*xmax - xmin) / 2))
                 xmin, xmax = xf[imin], xf[imax]
             mask = (x > xmin * (1 + l[0])) * (x < xmax * (1 + l[0])) * (err > 0 )
+
             return mask
 
         #---------------------------------------------------------------------------------------------------------------
@@ -337,23 +363,33 @@ def Lyaforest_scan(parent, data, do='all'):
             flux = convolveflux(line_.x, np.exp(-line_.tau), res=parent.s[0].resolution)
             x, y, err = parent.s[0].spec.x(), parent.s[0].spec.y(), parent.s[0].spec.err()
             inter = interp1d(line_.x, flux, bounds_error=False, fill_value=1)
-            xx = xf*(1+z)
-            intx = inter(xx)
-            mask = intx < flux_limit
-            xmin, xmax = xx[mask][0], xx[mask][-1]
+
+            #xx = xf*(1+z)
+            #intx = inter(xx)
+            intx = inter(x)
+            #print(len(xx), len(x))
+
+            mask = intx <= flux_limit
+            #xmin, xmax = xx[mask][0], xx[mask][-1]
+            xmin, xmax = x[mask][0], x[mask][-1]
             if typ == 'l':
-                mask2 = intx < 1 - (1 - np.min(intx)) / 2
-                xmax = xx[np.max(np.where(np.diff(mask2) > 0)[0])]
-
+                mask2 = intx <= 1 - (1 - np.min(intx)) / 2
+                xmax2 = x[np.max(np.where(np.diff(mask2) > 0)[0])]
+                #xmax2 = x[np.max(np.where(np.abs(np.diff(mask2)) > 0)[0])]
+                xmax=xmax2
             elif typ == 'r':
-                mask2 = intx < 1 - (1 - np.min(intx)) / 2
-                xmin = xx[np.min(np.where(np.diff(mask2) > 0)[0])]
+                mask2 = intx <= 1 - (1 - np.min(intx)) / 2
+                xmin2 = x[np.min(np.where(np.diff(mask2) > 0)[0])+1]
+                #xmin2 = x[np.min(np.where(np.abs(np.diff(mask2)) > 0)[0])+1]
+                xmin=xmin2
             elif typ == 'b':
-                mask2 = intx < 1 - (1 - np.min(intx)) / 3
-                xmin, xmax = xx[np.min(np.where(np.diff(mask2) > 0)[0])], xx[np.max(np.where(np.diff(mask2) > 0)[0])]
+                mask2 = intx <= 1 - (1 - np.min(intx)) / 3
+                xmin2, xmax2 = x[np.min(np.where(np.diff(mask2) > 0)[0])+1], x[np.max(np.where(np.diff(mask2) > 0)[0])]
+                #xmin2, xmax2 = x[np.min(np.where(np.abs(np.diff(mask2)) > 0)[0])+1], x[np.max(np.where(np.abs(np.diff(mask2)) > 0)[0])]
+                xmin, xmax =xmin2,xmax2
 
 
-            mask = (x > xmin ) * (x < xmax ) * (err > 0 )
+            mask = (x >= xmin ) * (x <= xmax ) * (err > 0 )
 
             return mask
 
@@ -378,7 +414,7 @@ def Lyaforest_scan(parent, data, do='all'):
                 else:
                     mask_over = calc_mask(l, 'over')
                     x_over, y_over, err_over = x[mask_over], y[mask_over], err[mask_over]
-                    x, y, err = x[mask], y[mask], err[mask]
+                    x_stat, y_stat, err_stat = x[mask], y[mask], err[mask]
                     global line_
 
                     line_ = tau(z=l[0], logN=N_grid[l[1]], b=b_grid[l[2]], resolution=parent.s[0].resolution)
@@ -398,8 +434,14 @@ def Lyaforest_scan(parent, data, do='all'):
                         # new minimization within varied mask, calculated on each (z,N,b) point
                         # errors were estimated via Fisher matrix
                         if dynamic_mask:
-                            print(types[i])
-                            result = minimize(VoigtProfile_mask, x0=(l[0], save_N, save_b), method='TNC', args=(x_over, y_over, err_over, line_, types[i]),
+                            summary=[]
+                            #print(types[i])
+                            # result = minimize(VoigtProfile_mask, x0=(l[0], save_N, save_b), method='tnc', args=(x, y, err, line_, types[i]),
+                            #                     bounds=((params['z'].min,params['z'].max),(params['N'].min, params['N'].max),(params['b'].min, params['b'].max)))
+                            #minimization with tnc method does not return min of chi.....use another method, fer example Nelder-Mead
+                            # result = minimize(VoigtProfile_mask, x0=(l[0], save_N, save_b), method='tnc', args=(x_over, y_over, err_over, line_, types[i]),
+                            #                    bounds=((params['z'].min,params['z'].max),(params['N'].min, params['N'].max),(params['b'].min, params['b'].max)))
+                            result = minimize(VoigtProfile_mask, x0=(l[0], save_N, save_b), method='Nelder-Mead', args=(x, y, err, line_, types[i]),
                                               bounds=((params['z'].min,params['z'].max),(params['N'].min, params['N'].max),(params['b'].min, params['b'].max)))
 
 
@@ -415,22 +457,12 @@ def Lyaforest_scan(parent, data, do='all'):
                         #===============================================================================================
                         #old minimization within static mask, calculated from save_N, save_b and z:
                         else:
-                            popt, pcov = curve_fit(VoigtProfile, x, y, p0=(l[0], save_N, save_b), sigma=err, method='dogbox', bounds=([params['z'].min, params['N'].min, params['b'].min], [params['z'].max, params['N'].max, params['b'].max]))
+                            popt, pcov = curve_fit(VoigtProfile, x_stat, y_stat, p0=(l[0], save_N, save_b), sigma=err_stat, method='dogbox', bounds=([params['z'].min, params['N'].min, params['b'].min], [params['z'].max, params['N'].max, params['b'].max]))
                             z, N, Nerr, b, berr = popt[0], popt[1], np.sqrt(pcov[1, 1]), popt[2], np.sqrt(pcov[2, 2])
-                            chi = np.sum(((VoigtProfile(x, z, N, b) - y) / err) ** 2) / (len(x) - 3)
+                            #z,N,b =l[0], save_N, save_b
+                            chi = np.sum(((VoigtProfile(x_stat, z, N, b) - y_stat) / err_stat) ** 2) / (len(x_stat) - 3)
                         # ----------------------------------------------------------------------------------------------
-                        print('diference, fit results:')
-                        print(z - l[0], N - save_N, b - save_b)
-                        print(l[0], save_N, save_b)
-                        #print(new_z, new_N, new_Nerr,  new_b, new_berr, new_chi)
-                        print(z, N, Nerr,  b, berr, chi)
 
-                        #if np.sqrt(pcov[1, 1]) > fisherbN(N, b, [line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=z)], ston=float(snr(1215.67*(1+z))), resolution=parent.s[0].resolution)
-                        #print(z, N, Nerr,  b, berr, chi)
-
-                        # plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')
-                        # plt.arrow(save_N, save_b, N-save_N, b-save_b, fc='orangered', ec='orangered')
-                        #if 1:
                         if chi < 3 and N / Nerr > 5 and b / berr > 5: #and Nerr != 0 and berr != 0 and np.sum(m * mask) == 0:
                             plt.errorbar(N, b, fmt='o', xerr=Nerr, yerr=berr, color='k')
                             plt.arrow(save_N, save_b, N - save_N, b - save_b, fc='orangered', ec='orangered')
@@ -441,11 +473,11 @@ def Lyaforest_scan(parent, data, do='all'):
                                     line_ = tau(line=lylines, resolution=parent.s[0].resolution)
                                     line_.calctau()
                                     flux = convolveflux(line_.x, np.exp(-line_.tau), res=parent.s[0].resolution)
-                                    x, y, err = parent.s[0].spec.x(), parent.s[0].spec.y(), parent.s[0].spec.err()
+                                    #x, y, err = parent.s[0].spec.x(), parent.s[0].spec.y(), parent.s[0].spec.err()
                                     m_lyb = (x > line_.x[0]) * (x < line_.x[-1])
                                     inter = interp1d(line_.x, flux, bounds_error=False, fill_value=1)
                                     m1 = (y[m_lyb] > inter(x[m_lyb])) * (err[m_lyb] > 0)
-                                    print(np.sum(m_lyb), np.sum(m1))
+                                    #print(np.sum(m_lyb), np.sum(m1))
                                     if np.sum(m1) > 10 and np.sum(((y[m_lyb][m1] - inter(x[m_lyb])[m1])/err[m_lyb][m1])**2)/np.sum(m1) > 4:
                                         fig, ax = plt.subplots()
                                         ax.plot(x[m_lyb], y[m_lyb])
@@ -454,7 +486,36 @@ def Lyaforest_scan(parent, data, do='all'):
                                         break
                             if not lyb:
                                 if dynamic_mask:
-                                    m =np.logical_or(m, update_mask(z,N,b,typ))
+                                    mask_upd = update_mask(z,N,b,typ)
+                                    m =np.logical_or(m, mask_upd)
+                                    #m = np.logical_or(m, mask_over)
+                                    if 1:#z>3.787 and z<3.789:temporary block
+                                        line_ = tau(
+                                            line=line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=z, logN=N, b=b),
+                                            resolution=parent.s[0].resolution)
+                                        line_.calctau()
+                                        flux = convolveflux(line_.x, np.exp(-line_.tau), res=parent.s[0].resolution)
+                                        #x, y, err = parent.s[0].spec.x(), parent.s[0].spec.y(), parent.s[0].spec.err()
+                                        inter = interp1d(line_.x, flux, bounds_error=False, fill_value=1)
+                                        intx = inter(x[mask_upd])
+                                        chi_hand=np.sum((intx-y[mask_upd])**2 /err[mask_upd]**2)/(len(x[mask_upd])-3)
+
+                                        if np.abs(chi_hand-chi)> 10e-15:
+                                        #if 1:#chi_hand != chi:
+                                            print('bad line:')
+                                            print('fit:',z,N,b,typ)
+                                            print('start:',save_N, save_b)
+                                            print(intx)
+                                            print(inter(x[mask_over]))
+                                            print(1 - (1 - np.min(intx)) / 2, 1 - (1 - np.min(intx)) / 3)
+                                            #print(y[mask_upd])
+                                            print(len(y[mask_over]),len(y[mask_upd]))
+                                            print(chi,chi_hand)
+                                            print('--------------------')
+                                        # else:
+                                        #     print('good line:')
+                                        #     print(z, N, b, typ)
+                                        #     print(chi, chi_hand)
                                 else:
                                     m = np.logical_or(m, mask)
 
@@ -463,7 +524,13 @@ def Lyaforest_scan(parent, data, do='all'):
                                         print(np.where(np.abs(z - old_lines['z'][old_lines['name'] == qsoname.encode()])*300000 < 20)[0])
                                     #np.where((old_lines['name'] == qsoname) and np.abs(z - old_lines['z']) * 300 > 20:
                                 #if len(sample['z']) == 0 or len(np.where(np.abs(sample['z'][qsoname.encode() == sample['name']] - z) < 0.0001)[0]) == 0:
-                                filename.write('{:9.7f} {:7.3f} {:7.3f} {:7.3f} {:7.3f} {:7.2f} {:6.3f} {:2s} {:30s} {:30s}\n'.format(z, N, Nerr, b, berr, float(snr(1215.67*(1+z))), chi, typ, qsoname, '-'))
+                                if dynamic_mask:
+                                    filename.write('{:9.7f} {:7.3f} {:7.3f} {:7.3f} {:7.3f} {:7.2f} {:6.3f} {:5d} {:2s} {:30s} {:30s}\n'.format(z, N, Nerr, b, berr, float(snr(1215.67*(1+z))), chi, len(x[mask_upd]), typ, qsoname, '-'))
+                                else:
+                                    filename.write(
+                                        '{:9.7f} {:7.3f} {:7.3f} {:7.3f} {:7.3f} {:7.2f} {:6.3f} {:5d} {:2s} {:30s} {:30s}\n'.format(
+                                            z, N, Nerr, b, berr, float(snr(1215.67 * (1 + z))), chi, len(x[mask]),
+                                            typ, qsoname, '-'))
 
                                 parent.fit.addSys(z=z)
                                 parent.fit.sys[len(parent.fit.sys)-1].addSpecies('HI')
@@ -505,6 +572,7 @@ def makeLyagrid_uniform(N_range=[13., 14], b_range=[20, 30], N_num=30, b_num=30,
 def makeLyagrid_fisher(N_range=[13., 14], b_range=[20, 30], ston=10, z=0, resolution=50000, plot=0):
 
     koef = 8
+    print(N_range, b_range,ston)
 
     lines = [line('lya', l=1215.6701, f=0.4164, g=6.265e8, z=z)]
     N_grid, b_grid = [N_range[0]], [b_range[0]]

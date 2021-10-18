@@ -10,7 +10,7 @@ import numpy as np
 from pathlib import Path
 from scipy import interpolate
 import sys
-sys.path.append('D:/science/python')
+sys.path.append('C:/science/python')
 import colors as col
 from .sviewer.utils import roman
 from .atomic import atomicData
