@@ -1,4 +1,4 @@
-Usage
+Installation
 =====
 
 .. _installation:
@@ -6,7 +6,7 @@ Usage
 Installation
 ------------
 
-To use Lumache, first install it using pip:
+To use Spectro, first install it using github:
 
 .. code-block:: console
 
