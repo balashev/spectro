@@ -11,4 +11,4 @@ Contents
    installation
    gui
    console
-   commands
+   keyboard
