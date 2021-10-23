@@ -761,8 +761,7 @@ class QSOlistTable(pg.TableWidget):
                         pass
                 else:
                     for f, s in zip(filename, self.parent.s):
-                        pyfits.open(f)
-                        hdulist = pyfits.open(f)
+                        hdulist = fits.open(f)
                         prihdr = hdulist[1].data
                         try:
                             s.cont.add(prihdr[0][0][:]*10, prihdr[0][3][:]*1e17)

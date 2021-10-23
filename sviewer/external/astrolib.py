@@ -1077,7 +1077,8 @@ def mwrfits(filename, arraylist, namelist=None, header=None):
 	Keep in mind that when you used a dictionary, the order of columns in the
 	fits file is not guaranteed
     """
-    import numpy, pyfits, types, itertools
+    from astropy.io import fits
+    import numpy, types, itertools
     
     tmplist=[]
     if isinstance(arraylist,numpy.ndarray):
@@ -1106,8 +1107,8 @@ def mwrfits(filename, arraylist, namelist=None, header=None):
             format='%dA'%arr.dtype.itemsize
         else:
             raise Exception("Oops unknown datatype %s"%arr.dtype)
-        tmplist.append(pyfits.Column(name=name, array=arr, format=format))
-    hdu = pyfits.new_table(tmplist)
+        tmplist.append(fits.Column(name=name, array=arr, format=format))
+    hdu = fits.new_table(tmplist)
     hdu.writeto(filename,clobber=True)
 
 def precess(ra0, dec0, equinox1, equinox2, doprint=False, fk4=False, radian=False):

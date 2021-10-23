@@ -6,7 +6,7 @@ Created on Mon Sep  5 18:01:14 2016
 """
 
 import numpy as np
-import pyfits
+from astropy.io import fits
 import os, sys
 sys.path.append('C:/science/python')
 from astrolib import helcorr
@@ -49,7 +49,7 @@ class exposure():
     def fitstoascii_UVES(self):            
         for file in self.list_of_fits:
             s = file.replace('.fits', '.dat')
-            hdulist = pyfits.open(file)
+            hdulist = fits.open(file)
             if self.mode == 'CRVAL':
                 header = hdulist[0].header
                 print(header)

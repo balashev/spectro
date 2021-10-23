@@ -36,7 +36,6 @@ from shutil import copyfile
 import subprocess
 import tarfile
 from threading import Thread
-
 from ..a_unc import a
 from ..absorption_systems import vel_offset
 from ..atomic import *
