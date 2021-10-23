@@ -9,6 +9,6 @@ Contents
 .. toctree::
 
    installation
-   features
+   gui
    console
    commands
