@@ -1,4 +1,4 @@
-API
+Graphical User Interface
 ===
 
 .. autosummary::
