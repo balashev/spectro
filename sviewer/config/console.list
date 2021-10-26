@@ -1,4 +1,3 @@
-logN SiII
 show CIIj1
 show CII*
 logN CIIj1
@@ -14,6 +13,7 @@ stats
 stats
 stats
 y 0 1
+stats
 stats
 stats
 stats

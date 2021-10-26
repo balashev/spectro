@@ -176,7 +176,7 @@ end
 function get_element_name(name)
     st = name
     if occursin("j", st)
-        st = st[1:findfirst("j", st)]
+        st = st[1:findfirst("j", st)[1]-1]
     end
     for s in ["I", "V", "X", "*"]
         st = replace(st, s => "")
