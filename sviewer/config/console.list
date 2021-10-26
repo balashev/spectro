@@ -1,9 +1,3 @@
-show SiII
-show CIIj1
-logN CII
-logN CII
-logN CIIj1
-logN CIIj1
 logN SiII
 show CIIj1
 show CII*
@@ -15,6 +9,12 @@ logN CIIj1
 logN CIIj1
 logN CIIj1
 logN CIIj1
+stats
+stats
+stats
+stats
+y 0 1
+stats
 stats
 stats
 stats
