@@ -185,8 +185,8 @@ function get_element_name(name)
 end
 
 function doppler(name, turb, kin)
-    #println(name)
-    #println(get_element_name(name))
+    println(name)
+    println(get_element_name(name))
     name = get_element_name(name)
     if name == "D"
         mass = 2
