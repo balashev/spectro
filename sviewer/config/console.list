@@ -1,21 +1,21 @@
-show CIIj1
-show CII*
-logN CIIj1
-logN CIIj1
-show FeII
-show FeII
-logN CIIj1
-logN CIIj1
-logN CIIj1
-logN CIIj1
-stats
-stats
-stats
-stats
-y 0 1
-stats
-stats
-stats
-stats
-stats
-stats
+show MnII*
+high FeIIj6
+FeIIj6
+show FeIIj6
+high FeIIj6
+high FeIIj7
+FeIIj7
+FeIIj8
+show FeIIJ8
+show FeIIj8
+high FeIIj6
+FeIIj6
+high FeII
+FeIIj5
+show FeIIj5
+high FeIIj5
+high FeIIj5
+show MnII
+high FeIIj9
+high FeIIj7
+FeIIj7

@@ -515,7 +515,7 @@ class plotSpectrum(pg.PlotWidget):
 
         if self.a_status:
             if self.mousePoint == self.mousePoint_saved:
-                if self.parent.abs.reference.line.name in self.parent.fit.sys[-1].sp:
+                if self.parent.abs.reference.line.name in self.parent.fit.sys[self.parent.comp].sp:
                     self.parent.fit.addSys(self.parent.comp)
                     self.parent.fit.sys[-1].z.val = self.mousePoint.x() / self.parent.abs.reference.line.l() - 1
                     self.parent.fit.sys[-1].zrange(200)
@@ -527,7 +527,8 @@ class plotSpectrum(pg.PlotWidget):
                     self.parent.s.refreshFitComps()
                     self.parent.showFit(all=self.showfullfit)
                 else:
-                    self.parent.sendMessage("Select the reference absorption line")
+                    self.a_status = True
+                    self.parent.sendMessage("Select a reference absorption line")
         if self.b_status:
             if event.button() == Qt.LeftButton:
                 if self.mousePoint == self.mousePoint_saved:
@@ -6111,6 +6112,11 @@ class sviewer(QMainWindow):
         helpMenu = menubar.addMenu('&Help')
         
         # >>> create File Menu items
+        # >>> create File Menu items
+        newAction = QAction('&New', self)
+        newAction.setStatusTip('New session / clear previous')
+        newAction.triggered.connect(self.newSession)
+
         openAction = QAction('&Open...', self)
         openAction.setShortcut('Ctrl+O')
         openAction.setStatusTip('Open file')
@@ -6158,7 +6164,9 @@ class sviewer(QMainWindow):
         #exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(QApplication.instance().quit)
-        
+
+        fileMenu.addAction(newAction)
+        fileMenu.addSeparator()
         fileMenu.addAction(openAction)
         fileMenu.addAction(saveAction)
         fileMenu.addAction(saveAsAction)
@@ -6752,10 +6760,10 @@ class sviewer(QMainWindow):
             for url in event.mimeData().urls():
                 filelist.append(str(url.toLocalFile()))
                 print('drop:', str(url.toLocalFile()))
-                if str(url.toLocalFile()).endswith('.spv'):
-                    self.openFile(str(url.toLocalFile()))
-                else:
-                    self.importSpectrum(filelist, append=True)
+            if str(url.toLocalFile()).endswith('.spv'):
+                self.openFile(str(url.toLocalFile()))
+            else:
+                self.importSpectrum(filelist, append=True)
         else:
             event.ignore()
 
@@ -6843,7 +6851,36 @@ class sviewer(QMainWindow):
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-    
+
+    def newSession(self):
+
+        # >>> remove regions:
+        for r in reversed(self.plot.regions[:]):
+            self.plot.regions.remove(r)
+        self.plot.regions = regionList(self.plot)
+
+        # >>> remove doublets:
+        for d in reversed(self.plot.doublets[:]):
+            d.remove()
+        self.plot.doublets = doubletList(self.plot)
+
+        for s in self.s:
+            s.remove()
+        self.s = Speclist(self)
+
+        self.lines = lineList(self)
+
+        self.plot.remove_pcRegion()
+        if self.fitModel is not None:
+            self.fitModel.close()
+
+        if self.fitResults is not None:
+            self.fitResults.close()
+
+        self.fit = fitPars(self)
+
+        self.setz_abs(0)
+
     def showOpenDialog(self):
         fname = QFileDialog.getOpenFileName(self, 'Open file', self.work_folder)
         
@@ -7180,7 +7217,7 @@ class sviewer(QMainWindow):
                 if filename.endswith('tar.gz'):
                     tar = tarfile.open(filename, 'r:gz')
                     for m in tar.getmembers():
-                        if m.name.endswith('.fits'):
+                        if m.name.endswith('.fits') or m.name.endswith('.fit'):
                             filename = tar.extractfile(m)
                             hdulist = fits.open(filename)
                 else:
@@ -7201,7 +7238,7 @@ class sviewer(QMainWindow):
                             s.set_data()
                         s.resolution = data['meta']['R'][ind]
 
-                elif hdulist is not None or filename.endswith('.fits'):
+                elif hdulist is not None or filename.endswith('.fits') or filename.endswith('.fit'):
                     if hdulist is None:
                         hdulist = fits.open(filename)
                     if 'INSTRUME' in hdulist[0].header:
