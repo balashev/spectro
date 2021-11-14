@@ -7288,28 +7288,29 @@ class sviewer(QMainWindow):
                             return False
 
                     elif 'TELESCOP' in hdulist[0].header:
-                        try:
-                            if 'SDSS' in hdulist[0].header['TELESCOP']:
-                                data = hdulist[1].data
-                                DR9 = 0
-                                if DR9:
-                                    res_st = int((data.field('LOGLAM')[0] - self.LeeResid[0][0])*10000)
-                                    print('SDSS:', res_st)
-                                    #mask = data.field('MASK_COMB')[i_min:i_max]
-                                    l = 10**data.field('LOGLAM')
-                                    fl = data.field('FLUX')
-                                    cont = (data.field('CONT') * self.LeeResid[1][res_st:res_st+len(l)]) #/ data.field('DLA_CORR')
-                                    sig = (data.field('IVAR'))**(-0.5) / data.field('NOISE_CORR')
-                                else:
-                                    l = 10**data.field('loglam')
-                                    fl = data.field('flux')
-                                    sig = (data.field('ivar'))**(-0.5)
-                                    cont = data.field('model')
-                                s.set_data([l, fl, sig])
-                                s.cont.set_data(l, cont)
-                                s.resolution = 2000
-                        except:
-                            return False
+                        if 'SDSS' in hdulist[0].header['TELESCOP']:
+                            data = hdulist[1].data
+                            DR9 = 0
+                            if DR9:
+                                res_st = int((data.field('LOGLAM')[0] - self.LeeResid[0][0])*10000)
+                                print('SDSS:', res_st)
+                                #mask = data.field('MASK_COMB')[i_min:i_max]
+                                l = 10**data.field('LOGLAM')
+                                fl = data.field('FLUX')
+                                cont = (data.field('CONT') * self.LeeResid[1][res_st:res_st+len(l)]) #/ data.field('DLA_CORR')
+                                sig = (data.field('IVAR'))**(-0.5) / data.field('NOISE_CORR')
+                            else:
+                                l = 10**data.field('loglam')
+                                fl = data.field('flux')
+                                sig = (data.field('ivar'))**(-0.5)
+                                cont = data.field('model')
+                            s.set_data([l, fl, sig])
+                            s.cont.set_data(l, cont)
+                            s.resolution = 2000
+                        elif 'FUSE' in hdulist[0].header['TELESCOP']:
+                            x = np.linspace(hdulist[0].header['CRVAL1'], hdulist[0].header['CRVAL1']+hdulist[0].header['CDELT1']*(hdulist[0].header['NAXIS1']-1), hdulist[0].header['NAXIS1'])
+                            print(len(x), len(hdulist[0].data))
+                            s.set_data([x, hdulist[0].data*1e18])
 
                     elif 'ORIGIN' in hdulist[0].header:
                         if hdulist[0].header['ORIGIN'] == 'ESO-MIDAS':
