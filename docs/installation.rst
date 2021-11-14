@@ -4,8 +4,8 @@ Installation
 .. _installation:
 
 
-Installation
-------------
+Downloading
+-----------
 
 Since the ``Spectro`` package is still developing the most straightforward way is to install spectro from github, which provides you access to the latest features and bugfixes:
 
