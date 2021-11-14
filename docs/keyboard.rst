@@ -1,7 +1,7 @@
-Keyboard shortcuts
-===
+Keyboard bindings
+=================
 
-The keyboard provide the easy access instrument for the GUI
+The keyboard provide the easy access to the GUI instruments. Most of the major use commands can be used with keyboard.
 
-Keybord shortcuts
-------------
+Keybord bindings
+----------------

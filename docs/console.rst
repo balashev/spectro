@@ -1,8 +1,8 @@
 Console
-===
+=======
 
 Console command
-------------
+---------------
 
 The console is a powerful text commands based instrument
 
