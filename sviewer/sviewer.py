@@ -4,7 +4,7 @@ import astropy.coordinates
 from astropy.io import ascii, fits
 from astropy.table import Table
 import astropy.time
-from astroquery.sdss import SDSS
+from astroquery import sdss as aqsdss
 from chainconsumer import ChainConsumer
 from collections import OrderedDict
 from copy import deepcopy, copy
@@ -1992,7 +1992,9 @@ class showLinesWidget(QWidget):
 
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 p.y_formatter = self.y_formatter
-                ax = p.plot_line()
+
+                p.plot_line()
+
                 if self.show_cf and self.parent.fit.cf_fit and p.show_fit:
                     def conv(x):
                         return (x / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26
@@ -2004,6 +2006,7 @@ class showLinesWidget(QWidget):
                                 if (len(cf.addinfo.split('_')) > 1 and cf.addinfo.split('_')[1] == 'all') or (cf.addinfo.find('exp') > -1 and int(cf.addinfo[cf.addinfo.find('exp')+3:]) == ind):
                                     color = to_hex(tuple(c / 255 for c in self.cf_color.to_bytes(4, byteorder='big')))
                                     if p.fit_disp is None:
+                                        print([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], [1 - cf.val, 1 - cf.val])
                                         p.ax.plot([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], [1 - cf.val, 1 - cf.val], '--', lw=0.5, color=color)
                                     else:
                                         p.ax.plot([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], [1 - cf.unc.val, 1 - cf.unc.val], '--', lw=0.5, color=color)
@@ -5381,9 +5384,9 @@ class combineWidget(QWidget):
                 e_comb[i] = np.power(err(x), -1)
             else:
                 #print(spectres.spectres(s.spec.x(), s.spec.y(), x, spec_errs=s.spec.err()))
-                mask = np.logical_and(x > s.spec.x()[2], x < s.spec.x()[-3])
-                print(s.spec.x(), x[mask])
-                comb[i][mask], e_comb[i][mask] = spectres.spectres(s.spec.x(), s.spec.y(), x[mask], spec_errs=s.spec.err())
+                mask_s = (s.spec.err() != 0)
+                mask = (x > s.spec.x()[mask_s][2]) * (x < s.spec.x()[mask_s][-3])
+                comb[i][mask], e_comb[i][mask] = spectres.spectres(s.spec.x()[mask_s], s.spec.y()[mask_s], x[mask], spec_errs=s.spec.err()[mask_s])
 
         print(comb, e_comb)
 
@@ -7260,9 +7263,17 @@ class sviewer(QMainWindow):
 
                             if 'COS' in hdulist[0].header['INSTRUME']:
                                 prihdr = hdulist[1].data
-                                s.set_data([np.concatenate([prihdr['WAVELENGTH'][1], prihdr['WAVELENGTH'][0]]),
-                                            1e17 * np.concatenate([prihdr['FLUX'][1], prihdr['FLUX'][0]]),
-                                            1e17 * np.concatenate([prihdr['ERROR'][1], prihdr['ERROR'][0]])
+                                s.set_data([prihdr['WAVELENGTH'][0],
+                                            1e17 * prihdr['FLUX'][0],
+                                            1e17 * prihdr['ERROR'][0]
+                                            ])
+                                s.wavelmin = np.min(s.spec.raw.x)
+                                s.wavelmax = np.max(s.spec.raw.x)
+                                self.s.append(s)
+                                s = Spectrum(self, name=filename+'_2')
+                                s.set_data([prihdr['WAVELENGTH'][1],
+                                            1e17 * prihdr['FLUX'][1],
+                                            1e17 * prihdr['ERROR'][1]
                                             ])
                                 # for l, f, e in zip(prihdr['WAVELENGTH'], prihdr['FLUX'], prihdr['ERROR']):
                                 #    s.set_data()
@@ -8855,17 +8866,19 @@ class sviewer(QMainWindow):
             pass
         elif self.SDSScat == 'Astroquery':
             if self.SDSSquery is None:
-                self.SDSSquery = SDSS
+                self.SDSSquery = aqsdss.SDSS
             if name is not None and len(name) > 0:
+                print(ra, dec)
                 qso = self.SDSSquery.get_spectra(coordinates=astropy.coordinates.SkyCoord(ra, dec, frame='icrs', unit='deg'))[0]
             else:
                 qso = self.SDSSquery.get_spectra(plate=plate, fiberID=fiber, mjd=MJD)[0]
             #mask = qso[1].data['ivar'] > 0
-            plate, MJD, fiber = qso[0].header['PLATEID'], qso[0].header['MJD'], qso[0].header['FIBERID']
-            self.importSpectrum('spec-{0:05d}-{1:05d}-{2:04d}'.format(plate, MJD, fiber),
-                                spec=[10 ** qso[1].data['loglam'][:], qso[1].data['flux'][:], np.sqrt(1.0 / qso[1].data['ivar'][:])],
-                                mask=qso[1].data['and_mask'], append=append)
-            resolution = 1800
+            if qso is not None:
+                plate, MJD, fiber = qso[0].header['PLATEID'], qso[0].header['MJD'], qso[0].header['FIBERID']
+                self.importSpectrum('spec-{0:05d}-{1:05d}-{2:04d}'.format(plate, MJD, fiber),
+                                    spec=[10 ** qso[1].data['loglam'][:], qso[1].data['flux'][:], np.sqrt(1.0 / qso[1].data['ivar'][:])],
+                                    mask=qso[1].data['and_mask'], append=append)
+                resolution = 1800
         else:
             out = False
         if out:

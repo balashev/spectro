@@ -446,18 +446,50 @@ class Console(QTextEdit):
                 self.parent.s.redraw()
 
         elif args[0] == 'set':
-            if len(args) == 3:
-                mask = np.logical_and(self.parent.s[self.parent.s.ind].spec.raw.x > self.parent.plot.vb.viewRange()[0][0],
-                                      self.parent.s[self.parent.s.ind].spec.raw.x < self.parent.plot.vb.viewRange()[0][1])
-                if args[1] == 'err':
-                    if len(self.parent.s[self.parent.s.ind].spec.raw.err) == 0:
-                        self.parent.s[self.parent.s.ind].spec.raw.err = np.ones_like(self.parent.s[self.parent.s.ind].spec.raw.x) * float(args[2])
-                    self.parent.s[self.parent.s.ind].spec.raw.err[mask] = float(args[2])
-                    self.parent.s.redraw()
+            def isfloat(value):
+                try:
+                    float(value)
+                    return True
+                except ValueError:
+                    return False
 
-                if args[1] == 'cont':
-                    self.parent.s[self.parent.s.ind].set_spline([self.parent.s[self.parent.s.ind].spec.raw.x[mask][0], self.parent.s[self.parent.s.ind].spec.raw.x[mask][-1]], [float(args[2]), float(args[2])])
+            if len(np.where([isfloat(arg) for arg in args])[0]) == 1:
+                ind = np.where([isfloat(arg) for arg in args])[0][0]
+                print(ind, args[ind])
+
+                s = self.parent.s[self.parent.s.ind]
+                if any([x in args for x in ['region', 'regions', 'reg']]):
+                    mask = np.ones_like(s.spec.raw.x)
+                    for r in self.parent.plot.regions:
+                        xmin, xmax = float(str(r).split('..')[0]), float(str(r).split('..')[1])
+                        if not self.parent.normview:
+                            mask *= (xmin > s.spec.raw.x) + (s.spec.raw.x > xmax)
+                    mask = np.logical_not(mask)
+                elif any([x in args for x in ['screen', 'window', 'disp', 'view']]):
+                    mask = np.logical_and(s.spec.raw.x > self.parent.plot.vb.viewRange()[0][0],
+                                          s.spec.raw.x < self.parent.plot.vb.viewRange()[0][1])
+                else:
+                    mask = np.ones_like(s.spec.raw.x)
+
+                print(np.sum(mask), mask)
+                print('err' in args, 'cont' in args)
+                if 'err' in args:
+                    if len(s.spec.raw.err) == 0:
+                        self.parent.s[self.parent.s.ind].spec.raw.err = np.ones_like(s.spec.raw.x) * float(args[ind])
+                    self.parent.s[self.parent.s.ind].spec.raw.err[mask] = float(args[ind]) * np.ones_like(s.spec.raw.x[mask])
+
+                elif 'cont' in args:
+                    self.parent.s[self.parent.s.ind].set_spline([s.spec.raw.x[mask][0], s.spec.raw.x[mask][-1]], [float(args[ind]), float(args[ind])])
                     #self.parent.s.redraw()
+
+                else:
+                    self.parent.s[self.parent.s.ind].spec.raw.y[mask] = float(args[ind]) * np.ones_like(s.spec.raw.x[mask])
+                    if len(s.spec.raw.err) == 0:
+                        self.parent.s[self.parent.s.ind].spec.raw.err = np.ones_like(s.spec.raw.x) * float(args[ind]) * np.ones_like(s.spec.raw.x[mask])
+                    self.parent.s[self.parent.s.ind].spec.raw.err[mask] = float(args[ind]) * np.ones_like(s.spec.raw.x[mask])
+
+                print(self.parent.s[self.parent.s.ind].spec.raw.err[mask])
+                self.parent.s.redraw()
 
         if args[0] == 'cont':
             self.parent.s[self.parent.s.ind].set_spline([self.parent.s[self.parent.s.ind].spec.raw.x[mask][0], self.parent.s[self.parent.s.ind].spec.raw.x[mask][-1]], [float(args[1]), float(args[1])])
