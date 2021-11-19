@@ -21,16 +21,18 @@ Since the ``Spectro`` package is still developing the most straightforward way i
 Config
 ------
 
+(This step can be skipped)
+
 Before first use it can be useful to config some variable inside the code which provide the path to the external databases, e.g. IGMspec. The paths are kept in the file ``sviewer\config\config.ini``. In this file some dependencies and variables automatically store during the working progress, but you can also edit it by hands on your own risk.  
 
 Dependencies
 ------------
    
-``Spectro`` is heavily depends on the various python packages. Before use you will need to install following packages::
+``Spectro`` heavily depends on the list of python packages, that you will need to install::
 
 * Python 3.7+
 
-and 
+and::
 
 * adjustText==0.7.3
 * astroplan==0.8
@@ -59,9 +61,9 @@ and
 * statsmodels==0.12.2
 * ultranest==3.3.3
 
-The exact version is not obligatory, and the code can work with some old/new versions. But you can also use package list automatically stored in ``requirements.txt`` by 
+The exact versions of the packages are not obligatory, and the code can work with some old/new versions. However, there are sometime inconsistencies with previous verisons of the packages, e.g. for ``matplotlib`` and ``chainconsumer``. For convinience, this package list is automatically stored in ``requirements.txt``, therefore you can simply use:: 
 
-  pip install -r /path/to/requirements.txt    
+    $ pip install -r /path/to/requirements.txt    
 
 Julia
 -----
