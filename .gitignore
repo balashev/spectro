@@ -42,3 +42,7 @@ Thumbs.db
 .idea/
 /sviewer/output/*
 /sviewer/temp/*
+
+# Special file
+/sviewer/config/developer.ini
+

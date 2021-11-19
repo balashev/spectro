@@ -5979,7 +5979,8 @@ class sviewer(QMainWindow):
             self.config = 'config/options.ini'
         elif platform.system() == 'Linux':
             self.config = 'config/options_linux.ini'
-        self.develope = self.options('developerMode', config=self.config)
+        self.developer = os.path.isfile('config/developer.ini')
+        #self.developer = self.options('developerMode', config=self.config)
         self.SDSSfolder = self.options('SDSSfolder', config=self.config)
         self.SDSSDR14 = self.options('SDSSDR14', config=self.config)
         if self.SDSSDR14 is not None and os.path.isfile(self.SDSSDR14):
@@ -6475,12 +6476,22 @@ class sviewer(QMainWindow):
         combineMenu.addAction(combine)
         combineMenu.addAction(rebin)
 
-        if self.develope:
-            # >>> create SDSS Menu items
-            loadSDSS = QAction('&load SDSS', self)
-            loadSDSS.setStatusTip('Load SDSS by Plate/fiber')
-            loadSDSS.triggered.connect(self.showSDSSdialog)
 
+        # >>> create SDSS Menu items
+        loadSDSS = QAction('&load SDSS', self)
+        loadSDSS.setStatusTip('Load SDSS by Plate/fiber')
+        loadSDSS.triggered.connect(self.showSDSSdialog)
+
+        SDSSfilters = QAction('&SDSS filters', self, checkable=True)
+        SDSSfilters.setStatusTip('Add SDSS filters magnitudes')
+        SDSSfilters.triggered.connect(self.show_SDSS_filters)
+        SDSSfilters.setChecked(self.SDSS_filters_status)
+
+        SDSSMenu.addAction(loadSDSS)
+        SDSSMenu.addAction(SDSSfilters)
+        SDSSMenu.addSeparator()
+
+        if self.developer:
             SDSSLeelist = QAction('&DR9 Lee list', self)
             SDSSLeelist.setStatusTip('load SDSS DR9 Lee database')
             SDSSLeelist.triggered.connect(self.loadSDSSLee)
@@ -6509,17 +6520,10 @@ class sviewer(QMainWindow):
             SDSSDLA.setStatusTip('Search for DLA systems')
             SDSSDLA.triggered.connect(self.calc_SDSS_DLA)
 
-            SDSSfilters = QAction('&SDSS filters', self, checkable=True)
-            SDSSfilters.setStatusTip('Add SDSS filters magnitudes')
-            SDSSfilters.triggered.connect(self.show_SDSS_filters)
-            SDSSfilters.setChecked(self.SDSS_filters_status)
-
             SDSSPhot = QAction('&SDSS photometry', self)
             SDSSPhot.setStatusTip('Show SDSS photometry window')
             SDSSPhot.triggered.connect(self.SDSSPhot)
 
-            SDSSMenu.addAction(loadSDSS)
-            SDSSMenu.addSeparator()
             SDSSMenu.addAction(SDSSLeelist)
             SDSSMenu.addAction(importSDSSlist)
             SDSSMenu.addAction(showSDSSlist)
@@ -6530,9 +6534,8 @@ class sviewer(QMainWindow):
             SDSSMenu.addAction(SDSSStack)
             SDSSMenu.addAction(SDSSDLA)
             SDSSMenu.addSeparator()
-            SDSSMenu.addAction(SDSSfilters)
             SDSSMenu.addAction(SDSSPhot)
-        
+
             # >>> create Samples Menu items
             XQ100list = QAction('&XQ100 list', self)
             XQ100list.setStatusTip('load XQ100 list')

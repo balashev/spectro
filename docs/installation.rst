@@ -12,22 +12,16 @@ Since the ``Spectro`` package is still developing the most straightforward way i
 1. Clone ``Spectro`` from github::
 
     $ git clone https://github.com/balashev/spectro
-    $ cd pyqtgraph
-
-   Now you can install ``Spectro`` from the source::
-
-    $ pip install .
-
-2. Directly install from GitHub repo::
-
-    $ pip install git+git://github.com/balashev/spectro
-
-   You can change ``master`` of the above command to the branch name or the
-   commit you prefer.
-
-3. You can simply place the ``Spectro`` folder someplace importable, such as
+ 
+   
+2. You can simply place the ``Spectro`` folder someplace importable, such as
    inside the root of another project. Spectro does not need to be "built" or
    compiled in any way.
+
+Config
+------
+
+Before first use it can be useful to config some variable inside the code which provide the path to the external databases, e.g. IGMspec. The paths are kept in the file ``sviewer\config\config.ini``. In this file some dependencies and variable are stored during the working progress, but you can also edit it by hands on your own risk.  
 
 Dependencies
 ------------
