@@ -21,7 +21,7 @@ Since the ``Spectro`` package is still developing the most straightforward way i
 Config
 ------
 
-Before first use it can be useful to config some variable inside the code which provide the path to the external databases, e.g. IGMspec. The paths are kept in the file ``sviewer\config\config.ini``. In this file some dependencies and variable are stored during the working progress, but you can also edit it by hands on your own risk.  
+Before first use it can be useful to config some variable inside the code which provide the path to the external databases, e.g. IGMspec. The paths are kept in the file ``sviewer\config\config.ini``. In this file some dependencies and variables automatically store during the working progress, but you can also edit it by hands on your own risk.  
 
 Dependencies
 ------------
@@ -29,11 +29,39 @@ Dependencies
 ``Spectro`` is heavily depends on the various python packages. Before use you will need to install following packages::
 
 * Python 3.7+
-* A Qt library such as PyQt5, or PySide2
-* pyqtgraph
-* numpy
-* scipy
-* astropy
+
+and 
+
+* adjustText==0.7.3
+* astroplan==0.8
+* astropy==4.2.1
+* astroquery==0.4.3
+* ccdproc==2.1.1
+* ChainConsumer==0.33.0
+* corner==2.2.1
+* emcee==3.0.2
+* h5py==2.10.0
+* julia==0.5.6
+* lmfit==1.0.2
+* lxml==4.6.3
+* matplotlib==3.4.3
+* mendeleev==0.9.0
+* numba==0.53.1
+* numdifftools==0.9.39
+* numpy==1.20.1
+* pyGPs==1.3.5
+* PyQt5==5.15.6
+* pyqtgraph==0.12.1
+* pytz==2021.1
+* scikit_learn==1.0.1
+* scipy==1.6.2
+* seaborn==0.11.1
+* statsmodels==0.12.2
+* ultranest==3.3.3
+
+The exact version is not obligatory, and the code can work with some old/new versions. But you can also use package list automatically stored in ``requirements.txt`` by 
+
+  pip install -r /path/to/requirements.txt    
 
 Julia
 -----
