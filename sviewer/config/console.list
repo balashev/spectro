@@ -1,21 +1,21 @@
-set err 1 region
-set 1 region
-set 1
-set 1 region
-set 1 region
-y 0 1
-set 1 region
-y 0 1
-set 1 region
-set window 0 
-set window 0.3 
-set window 0.5
-set window 0.3
-y 0 1
-set 1 region
-set 1 region
-21-12 + 7.51
-21-12+8.1
-show CI
-high SiII
-show ClI
+set region 0 all
+set region 0
+set region 0
+set region 0
+set region 0
+set region 0
+set region 0
+set region 0 all
+set region 0
+set region 0 all
+set region 0 all
+set region 0 all
+set region 0 
+set region 0 
+set region 0
+set region 0
+scale 0.005
+rescale 0.005
+rescale 0.005
+shiw DI
+show DI

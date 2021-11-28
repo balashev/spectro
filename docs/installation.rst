@@ -3,6 +3,7 @@ Installation
 
 .. _installation:
 
+This section describe how to download, install dependecies and config ``Spectro`` package for the first use  
 
 Downloading
 -----------
@@ -17,13 +18,6 @@ Since the ``Spectro`` package is still developing the most straightforward way i
 2. You can simply place the ``Spectro`` folder someplace importable, such as
    inside the root of another project. Spectro does not need to be "built" or
    compiled in any way.
-
-Config
-------
-
-(This step can be skipped)
-
-Before first use it can be useful to config some variable inside the code which provide the path to the external databases, e.g. IGMspec. The paths are kept in the file ``sviewer\config\config.ini``. In this file some dependencies and variables automatically store during the working progress, but you can also edit it by hands on your own risk.  
 
 Dependencies
 ------------
@@ -64,6 +58,14 @@ and::
 The exact versions of the packages are not obligatory, and the code can work with some old/new versions. However, there are sometime inconsistencies with previous verisons of the packages, e.g. for ``matplotlib`` and ``chainconsumer``. For convinience, this package list is automatically stored in ``requirements.txt``, therefore you can simply use:: 
 
     $ pip install -r /path/to/requirements.txt    
+
+
+Config
+------
+
+(This step can be skipped)
+
+Before first use it can be useful to config some variable inside the code which provide the path to the external databases, e.g. IGMspec. The paths are kept in the file ``sviewer\config\config.ini``. In this file some dependencies and variables automatically store during the working progress, but you can also edit it by hands on your own risk.  
 
 Julia
 -----

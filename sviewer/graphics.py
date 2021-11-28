@@ -26,7 +26,7 @@ from PyQt5.QtWidgets import QApplication
 import re
 from scipy.interpolate import interp1d, interp2d, splrep, splev
 from scipy.optimize import curve_fit, least_squares
-from scipy.signal import savgol_filter, lombscargle
+from scipy.signal import savgol_filter, lombscargle, medfilt
 from scipy.stats import gaussian_kde
 
 from ..profiles import tau, convolveflux, makegrid
@@ -2279,10 +2279,10 @@ class Spectrum():
         return chi2
 
     def selectCosmics(self):
-        y_sm = scipy.signal.medfilt(self.spec.y, 5)
-        sigma = scipy.signal.medfilt(self.spec.err, 101)
-        bad = np.abs(self.spec.y - y_sm) / sigma > 4.0
-        self.bad_mask = np.logical_or(self.bad_mask, bad)
+        y_sm = medfilt(self.spec.y(), 5)
+        sigma = medfilt(self.spec.err(), 101)
+        bad = np.abs(self.spec.y() - y_sm) / sigma > 4.0
+        self.bad_mask.set(x=np.logical_or(self.bad_mask.x(), bad))
         self.remove()
         self.init_GU()
 
