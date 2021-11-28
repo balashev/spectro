@@ -13,6 +13,8 @@ class par:
         self.name = name
         if 'cont' in self.name:
             self.dec = 4
+        elif 'me' in self.name:
+            self.dec = 3
         elif 'res' in self.name:
             self.dec = 1
         elif 'cf' in self.name:
@@ -22,7 +24,7 @@ class par:
         elif 'disps' in self.name:
             self.dec = 8
         else:
-            d = {'z': 7, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3, 'me': 3,
+            d = {'z': 7, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3,
                  'Ntot': 3, 'logn': 3, 'logT': 3, 'logf': 3, 'rad': 3, 'hcont': 3}
             self.dec = d[self.name]
 
@@ -407,7 +409,7 @@ class fitPars:
         self.cont_fit = False
         self.cont_num = 0
         self.cont = fitCont(self)
-        self.res_fit = False
+        self.me_num = 0
         self.res_num = 0
         self.cf_fit = False
         self.cf_num = 0
@@ -418,8 +420,8 @@ class fitPars:
     def add(self, name):
         if name in 'mu':
             self.mu = par(self, 'mu', 1e-6, 1e-7, 5e-6, 1e-8)
-        if name in 'me':
-            self.me = par(self, 'me', 0, -3, 1, 0.01)
+        if 'me' in name:
+            setattr(self, name, par(self, name, 0, -3, 1, 0.01))
         if name in 'dtoh':
             self.dtoh = par(self, 'dtoh', -4.5, -5.4, -4, 0.01)
         if 'res' in name:
@@ -436,7 +438,7 @@ class fitPars:
             setattr(self, name, par(self, name, 1e-5, -1e-4, 1e-4, 1e-6, addinfo='exp_0'))
 
     def remove(self, name):
-        if name in ['mu', 'me', 'dtoh', 'res', 'hcont'] or any([x in name for x in ['res', 'cf', 'disp']]):
+        if name in ['mu', 'dtoh', 'hcont'] or any([x in name for x in ['me', 'res', 'cf', 'disp']]):
             if hasattr(self, name):
                 delattr(self, name)
         if 'cont_' in name:
@@ -500,12 +502,12 @@ class fitPars:
         elif attr in ['vary', 'fit']:
             val = int(val)
 
-        if s[0] in ['mu', 'me', 'dtoh']:
+        if s[0] in ['mu', 'dtoh']:
             if not hasattr(self, s[0]):
                 self.add(s[0])
             res = getattr(self, s[0]).set(val, attr)
 
-        if s[0] in ['res', 'cf', 'dispz', 'disps', 'hcont']:
+        if s[0] in ['me', 'res', 'cf', 'dispz', 'disps', 'hcont']:
             if not hasattr(self, name):
                 self.add(name)
             res = getattr(self, name).set(val, attr)
@@ -541,9 +543,9 @@ class fitPars:
                         elif s.b.addinfo == 'consist':
                             s.b.val = doppler(k, sys.turb.val, sys.kin.val)
                     if what in ['all', 'me', 'dtoh']:
-                        if s.N.addinfo == 'me' and 'HI' in sys.sp.keys():
-                            if 'DI' not in k and hasattr(self, 'me'):
-                                s.N.val = abundance(k, sys.sp['HI'].N.val, self.me.val)
+                        if 'me' in s.N.addinfo and 'HI' in sys.sp.keys():
+                            if 'DI' not in k and self.me_num > 0:
+                                s.N.val = abundance(k, sys.sp['HI'].N.val, getattr(self, s.N.addinfo).val)
                         if s.N.addinfo == 'DtoH' and 'HI' in sys.sp.keys():
                             if 'DI' in k and hasattr(self, 'dtoh'):
                                 s.N.val = sys.sp['HI'].N.val + self.dtoh.val
@@ -553,7 +555,7 @@ class fitPars:
                         sys.pyratio()
 
         if what in ['all', 'res']:
-            if self.res_fit and self.res_num > 0:
+            if self.res_num > 0:
                 for i in range(self.res_num):
                     if i < len(self.parent.s):
                         self.parent.s[int(getattr(self, 'res_'+str(i)).addinfo[4:])].resolution = self.getValue('res_'+str(i))
@@ -572,11 +574,11 @@ class fitPars:
     def getPar(self, name):
         s = name.split('_')
         par = None
-        if s[0] in ['mu', 'me', 'dtoh']:
+        if s[0] in ['mu', 'dtoh']:
             if hasattr(self, s[0]):
                 par = getattr(self, s[0])
 
-        if s[0] in ['cont', 'res', 'cf', 'dispz', 'disps', 'hcont']:
+        if s[0] in ['me', 'cont', 'res', 'cf', 'dispz', 'disps', 'hcont']:
             if hasattr(self, name):
                 par = getattr(self, name)
 
@@ -616,7 +618,7 @@ class fitPars:
     def pars(self, ind=None):
         pars = OrderedDict()
         if ind in [None, -1]:
-            for attr in ['mu', 'me', 'dtoh', 'res', 'hcont']:
+            for attr in ['mu', 'dtoh', 'hcont']:
                 if hasattr(self, attr):
                     p = getattr(self, attr)
                     pars[str(p)] = p
@@ -627,7 +629,13 @@ class fitPars:
                         if hasattr(self, attr):
                             p = getattr(self, attr)
                             pars[str(p)] = p
-            if self.res_fit and self.res_num > 0:
+            if self.me_num > 0:
+                for i in range(self.me_num):
+                    attr = 'me_' + str(i)
+                    if hasattr(self, attr):
+                        p = getattr(self, attr)
+                        pars[str(p)] = p
+            if self.res_num > 0:
                 for i in range(self.res_num):
                     attr = 'res_' + str(i)
                     if hasattr(self, attr):
@@ -684,8 +692,11 @@ class fitPars:
             self.cont_num = max(self.cont_num, int(s[0].split('_')[1]) + 1)
             self.cont_fit = True
         if 'res' in s[0]:
-            self.res_fit = True
             self.res_num = max(self.res_num, int(s[0][4:]) + 1)
+        if 'me' in s[0]:
+            if s[0] == 'me':
+                s[0] = 'me_0'
+            self.me_num = max(self.me_num, int(s[0][3:]) + 1)
         if 'cf' in s[0]:
             self.cf_fit = True
             attrs = ['val', 'left', 'right', 'step', 'vary', 'addinfo']

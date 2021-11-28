@@ -50,7 +50,7 @@ class FLineEdit(QLineEdit):
         print('calcFit')
         if self.var in ['N', 'b', 'z', 'kin', 'turb', 'v', 'c', 'Ntot', 'logn', 'logT']:
             self.parent.parent.s.reCalcFit(self.parent.tab.currentIndex())
-        elif self.var in ['mu', 'me', 'dtoh'] or any([x in self.var for x in ['dispz', 'disps', 'res']]):
+        elif self.var in ['mu', 'dtoh'] or any([x in self.var for x in ['me', 'dispz', 'disps', 'res']]):
             self.parent.parent.s.prepareFit()
             self.parent.parent.s.calcFit()
 
@@ -320,13 +320,26 @@ class fitModelWidget(QWidget):
         for i in range(self.parent.fit.cont_num):
             self.addContParent(self.cont, 'region_' + str(i), expanded=self.parent.fit.cont_fit)
 
-        for s, name in zip(['mu', 'me', 'dtoh'], ['mp/me', 'metallicity', 'D/H']):
+        for s, name in zip(['mu', 'dtoh'], ['mp/me', 'D/H']):
             setattr(self, s + '_p', self.addParent(self.treeWidget, name, expanded=hasattr(self.parent.fit, s)))
             getattr(self, s + '_p').name = s
             self.addChild(s + '_p', s)
         #self.treeWidget.itemChanged.connect(self.stateChanged)
 
-        self.res = self.addParent(self.treeWidget, 'Resolution', expanded=self.parent.fit.res_fit)
+        self.me = self.addParent(self.treeWidget, 'Metallicity', expanded=self.parent.fit.me_num > 0)
+        self.me.name = 'me'
+
+        self.me_m = QTreeWidgetItem(self.me)
+        self.me_m.setTextAlignment(3, Qt.AlignRight)
+        self.me_m.setText(3, 'num: ')
+        self.me_num = FLineEdit(self, str(self.parent.fit.me_num))
+        self.me_num.setFixedSize(30, 30)
+        self.me_num.returnPressed.connect(self.numMeChanged)
+        self.treeWidget.setItemWidget(self.me_m, 4, self.me_num)
+        for i in range(self.parent.fit.me_num):
+            self.addChild('me', 'me_' + str(i))
+
+        self.res = self.addParent(self.treeWidget, 'Resolution', expanded=self.parent.fit.res_num > 0)
         self.res.name = 'res'
 
         self.res_m = QTreeWidgetItem(self.res)
@@ -487,13 +500,20 @@ class fitModelWidget(QWidget):
             self.parent.fit.setValue(name, sp1, 'addinfo')
         self.refresh()
 
+    def updateMe(self, excl=''):
+        try:
+            #self.res.setExpanded(self.parent.fit.res_num > 0)
+            self.me_num.setText(str(self.parent.fit.me_num))
+        except:
+            pass
+
     def updateRes(self, excl=''):
         try:
-            self.res.setExpanded(self.parent.fit.res_fit)
+            #self.res.setExpanded(self.parent.fit.res_num > 0)
             self.res_num.setText(str(self.parent.fit.res_num))
         except:
             pass
-        if self.parent.fit.res_fit:
+        if self.parent.fit.res_num > 0:
             for res in self.parent.fit.list():
                 if 'res' in str(res):
                     try:
@@ -671,7 +691,7 @@ class fitModelWidget(QWidget):
             self.refresh('varyChanged')
 
     def stateChanged(self, item):
-        if item.name in ['mu', 'me', 'dtoh']:
+        if item.name in ['mu', 'dtoh']:
             if item.isExpanded():
                 self.parent.fit.add(item.name)
             else:
@@ -701,7 +721,6 @@ class fitModelWidget(QWidget):
 
 
         if item.name == 'res':
-            self.parent.fit.res_fit = self.res.isExpanded()
             #self.parent.fit.cf_num = int(self.cf_num.text())
             for i in range(self.parent.fit.res_num):
                 if self.res.isExpanded():
@@ -813,6 +832,22 @@ class fitModelWidget(QWidget):
             if self.refr:
                 self.refresh()
 
+    def numMeChanged(self):
+        k = int(self.me_num.text())
+        sign = 1 if k > self.parent.fit.me_num else -1
+        if k != self.parent.fit.me_num:
+            rang = range(self.parent.fit.me_num, k) if sign == 1 else range(self.parent.fit.me_num-1, k-1, -1)
+            for i in list(rang):
+                if k > self.parent.fit.me_num:
+                    self.parent.fit.add('me_' + str(i))
+                    self.addChild('me', 'me_' + str(i))
+                else:
+                    self.parent.fit.remove('me_' + str(i))
+                    getattr(self, 'me').removeChild(getattr(self, 'me_' + str(i)))
+            self.parent.fit.me_num = k
+            if self.refr:
+                self.refresh()
+
     def numCfChanged(self):
         k = int(self.cf_num.text())
         sign = 1 if k > self.parent.fit.cf_num else -1
@@ -859,7 +894,7 @@ class fitModelWidget(QWidget):
         self.parent.fit.cont[ind].update()
 
     def onChanged(self, s, attr):
-        if s in ['mu', 'me', 'dtoh'] or any([c in s for c in ['cont', 'res', 'cf', 'disp']]):
+        if s in ['mu', 'dtoh'] or any([c in s for c in ['me', 'cont', 'res', 'cf', 'disp']]):
             print(hasattr(self.parent.fit, s))
             if hasattr(self.parent.fit, s):
                 setattr(getattr(self.parent.fit, s), attr, float(getattr(self, s + '_' + attr).text()))
@@ -874,7 +909,7 @@ class fitModelWidget(QWidget):
     def refresh(self, excl='', refresh=None, ):
         #print('refresh:', self.refr)
         names = ['val', 'max', 'min', 'step']
-        for s in ['mu', 'me', 'dtoh']:
+        for s in ['mu', 'dtoh']:
             if hasattr(self.parent.fit, s) and hasattr(self, s + '_vary'):
                 getattr(self, s + '_vary').setChecked(getattr(getattr(self.parent.fit, s), 'vary'))
                 for attr in names:
@@ -1115,15 +1150,16 @@ class fitModelSysWidget(QFrame):
             combo = getattr(self, species + '_Ntied')
             combo.clear()
             combo.addItems(['tie to'])
-            if hasattr(self.parent.parent.fit, 'me'):
-                combo.addItems(['me'])
+            if self.parent.parent.fit.me_num > 0:
+                for i in range(self.parent.parent.fit.me_num):
+                    combo.addItems(['me_' + str(i)])
             if hasattr(self.parent.parent.fit, 'dtoh'):
                 combo.addItems(['DtoH'])
             if self.Ncons.isExpanded():
                 combo.addItems(['Ntot'])
             try:
                 s = getattr(getattr(self.fit.sys[self.ind].sp[species], 'N'), 'addinfo').strip()
-                if s in ['Ntot', 'me', 'DtoH']:
+                if s in ['Ntot', 'DtoH'] or 'me' in s:
                     combo.setCurrentText(s)
                 else:
                     combo.setCurrentIndex(0)

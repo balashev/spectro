@@ -2281,7 +2281,13 @@ class Spectrum():
     def selectCosmics(self):
         y_sm = medfilt(self.spec.y(), 5)
         sigma = medfilt(self.spec.err(), 101)
-        bad = np.abs(self.spec.y() - y_sm) / sigma > 4.0
+        bad = np.abs(self.spec.y() - y_sm) / sigma > 3.5
+        n = 2
+        print(np.sum(bad))
+        for i in range(1, n+1):
+            bad[:len(bad)-i] = np.logical_or(bad[:len(bad)-i], bad[i:len(bad)])
+            bad[i:len(bad)] = np.logical_or(bad[i:len(bad)], bad[:len(bad)-i])
+            print(np.sum(bad))
         self.bad_mask.set(x=np.logical_or(self.bad_mask.x(), bad))
         self.remove()
         self.init_GU()

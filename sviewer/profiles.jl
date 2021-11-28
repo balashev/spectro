@@ -278,7 +278,7 @@ function update_pars(pars, spec, add)
         end
         if occursin("me", pars[k].name)
             for (k1, v1) in pars
-                if occursin("me", v1.addinfo)
+                if occursin(pars[k].name, v1.addinfo)
                     pars[k1].val = abundance(split(k1, "_")[3], pars[replace(k1, split(k1, "_")[3] => "HI")].val, pars[k].val)
                 end
             end

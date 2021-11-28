@@ -543,7 +543,7 @@ class plotSpectrum(pg.PlotWidget):
 
         if self.c_status:
             #try:
-            if self.parent.abs.reference.line.name in self.parent.fit.sys[self.parent.comp].sp:
+            if hasattr(self.parent.abs, 'reference') and self.parent.abs.reference.line.name in self.parent.fit.sys[self.parent.comp].sp:
                 if self.check_line():
                     self.parent.fit.sys[self.parent.comp].z.set(self.mousePoint.x() / self.parent.abs.reference.line.l() - 1)
                     if self.mousePoint.y() != self.mousePoint_saved.y():
@@ -563,12 +563,15 @@ class plotSpectrum(pg.PlotWidget):
                     self.parent.sendMessage('select line within window wavelength range', 3500)
                     self.vb.setMouseMode(self.vb.PanMode)
                     self.c_status = 0
-            #except:
+
+                self.parent.s.prepareFit(self.parent.comp, all=self.showfullfit)
+                self.parent.s.calcFit(self.parent.comp, recalc=True, redraw=True)
+                self.parent.s.calcFit(recalc=True, redraw=True)
+
+            else:
+                self.c_status = 0
             #    pass
 
-            self.parent.s.prepareFit(self.parent.comp, all=self.showfullfit)
-            self.parent.s.calcFit(self.parent.comp, recalc=True, redraw=True)
-            self.parent.s.calcFit(recalc=True, redraw=True)
 
         if self.h_status:
             self.parent.console.exec_command('show HI')
@@ -747,19 +750,20 @@ class plotSpectrum(pg.PlotWidget):
                 self.updateScaleBox(ev.buttonDownPos(), ev.pos())
 
     def switch_component(self, n):
-        self.parent.comp += n
-        if self.parent.comp > len(self.parent.fit.sys) - 1:
-            self.parent.comp = 0
-        if self.parent.comp < 0:
-            self.parent.comp = len(self.parent.fit.sys) - 1
-        self.parent.componentBar.setText("{:d} component".format(self.parent.comp))
-        try:
-            self.parent.fitModel.tab.setCurrentIndex(self.parent.comp)
-        except:
-            pass
-        # self.parent.s.redraw()
-        self.parent.s.redrawFitComps()
-        self.parent.abs.redraw(z=self.parent.fit.sys[self.parent.comp].z.val)
+        if len(self.parent.fit.sys) > 0:
+            self.parent.comp += n
+            if self.parent.comp > len(self.parent.fit.sys) - 1:
+                self.parent.comp = 0
+            if self.parent.comp < 0:
+                self.parent.comp = len(self.parent.fit.sys) - 1
+            self.parent.componentBar.setText("{:d} component".format(self.parent.comp))
+            try:
+                self.parent.fitModel.tab.setCurrentIndex(self.parent.comp)
+            except:
+                pass
+            # self.parent.s.redraw()
+            self.parent.s.redrawFitComps()
+            self.parent.abs.redraw(z=self.parent.fit.sys[self.parent.comp].z.val)
 
     def updateRegions(self):
         if len(self.regions) > 0:
