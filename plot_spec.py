@@ -11,7 +11,6 @@ from pathlib import Path
 from scipy import interpolate
 import sys
 sys.path.append('C:/science/python')
-from .colors import col
 from .sviewer.utils import roman
 from .atomic import atomicData
 
@@ -72,7 +71,7 @@ class plot_spec(list):
         self.font_labels = font_labels
         self.fit = fit
         self.figure = figure
-        self.color_total = col.tableau10[3]
+        self.color_total = "tab:red"
         self.show_comps = show_comps
         self.show_err = show_err
         self.error_cap = error_cap
@@ -593,7 +592,7 @@ class plotline():
         try:
             if self.add_cont:
                 cont = np.genfromtxt('_cont.'.join(self.filename[0].rsplit('.', 1)), unpack=True)
-                self.ax.plot(cont[0], cont[1], '-', color=col.tableau10[0])
+                self.ax.plot(cont[0], cont[1], '-', color="tab:blue")
         except:
             pass
 
@@ -693,7 +692,7 @@ class plotline():
             self.ax.plot(self.fit_disp[0].x, self.fit_disp[1].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=10)
 
     def plot_residuals(self):
-        color_res = col.tableau20[7]
+        color_res = (255, 152, 150)
         color_linres = 'lightseagreen'  # 'mediumpurple' #col.tableau20[5]
         null_res = self.y_max + (self.y_max - self.y_min) * 0.10
         delt_res = (self.y_max - self.y_min) * 0.08
