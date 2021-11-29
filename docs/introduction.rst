@@ -15,7 +15,8 @@ What it can do?
 
 The main features of spectro package is 
 
-* Complex absorption line modeling
+* Powerful GUI for spetra analysis 
+* Comprehensive visually guided absorption line modeling
 * Levenberg-Marquard and MCMC parameters estimations of line profiles
 * 1d spectrum reduction routines
 * 2d to 1d spectral reduction

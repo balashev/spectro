@@ -1354,7 +1354,7 @@ class Spectrum():
                 x, y = np.copy(self.spec.x()), np.copy(self.spec.y())
                 if len(x) > 0:
                     y[np.logical_not(self.fit_mask.x())] = np.NaN
-                self.points = pg.PlotCurveItem(parent=self, view=self.view, connect='finite', pen=self.fit_pixels_pen)
+                self.points = plotLineSpectrum(parent=self, view=self.view, connect='finite', pen=self.fit_pixels_pen)
                 if self.active:
                     self.points.setZValue(3)
                 else:

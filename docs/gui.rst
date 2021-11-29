@@ -1,7 +1,12 @@
 Graphical User Interface
 ========================
 
-**Spectro** is a Python library for interactive spectral data analysis 
+**Spectro** package contains **sviewer** - the graphical user interface for the interactive spectral data analysis. It is located in the separate folder "sviewer" and 
+should be loaded by running ``sviewer/__main__.py``
 
-Graphical User Interface
-------------------------
+    $ python sviewer/__main__.py
+
+Main vindow
+-----------
+Next figure shows the view of the main window of **sviewer** subclass
+.. image:: main.png
