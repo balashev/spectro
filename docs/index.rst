@@ -11,5 +11,6 @@ Contents
    introduction
    installation
    gui
+   mainmenu
    console
    keyboard
