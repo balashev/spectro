@@ -11,7 +11,7 @@ from pathlib import Path
 from scipy import interpolate
 import sys
 sys.path.append('C:/science/python')
-import colors as col
+from .colors import col
 from .sviewer.utils import roman
 from .atomic import atomicData
 

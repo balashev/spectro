@@ -9,4 +9,5 @@ should be loaded by running ``sviewer/__main__.py``
 Main vindow
 -----------
 Next figure shows the view of the main window of **sviewer** subclass
-.. image:: main.png
+
+.. image:: ./images/main.png
