@@ -19,7 +19,7 @@ where the numbers highlights the following parts of the GUI:
 1. Main menu
 #. Residuals panel  
 #. Spectrum panel    
-#. Main control panel
+#. Control panel
 #. Console
 #. Status bar
 
@@ -33,15 +33,29 @@ It shows the residuals between spectrum and the fit model. It has shared x-axis 
 
 Spectrum panel
 --------------
-Tha main interactive window to work with the spectra. It shows the spectrum and the fit model and different graphical objects suitable for the spectral analysis. It is build on the base of `PlotWidget`_ class from the `pyqtgraph`_ package. The interaction process is quite essential, but the description of the main features of the interaction module can be find in the `pyqtgraph manual`_.
+Tha main interactive window to work with the spectra. It shows the spectrum and the fit model and different graphical objects suitable for the spectral analysis. It is build on the base of `PlotWidget`_ class from the `pyqtgraph`_ package. The interaction process is quite essential, but the description of the main features of the interaction module can be find in the `pyqtgraph manual`_, for example `mouse interaction`_.
 
 .. _pyqtgraph: https://www.pyqtgraph.org/
+.. _Mouse interaction: https://pyqtgraph.readthedocs.io/en/latest/mouse_interaction.html
 .. _pyqtgraph manual: https://pyqtgraph.readthedocs.io/en/latest/index.html
 .. _PlotWidget: https://pyqtgraph.readthedocs.io/en/latest/widgets/plotwidget.html?highlight=plotwidget
 
 
-Main controls panel
+Control panel
 -------------------
+
+This panel contains some useful buttons for the spectral analysis, including:
+
+1. **Redshift line edit field**. This allow to input the redshift for the line markers shown in Spectrum panel. The redshift also can be changed either by moving line markers (``SHIFT``+ drag) or by using ``LEFT`` and ``RIGHT`` keys on the keyboard (and also with ``SHIFT+LEFT`` and ``SHIFT+RIGHT``).
+#. **Normilize**. Used to switch between normalized and raw views (where continuum is explicitly shown), i.e. NORMALIZED = I/I_0
+#. **Substract**. Used to switch between substacted and raw views, i.e. SUBSTARCTED = I-I_0
+#. **AOD**. Used to switch between aparent optical depth and raw views, i.e. AOD = np.ln(-I/I_0)
+#. **Fit**. Start the fit using LM minimization routine.
+#. **SAS**. Open spectrum in SDSS science archive server (only for SDSS spectra)
+#. **SkyS**. Open spectrum in SDSS sky server (only for SDSS spectra)
+#. **ESO**. Open spectrum in ESO data archive (not avaliable yet)
+#. **NIST**. Show the list of the possible lines avaliable in The NIST database which can be located within the ``Region`` object within Spectrum panel taking into account specified redshift.
+
 
 Console
 -------

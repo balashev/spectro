@@ -5905,6 +5905,7 @@ class buttonpanel(QFrame):
         self.ESO = QPushButton('ESO', self)
         self.ESO.clicked.connect(self.getESO)
         self.ESO.move(450, 60)
+
         self.ESO.resize(70, 30)
 
         self.NIST = QPushButton('NIST', self)
