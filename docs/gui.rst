@@ -16,14 +16,33 @@ The main window of **sviewer** are typically looks like
 
 where the numbers highlights the following parts of the GUI:
 
-1. The main menu. For the whole descriptions see file
-#. The residuals panel.  
-#. The 1d spectrum window. Show the spectrum and the fit model.    
+1. Main menu
+#. Residuals panel  
+#. Spectrum panel    
+#. Main control panel
+#. Console
+#. Status bar
+
+Main menu
+---------
+For the whole descriptions see 
 
 Residuals panel
 --------------
-It show the residuals between spectrum and the fit model. It has shared x-axis with the Spectrum panel.  **Residuals panel** can be activated/hide by pressing ``F4`` or ``view/Residuals`` in the Main Menu. The blue area and green line in the left of this panel show the kde of the residual distribution, that is calculated using the pixels from the whole spectrum and view window only. The red line shows the gaussian function with unit dispersion, that should be approaching in case of good fit. Note: that consistency between blue and red lines are not necessary means relaible fit, since you also control the structure in residuals. 
+It shows the residuals between spectrum and the fit model. It has shared x-axis with the Spectrum panel.  **Residuals panel** can be activated/hide by pressing ``F4`` or ``view/Residuals`` in the Main Menu. The blue area and green line in the left of this panel show the kde of the residual distribution, that is calculated using the pixels from the whole spectrum and view window only. The red line shows the gaussian function with unit dispersion, that should be approaching in case of good fit. Note: that consistency between blue and red lines are not necessary means relaible fit, since you also control the structure in residuals. 
 
 Spectrum panel
 --------------
+Tha main interactive window to work with the spectra. It shows the spectrum and the fit model and different graphical objects suitable for the spectral analysis
 
+
+Main controls panel
+-------------------
+
+Console
+-------
+It allows to input commands moslty concerned with GUI management. For the whole descriptions see 
+
+Status bar
+----------
+Status bar shows some messages and indicate some useful numbers that are can be instructive during the fitting process, e.g. 
