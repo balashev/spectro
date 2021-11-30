@@ -33,7 +33,11 @@ It shows the residuals between spectrum and the fit model. It has shared x-axis 
 
 Spectrum panel
 --------------
-Tha main interactive window to work with the spectra. It shows the spectrum and the fit model and different graphical objects suitable for the spectral analysis
+Tha main interactive window to work with the spectra. It shows the spectrum and the fit model and different graphical objects suitable for the spectral analysis. It is build on the base of `PlotWidget`_ class from the `pyqtgraph`_ package. The interaction process is quite essential, but the description of the main features of the interaction module can be find in the `pyqtgraph manual`_.
+
+.. _pyqtgraph: https://www.pyqtgraph.org/
+.. _pyqtgraph manual: https://pyqtgraph.readthedocs.io/en/latest/index.html
+.. _PlotWidget: https://pyqtgraph.readthedocs.io/en/latest/widgets/plotwidget.html?highlight=plotwidget
 
 
 Main controls panel
