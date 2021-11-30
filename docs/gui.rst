@@ -8,7 +8,7 @@ should be loaded by running ``sviewer/__main__.py``, for example
     $ python __main__.py
 
 
-Main vindow
+Main window
 -----------
 The main window of **sviewer** are typically looks like
 
@@ -29,7 +29,7 @@ For the whole descriptions see
 
 Residuals panel
 --------------
-It shows the residuals between spectrum and the fit model. It has shared x-axis with the Spectrum panel.  **Residuals panel** can be activated/hide by pressing ``F4`` or ``view/Residuals`` in the Main Menu. The blue area and green line in the left of this panel show the kde of the residual distribution, that is calculated using the pixels from the whole spectrum and view window only. The red line shows the gaussian function with unit dispersion, that should be approaching in case of good fit. Note: that consistency between blue and red lines are not necessary means relaible fit, since you also control the structure in residuals. 
+It shows the residuals between spectrum and the fit model. It has shared x-axis with the Spectrum panel.  **Residuals panel** can be activated/hide by pressing ``F4`` or ``view/Residuals`` in the Main Menu. The blue area and green line in the left of this panel show the kde of the residual distribution, that is calculated using pixels from the whole spectrum and from the view window only, respectively. The red line shows the gaussian function with unit dispersion, that should be approaching in case of good fit. Note: that consistency between blue and red lines are not necessary means relaible fit, since you also control the structure in residuals. 
 
 Spectrum panel
 --------------
@@ -41,7 +41,7 @@ Main controls panel
 
 Console
 -------
-It allows to input commands moslty concerned with GUI management. For the whole descriptions see 
+It allows to input commands moslty concerned with GUI management. For the whole descriptions see :ref:`console <console>`
 
 Status bar
 ----------

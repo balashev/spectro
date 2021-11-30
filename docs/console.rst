@@ -1,6 +1,8 @@
 Console
 =======
 
+.. _console::
+
 Console command
 ---------------
 
