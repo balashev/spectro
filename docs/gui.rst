@@ -41,7 +41,7 @@ Main controls panel
 
 Console
 -------
-It allows to input commands moslty concerned with GUI management. For the whole descriptions see :ref:`console <console>`
+It allows to input commands moslty concerned with GUI management. For the whole descriptions see :ref:`console`
 
 Status bar
 ----------

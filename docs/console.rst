@@ -1,7 +1,7 @@
 Console
 =======
 
-.. _console::
+.. _console:
 
 Console command
 ---------------
