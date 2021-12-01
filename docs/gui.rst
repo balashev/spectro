@@ -25,7 +25,7 @@ where the numbers highlights the following parts of the GUI:
 
 Main menu
 ---------
-For the whole descriptions see 
+For the detailed descriptions see see :ref:`Main menu`
 
 Residuals panel
 --------------
@@ -46,20 +46,20 @@ Control panel
 
 This panel contains some useful buttons for the spectral analysis, including:
 
-1. **Redshift line edit field**. This allow to input the redshift for the line markers shown in Spectrum panel. The redshift also can be changed either by moving line markers (``SHIFT``+ drag) or by using ``LEFT`` and ``RIGHT`` keys on the keyboard (and also with ``SHIFT+LEFT`` and ``SHIFT+RIGHT``).
-#. **Normilize**. Used to switch between normalized and raw views (where continuum is explicitly shown), i.e. NORMALIZED = I/I_0
-#. **Substract**. Used to switch between substacted and raw views, i.e. SUBSTARCTED = I-I_0
-#. **AOD**. Used to switch between aparent optical depth and raw views, i.e. AOD = np.ln(-I/I_0)
-#. **Fit**. Start the fit using LM minimization routine.
-#. **SAS**. Open spectrum in SDSS science archive server (only for SDSS spectra)
-#. **SkyS**. Open spectrum in SDSS sky server (only for SDSS spectra)
-#. **ESO**. Open spectrum in ESO data archive (not avaliable yet)
-#. **NIST**. Show the list of the possible lines avaliable in The NIST database which can be located within the ``Region`` object within Spectrum panel taking into account specified redshift.
+1. **Redshift line edit field**: input the redshift for the line markers shown in Spectrum panel. The redshift also can be changed either by moving line markers (``SHIFT``+ drag) or by using ``LEFT`` and ``RIGHT`` keys on the keyboard (and also with ``SHIFT+LEFT`` and ``SHIFT+RIGHT``).
+#. **Normilize**: switch between normalized and raw views (where continuum is explicitly shown), i.e. NORMALIZED = I/I_0
+#. **Substract**: switch between substacted and raw views, i.e. SUBSTARCTED = I-I_0
+#. **AOD**: switch between aparent optical depth and raw views, i.e. AOD = np.ln(-I/I_0)
+#. **Fit**: start the fit using LM minimization routine.
+#. **SAS**: open spectrum in SDSS science archive server (only for SDSS spectra)
+#. **SkyS**: open spectrum in SDSS sky server (only for SDSS spectra)
+#. **ESO**: open spectrum in ESO data archive (**not avaliable yet**)
+#. **NIST**: show the list of the possible lines avaliable in The NIST database which can be located within the ``Region`` object within Spectrum panel taking into account specified redshift.
 
 
 Console
 -------
-It allows to input commands moslty concerned with GUI management. For the whole descriptions see :ref:`console`
+It allows to input commands moslty concerned with GUI management. For the detailed descriptions see :ref:`console`
 
 Status bar
 ----------
