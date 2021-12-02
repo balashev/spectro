@@ -98,6 +98,8 @@ F1                                :  help.Howto
 F2                                :  show/hide list of exposures panel
 F3                                :  show/hide choose fitted parameters panel
 F4                                :  show/hide residuals panel
+F5                                :  show/hide plot lines.
+F6                                :  show/hide MCMC panel.
 F8                                :  show/hide fit results panel
 F9                                :  show/hide 2d spectrum panel
 

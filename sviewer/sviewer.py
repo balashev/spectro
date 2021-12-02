@@ -2211,7 +2211,7 @@ class showLinesWidget(QWidget):
         key = event.key()
 
         if not event.isAutoRepeat():
-            if event.key() == Qt.Key_L:
+            if event.key() == Qt.Key_F5:
                 if (QApplication.keyboardModifiers() == Qt.ControlModifier):
                     self.parent.showlines.close()
 
@@ -3208,7 +3208,7 @@ class fitMCMCWidget(QWidget):
         key = event.key()
 
         if not event.isAutoRepeat():
-            if event.key() == Qt.Key_M:
+            if event.key() == Qt.Key_F6:
                 if (QApplication.keyboardModifiers() == Qt.ControlModifier):
                     self.parent.MCMC.close()
 
@@ -6216,7 +6216,7 @@ class sviewer(QMainWindow):
         preferences.triggered.connect(self.showPreferences)
 
         showLines = QAction('&Plot lines', self)
-        showLines.setShortcut('Ctrl+L')
+        showLines.setShortcut('F5')
         showLines.setStatusTip('Plot lines using matplotlib')
         showLines.triggered.connect(partial(self.showLines, True))
 
@@ -6308,7 +6308,7 @@ class sviewer(QMainWindow):
 
         fitMCMC = QAction('&Fit MCMC...', self)
         fitMCMC.setStatusTip('Fit by MCMC method')
-        fitMCMC.setShortcut('Ctrl+M')
+        fitMCMC.setShortcut('F6')
         fitMCMC.triggered.connect(self.fitMCMC)
 
         fitGrid = QAction('&Grid fit', self)

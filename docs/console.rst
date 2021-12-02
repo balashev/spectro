@@ -55,3 +55,5 @@ Here we provide the list of the commands:
 * **stats**: print signal to noize, dispersion of the pixels in the spectrum at the region items.
 * **level**: print level of the spectrum in the regions (optimize to measure the line flux residuals).
 * **ew**: print equivalent widths of the lines in line regions.
+* **Tkin**: print the estimate of the kinetic temperature using J=1/J=0 population of the H2.
+
