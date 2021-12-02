@@ -385,7 +385,7 @@ class Console(QTextEdit):
             print(N)
             return N
 
-        elif args[0] == 'Me':
+        elif args[0] in ['me', 'Me', 'X/H']:
             c = np.arange(len(self.parent.fit.sys))
             N = a(0,0,0, 'd')
             for i in c:
