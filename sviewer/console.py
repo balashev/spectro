@@ -330,25 +330,25 @@ class Console(QTextEdit):
                 if args[1] == 'grid':
                     num = int(args[2]) if len(args) == 3 else 20
                     self.parent.fitGrid(num=num)
-            return 'fit is started'
+                    return 'fit is started'
 
-        elif args[0] == 'fitcomp':
-            print(self.parent.comp)
-            #self.parent.setFit(self.parent.comp)
-            self.parent.setFit(comp=self.parent.comp)
-            self.parent.fitLM(self.parent.comp)
-            return 'fit of component is started'
+                elif args[1] == 'comp':
+                    print(self.parent.comp)
+                    # self.parent.setFit(self.parent.comp)
+                    self.parent.setFit(comp=self.parent.comp)
+                    self.parent.fitLM(self.parent.comp)
+                    return 'fit of component is started'
 
-        elif args[0] == 'fitmcmc':
-            self.parent.fitMCMC()
-            return 'MCMC fit is started'
+                elif args[1] == 'mcmc':
+                    self.parent.fitMCMC()
+                    return 'MCMC fit is started'
 
-        elif args[0] == 'fitcont':
-            if len(args) > 1 and args[1] in ['cheb', 'GP']:
-                self.parent.fitCont(typ=args[1])
-            else:
-                self.parent.fitCont()
-            return 'estimate the continuum'
+                elif args[1] == 'cont':
+                    if len(args) > 2 and args[2] in ['cheb', 'GP']:
+                        self.parent.fitCont(typ=args[1])
+                    else:
+                        self.parent.fitCont()
+                    return 'estimate the continuum'
 
         elif args[0] in ['y', 'x']:
             if args[0] == 'y':
@@ -427,10 +427,10 @@ class Console(QTextEdit):
                     #if self.parent.s[self.parent.s.ind].spline.n > 0:
                     #    self.parent.s[self.parent.s.ind].spline.y *= float(args[-1])
                     #    self.parent.s[self.parent.s.ind].calc_spline()
-                if args[1] == 'err' or len(args) == 2:
+                if args[1] in ['err', 'unc'] or len(args) == 2:
                     self.parent.s[self.parent.s.ind].spec.raw.err[mask] *= float(args[-1])
                     self.parent.s.redraw()
-                if args[1] == 'spline':
+                if args[1] in ['spline', 'cont']:
                     if self.parent.s[self.parent.s.ind].spline.n > 0:
                         self.parent.s[self.parent.s.ind].spline.y *= float(args[-1])
                         self.parent.s[self.parent.s.ind].calc_spline()
