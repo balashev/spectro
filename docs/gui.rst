@@ -63,4 +63,4 @@ It allows to input commands moslty concerned with GUI management. For the detail
 
 Status bar
 ----------
-Status bar shows some messages and indicate some useful numbers that are can be instructive during the fitting process, e.g. 
+Status bar shows some messages and indicate some useful numbers that are can be instructive during the fitting process, e.g. the number of the current fit component, chi^2/dof, etc
