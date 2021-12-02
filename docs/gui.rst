@@ -2,7 +2,7 @@ Graphical User Interface
 ========================
 
 **Spectro** package contains **sviewer** - the graphical user interface for the interactive spectral data analysis. It is located in the separate folder "sviewer" and 
-should be loaded by running ``sviewer/__main__.py``, for example 
+should be loaded by running ``sviewer/__main__.py``, for example::
 
     $ cd sviewer
     $ python __main__.py
@@ -59,7 +59,7 @@ This panel contains some useful buttons for the spectral analysis, including:
 
 Console
 -------
-It allows to input commands moslty concerned with GUI management. For the detailed descriptions see :ref:`console`
+It allows to input commands moslty concerned with GUI management. For the detailed descriptions see :ref:`console`.
 
 Status bar
 ----------

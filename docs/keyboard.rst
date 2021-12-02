@@ -105,7 +105,7 @@ Keybord bindings
    
    * **u + LEFT CLICK**         :  add line to doublet guess   
    
-* **v**: change view of spectra
+* **v**: change view of spectra (steps/points/lines + uncertainties)
 
 * **w**: width of region:
    
