@@ -2212,8 +2212,8 @@ class showLinesWidget(QWidget):
 
         if not event.isAutoRepeat():
             if event.key() == Qt.Key_F5:
-                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
-                    self.parent.showlines.close()
+                #if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+                self.parent.showlines.close()
 
     def closeEvent(self, ev):
         for opt, func in self.opts.items():
@@ -3209,8 +3209,8 @@ class fitMCMCWidget(QWidget):
 
         if not event.isAutoRepeat():
             if event.key() == Qt.Key_F6:
-                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
-                    self.parent.MCMC.close()
+                #if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+                self.parent.MCMC.close()
 
     def closeEvent(self, event):
         #for opt, func in self.opts.items():
