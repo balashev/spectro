@@ -43,7 +43,7 @@ Tha main interactive window to work with the spectra. It shows the spectrum and 
 .. _PlotWidget: https://pyqtgraph.readthedocs.io/en/latest/widgets/plotwidget.html?highlight=plotwidget
 
 
-.. _controlpanel:
+.. _control-panel:
 
 Control panel
 -------------
