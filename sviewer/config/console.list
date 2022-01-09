@@ -1,5 +1,4 @@
 set region 0
-set region 0
 set region 0 all
 set region 0
 set region 0 all
@@ -19,3 +18,4 @@ FeII
 HI
 CII
 SiII
+y 0 1

@@ -83,6 +83,9 @@ class absSystemIndicator():
     def set_reference(self, line=None):
         if hasattr(self, 'reference'):
             self.reference.set_reference(not self.reference.reference)
+        else:
+            self.parent.sendMessage(f"Please select reference line by clicking appropriate line label with pressed SHIFT")
+
         if line is not None:
             if not hasattr(self, 'reference') or self.reference != line:
                 self.reference = line

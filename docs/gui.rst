@@ -12,22 +12,26 @@ should be loaded by running ``sviewer/__main__.py``, for example::
 
 Main window
 -----------
-The main window of **sviewer** are typically looks like
+The main window of **sviewer** is typically looks like
 
 .. image:: ./images/main.png
 
-where the numbers highlights the following parts of the GUI:
+where numbers highlight the following parts of GUI:
 
-1. Main menu
-#. Residuals panel  
+1. :ref:`main-menu`
+#. :ref:`residuals-panel`
 #. Spectrum panel    
 #. Control panel
 #. Console
 #. Status bar
 
+.. _main-menu:
+
 Main menu
 ---------
 For the detailed descriptions see see :ref:`Main menu`
+
+.. _residuals-panel:
 
 Residuals panel
 --------------

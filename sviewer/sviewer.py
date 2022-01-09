@@ -6216,6 +6216,10 @@ class sviewer(QMainWindow):
         snapShot.setStatusTip('Snapshop of view using matplotlib')
         snapShot.triggered.connect(self.takeSnapShot)
 
+        referenceAxis = QAction('&Switch reference axis', self)
+        referenceAxis.setStatusTip('Switch top axis between velocity shift and restframe mode')
+        referenceAxis.triggered.connect(self.switchReferenceAxis)
+
         viewMenu.addAction(exp)
         viewMenu.addAction(self.showResiduals)
         viewMenu.addAction(self.show2d)
@@ -6223,6 +6227,7 @@ class sviewer(QMainWindow):
         viewMenu.addSeparator()
         viewMenu.addAction(showLines)
         viewMenu.addAction(snapShot)
+        viewMenu.addAction(referenceAxis)
 
         # >>> create Line Menu items
         self.linesH2 = QAction('&H2 lines', self, checkable=True)
@@ -7713,6 +7718,17 @@ class sviewer(QMainWindow):
     def takeSnapShot(self):
         self.snap = snapShotWidget(self)
         #self.snap.show()
+
+    def switchReferenceAxis(self):
+        self.plot.restframe = 1 - self.plot.restframe
+        if self.plot.restframe:
+            self.abs.set_reference()
+        else:
+            if hasattr(self.abs, 'reference'):
+                self.abs.set_reference(self.abs.reference)
+            else:
+                self.abs.set_reference()
+        self.plot.updateVelocityAxis()
 
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
