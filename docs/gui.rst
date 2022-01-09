@@ -22,7 +22,7 @@ where numbers highlight the following parts of GUI:
 #. :ref:`residuals-panel`
 #. :ref:`spectrum-panel`   
 #. :ref:`control-panel`
-#. :ref:`console`
+#. :ref:`console-gui`
 #. :ref:`status-bar`
 
 .. _main-menu:
@@ -65,7 +65,7 @@ This panel contains some useful buttons for the spectral analysis, including:
 #. **ESO**: open spectrum in ESO data archive (**not avaliable yet**)
 #. **NIST**: show the list of the possible lines avaliable in The NIST database which can be located within the ``Region`` object within Spectrum panel taking into account specified redshift.
 
-.. _console:
+.. _console-gui:
 
 Console
 -------
