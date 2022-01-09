@@ -1320,7 +1320,7 @@ def condens_temperature(name):
     except:
         return None
     
-def Asplund2009(name, relative=True):
+def Asplund2009(element, relative=True):
     d = {
     'H': [12, 0, 0],
     'D': [7.4, 0, 0], # this is not in Asplund
@@ -1356,6 +1356,7 @@ def Asplund2009(name, relative=True):
     'Ga': [3.04, 0.09, 0.09],
     'Ge': [3.65, 0.10, 0.10],
     }
+    element = e(element).get_element_name()
     if relative:
         ref = 12
     else:
@@ -1365,7 +1366,7 @@ def Asplund2009(name, relative=True):
         ref = np.log10(ref)
 
     try:
-        x = d[name]
+        x = d[element]
     except KeyError:
         raise Exception(KeyError, 'there is no abundance in Asplund2009 for a given name')
 

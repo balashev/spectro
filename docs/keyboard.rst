@@ -64,7 +64,6 @@ Keybord bindings
 
 * **j**: show the dispersion of the model fit from MCMC
 
-* **l**: show plot lines 
 * **m**: smooth spectrum
 
    * **m + MOUSE WHEEL FORWARD**      :  increase smoothness 

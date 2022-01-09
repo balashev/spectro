@@ -272,6 +272,10 @@ class LineLabel(pg.TextItem):
             elif QApplication.keyboardModifiers() == Qt.AltModifier or self.info:
                 self.showInfo()
                 ev.accept()
+            elif self.parent.parent.plot.h_status:
+                print(str(self.line), type(self.line))
+                self.parent.parent.plot.h_status = False
+                self.parent.parent.console.exec_command(f"high {str(self.line).split()[0]}")
 
     def showInfo(self, show=None):
         if show is not None:

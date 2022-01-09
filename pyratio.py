@@ -19,8 +19,7 @@ import pickle
 from scipy import interpolate, optimize
 from scipy.stats import chi2
 import os, sys
-sys.path.append('C:/Science/python')
-from spectro import colors as col
+sys.path.append(os.path.dirname(os.path.realpath(__file__))[:-8])
 from spectro.a_unc import a
 from spectro.profiles import tau, voigt
 from spectro.stats import distr1d, distr2d
@@ -28,7 +27,7 @@ from spectro.sviewer.utils import printProgressBar, Timer, flux_to_mag
 
 def smooth_step(x, delta):
     x = np.clip(x/delta, 0, 1)
-    return  x**3 * (x * (x*6 - 15) + 10)
+    return x**3 * (x * (x*6 - 15) + 10)
 
 class speci:
     """
@@ -291,8 +290,9 @@ class speci:
                     name = lines['J_i'][np.argwhere(e == lines['E_i'])[0][0]]
                 else:
                     name = lines['J_k'][np.argwhere(e == lines['E_k'])[0][0]]
-                self.g.append(float(name.decode().split('/')[0]) / float(name.decode().split('/')[1]))
+                self.g.append((float(name.decode().split('/')[0]) / float(name.decode().split('/')[1]) ) * 2 + 1)
                 #self.g = [2 * float(e.decode().split('_')[1].split('/')[0]) / float(e.decode().split('_')[1].split('/')[1]) + 1 for e in self.E]
+            self.g = np.asarray(self.g)
             self.fullnum = len(self.E)
             self.A = np.zeros([self.fullnum, self.fullnum])
             for l in lines:
@@ -2057,7 +2057,7 @@ if __name__ == '__main__':
         
 
     # CI calculation
-    if 0:
+    if 1:
         fig, ax = plt.subplots()
         z_dla = 1.70465
         pr = pyratio(z=z_dla)
@@ -2069,14 +2069,13 @@ if __name__ == '__main__':
         pr.pars['rad'].range = [0, 5]
         CIj0, CIj1, CIj2 = a(14.30, 0.1, 0.1), a(14.76, 0.1, 0.1), a(14.74, 0.1, 0.1)
         pr.add_spec('CI', [CIj0, CIj1, CIj2])
-        CI = pr.calc_grid(grid_num=20, plot=1, verbose=1, marginalize=True,
-                           alpha=1, color='greenyellow', cmap=None, color_point='gold', zorder=10)
-        print(CI)
+        #CI = pr.calc_grid(grid_num=20, plot=1, verbose=1, marginalize=True, alpha=1, color='greenyellow', cmap=None, color_point='gold', zorder=10)
+        #print(pr.calc_cooling(n=[2], T=[2]))
         #plt.savefig('pyratio.png', bbox_inches='tight', transparent=True)
         plt.show()
 
     # >>> check CII collisions
-    if 1:
+    if 0:
         pr = pyratio(z=2.65)
         pr.set_pars(['T', 'n', 'f', 'e'])
         pr.pars['T'].range = [1, 6]
@@ -2387,7 +2386,7 @@ if __name__ == '__main__':
 
 
     # >>> check radiation fields
-    if 1:
+    if 0:
         z, r, d = 2.8, 17.7, 150
         z, r, d = 2.65, 20.2, 5
         pr = pyratio(z=z, pumping='simple', radiation='simple', sed_type='Draine', agn={'filter': 'r', 'mag': r})

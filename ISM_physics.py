@@ -4,7 +4,7 @@ from matplotlib import cm
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize, fsolve
 import os, sys
-sys.path.append('C:/Science/python')
+sys.path.append(os.path.dirname(os.path.realpath(__file__))[:-8])
 from spectro.atomic import Asplund2009
 from spectro.pyratio import pyratio
 
@@ -134,12 +134,12 @@ class ISM():
             self.dtg_disp = 0
         self.initialize_pars(**kwargs)
         self.heating_types = ['photoelectric', 'cosmicray', 'photo_c', 'turb'] # , 'grav']
-        self.cooling_types = ['Lya', 'CII', 'OI', 'rec']
+        self.cooling_types = ['Lya', 'CII', 'CI', 'OI', 'rec']
 
         self.pr = pyratio(z=self.z, sed_type=None)
         self.pr.set_pars(['T', 'n', 'f', 'rad'])
         self.pr.set_fixed('f', -10)
-        for sp in ['OI', 'CII']:
+        for sp in ['OI', 'CII', 'CI']:
             self.pr.add_spec(sp)
         #print(self.pr.species['CII'].coll_rate('H', 1, 0, 2))
 
@@ -171,6 +171,16 @@ class ISM():
         else:
             return self.dtg_cutoff * (Z / self.dtg_cutoff) ** self.dtg_slope * 10 ** (self.dtg_disp)
 
+    def ionization_state(self, species, n=0, T=4):
+        if species == 'CII':
+            return 1 / (1 + np.exp((10**n-10**2)/3)) + 10**-4
+        elif species == 'CI':
+            return (1 - 1 / (1 + np.exp((10**n-10**2)/3))) * (1 / (1 + np.exp((10**n-10**3)/3))) + 10**-4
+        elif species == 'CO':
+            return 1 - (1 / (1 + np.exp((10**n-10**3)/3)))
+        else:
+            return np.ones_like(n)
+
     def abundance(self, element, Z=None, depl_kind='Bialy'):
         if Z == None:
             Z = self.p('Z')
@@ -178,7 +188,7 @@ class ISM():
         if element == 'dust':
             return self.dust_to_gas_ratio(Z=Z)
         else:
-            return 10**Asplund2009(element)[0] * Z * self.depletion(element, Z=Z, kind=depl_kind)
+            return 10**Asplund2009(element)[0] * Z * self.depletion(element, Z=Z, kind=depl_kind) * self.ionization_state(element, n=self.p('n'))
 
     def alpha_rr(self):
         T4 = self.p('T') / 10000
@@ -264,6 +274,10 @@ class ISM():
                 return self.pr.calc_cooling(species='CII', n=np.log10(self.p('n')), T=np.log10(self.p('T'))) * self.abundance('C') * self.p('n')
             if kind[1] in ['Barinovs']:
                 return 1e-24 * np.exp(-91.2 / self.p('T')) * (16 + 0.344 * np.sqrt(self.p('T')) + 47.7 / self.p('T')) * self.abundance('C') * self.p('n') * self.p('n')
+
+        if kind[0] == 'CI':
+            if kind[1] in ['pyratio', '']:
+                return self.pr.calc_cooling(species='CI', n=np.log10(self.p('n')), T=np.log10(self.p('T'))) * self.abundance('C') * self.p('n') * self.ionization_state('CI', n=self.p('n'))
 
         if kind[0] == 'OI':
             if kind[1] in ['Wolfire']:

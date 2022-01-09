@@ -116,21 +116,8 @@ class plotSpectrum(pg.PlotWidget):
         self.getPlotItem().sigRangeChanged.connect(self.updateVelocityAxis)
 
     def initstatus(self):
-        self.a_status = False
-        self.b_status = False
-        self.c_status = False
-        self.d_status = False
-        self.e_status = False
-        self.h_status = False
-        self.i_status = False
-        self.m_status = False
-        self.p_status = False
-        self.r_status = False   
-        self.s_status = False
-        self.u_status = False
-        self.w_status = False
-        self.x_status = False
-        self.z_status = False
+        for l in 'abcdehilmprsuwxz':
+            setattr(self, l+"_status", False)
         self.mouse_moved = False
         self.saveState = None
         self.addline = None
@@ -281,7 +268,6 @@ class plotSpectrum(pg.PlotWidget):
 
             if event.key() == Qt.Key_H:
                 self.h_status = True
-                self.parent.statusBar.setText('Lya select')
 
             if event.key() == Qt.Key_J:
                 self.j_status = True
@@ -294,6 +280,10 @@ class plotSpectrum(pg.PlotWidget):
                 else:
                     self.i_status = True
                     self.parent.statusBar.setText('Estimate the width of Instrument function')
+
+            if event.key() == Qt.Key_L:
+                self.l_status = True
+                self.parent.statusBar.setText('Lya select')
 
             if event.key() == Qt.Key_M:
                 if (QApplication.keyboardModifiers() != Qt.ControlModifier):
@@ -443,6 +433,9 @@ class plotSpectrum(pg.PlotWidget):
                 self.parent.s[self.parent.s.ind].set_fit_disp(show=False)
                 self.j_status = False
 
+            if event.key() == Qt.Key_L:
+                self.l_status = False
+
             if event.key() == Qt.Key_M:
                 self.m_status = False
 
@@ -572,11 +565,6 @@ class plotSpectrum(pg.PlotWidget):
                 self.c_status = 0
             #    pass
 
-
-        if self.h_status:
-            self.parent.console.exec_command('show HI')
-            self.parent.abs.redraw(z=self.mousePoint.x()/1215.6701 - 1)
-
         if self.i_status:
             self.parent.console.exec_command('show HI')
             self.parent.abs.redraw(z=self.mousePoint.x() / 1215.6701 - 1)
@@ -592,6 +580,10 @@ class plotSpectrum(pg.PlotWidget):
             self.parent.fit.add('res')
             self.parent.fit.res.set(7000)
             self.parent.fitLM()
+
+        if self.l_status:
+            self.parent.console.exec_command('show HI')
+            self.parent.abs.redraw(z=self.mousePoint.x() / 1215.6701 - 1)
 
         if self.p_status:
             self.doublet[self.p_status-1] = self.mousePoint
