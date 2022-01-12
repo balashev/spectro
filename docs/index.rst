@@ -11,8 +11,9 @@ Contents
    introduction
    installation
    gui
-   tutorial
-   mainmenu
-   console
-   keyboard
    objects
+   tutorial
+   keyboard
+   console
+   mainmenu
+   
