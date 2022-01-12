@@ -63,7 +63,7 @@ The representation of selected pixels (regions, points, lines) can be changed in
 Making fit model
 ----------------
 
-The fit model should be defined in the **Fit model** widget, which can be opened iether by **Fit/Fit model...** in Main Menu or pressing **CTRL + f**. 
+The fit model should be defined in the **Fit model** widget, which can be opened either by **Fit/Fit model...** in Main Menu or pressing **CTRL + f**. 
 
 After setting/modification of fit model one can update (if it was not update automatically) the fit by pressing 
 
@@ -77,11 +77,15 @@ Fitting
 
 There are two avaliable fit routines:
 
-* Minimizing likelihood using Levenberg-Marquard method. This fit is performed by the pressing **Fit** button in :ref:`control-panel`
+* Minimizing likelihood using Levenberg-Marquard method. The uncertainties on the fitting parameters estimate from the covariance matrix approach. This fit is performed by the pressing **Fit** button in :ref:`control-panel`. There is a possibility to choose a particular set of the paramaters that will be varied during the fit, inside **Fit parameters** widget, which can be opened either by **Fit/Fit paramaters...** in Main Menu or pressing **F3**.
 
-* Bayessian approach by Monte Carlo Markov Chain technique with a set of Samplers.
-
+* Bayessian approach by Monte Carlo Markov Chain (MCMC) technique with a set of Samplers. The options and control is provide in **MCMC widget**, which can be called using either by **Fit/MCMC Fit...** in Main Menu or pressing **CTRL + M**. The detailed description is provided in :ref:`mcmc`
 
 .. _viewing-results:
 Viewing results
 ---------------
+
+The fit result can be provided inside **Fit results** widget, which can be called  either by **Fit/Fit results...** in Main Menu or pressing **CTRL + T**. There various option for the output, including plain text, PyQt widget table and latex table.
+
+The fit profiles can be constructed in the publish-ready representation using  **Plot Lines** widget, which can be called  either by **View/Plot lines...** in Main Menu or pressing **CTRL + L**. The detailed description of **Plot Lines** widget is provided in :ref:`plot profiles`
+
