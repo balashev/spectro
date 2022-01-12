@@ -16,7 +16,7 @@ The continuum that is constructed using B-spline with the point choosed by holdi
 Line labels
 -----------
 
-Line labels (objects 2, 3, 4, 5 in the figure) indicate possible positions of the absorption/emission lines corresponding to atomic/molacular transitions. The vertical position of the line label is tight to the spectrum, while the horizontal position can be changed either by moving line labels (using drag by mouse and keyboard) or by setting appropriate redshift in the redshift field in the :ref:`control-panel`. One can add/remove line labels using :ref:`console` commands: ``show <species>`` and ``hide <species>``. There are useful representations and interaction actions with line labels that ease the spectral analysis:
+Line labels (objects 2, 3, 4, 5 in Figure) indicate possible positions of the absorption/emission lines corresponding to atomic/molacular transitions. The vertical position of the line label is tight to the spectrum, while the horizontal position can be changed either by moving line labels (using drag by mouse and keyboard) or by setting appropriate redshift in the redshift field in the :ref:`control-panel`. One can add/remove line labels using :ref:`console` commands: ``show <species>`` and ``hide <species>``. There are useful representations and interaction actions with line labels that ease the spectral analysis:
 
 * ``SHIFT + DRAG``: move the line label by changing its redshift. 
 
@@ -35,49 +35,49 @@ Line labels (objects 2, 3, 4, 5 in the figure) indicate possible positions of th
 Regions
 -------
 
-Regions (objects 6 and 7) are convinient graphical object to select certain wavelenght range of the spectrum. It can be used in several parts of the spectral analysis. There are two representation of the regions in extended (object 6) and minimized (object 7) form. Allowed interactions:
+Regions (objects 6 and 7 in Figure) are convinient graphical object to select certain wavelenght range of the spectrum. It can be used in several parts of the spectral analysis. There are two representation of the regions in extended (object 6) and minimized (object 7) form. Allowed interactions:
 
-* **r + LEFT MOUSE BUTTON**:  create a region.
+* ``r + LEFT MOUSE BUTTON``:  create a region.
 
-* **DOUBLE LEFT CLICK** on region: switch between extended and minimize representation.
+* ``DOUBLE LEFT CLICK`` on region: switch between extended and minimize representation.
 
-* **SHIFT + LEFT MOUSE BUTTON**: modify (shift and changing size) the region
+* ``SHIFT + LEFT MOUSE BUTTON``: modify (shift and changing size) the region
 
-* **CTRL + LEFT CLICK**: delete region
+* ``CTRL + LEFT CLICK``: delete region
 
 Composite spectrum
 ------------------
 
-Composite spectrum (object 8) indicate a composite spectrum of QSO. Currently, there are 3 types of the composite spectrum that is shown one after another. Interactions: 
+Composite spectrum (object 8 in Figure) indicate a composite spectrum of QSO. Currently, there are 3 types of the composite spectrum that is shown one after another. Interactions: 
 
-* **CTRL + q**: show/hide composite spectrum.
+* ``CTRL + q``: show/hide composite spectrum.
 
-* **SHIFT + DRAG**: drag composite spectrum, during this its normalization and redshift is changed.
+* ``SHIFT + DRAG``: drag composite spectrum, during this its normalization and redshift is changed.
 
-* **CTRL + LEFT CLICK**: hide composite spectrum.
+* ``CTRL + LEFT CLICK``: hide composite spectrum.
 
 Doublet indicators
 ------------------
 
-Doublet indicators (object 9) are separate line labels to mark the doublet absorption lines at the redshifts with distinct redshift as the main line labels (corresponding to the main redshift in the redshift panel). Interactions:
+Doublet indicators (object 9 in Figure) are separate line labels to mark the doublet absorption lines at the redshifts with distinct redshift as the main line labels (corresponding to the main redshift in the redshift panel). Interactions:
 
-* **d + LEFT MOUSE BUTTON**: creat region. 
+* ``d + LEFT MOUSE BUTTON``: creat region. 
 
-* **DOUBLE LEFT CLICK** on text label: highlight doublet.
+* ``DOUBLE LEFT CLICK`` on text label: highlight doublet.
 
-* **SHIFT + LEFT MOUSE BUTTON** on text label: shift (change the redshift).
+* ``SHIFT + LEFT MOUSE BUTTON`` on text label: shift (change the redshift).
 
-* **CTRL + LEFT MOUSE BUTTON** on text label: delete.
+* ``CTRL + LEFT MOUSE BUTTON`` on text label: delete.
 
 Line flux residuals (zero levels)
 ---------------------------------
 
-Line flux residual (object 10) is the indicator of zero level, that can be a part of the fit profile constuction, to model the partial coverage. Interactions:
+Line flux residual (object 10 in Figure) is the indicator of zero level, that can be a part of the fit profile constuction, to model the partial coverage. Interactions:
 
-* **p + LEFT CLICK**: create line flux residual object.
+* ``p + LEFT CLICK``: create line flux residual object.
 
-* **SHIFT + LEFT MOUSE BUTTON** on text label: shift.
+* ``SHIFT + LEFT MOUSE BUTTON`` on text label: shift.
 
-* **CTRL + LEFT MOUSE BUTTON** on text label: delete.
+* ``CTRL + LEFT MOUSE BUTTON`` on text label: delete.
 
 
