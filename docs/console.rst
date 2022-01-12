@@ -6,16 +6,16 @@ Console
 Console command
 ---------------
 
-The console is a powerful text commands based instrument.
+The console procide access to the number of text commands that alleviate the spectrum investigation and analysis. Some action can be accessed only by console. Additionally it is used as an output window to quickly show the results of some prodecures.
 
-Here we provide the list of the commands:
+The list of avaliable commands:
 
 * **<species>**: print the avaliable lines of the species (e.g. H I, Si IV, H2j0 etc) in spectro database.
 * **show <species>**: add the line marks of avaliable lines of the species in the spectrum panel. The line marks will attach to the spectrum.
 * **high <species>**: highlight the line marks corresponding to the species in the spectrum panel.
 * **hide <species>**: hide all the line marks corresponding to the species in the spectrum panel.
 * **z <float>**: set redshift of the line marks to be <float>.
-* **load <filename>**: load the file with <filename> from the temp folder .
+* **load <filename>**: load the file with <filename> from the temp folder.
 * **fit <options>**: start fit of the model. <options> can be:
 
     * **comp**: fit only selected component.
