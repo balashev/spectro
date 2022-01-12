@@ -12,7 +12,7 @@ import urllib.request
 
 if __name__ == '__main__':
     import sys
-    sys.path.append('C:/science/python')
+    sys.path.append('C:/science/spectro/')
     from spectro.a_unc import a
     from spectro.sviewer.utils import Timer
 else:
@@ -576,11 +576,16 @@ class atomicData(OrderedDict):
 
 
     def readH2(self, nu=0, j=[0,1], energy=None):
+        j = np.asarray(j)
         if 0:
             self.readH2Abgrall(nu=nu, j=j, energy=energy)
         else:
             if nu == 0:
                 self.readH2new(j=j)
+                m = j > 7
+                if np.sum(m) > 0:
+                    print(m)
+                    self.readH2Abgrall(nu=nu, j=j[m], energy=energy)
 
     def readH2new(self, j=[0,1], cat='Ubachs'):
         """
@@ -639,7 +644,7 @@ class atomicData(OrderedDict):
         if energy is None:
             if isinstance(j, int) or isinstance(j, float):
                 mask = np.logical_and(x[0] <= nu, x[1] == j)
-            if isinstance(j, list):
+            if isinstance(j, (list, np.ndarray)):
                 mask = np.logical_and(x[0] <= nu, np.logical_and(x[1] >= j[0], x[1] <= j[-1]))
         else:
             mask = x[2] < energy
@@ -709,7 +714,7 @@ class atomicData(OrderedDict):
             out.close()
 
     def readHD(self):
-        HD = np.genfromtxt(self.folder + r'/data/molec/HD.dat', skip_header=1, usecols=[0,1,2,3,4,5,6], unpack=True, names=True, dtype=None)
+        HD = np.genfromtxt(self.folder + r'/data/molec/HD.dat', skip_header=1, usecols=[0,1,2,3,4,5,6], names=True, dtype=None)
         j_u = {'R': 1, 'Q': 0, 'P': -1}
         for j in range(3):
             name = 'HDj'+str(j)
@@ -722,7 +727,7 @@ class atomicData(OrderedDict):
                 self[name].lines[-1].band = l['LW'].decode('UTF-8')
 
     def readCO(self):
-        CO = np.genfromtxt(self.folder + r'/data/CO_data_Dapra.dat', skip_header=1, unpack=True, names=True, dtype=None)
+        CO = np.genfromtxt(self.folder + r'/data/CO_data_Dapra.dat', skip_header=1, names=True, dtype=None)
         for i in np.unique(CO['level']):
             name = 'COj'+str(i)
             self[name] = e(name)
@@ -739,7 +744,7 @@ class atomicData(OrderedDict):
             self['HF'].lines.append(line(l[4].decode('UTF-8'), l[6], l[7], l[8], ref='', j_l=l[0], nu_l=l[1], j_u=l[2], nu_u=l[3]))
 
     def readBAL(self):
-        BAL = np.genfromtxt(self.folder + r'/data/BAL.dat', skip_header=1, names=True, unpack=True, dtype=None, comments='-')
+        BAL = np.genfromtxt(self.folder + r'/data/BAL.dat', skip_header=1, names=True, dtype=None, comments='-')
         for l in BAL:
             print(l)
             name = l['species'].decode('UTF-8')
@@ -796,10 +801,10 @@ class atomicData(OrderedDict):
         self.readMorton()
         self.readCashman()
         self.fromNIST()
-        self.readH2(j=[0, 1, 2, 3, 4, 5, 6, 7, 8])
+        self.readH2(j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
         self.readHD()
         self.readCO()
-        self.readHF()
+        #self.readHF()
         self.readBAL()
         self.read_Molecular()
         self.read_EmissionSF()

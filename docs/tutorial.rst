@@ -8,6 +8,7 @@ Here we provide a brief tutorial to start fitting with the **sviewer** app.
 Loading the spectrum
 --------------------
 
+.. _constructing-continuum:
 Constructing continuum
 ----------------------
 
