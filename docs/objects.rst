@@ -18,19 +18,19 @@ Line labels
 
 Line labels (objects 2, 3, 4, 5 in the figure) indicate possible positions of the absorption/emission lines corresponding to atomic/molacular transitions. The vertical position of the line label is tight to the spectrum, while the horizontal position can be changed either by moving line labels (using drag by mouse and keyboard) or by setting appropriate redshift in the redshift field in the :ref:`control-panel`. One can add/remove line labels using :ref:`console` commands: ``show <species>`` and ``hide <species>``. There are useful representations and interaction actions with line labels that ease the spectral analysis:
 
-* **SHIFT + DRAG**: move the line label by changing its redshift. 
+* ``SHIFT + DRAG``: move the line label by changing its redshift. 
 
-* **LEFT ARROW** and ***RIGHT ARROW**: move the line label by changing its redshift.
+* ``LEFT ARROW`` and ``RIGHT ARROW``: move the line label by changing its redshift.
 
-* **SHIFT + LEFT ARROW** and **SHIFT + RIGHT ARROW**: move with wider step.
+* ``SHIFT + LEFT ARROW`` and ``SHIFT + RIGHT ARROW``: move with wider step.
 
-* **SHIFT + LEFT CLICK**: set line label as a reference line (see object 3), the top axis will be scaled with velocity offset from this line.
+* ``SHIFT + LEFT CLICK``: set line label as a reference line (see object 3), the top axis will be scaled with velocity offset from this line.
 
-* **CRTL + LEFT CLICK**: delete line label.
+* ``CRTL + LEFT CLICK``: delete line label.
 
-* **h + LEFT CLICK**: highlight all line labels of the species (including level) that correspond to this line, similar to writing in the :ref:`console`: ``high <species>``. Highlighed line label is marked by object 4.
+* ``h + LEFT CLICK``: highlight all line labels of the species (including level) that correspond to this line, similar to writing in the :ref:`console`: ``high <species>``. Highlighed line label is marked by object 4.
 
-* **ALT + LEFT CLICK**: show extended information about this line (see object 5).
+* ``ALT + LEFT CLICK``: show extended information about this line (see object 5).
 
 Regions
 -------

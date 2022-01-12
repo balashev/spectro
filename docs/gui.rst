@@ -55,7 +55,7 @@ Control panel
 
 This panel contains some useful buttons for the spectral analysis, including:
 
-1. **Redshift line edit field**: input the redshift for the line markers shown in Spectrum panel. The redshift also can be changed either by moving line markers (``SHIFT``+ drag) or by using ``LEFT`` and ``RIGHT`` keys on the keyboard (and also with ``SHIFT+LEFT`` and ``SHIFT+RIGHT``).
+1. **Redshift line edit field**: input the redshift for the line markers shown in Spectrum panel. The redshift also can be changed either by moving line markers ``SHIFT``+ drag or by using ``LEFT`` and ``RIGHT`` keys on the keyboard (and also with ``SHIFT+LEFT`` and ``SHIFT+RIGHT``).
 #. **Normilize**: switch between normalized and raw views (where continuum is explicitly shown), i.e. NORMALIZED = I/I_0
 #. **Substract**: switch between substacted and raw views, i.e. SUBSTARCTED = I-I_0
 #. **AOD**: switch between aparent optical depth and raw views, i.e. AOD = np.ln(-I/I_0)
