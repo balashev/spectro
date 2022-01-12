@@ -28,4 +28,4 @@ The main features of spectro package is
 This documentation
 ------------------
 
-The main part of this documentaion describes the ``sviewer`` - :ref:`gui` for the absorption line analysis, that is located in the ``sviewer``, including some tutorials for the basic introductions in absorption line analysis with ``sviewer``.
+The main part of this documentaion describes the ``sviewer`` - :ref:`gui` for the absorption line analysis, which is located in **spectro/sviewer** folder, including some tutorials for the basic introductions in absorption line analysis with ``sviewer``.
