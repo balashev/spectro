@@ -1478,7 +1478,7 @@ class showLinesWidget(QWidget):
 
         self.initData()
         self.initGUI()
-        self.setWindowTitle('Plot lines using Matploplib')
+        self.setWindowTitle('Plot line profiles using Matploplib')
         self.setStyleSheet(open('config/styles.ini').read())
 
     def initData(self):
@@ -6207,9 +6207,9 @@ class sviewer(QMainWindow):
         preferences.setShortcut('F11')
         preferences.triggered.connect(self.showPreferences)
 
-        showLines = QAction('&Plot lines', self)
+        showLines = QAction('&Plot line profiles', self)
         showLines.setShortcut('F5')
-        showLines.setStatusTip('Plot lines using matplotlib')
+        showLines.setStatusTip('Plot line profiles using matplotlib')
         showLines.triggered.connect(partial(self.showLines, True))
 
         snapShot = QAction('&Plot snapshot', self)

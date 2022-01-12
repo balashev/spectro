@@ -79,13 +79,13 @@ There are two avaliable fit routines:
 
 * Minimizing likelihood using Levenberg-Marquard method. The uncertainties on the fitting parameters estimate from the covariance matrix approach. This fit is performed by the pressing **Fit** button in :ref:`control-panel`. There is a possibility to choose a particular set of the paramaters that will be varied during the fit, inside **Fit parameters** widget, which can be opened either by **Fit/Fit paramaters...** in Main Menu or pressing **F3**.
 
-* Bayessian approach by Monte Carlo Markov Chain (MCMC) technique with a set of Samplers. The options and control is provide in **MCMC widget**, which can be called using either by **Fit/MCMC Fit...** in Main Menu or pressing **CTRL + M**. The detailed description is provided in :ref:`mcmc`
+* Bayessian approach by Monte Carlo Markov Chain (MCMC) technique with a set of Samplers. The options and control is provide in **MCMC widget**, which can be called using either by **Fit/MCMC Fit...** in Main Menu or pressing **F6**. The detailed description is provided in :ref:`mcmc`
 
 .. _viewing-results:
 Viewing results
 ---------------
 
-The fit result can be provided inside **Fit results** widget, which can be called  either by **Fit/Fit results...** in Main Menu or pressing **CTRL + T**. There various option for the output, including plain text, PyQt widget table and latex table.
+The fit result can be provided inside **Fit results** widget, which can be called  either by **Fit/Fit results...** in Main Menu or pressing **F8**. There various option for the output, including plain text, PyQt widget table and latex table.
 
-The fit profiles can be constructed in the publish-ready representation using  **Plot Lines** widget, which can be called  either by **View/Plot lines...** in Main Menu or pressing **CTRL + L**. The detailed description of **Plot Lines** widget is provided in :ref:`plot profiles`
+The fit profiles can be constructed in the publish-ready representation with ``matplotlib`` by using **Plot Lines** widget, which can be called  either by **View/Plot line profiles...** in Main Menu or pressing **F5**. The detailed description of **Plot profiles** widget is provided in :ref:`plot-lines`
 
