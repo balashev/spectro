@@ -16,4 +16,7 @@ Contents
    keyboard
    console
    mainmenu
+   fitmodel
+   mcmc
+   plotlines
    

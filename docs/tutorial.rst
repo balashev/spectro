@@ -63,7 +63,7 @@ The representation of selected pixels (regions, points, lines) can be changed in
 Making fit model
 ----------------
 
-The fit model should be defined in the **Fit model** widget, which can be opened either by **Fit/Fit model...** in Main Menu or pressing **CTRL + f**. 
+The fit model should be defined in the **Fit model** widget, which can be opened either by **Fit/Fit model...** in Main Menu or pressing **CTRL + f**. Detailed description of the **Fit Model** widget is given in :ref:`fit-model`
 
 After setting/modification of fit model one can update (if it was not update automatically) the fit by pressing 
 

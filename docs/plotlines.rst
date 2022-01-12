@@ -1,7 +1,7 @@
 .. _plot-lines:
 
-Plot profiles widget
-====================
+Plot line profiles widget
+=========================
 
 to be described
 
