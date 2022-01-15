@@ -83,7 +83,7 @@ function fitMCMC(spec, ppar, add; sampler="Affine", tieds=Dict(), prior=nothing,
 		# constraints for H2 on on excitation diagram to be gradually increasing with J
 		if opts["H2_excitation"] == true
 			T = Dict()
-			E = [170.5, 339.35, 505.31, 666.53, 822.20, 970.58, 1111.96, 1243.40, 1367.25, 1480.35] #Energy difference in K
+			E = [118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61] * 1.42879 #Energy difference in K
 			g = [(2 * level + 1) * ((level % 2) * 2 + 1) for level in 0:11]  #statweights
 			for (k, v) in pars
 				if occursin("H2j", k) & occursin("N_", k)
