@@ -111,8 +111,13 @@ class e():
 
         self.nu = None
         self.J = None
-        if 'j' in self.name:
-            self.J = int(self.name[int(self.name.index('j'))+1:])
+
+        name = self.name[:]
+        if 'v' in name:
+            self.nu = int(name[int(name.index('v')) + 1:])
+            name = name[:int(name.index('v'))]
+        if 'j' in name:
+            self.J = int(name[int(name.index('j'))+1:])
         self.energy = None
         self.b = None
         
@@ -464,6 +469,19 @@ class atomicData(OrderedDict):
                 lines += copy.deepcopy(elist)
         return lines
 
+    def toascii(self, filename='', els=None, linelist=None):
+        if isinstance(els, str):
+            els = [els]
+        if els is not None and filename != '':
+            with open(filename, 'w') as f:
+                for el in els:
+                    lines, l, lf = [], [], []
+                    for line in self.list(el):
+                        lines.append(line)
+                        l.append(line.l())
+                        lf.append(line.l() * line.f())
+                    for i in reversed(np.argsort(l)):
+                        f.write('{:18s} {:.5f} {:.3e} {:.2e} \n'.format(str(lines[i]), lines[i].l(), lines[i].f(), lines[i].g()))
 
     def check(self, name):
         return self.correct_name(name) in self.keys()
@@ -586,6 +604,8 @@ class atomicData(OrderedDict):
                 if np.sum(m) > 0:
                     print(m)
                     self.readH2Abgrall(nu=nu, j=j[m], energy=energy)
+            else:
+                self.readH2Abgrall(nu=nu, j=j, energy=energy)
 
     def readH2new(self, j=[0,1], cat='Ubachs'):
         """
@@ -655,7 +675,8 @@ class atomicData(OrderedDict):
             nu_l, j_l = int(xi[0]), int(xi[1])
             name = 'H2' + 'j' +  str(j_l)
             if xi[0] > 0:
-                name += 'n' + str(nu_l)
+                name += 'v' + str(nu_l)
+            print(name)
             self[name] = e(name)
             self[name].energy = float(xi[2])
             self[name].stats = (2 * (j_l % 2) + 1) * (2 * j_l + 1)
@@ -802,6 +823,7 @@ class atomicData(OrderedDict):
         self.readCashman()
         self.fromNIST()
         self.readH2(j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+        self.readH2(nu=1, j=[0, 1, 2, 3, 4, 5])
         self.readHD()
         self.readCO()
         #self.readHF()
@@ -1505,12 +1527,17 @@ if __name__ == '__main__':
         me = a('-1.2^{+0.1}_{-0.1}', 'l')
         print(abundance('OI', HI, me))
 
-    if 1:
+    if 0:
         A = atomicData()
         #A.getfromNIST('MnII', 3)
         A.makedatabase()
         #A.readdatabase()
         #print([str(line) for line in A.list('CH+')])
+
+    if 1:
+        A = atomicData()
+        A.readdatabase()
+        A.toascii('sviewer/data/H2/H2cat.dat', els=[f'H2j{i}' for i in range(13)]+[f'H2j{i}v1' for i in range(7)])
 
     if 0:
         A = atomicData()

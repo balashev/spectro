@@ -35,7 +35,7 @@ For the detailed descriptions see see :ref:`Main menu`
 
 Residuals panel
 --------------
-It shows the residuals between spectrum and the fit model. It has shared x-axis with the Spectrum panel.  **Residuals panel** can be activated/hide by pressing ``F4`` or ``view/Residuals`` in the Main Menu. The blue area and green line in the left of this panel show the kde of the residual distribution, that is calculated using pixels from the whole spectrum and from the view window only, respectively. The red line shows the gaussian function with unit dispersion, that should be approaching in case of good fit. Note: that consistency between blue and red lines are not necessary means relaible fit, since you also control the structure in residuals. 
+It shows the residuals between spectrum and the fit model. It has shared x-axis with the Spectrum panel.  **Residuals panel** can be shown/hide by pressing ``F4`` or ``view/Residuals`` in the Main Menu. The blue area and green line in the left of this panel show the kde of the residual distribution, that is calculated using pixels from the whole spectrum and from the view window only, respectively. The red line shows the gaussian function with unit dispersion, that should be approaching in case of good fit. Note: that consistency between blue and red lines are not necessary means relaible fit, since you also need to control the structure in residuals. 
 
 .. _spectrum-panel:
 
@@ -44,7 +44,7 @@ Spectrum panel
 Tha main interactive window to work with the spectra. It shows the spectrum and the fit model and different graphical objects suitable for the spectral analysis. It is build on the base of `PlotWidget`_ class from the `pyqtgraph`_ package. The interaction process is quite essential, but the description of the main features of the interaction module can be find in the `pyqtgraph manual`_, for example `mouse interaction`_.
 
 .. _pyqtgraph: https://www.pyqtgraph.org/
-.. _Mouse interaction: https://pyqtgraph.readthedocs.io/en/latest/mouse_interaction.html
+.. _mouse interaction: https://pyqtgraph.readthedocs.io/en/latest/mouse_interaction.html
 .. _pyqtgraph manual: https://pyqtgraph.readthedocs.io/en/latest/index.html
 .. _PlotWidget: https://pyqtgraph.readthedocs.io/en/latest/widgets/plotwidget.html?highlight=plotwidget
 

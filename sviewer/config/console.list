@@ -1,21 +1,21 @@
-y 0 100
-y 0 100
-show H2 0 1 2 3
-show H2 4 5 6
-show H2 7 8 9
+show H2j6
+show H2 6 7
+show H2 5
+show H2 5 6 7
+hide CI
 show H2 8
-show CIIj1
-show FeIIj1
-show SiII
-show ClI
+show H2 9
+show H2 10
+hide CI
+high H2j5
+high H2j4
+high H2j3
+high H2j2
+high H2j1
+high H2j6
+high H2j3
 show CI
 show CIj1
 show CIj2
-H2j8
-H2j7
-H2j8
-show H2j7
 hide CI
-show H2j8
-cshow H2j9
-show H2j9
+high H2j6
