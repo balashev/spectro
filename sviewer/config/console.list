@@ -1,21 +1,21 @@
-show H2j6
-show H2 6 7
-show H2 5
-show H2 5 6 7
-hide CI
-show H2 8
-show H2 9
-show H2 10
-hide CI
-high H2j5
-high H2j4
-high H2j3
-high H2j2
-high H2j1
-high H2j6
-high H2j3
+show H2j1v0
+show H2j0v1
+show H2j0v2
+show H2j2v1
+high H2j0v1
+show H2j3v1
+show H2j4v1
+show H2j5v1
+show H2j6v1
+show H2j7v1
+show H2j8v1
+high H2j7v1
+high H2j6v1
+high H2j0
+shiw CI
 show CI
-show CIj1
-show CIj2
-hide CI
+show HD
+show HDj0
+show HDj1
+high HDj1
 high H2j6

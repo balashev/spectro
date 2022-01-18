@@ -823,7 +823,7 @@ class atomicData(OrderedDict):
         self.readCashman()
         self.fromNIST()
         self.readH2(j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
-        self.readH2(nu=1, j=[0, 1, 2, 3, 4, 5])
+        self.readH2(nu=1, j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
         self.readHD()
         self.readCO()
         #self.readHF()
@@ -1527,14 +1527,14 @@ if __name__ == '__main__':
         me = a('-1.2^{+0.1}_{-0.1}', 'l')
         print(abundance('OI', HI, me))
 
-    if 0:
+    if 1:
         A = atomicData()
         #A.getfromNIST('MnII', 3)
         A.makedatabase()
         #A.readdatabase()
         #print([str(line) for line in A.list('CH+')])
 
-    if 1:
+    if 0:
         A = atomicData()
         A.readdatabase()
         A.toascii('sviewer/data/H2/H2cat.dat', els=[f'H2j{i}' for i in range(13)]+[f'H2j{i}v1' for i in range(7)])

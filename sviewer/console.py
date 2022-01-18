@@ -205,7 +205,7 @@ class Console(QTextEdit):
                 color = (229, 43, 80)
                 energy = None
                 if 'H2j' in args[1]:
-                    j = [int(args[1][3:])]
+                    lines += self.parent.atomic.list(args[1])
                 else:
                     if len(args) == 2:
                         j = np.arange(3)
@@ -215,11 +215,8 @@ class Console(QTextEdit):
                     elif len(args) > 3:
                         print(args[2:])
                         j = [int(j) for j in args[2:]]
-                print(j)
-                #self.parent.atomic.readH2(j=j, energy=energy)
-                #for k in self.parent.atomic.keys():
-                for j in j:
-                    lines += self.parent.atomic.list('H2j{:d}'.format(j))
+                    for j in j:
+                        lines += self.parent.atomic.list('H2j{:d}'.format(j))
 
             elif args[1] == 'HD' or 'HDj' in args[1]:
                 if 'HDj' in args[1]:

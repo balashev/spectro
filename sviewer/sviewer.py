@@ -8452,7 +8452,11 @@ class sviewer(QMainWindow):
                 x, y = [], []
                 for sp in sys.sp:
                     if 'H2' in sp:
-                        m = np.logical_and(data[0] == 0, data[1] == int(sp[3:]))
+                        if 'v' in sp:
+                            nu, j = int(sp[sp.index('v')+1:]), int(sp[sp.index('j')+1:sp.index('v')])
+                        else:
+                            nu, j = 0, int(sp[sp.index('j')+1:])
+                        m = np.logical_and(data[0] == nu, data[1] == j)
                         x.append(float(data[2][m]))
                         #x.append(self.atomic[sp].energy)
                         y.append(deepcopy(sys.sp[sp].N.unc).log() - np.log10(self.atomic[sp].statw()))

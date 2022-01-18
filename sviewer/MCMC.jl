@@ -86,7 +86,7 @@ function fitMCMC(spec, ppar, add; sampler="Affine", tieds=Dict(), prior=nothing,
 			E = [118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61] * 1.42879 #Energy difference in K
 			g = [(2 * level + 1) * ((level % 2) * 2 + 1) for level in 0:11]  #statweights
 			for (k, v) in pars
-				if occursin("H2j", k) & occursin("N_", k)
+				if occursin("H2j", k) & occursin("N_", k) & ~occursin("v", k)
 					j = parse(Int64, k[8:end])
 					if haskey(pars, k[1:7] * string(j+1))
 						if ~haskey(T, k[3])
@@ -98,11 +98,11 @@ function fitMCMC(spec, ppar, add; sampler="Affine", tieds=Dict(), prior=nothing,
 				end
 			end
 			for (k, d) in T
-				#println(k)
+				#println(k, " ", d)
 				for (k, v) in d
 					if haskey(d, k+1)
-						#println(k, " ", v, " ", d[k+1])
-						retval -= (d[k+1] - v < 0 ? (d[k+1] - v) / 50 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2
+						#println(k, " ", v, " ", d[k+1], " ", (d[k+1] - v < 0 ? (d[k+1] - v) / 50 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2, " ", (d[k+1] - v < 0 ? (d[k+1] / v - 1) * 10 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2)
+						retval -= (d[k+1] - v < 0 ? (d[k+1] / v - 1) * 10 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2
 					end
 				end
 			end
@@ -223,7 +223,7 @@ function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Intege
     """
 	@assert length(size(x0)) == 2
 	x = copy(x0)
-	print(size(x))
+	println(size(x))
 	chain = Array{Float64}(undef, nwalkers, size(x0, 2), div(nsteps, thinning))
 	llhoodvals = Array{Float64}(undef, nwalkers, div(nsteps, thinning))
 	lastllhoodvals = pmap(llhood, map(i->x[i, :], 1:size(x, 1)))
