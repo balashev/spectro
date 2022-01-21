@@ -113,8 +113,8 @@ class e():
         self.J = None
 
         name = self.name[:]
-        if 'v' in name:
-            self.nu = int(name[int(name.index('v')) + 1:])
+        if 'v' in name and name[name.index('v')+1:].isnumeric():
+            self.nu = int(name[name.index('v')+1:])
             name = name[:int(name.index('v'))]
         if 'j' in name:
             self.J = int(name[int(name.index('j'))+1:])

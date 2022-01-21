@@ -718,9 +718,9 @@ class fitPars:
     def showLines(self, sp=None):
         if sp is None:
             sp = list(set([s for sys in self.sys for s in sys.sp.keys()]))
-        for s in sp:
-            self.parent.console.exec_command('show ' + s)
-            #self.parent.console.exec_command('')
+
+        if len(sp) > 0:
+            self.parent.console.exec_command('add ' + ' '.join(sp))
 
     def fromLMfit(self, result):
         for p in result.params.keys():

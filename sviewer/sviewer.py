@@ -6916,6 +6916,8 @@ class sviewer(QMainWindow):
         with open(filename) as f:
             d = f.readlines()
 
+        tim = Timer()
+
         i = -1 + skip_header
         while (i < len(d)-1):
             i += 1
@@ -6958,6 +6960,7 @@ class sviewer(QMainWindow):
                         self.importSpectrum(specname, spec=[np.asarray(x), np.asarray(y), np.asarray(err)], append=True)
                         ind = len(self.s) - 1
 
+                tim.time('load spec')
                 if ind > -1:
                     while all([x not in d[i] for x in ['%', '----', 'doublet', 'region', 'fit_model']]):
                         if 'Bcont' in d[i]:
@@ -6979,7 +6982,6 @@ class sviewer(QMainWindow):
                                 self.s[ind].add_exact_points(w, redraw=False)
                                 i += n-1
                                 self.s[ind].mask.normalize()
-
                         if 'bad_pixels' in d[i]:
                             self.s[ind].bad_mask.set(x=np.zeros_like(self.s[ind].spec.x(), dtype=bool))
                             n = int(d[i].split()[1])
@@ -6999,6 +7001,8 @@ class sviewer(QMainWindow):
 
                         if i > len(d) - 1:
                             break
+
+                tim.time('cont')
 
             if '%' in d[i]:
                 i -= 1
@@ -7032,6 +7036,7 @@ class sviewer(QMainWindow):
                 if num > 0:
                     self.setz_abs(self.fit.sys[0].z.val)
                 self.fit.showLines()
+                tim.time('showLines')
 
             if 'fit_tieds' in d[i]:
                 self.fit.tieds = {}

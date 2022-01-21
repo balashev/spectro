@@ -1,21 +1,21 @@
-show H2j1v0
-show H2j0v1
-show H2j0v2
-show H2j2v1
-high H2j0v1
-show H2j3v1
-show H2j4v1
-show H2j5v1
-show H2j6v1
-show H2j7v1
-show H2j8v1
-high H2j7v1
-high H2j6v1
-high H2j0
-shiw CI
-show CI
-show HD
-show HDj0
-show HDj1
-high HDj1
-high H2j6
+show H2j0
+high HDj0
+show SiII
+SiII
+show SiII f>0.2
+show SiII f>0.02
+show SiII f>0.0001
+show SiII f>0.00001
+show SiII
+show H2j0
+show H2j0
+show SiII f>0.01
+show SiII f>0.01
+show SiII f>0.01
+show SiII f>0.001
+show SiII f>0.001
+show SiII f>0.01
+show SiII f>0.001
+show SiII f<0.01
+hide SiII
+show SiII

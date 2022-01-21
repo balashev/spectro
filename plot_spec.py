@@ -692,7 +692,7 @@ class plotline():
             self.ax.plot(self.fit_disp[0].x, self.fit_disp[1].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=10)
 
     def plot_residuals(self):
-        color_res = (255, 152, 150)
+        color_res = (1, 0.6, 0.6)
         color_linres = 'lightseagreen'  # 'mediumpurple' #col.tableau20[5]
         null_res = self.y_max + (self.y_max - self.y_min) * 0.10
         delt_res = (self.y_max - self.y_min) * 0.08

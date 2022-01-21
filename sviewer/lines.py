@@ -20,7 +20,7 @@ class absSystemIndicator():
         self.lines = []
         self.update()
 
-    def add(self, lines, color=(0, 0, 0), va='down'):
+    def add(self, lines, color=None, va='down'):
         for line in lines:
             if line not in self.linelist:
                 l = LineLabel(self, line, self.parent.linelabels, color=color, va=va)
@@ -94,13 +94,15 @@ class absSystemIndicator():
     def highlight(self, lines):
         for line in self.highlightlist:
             line.highlight = False
-            if self.index(line.line) is not None:
-                self.lines[self.index(line.line)].setActive()
+            ind = self.index(line.line)
+            if ind is not None:
+                self.lines[ind].setActive()
         names = [str(line.line) for line in self.highlightlist]
         for line in lines:
-            if line not in names and self.index(line) is not None:
-                self.lines[self.index(line)].highlight = True
-                self.lines[self.index(line)].setActive()
+            ind = self.index(line)
+            if ind is not None:
+                self.lines[ind].highlight = True
+                self.lines[ind].setActive()
         self.update()
 
 
@@ -108,7 +110,7 @@ class LineLabel(pg.TextItem):
     def __init__(self, parent, line, graphicType, **kwrds):
         self.parent = parent
         self.line = line
-        self.saved_color = kwrds['color']
+        kwrds['color'] = self.set_color(color=kwrds['color'])
         if 'va' in kwrds:
             self.va = kwrds['va']
             del kwrds['va']
@@ -127,6 +129,20 @@ class LineLabel(pg.TextItem):
         font.setWeight(75)
         self.setFont(font)
         self.setActive()
+
+    def set_color(self, color=None):
+        if color is None:
+            if self.line.name.startswith('H2'):
+                color = (229, 43, 80)
+            elif self.line.name.startswith('HD'):
+                color = (254, 255, 63)
+            elif self.line.name.startswith('CO'):
+                color = (219, 112, 147)
+            else:
+                color = (0, 149, 182) #(23, 190, 207)
+
+        self.saved_color = color
+        return self.saved_color
 
     def setPointer(self):
         if hasattr(self, 'arrow'):

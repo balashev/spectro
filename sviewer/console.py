@@ -190,86 +190,16 @@ class Console(QTextEdit):
             if len(args) == 2:
                 self.parent.saveFile('data/templates/'+args[1]+'.spv')
 
-        elif args[0] in ['show', 'high']:
+        elif args[0] in ['add', 'show', 'high']:
 
-            lines, color = [], (23, 190, 207)
-            if args[1] == 'all':
-                for s in self.parent.atomic.keys():
-                    if '*' not in s:
-                        lines += self.parent.atomic.list(s)
+            lines = self.select_lines(args[1:])
 
-            elif args[1] == 'full':
-                lines = self.parent.atomic.list()
+            print(lines)
+            if args[0] in ['add', 'show']:
+                self.parent.abs.add(lines)
 
-            elif args[1] == 'H2' or 'H2j' in args[1]:
-                color = (229, 43, 80)
-                energy = None
-                if 'H2j' in args[1]:
-                    lines += self.parent.atomic.list(args[1])
-                else:
-                    if len(args) == 2:
-                        j = np.arange(3)
-                    elif len(args) == 3:
-                        energy = float(args[2]) if float(args[2]) > 100 else None
-                        j = [int(args[2])]
-                    elif len(args) > 3:
-                        print(args[2:])
-                        j = [int(j) for j in args[2:]]
-                    for j in j:
-                        lines += self.parent.atomic.list('H2j{:d}'.format(j))
-
-            elif args[1] == 'HD' or 'HDj' in args[1]:
-                if 'HDj' in args[1]:
-                    j = [int(args[1][3:])]
-                else:
-                    if len(args) == 2:
-                        j = [0]
-                    elif len(args) > 2:
-                        j = [int(j) for j in args[2:]]
-
-                #self.parent.atomic.readHD()
-                for j in j:
-                    lines += self.parent.atomic.list('HDj{:d}'.format(j))
-                color = (254, 255, 63)
-
-            elif args[1] == 'CO' or 'COj' in args[1]:
-                if 'COj' in args[1]:
-                    j = [int(args[1][3:])]
-                else:
-                    if len(args) == 2:
-                        j = [0,1,2,3]
-                    elif len(args) > 2:
-                        j = [int(j) for j in args[2:]]
-
-                #self.parent.atomic.readHD()
-                for j in j:
-                    lines += self.parent.atomic.list('COj{:d}'.format(j))
-
-            elif args[1] == 'HF':
-                for k in self.parent.atomic.keys():
-                    if 'HF' in k:
-                        lines += self.parent.atomic.list('HF')
-                color = (255, 69, 69)
-            else:
-                if self.parent.atomic.find(args[1]):
-                    lines += self.parent.atomic.list(self.parent.atomic.find(args[1]))
-                else:
-                    self.parent.atomic.getfromNIST(args[1], add=True)
-                    lines += self.parent.atomic.list(self.parent.atomic.find(args[1]))
-
-            if args[1] != 'H2':
-                try:
-                    f = float(args[2])
-                except:
-                    f = 0
-                for l in reversed(lines):
-                    if l.f() > f:
-                        del l
-
-            if args[0] == 'show':
-                self.parent.abs.add(lines, color=color)
-
-            self.parent.abs.highlight(lines)
+            if args[0] in ['show', 'high']:
+                self.parent.abs.highlight(lines)
 
         elif args[0] == 'hide':
 
@@ -384,7 +314,7 @@ class Console(QTextEdit):
 
         elif args[0] in ['me', 'Me', 'X/H']:
             c = np.arange(len(self.parent.fit.sys))
-            N = a(0,0,0, 'd')
+            N = a(0 ,0 ,0, 'd')
             for i in c:
                 if args[1] in self.parent.fit.sys[i].sp:
                     self.parent.fit.sys[i].sp[args[1]].N.unc.val = self.parent.fit.sys[i].sp[args[1]].N.val
@@ -699,3 +629,52 @@ class Console(QTextEdit):
 
         else:
             return None
+
+    def select_lines(self, args):
+        species, lst, f, E, levels = [], [], 0, None, []
+        for arg in args:
+            if 'f<' in arg:
+                f = -float(arg.replace('f<', ''))
+            elif 'f>' in arg:
+                f = float(arg.replace('f>', ''))
+            elif 'E<' in arg:
+                E = -float(arg.replace('E<', ''))
+            elif 'E>' in arg:
+                E = float(arg.replace('E>', ''))
+            elif arg.isnumeric():
+                levels.append(int(arg))
+            else:
+                species.append(arg)
+
+        print(f)
+        for sp in species:
+            if sp == 'full':
+                return self.parent.atomic.list()
+
+            elif sp == 'all':
+                lst += [s for s in self.parent.atomic.keys() if '*' not in s]
+
+            elif sp in ['H2', 'HD', 'CO']:
+                d = {'H2': 5, 'HD': 1, 'CO': 4}
+                if len(levels) == 0:
+                    levels = np.arange(d[sp])
+                lst += [f'{sp}j{j}' for j in levels]
+
+            else:
+                if self.parent.atomic.find(sp):
+                    lst.append(sp)
+                else:
+                    self.parent.atomic.getfromNIST(sp, add=True)
+                    if self.parent.atomic.find(sp):
+                        lst.append(sp)
+
+        lines = self.parent.atomic.list(lst)
+
+        print(lines)
+        if f != 0:
+            for l in reversed(range(len(lines))):
+                if lines[l].f() * np.sign(f) < f:
+                    lines.pop(l)
+        print(lines)
+
+        return lines
