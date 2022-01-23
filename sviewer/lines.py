@@ -19,6 +19,7 @@ class absSystemIndicator():
         self.parent = parent
         self.lines = []
         self.update()
+        self.update()
 
     def add(self, lines, color=None, va='down'):
         for line in lines:
@@ -283,18 +284,43 @@ class LineLabel(pg.TextItem):
                 self.parent.set_reference(self)
                 self.parent.parent.plot.restframe = False
                 self.parent.parent.plot.updateVelocityAxis()
-
                 ev.accept()
+
             elif QApplication.keyboardModifiers() == Qt.ControlModifier:
                 self.parent.remove(self.line)
                 del self
+
             elif QApplication.keyboardModifiers() == Qt.AltModifier or self.info:
                 self.showInfo()
                 ev.accept()
+
             elif self.parent.parent.plot.h_status:
                 print(str(self.line), type(self.line))
                 self.parent.parent.plot.h_status = False
                 self.parent.parent.console.exec_command(f"high {str(self.line).split()[0]}")
+
+            elif self.parent.parent.plot.d_status:
+                self.parent.parent.plot.d_status = False
+                self.parent.update()
+                if self.active:
+                    self.parent.parent.plot.doublets.append(Doublet(self.parent.parent.plot, name=self.parent.activelist[-1].line.name.split()[0], z=self.parent.parent.z_abs, lines=[l.line.l() for l in self.parent.activelist]))
+                    self.parent.parent.plot.doublets.update()
+                    for line in self.parent.activelist:
+                        line.setActive()
+                    self.parent.update()
+                else:
+                    self.parent.parent.console.exec_command(f"doublet {self.line.name.split()[0]}")
+                    for line in self.parent.highlightlist:
+                        line.highlight = False
+                        line.setActive()
+                    self.parent.update()
+
+            elif self.parent.parent.plot.k_status:
+                self.parent.parent.plot.k_status = False
+                if self.parent.parent.plot.doublets.get_active() is not None:
+                    self.parent.parent.plot.doublets.get_active().regular = False
+                    self.parent.parent.plot.doublets.get_active().add_line(self.line.l(), name=self.line.name)
+                ev.accept()
 
     def showInfo(self, show=None):
         if show is not None:
@@ -430,23 +456,41 @@ class doubletList(list):
         for reg in text.splitlines():
             self.add(reg)
 
+    def deactivate(self):
+        for d in self:
+            d.active = False
+
+    def get_active(self):
+        for i, d in enumerate(self):
+            if d.active == True:
+                return d
+
     def __str__(self):
         return '\n'.join([str(r) for r in self])
 
 class Doublet():
-    def __init__(self, parent, name=None, z=None, color=pg.mkColor(45, 217, 207)):
+    def __init__(self, parent, name=None, z=None, lines=None, color=pg.mkColor(45, 217, 207)):
         self.parent = parent
-        self.read()
+        self.read_regular()
         self.active = False
         color = cm.terrain(1, bytes=True)[:3] + (200,)
         self.pen = pg.mkPen(color=color, width=0.5, style=Qt.SolidLine)
         self.name = name
         self.z = z
+        if lines is None and self.name in self.doublet.keys():
+            self.regular = True
+            self.l = self.doublet[self.name]
+        else:
+            self.regular = False
+            if lines is None:
+                lines = []
+            self.l = lines
+        self.lines, self.labels = [], []
         self.temp = None
         if self.name is not None and self.z is not None:
             self.draw(add=False)
 
-    def read(self):
+    def read_regular(self):
         self.doublet = {}
         with open('data/doublet.dat') as f:
             for line in f:
@@ -454,14 +498,8 @@ class Doublet():
                     self.doublet[line.split()[0]] = [float(d) for d in line.split()[1:]]
 
     def draw(self, add=True):
-        self.l = self.doublet[self.name]
-        self.line, self.label = [], []
         for l in self.l:
-            self.line.append(pg.InfiniteLine(l * (1 + self.z), angle=90, pen=self.pen))
-            self.parent.vb.addItem(self.line[-1])
-            anchor = (0, 1) if 'DLA' not in self.name else (0, 0)
-            self.label.append(doubletLabel(self, self.name, l, angle=90, anchor=anchor))
-            self.parent.vb.addItem(self.label[-1])
+            self.add_line(l)
         if add and self.name.strip() in ['CIV', 'SiIV', 'AlIII', 'FeII', 'MgII']:
             self.parent.doublets.append(Doublet(self.parent, name='DLA', z=self.z))
 
@@ -475,16 +513,36 @@ class Doublet():
                     self.pen = pg.mkPen(45, 217, 207, width=0.5)
                 else:
                     self.pen = pen
-            for l, line, label in zip(self.l, self.line, self.label):
+            for l, line, label in zip(self.l, self.lines, self.labels):
                 line.setPos(l * (1 + self.z))
                 line.setPen(self.pen)
                 label.redraw()
+
+    def add_line(self, l, name=None):
+        if l not in [label.line for label in self.labels]:
+            if l not in self.l:
+                self.l.append(l)
+            self.lines.append(pg.InfiniteLine(l * (1 + self.z), angle=90, pen=self.pen))
+            self.parent.vb.addItem(self.lines[-1])
+            anchor = (0, 1) if 'DLA' not in self.name else (0, 0)
+            if name == None:
+                name = self.name
+            self.labels.append(doubletLabel(self, name, l, angle=90, anchor=anchor))
+            self.parent.vb.addItem(self.labels[-1])
+
+    def remove_line(self, ind):
+        self.parent.vb.removeItem(self.lines[ind])
+        self.parent.vb.removeItem(self.labels[ind])
+        self.l.pop(ind)
+        self.lines.pop(ind)
+        self.labels.pop(ind)
+        self.parent.doublets.update()
 
     def remove(self):
         if self.temp is not None:
             self.remove_temp()
         else:
-            for line, label in zip(self.line, self.label):
+            for line, label in zip(self.lines, self.labels):
                 self.parent.vb.removeItem(line)
                 self.parent.vb.removeItem(label)
             self.parent.doublets.remove(self)
@@ -517,10 +575,7 @@ class Doublet():
         self.y = np.median(s.spec.y()[imin:imax])*1.5
 
     def set_active(self, active=True):
-        if active:
-            for d in self.parent.doublets:
-                print(d.name, d.z)
-                d.set_active(False)
+        self.parent.doublets.deactivate()
         self.active = active
         self.parent.parent.setz_abs(self.z)
         #self.redraw()
@@ -552,14 +607,22 @@ class Doublet():
             self.z = x1 / ind[i][1] - 1
             if show:
                 if self.name != 'DLA':
-                    self.parent.parent.console.exec_command('show '+self.name)
+                    self.parent.parent.console.exec_command('show ' + self.name)
                 self.parent.parent.setz_abs(self.z)
+                self.l = self.doublet[self.name]
                 self.draw()
             else:
                 return self.name, self.z
         else:
             self.parent.doublets.remove(self)
             del self
+
+    def __str__(self):
+        if self.regular:
+            return '{0:5s} {1:9.7f}'.format(self.name, self.z)
+        else:
+            '{0:5s} {1:9.7f}'.format(self.name, self.z) + ' '.join([f'{l.name}_' + '{0:10.4f}'.format(l.line).strip() for l in self.labels])
+            return '{0:5s} {1:9.7f} '.format(self.name, self.z) + ' '.join([f'{l.name}_'+'{0:10.4f}'.format(l.line).strip() for l in self.labels])
 
 class doubletTempLine(pg.InfiniteLine):
     def __init__(self, parent, x, **kwargs):
@@ -588,7 +651,7 @@ class doubletLabel(pg.TextItem):
 
     def determineY(self):
         s = self.parent.parent.parent.s[self.parent.parent.parent.s.ind]
-        imin, imax = s.spec.index([self.line * (1 + self.parent.z) * (1 - 0.001), self.line * (1 + self.parent.z) * (1 + 0.001)])[:]
+        imin, imax = s.spec.index([self.line * (1 + self.parent.z) * (1 - 0.005), self.line * (1 + self.parent.z) * (1 + 0.005)])[:]
         imin, imax = max(0, int(imin - (imax - imin) / 2)), min(int(imax + (imax - imin) / 2), s.spec.n())
         if imin < imax:
             self.y = np.median(s.spec.y()[imin:imax]) * 1.5
@@ -599,7 +662,7 @@ class doubletLabel(pg.TextItem):
         self.determineY()
         self.setText(self.name + ' ' + str(self.line)[:str(self.line).index('.')] + '   z=' + str(self.parent.z)[:6])
         if self.temp:
-            self.setColor((200,200,200))
+            self.setColor((200, 200, 200))
         else:
             self.setColor(self.parent.pen.color())
         self.setPos(self.line * (1 + self.parent.z), self.y)
@@ -620,14 +683,17 @@ class doubletLabel(pg.TextItem):
 
     def mouseClickEvent(self, ev):
 
-        if QApplication.keyboardModifiers() == Qt.ControlModifier:
-            self.parent.remove()
-            ev.accept()
+        if QApplication.keyboardModifiers() == Qt.AltModifier:
+            self.parent.remove_line(self.parent.labels.index(self))
 
-        if ev.double():
-            print(self.parent.active)
+        elif QApplication.keyboardModifiers() == Qt.ControlModifier:
+            self.parent.remove()
+
+        elif ev.double():
             self.parent.set_active(not self.parent.active)
             self.parent.parent.doublets.update()
+        ev.accept()
+
 
     def clicked(self, pts):
         print("clicked: %s" % pts)

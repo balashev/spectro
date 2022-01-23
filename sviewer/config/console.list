@@ -1,21 +1,21 @@
-show H2j0
-high HDj0
+show SiII
+show SiII*
 show SiII
 SiII
-show SiII f>0.2
-show SiII f>0.02
-show SiII f>0.0001
-show SiII f>0.00001
-show SiII
-show H2j0
-show H2j0
-show SiII f>0.01
-show SiII f>0.01
-show SiII f>0.01
-show SiII f>0.001
-show SiII f>0.001
-show SiII f>0.01
-show SiII f>0.001
-show SiII f<0.01
-hide SiII
-show SiII
+show OIj1
+show OIj2
+FeIIj1
+show FeIIj1
+OIj1
+ZnII
+show FeI
+FeI
+show CI
+show CI
+show NiII
+high CIV
+show NiII
+show NiII
+show NiII
+SiII*
+show SiII*

@@ -63,7 +63,11 @@ Keybord bindings
    * **h + LEFT CLICK**         :  set redshift for lya line to be at the position of mouse
 
 * **j**: show the dispersion of the model fit from MCMC
+a
+* **k**: add line to the fixed line group
 
+   * **k + MOUSE LEFT CLICK** on  line Label         :  add line label to highlighted fixed line group.  
+   
 * **m**: smooth spectrum
 
    * **m + MOUSE WHEEL FORWARD**      :  increase smoothness 

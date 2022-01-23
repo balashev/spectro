@@ -9,6 +9,7 @@ from statsmodels.stats.weightstats import DescrStatsW
 
 from ..a_unc import a
 from ..atomic import metallicity, depletion, abundance
+from .lines import Doublet
 from .utils import Timer, roman
 
 
@@ -191,7 +192,6 @@ class Console(QTextEdit):
                 self.parent.saveFile('data/templates/'+args[1]+'.spv')
 
         elif args[0] in ['add', 'show', 'high']:
-
             lines = self.select_lines(args[1:])
 
             print(lines)
@@ -202,7 +202,6 @@ class Console(QTextEdit):
                 self.parent.abs.highlight(lines)
 
         elif args[0] == 'hide':
-
             if args[1] == 'all':
                 #self.parent.abs.remove(self.parent.abs.lines)
                 for l in self.parent.abs.lines:
@@ -222,7 +221,6 @@ class Console(QTextEdit):
             return ''
 
         elif self.parent.atomic.find(args[0]):
-
             name = args[0].replace('*', '')
             try:
                 el = element(roman.ion(name)[0])
@@ -246,6 +244,12 @@ class Console(QTextEdit):
 
         elif any(s in args[0] for s in ['HD', 'H2']):
             self.exec_command('show '+ args[0])
+
+        elif args[0] == 'doublet':
+            print(args[1])
+            print(self.select_lines(args[1]))
+            self.parent.plot.doublets.append(Doublet(self.parent.plot, name=args[1], z=self.parent.z_abs, lines=self.select_lines(args[1])))
+            self.parent.plot.doublets.update()
 
         elif args[0] == 'fit':
             if len(args) == 1:
@@ -631,6 +635,8 @@ class Console(QTextEdit):
             return None
 
     def select_lines(self, args):
+        if isinstance(args, str):
+            args = [args]
         species, lst, f, E, levels = [], [], 0, None, []
         for arg in args:
             if 'f<' in arg:
@@ -646,7 +652,6 @@ class Console(QTextEdit):
             else:
                 species.append(arg)
 
-        print(f)
         for sp in species:
             if sp == 'full':
                 return self.parent.atomic.list()
@@ -670,11 +675,9 @@ class Console(QTextEdit):
 
         lines = self.parent.atomic.list(lst)
 
-        print(lines)
         if f != 0:
             for l in reversed(range(len(lines))):
                 if lines[l].f() * np.sign(f) < f:
                     lines.pop(l)
-        print(lines)
 
         return lines

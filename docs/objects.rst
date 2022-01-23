@@ -32,6 +32,8 @@ Line labels (objects 2, 3, 4, 5 in Figure) indicate possible positions of the ab
 
 * ``ALT + LEFT CLICK``: show extended information about this line (see object 5).
 
+* ``K + LEFT CLICK``: add line to the current (highlighted) group of fixed absorption lines.
+
 Regions
 -------
 
@@ -56,18 +58,20 @@ Composite spectrum (object 8 in Figure) indicate a composite spectrum of QSO. Cu
 
 * ``CTRL + LEFT CLICK``: hide composite spectrum.
 
-Doublet indicators
-------------------
+Fixed Line indicators
+---------------------
 
-Doublet indicators (object 9 in Figure) are separate line labels to mark the doublet absorption lines at the redshifts with distinct redshift as the main line labels (corresponding to the main redshift in the redshift panel). Interactions:
+Fixed Line indicators (object 9 in Figure) are separate (from objects 2-5) line labels to mark the absorption lines with fixed position, i.e. those positions (i.e. redshifts) do not change with changing of the main redshift in the redshift panel. Usage of this line labels is a convenient way to mark nuisance absorption lines seen in the spectrum (mostly several doublets that ). These lines are usually combined in the groups that allow to add/exclude certain line. Interactions:
 
-* ``d + LEFT MOUSE BUTTON``: creat region. 
+* ``u + LEFT MOUSE BUTTON``: creat line group. 
 
 * ``DOUBLE LEFT CLICK`` on text label: highlight doublet.
 
 * ``SHIFT + LEFT MOUSE BUTTON`` on text label: shift (change the redshift).
 
-* ``CTRL + LEFT MOUSE BUTTON`` on text label: delete.
+* ``ALT + LEFT CLICK`` on text label: delete line from the group.
+
+* ``CTRL + LEFT CLICK`` on text label: delete line group.
 
 Line flux residuals (zero levels)
 ---------------------------------

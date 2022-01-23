@@ -116,7 +116,7 @@ class plotSpectrum(pg.PlotWidget):
         self.getPlotItem().sigRangeChanged.connect(self.updateVelocityAxis)
 
     def initstatus(self):
-        for l in 'abcdehilmprsuwxz':
+        for l in 'abcdehiklmprsuwxz':
             setattr(self, l+"_status", False)
         self.mouse_moved = False
         self.saveState = None
@@ -273,6 +273,9 @@ class plotSpectrum(pg.PlotWidget):
                 self.j_status = True
                 self.parent.s[self.parent.s.ind].set_fit_disp(show=True)
 
+            if event.key() == Qt.Key_K:
+                self.k_status = True
+
             if event.key() == Qt.Key_I:
                 if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
                     print('initial', self.parent.s[self.parent.s.ind].g_line)
@@ -428,6 +431,9 @@ class plotSpectrum(pg.PlotWidget):
 
             if event.key() == Qt.Key_I:
                 self.i_status = False
+
+            if event.key() == Qt.Key_K:
+                self.k_status = False
 
             if event.key() == Qt.Key_J:
                 self.parent.s[self.parent.s.ind].set_fit_disp(show=False)
@@ -6916,8 +6922,6 @@ class sviewer(QMainWindow):
         with open(filename) as f:
             d = f.readlines()
 
-        tim = Timer()
-
         i = -1 + skip_header
         while (i < len(d)-1):
             i += 1
@@ -6960,7 +6964,6 @@ class sviewer(QMainWindow):
                         self.importSpectrum(specname, spec=[np.asarray(x), np.asarray(y), np.asarray(err)], append=True)
                         ind = len(self.s) - 1
 
-                tim.time('load spec')
                 if ind > -1:
                     while all([x not in d[i] for x in ['%', '----', 'doublet', 'region', 'fit_model']]):
                         if 'Bcont' in d[i]:
@@ -7002,8 +7005,6 @@ class sviewer(QMainWindow):
                         if i > len(d) - 1:
                             break
 
-                tim.time('cont')
-
             if '%' in d[i]:
                 i -= 1
 
@@ -7016,8 +7017,14 @@ class sviewer(QMainWindow):
                 ns = int(d[i].split()[1])
                 for r in range(ns):
                     i += 1
-                    print(d[i].split()[0], float(d[i].split()[1]))
-                    self.plot.doublets.append(Doublet(self.plot, name=d[i].split()[0], z=float(d[i].split()[1])))
+                    #print(d[i].split()[0], float(d[i].split()[1]))
+                    if len(d[i].split()) == 2:
+                        self.plot.doublets.append(Doublet(self.plot, name=d[i].split()[0], z=float(d[i].split()[1])))
+                    else:
+                        self.plot.doublets.append(Doublet(self.plot, name=d[i].split()[0], z=float(d[i].split()[1])))
+                        for l in d[i].split()[2:]:
+                            print(l.split('_')[0], float(l.split('_')[1]))
+                            self.plot.doublets[-1].add_line(float(l.split('_')[1]), name=l.split('_')[0])
 
             if 'lines' in d[i]:
                 self.lines = lineList(self)
@@ -7036,7 +7043,6 @@ class sviewer(QMainWindow):
                 if num > 0:
                     self.setz_abs(self.fit.sys[0].z.val)
                 self.fit.showLines()
-                tim.time('showLines')
 
             if 'fit_tieds' in d[i]:
                 self.fit.tieds = {}
@@ -7141,7 +7147,7 @@ class sviewer(QMainWindow):
                 if len(self.plot.doublets) > 0:
                     f.write('doublets:   ' + str(len(self.plot.doublets)) + '\n')
                     for d in self.plot.doublets:
-                        f.write('{0:5s} {1:9.7f} \n'.format(d.name, d.z))
+                        f.write(str(d)+'\n')
 
                 if len(self.lines) > 0:
                     f.write('lines:   ' + str(len(self.lines)) + '\n')
