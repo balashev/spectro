@@ -295,7 +295,6 @@ class LineLabel(pg.TextItem):
                 ev.accept()
 
             elif self.parent.parent.plot.h_status:
-                print(str(self.line), type(self.line))
                 self.parent.parent.plot.h_status = False
                 self.parent.parent.console.exec_command(f"high {str(self.line).split()[0]}")
 
@@ -321,6 +320,10 @@ class LineLabel(pg.TextItem):
                     self.parent.parent.plot.doublets.get_active().regular = False
                     self.parent.parent.plot.doublets.get_active().add_line(self.line.l(), name=self.line.name)
                 ev.accept()
+
+            elif self.parent.parent.plot.y_status:
+                self.parent.parent.plot.y_status = False
+                self.parent.parent.profileLikelihood(line=self.line)
 
     def showInfo(self, show=None):
         if show is not None:
@@ -355,7 +358,6 @@ class lineList(list):
     def check(self, line):
         if line in self:
             for i, l in enumerate(self):
-                print(i, ' '.join(line.split()[:2]), ' '.join(l.split()[:2]))
                 if ' '.join(line.split()[:2]) == ' '.join(l.split()[:2]):
                     return i
             else:
@@ -771,7 +773,6 @@ class pcRegion():
 
         if self.ind < len(self.parent.pcRegions):
             for i in range(self.ind, len(self.parent.pcRegions)):
-                print(i)
                 self.parent.pcRegions[i].setInd(i)
                 cf = getattr(self.parent.parent.fit, 'cf_' + str(i + 1))
                 setattr(self.parent.parent.fit, 'cf_' + str(i), par(self, 'cf_' + str(i), cf.val, cf.min, cf.max, cf.step, addinfo=cf.addinfo))
@@ -867,8 +868,6 @@ class colorCompBox(QHBoxLayout):
         self.colors = [''] * self.num
         if len(self.parent.comp_colors.split(',')) < self.num:
             self.get_default()
-        print(self.colors)
-        print(self.parent.comp_colors.split(","))
         for i, c in enumerate(self.parent.comp_colors.split(',')):
             if i < self.num and c.strip() != '':
                 self.colors[i] = tuple(int(c.strip()).to_bytes(4, byteorder='big'))

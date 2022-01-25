@@ -194,7 +194,6 @@ class Console(QTextEdit):
         elif args[0] in ['add', 'show', 'high']:
             lines = self.select_lines(args[1:])
 
-            print(lines)
             if args[0] in ['add', 'show']:
                 self.parent.abs.add(lines)
 
@@ -233,7 +232,6 @@ class Console(QTextEdit):
                 f = 0
             lines, lf = [], []
 
-            print('list', args[0], self.parent.atomic.list(args[0]))
             for l in self.parent.atomic.list(args[0]):
                 if l.f() > f:
                     lines.append(l)
@@ -246,8 +244,6 @@ class Console(QTextEdit):
             self.exec_command('show '+ args[0])
 
         elif args[0] == 'doublet':
-            print(args[1])
-            print(self.select_lines(args[1]))
             self.parent.plot.doublets.append(Doublet(self.parent.plot, name=args[1], z=self.parent.z_abs, lines=self.select_lines(args[1])))
             self.parent.plot.doublets.update()
 

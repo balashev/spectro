@@ -116,7 +116,7 @@ class plotSpectrum(pg.PlotWidget):
         self.getPlotItem().sigRangeChanged.connect(self.updateVelocityAxis)
 
     def initstatus(self):
-        for l in 'abcdehiklmprsuwxz':
+        for l in 'abcdehiklmprsuwxyz':
             setattr(self, l+"_status", False)
         self.mouse_moved = False
         self.saveState = None
@@ -362,6 +362,9 @@ class plotSpectrum(pg.PlotWidget):
                 self.x_status = True
                 self.parent.statusBar.setText('Select bad pixels mode')
 
+            if event.key() == Qt.Key_Y:
+                self.y_status = True
+
             if event.key() == Qt.Key_Z:
                 if (QApplication.keyboardModifiers() != Qt.ControlModifier):
                     self.vb.setMouseMode(self.vb.RectMode)
@@ -476,6 +479,9 @@ class plotSpectrum(pg.PlotWidget):
 
             if event.key() == Qt.Key_X:
                 self.x_status = False
+
+            if event.key() == Qt.Key_Y:
+                self.y_status = False
 
             if event.key() == Qt.Key_Z:
                 self.z_status = False
@@ -2383,8 +2389,6 @@ class fitMCMCWidget(QWidget):
             ('MCMC_walkers', int), ('MCMC_iters', int), ('MCMC_threads', int),
             ('MCMC_burnin', int), ('MCMC_smooth', bool), ('MCMC_truth', bool),
         ])
-        for opt, func in self.opts.items():
-            setattr(self, opt, func(self.parent.options(opt)))
         self.thread = None
 
     def initGUI(self):
@@ -2516,7 +2520,7 @@ class fitMCMCWidget(QWidget):
         self.opt_but = OrderedDict([('MCMC_burnin', [1, 1]),
                                     ])
         for opt, v in self.opt_but.items():
-            b = QLineEdit(str(getattr(self, opt)))
+            b = QLineEdit(str(self.parent.options(opt)))
             b.setFixedSize(80, 30)
             b.setValidator(validator)
             b.textChanged[str].connect(partial(self.onChanged, attr=opt))
@@ -2529,14 +2533,17 @@ class fitMCMCWidget(QWidget):
         self.graph.setCurrentIndex(['chainConsumer', 'corner'].index(self.parent.options('MCMC_graph')))
         self.graph.activated[str].connect(self.selectGraph)
         grid.addWidget(self.graph, 0, 1)
+        grid.addWidget(QLabel('Truths:'), 2, 0)
+        self.truths = QComboBox()
+        self.truths.addItems(['None', 'Best Fit', 'Model', 'MAP'])
+        self.truths.setFixedSize(120, 30)
+        self.truths.setCurrentText(self.parent.options('MCMC_truths'))
+        self.truths.activated[str].connect(self.selectTruths)
+        grid.addWidget(self.truths, 2, 1)
         self.smooth = QCheckBox('smooth')
         self.smooth.setChecked(bool(self.parent.options('MCMC_smooth')))
         self.smooth.clicked[bool].connect(partial(self.setOpts, 'smooth'))
-        grid.addWidget(self.smooth, 2, 0)
-        self.bestfit = QCheckBox('bestfit')
-        self.bestfit.setChecked(bool(self.parent.options('MCMC_bestfit')))
-        self.bestfit.clicked[bool].connect(partial(self.setOpts, 'bestfit'))
-        grid.addWidget(self.bestfit, 3, 0)
+        grid.addWidget(self.smooth, 3, 0)
         self.likelihood = QCheckBox('show likelihood')
         self.likelihood.setChecked(bool(self.parent.options('MCMC_likelihood')))
         self.likelihood.clicked[bool].connect(partial(self.setOpts, 'likelihood'))
@@ -2641,7 +2648,8 @@ class fitMCMCWidget(QWidget):
     def selectSampler(self):
         self.parent.options('MCMC_sampler', self.sampler.currentText())
         for attr in ['MCMC_walkers', 'MCMC_iters', 'MCMC_thinning', 'MCMC_threads']:
-            getattr(self, attr).setEnabled(attr not in self.sampler_opts[self.sampler.currentText()])
+            if hasattr(self, attr):
+                getattr(self, attr).setEnabled(attr not in self.sampler_opts[self.sampler.currentText()])
 
     def priorsChanged(self):
         self.priors = {}
@@ -2677,6 +2685,10 @@ class fitMCMCWidget(QWidget):
     def selectGraph(self, text):
         self.parent.options('MCMC_graph', text)
         self.graph.setCurrentIndex(['chainConsumer', 'corner'].index(self.parent.options('MCMC_graph')))
+
+    def selectTruths(self, text):
+        self.parent.options('MCMC_truths', text)
+        self.graph.setCurrentText(self.parent.options('MCMC_truths'))
 
     def start(self, init=True):
         self.MCMC(init=init)
@@ -2790,7 +2802,6 @@ class fitMCMCWidget(QWidget):
                 g = f[backend.name]
                 f[backend.name].attrs["pars"] = [p.encode() for p in pars]
 
-
         t.time("finished")
 
         self.parent.MCMC_output = "output/mcmc.hdf5"
@@ -2799,24 +2810,33 @@ class fitMCMCWidget(QWidget):
     def readChain(self, ):
         #with open("output/MCMC_pars.pkl", "rb") as f:
         #    pars = pickle.load(f)
-        backend = emcee.backends.HDFBackend(self.parent.MCMC_output)
 
-        try:
-            with backend.open('r') as f:
-                g = f[backend.name]
-                print(list(g.keys()))
-                print(list(g.attrs.keys()))
-                #print([g.attrs[k] for k in list(g.attrs.keys())])
-                g.attrs['iteration'] = g['chain'][:].shape[0]
-                print(g.attrs['iteration'])
-                pars = [p.decode() for p in g.attrs['pars']]
-        except:
-            pars = [str(p) for p in self.parent.fit.list_fit()]
-        print(pars)
-        lnprobs = backend.get_log_prob()
-        samples = backend.get_chain()
-        print(samples.shape, lnprobs.shape)
-        return pars, samples, lnprobs
+        if self.parent.MCMC_output.endswith('hdf5'):
+            backend = emcee.backends.HDFBackend(self.parent.MCMC_output)
+
+            try:
+                with backend.open('r') as f:
+                    g = f[backend.name]
+                    print(list(g.keys()))
+                    print(list(g.attrs.keys()))
+                    #print([g.attrs[k] for k in list(g.attrs.keys())])
+                    g.attrs['iteration'] = g['chain'][:].shape[0]
+                    print(g.attrs['iteration'])
+                    pars = [p.decode() for p in g.attrs['pars']]
+            except:
+                pars = [str(p) for p in self.parent.fit.list_fit()]
+            lnprobs = backend.get_log_prob()
+            samples = backend.get_chain()
+            return pars, samples, lnprobs
+
+        elif self.parent.MCMC_output.endswith('pickle'):
+            with open(self.parent.MCMC_output, 'rb') as f:
+                pars = pickle.load(f)
+                samples = np.asarray(pickle.load(f))
+                lnprobs = np.asarray(pickle.load(f))
+            samples = samples.reshape((samples.shape[0], 1, samples.shape[1]))
+            lnprobs = lnprobs.reshape((lnprobs.shape[0], 1))
+            return pars, samples, lnprobs
 
     def showCompsMC(self):
         pars, samples, lnprobs = self.readChain()
@@ -2839,20 +2859,31 @@ class fitMCMCWidget(QWidget):
         if mask is None:
             mask = np.array([self.parent.fit.list()[[str(i) for i in self.parent.fit.list()].index(p)].show for p in pars])
 
-        print(mask)
+        #print(mask)
         names = [str(p).replace('_', ' ') for i, p in enumerate(self.parent.fit.list_fit()) if mask[i]]
+        if self.parent.options('MCMC_truths') == 'None':
+            truth = None
+        elif self.parent.options('MCMC_truths') == 'Best Fit':
+            inds = np.where(lnprobs == np.max(lnprobs))
+            truth = samples[inds[0][0], inds[1][0], :]
+        elif self.parent.options('MCMC_truths') == 'Model':
+            truth = np.asarray([self.parent.fit.getValue(par) for par in pars])
+        elif self.parent.options('MCMC_truths') == 'MAP':
+            print('MAP estimate is not currently available')
+            truth = None
+        #print('truths:', truth)
+        
         if self.parent.options('MCMC_likelihood'):
             names = [r'$\chi^2$'] + names
-            samples = np.insert(samples, 0, lnprobs, axis=2)
+            samples = np.insert(samples, 0, lnprobs, axis=len(samples.shape)-1)
+            truth = np.insert(truth, 0, 0)
             mask = np.insert(mask, 0, True)
-        inds = np.where(lnprobs == np.max(lnprobs))
-        truth = samples[inds[0][0], inds[1][0], :] if bool(self.parent.options('MCMC_bestfit')) else None
-        print('best fit:', truth)
+
+
         if burnin < samples.shape[0]:
             if self.parent.options('MCMC_graph') == 'chainConsumer':
                 from chainconsumer import ChainConsumer
                 c = ChainConsumer()
-                print(np.sort(samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]].flatten()))
                 c.add_chain(samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]], walkers=nwalkers,
                             parameters=names)
                 c.configure(smooth=self.parent.options('MCMC_smooth'),
@@ -2864,11 +2895,10 @@ class fitMCMCWidget(QWidget):
                             sigmas=[0, 1, 2, 3],
                             )
                 c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
-
-                fig = c.plotter.plot(figsize=(30, 30),
+                fig = c.plotter.plot(figsize=(20, 20),
                                         #filename="output/fit.png",
                                         display=True,
-                                        truth=truth
+                                        truth=truth[np.where(mask)[0]]
                                         )
             if self.parent.options('MCMC_graph') == 'corner':
                 import corner
@@ -2876,7 +2906,7 @@ class fitMCMCWidget(QWidget):
                                        labels=names,
                                        show_titles=True,
                                        plot_contours=self.parent.options('MCMC_smooth'),
-                                       truths=truth,
+                                       truths=truth[np.where(mask)[0]],
                                        )
                 plt.show()
 
@@ -5644,7 +5674,7 @@ class GenerateAbsWidget(QWidget):
     def __init__(self, parent):
         super().__init__()
         self.parent = parent
-        self.setGeometry(300, 200, 400, 600)
+        self.setGeometry(300, 200, 500, 600)
         self.setWindowTitle('Generate Absorption System:')
         self.setStyleSheet(open('config/styles.ini').read())
         self.initData()
@@ -5653,7 +5683,7 @@ class GenerateAbsWidget(QWidget):
     def initData(self):
         self.opts = {'gen_template': str, 'gen_z': float, 'gen_xmin': float, 'gen_xmax': float,
                      'gen_resolution': float, 'gen_lyaforest': float, 'gen_Av': float, 'gen_z_Av': float,
-                     'gen_snr': float
+                     'gen_snr': float, 'gen_num': int, 'gen_tau': float
                      }
         for opt, func in self.opts.items():
             # print(opt, self.parent.options(opt), func(self.parent.options(opt)))
@@ -5661,6 +5691,7 @@ class GenerateAbsWidget(QWidget):
 
     def initGUI(self):
         layout = QVBoxLayout()
+        splitter = QSplitter(Qt.Vertical)
         grid = QGridLayout()
 
         validator = QDoubleValidator()
@@ -5695,26 +5726,65 @@ class GenerateAbsWidget(QWidget):
             grid.addWidget(b, v[0], v[1])
 
         self.template = QComboBox(self)
-        templist = ['Slesing', 'VanDenBerk', 'HST', 'const', 'spectrum']
-        self.template.addItems(templist)
-        ind = templist.index(self.gen_template) if self.gen_template in templist else 0
+        self.templist = ['Slesing', 'VanDenBerk', 'HST', 'const', 'spectrum']
+        self.template.addItems(self.templist)
+        ind = self.templist.index(self.gen_template) if self.gen_template in self.templist else 0
         self.template.setCurrentIndex(ind)
+        self.template.currentTextChanged.connect(self.onChanged)
         grid.addWidget(self.template, 0, 1)
 
         self.snr = QCheckBox('SNR')
         self.snr.setChecked(True)
         grid.addWidget(self.snr, 6, 2)
 
-        layout.addLayout(grid)
+        widget = QWidget()
+        widget.setLayout(grid)
+        splitter.addWidget(widget)
+
+        grid_boot = QGridLayout()
+        names = ['num:', '',
+                 'tau limit:', '',
+                 ]
+        positions = [(i, j) for i in range(7) for j in range(2)]
+
+        for position, name in zip(positions, names):
+            if name == '':
+                continue
+            grid_boot.addWidget(QLabel(name), *position)
+
+        self.opt_but = OrderedDict([('gen_num', [0, 1]), ('gen_tau', [1, 1])
+                                    ])
+        for opt, v in self.opt_but.items():
+            b = QLineEdit(str(getattr(self, opt)))
+            b.setFixedSize(100, 30)
+            b.setValidator(validator)
+            b.textChanged[str].connect(partial(self.onChanged, attr=opt))
+            grid_boot.addWidget(b, v[0], v[1])
+
+        widget = QWidget()
+        widget.setLayout(grid_boot)
+        splitter.addWidget(widget)
+        splitter.setSizes([700, 500])
+
+        layout.addWidget(splitter)
+
         layout.addStretch(1)
 
         l = QHBoxLayout()
+        self.bootButton = QPushButton("Boot")
+        self.bootButton.clicked[bool].connect(self.boot)
+        self.bootButton.setFixedSize(100, 30)
+        self.showButton = QPushButton("Show")
+        self.showButton.clicked[bool].connect(self.showBoot)
+        self.showButton.setFixedSize(100, 30)
         self.okButton = QPushButton("Generate")
         self.okButton.clicked[bool].connect(self.generate)
         self.okButton.setFixedSize(100, 30)
         self.cancelButton = QPushButton("Cancel")
         self.cancelButton.clicked[bool].connect(self.close)
         self.cancelButton.setFixedSize(100, 30)
+        l.addWidget(self.bootButton)
+        l.addWidget(self.showButton)
         l.addStretch(1)
         l.addWidget(self.okButton)
         l.addWidget(self.cancelButton)
@@ -5725,6 +5795,8 @@ class GenerateAbsWidget(QWidget):
         self.show()
 
     def onChanged(self, text, attr=None):
+        if text in self.templist:
+            attr = 'gen_template'
         if attr is not None:
             setattr(self, attr, self.opts[attr](text))
 
@@ -5738,6 +5810,91 @@ class GenerateAbsWidget(QWidget):
                              Av=self.gen_Av, z_Av=self.gen_z_Av)
 
         self.close()
+
+    def boot(self):
+        if 1:
+            res, lnprobs = [], []
+        else:
+            with open('temp/res.pickle', 'rb') as f:
+                res = pickle.load(f)
+        snr = self.gen_snr if self.snr.isChecked() else None
+
+        self.parent.fit.save()
+
+        for i in range(self.gen_num):
+            print(i)
+            self.parent.normalize(False)
+            if self.parent.s.ind is not None:
+                self.parent.s.remove(self.parent.s.ind)
+            self.parent.fit.load()
+            self.parent.generate(template='const', z=self.parent.fit.sys[0].z.val, fit=True,
+                                 xmin=self.gen_xmin, xmax=self.gen_xmax,
+                                 resolution=self.gen_resolution, snr= snr,
+                                 lyaforest=self.gen_lyaforest, lycutoff=False, Av=self.gen_Av, z_Av=self.gen_z_Av, redraw=True)
+            self.parent.normalize(True)
+            if i == 0:
+                self.parent.s.prepareFit(all=True)
+                self.parent.s.calcFit(redraw=False)
+                s = self.parent.s[self.parent.s.ind]
+                m = s.fit.y() < np.exp(-self.gen_tau)
+                m[0] = False
+                m[-1] = False
+                regions = []
+                regs = np.argwhere(np.abs(np.diff(m)))
+                for r in range(0, len(regs), 2):
+                    xmin, xmax = s.fit.x()[regs[r]], s.fit.x()[regs[r + 1]]
+                    # print(xmin, xmax)
+                    for line in self.parent.abs.activelist:
+                        if xmin < line.line.l() * (1 + self.parent.fit.sys[0].z.val) < xmax:
+                            regions.append([xmin, xmax])
+
+            s = self.parent.s[self.parent.s.ind]
+            for r in regions:
+                s.add_points(r[0], 1.5, r[1], -0.5, remove=False, redraw=False)
+            s.set_fit_mask()
+            self.parent.s.prepareFit(all=False)
+
+            if 1:
+                dof, x, unc = self.parent.julia.fitLM(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add, tieds=self.parent.fit.tieds)
+                res.append(x)
+                self.parent.s.calcFit(redraw=False)
+                lnprobs.append(self.parent.s.chi2())
+            else:
+                self.parent.fitAbs(timer=False)
+                s = self.fit.fromJulia(res, unc)
+                res.append([self.parent.fit.getValue(str(p)) for p in self.parent.fit.list_fit()])
+
+        print(lnprobs)
+        with open('temp/res.pickle', 'wb') as f:
+            pickle.dump([str(p) for p in self.parent.fit.list_fit()], f)
+            pickle.dump(res, f)
+            pickle.dump(lnprobs, f)
+
+        self.parent.fit.load()
+
+    def showBoot(self):
+        with open('temp/res.pickle', 'rb') as f:
+            names = [name.replace('_', ' ') for name in pickle.load(f)]
+            res = np.asarray(pickle.load(f))
+            lnprobs = np.asarray(pickle.load(f))
+
+        c = ChainConsumer()
+        c.add_chain(res, parameters=names)
+        c.configure(smooth=True,
+                    colors=['g'],
+                    # cmap='Reds',
+                    # marker_size=2,
+                    cloud=True,
+                    shade=True,
+                    sigmas=[0, 1, 2, 3],
+                    )
+        c.configure_truth(ls='--', lw=1., c='black')  # c='darkorange')
+
+        fig = c.plotter.plot(figsize=(20, 20),
+                             # filename="output/fit.png",
+                             display=True,
+                             truth=[self.parent.fit.getValue(str(p)) for p in self.parent.fit.list_fit()],
+                             )
 
     def closeEvent(self, ev):
         for opt, func in self.opts.items():
@@ -6316,7 +6473,7 @@ class sviewer(QMainWindow):
 
         fitGrid = QAction('&Grid fit', self)
         fitGrid.setStatusTip('Brute force calculation on the grid of parameters')
-        fitGrid.triggered.connect(partial(self.fitGrid, num=None))
+        fitGrid.triggered.connect(partial(self.profileLikelihood, num=None))
 
         fitCont = QAction('&Fit with cont...', self)
         fitCont.setStatusTip('Fit with cont unc')
@@ -6615,29 +6772,18 @@ class sviewer(QMainWindow):
                 samplesMenu.addMenu(IGMspecMenu)
 
         # >>> create Generate Menu items
-        loadSDSSmedian = QAction('&load VanDen Berk', self)        
-        loadSDSSmedian.setStatusTip('load median spectrum from SDSS (VanDen Berk et al. 2001)')
-        loadSDSSmedian.triggered.connect(self.loadSDSSmedian)
-        
-        loadHSTmedian = QAction('&load HST', self)        
-        loadHSTmedian.setStatusTip('load median spectrum from HST 2001')
-        loadHSTmedian.triggered.connect(self.loadHSTmedian)
-        
-        addAbsSystem = QAction('&add system', self)        
-        addAbsSystem.setStatusTip('add absorption system')
+        addAbsSystem = QAction('&Generate with model', self)
+        addAbsSystem.setStatusTip('generate spectrum based on the current fit model')
         addAbsSystem.triggered.connect(self.add_abs_system)
         
-        addDustSystem = QAction('&add dust', self)        
-        addDustSystem.setStatusTip('add dust')
+        addDustSystem = QAction('&Appy dust extinction', self)
+        addDustSystem.setStatusTip('apply dust extinction')
         addDustSystem.triggered.connect(self.add_dust_system)
 
         colorColorPlot = QAction('&color-color', self)
-        colorColorPlot.setStatusTip('show color-color plot')
+        colorColorPlot.setStatusTip('show color-color generation module')
         colorColorPlot.triggered.connect(self.colorColorPlot)
 
-        generateMenu.addAction(loadSDSSmedian)
-        generateMenu.addAction(loadHSTmedian)
-        generateMenu.addSeparator()
         generateMenu.addAction(addAbsSystem)
         generateMenu.addAction(addDustSystem)
         generateMenu.addSeparator()
@@ -7872,8 +8018,7 @@ class sviewer(QMainWindow):
                 par.fit = False
         print(self.fit.list_fit())
 
-
-    def fitGrid(self, num=None):
+    def profileLikelihood(self, num=None, line=None):
         if not self.normview:
             self.normalize()
         self.s.prepareFit(all=all)
@@ -9355,7 +9500,7 @@ class sviewer(QMainWindow):
         self.generateAbs = GenerateAbsWidget(self)
         
     def add_dust_system(self):
-        self.generateAbs = GenerateAbsWidget(self)
+        pass
 
     def generate(self, template='current', z=0, fit=True, xmin=3500, xmax=10000, resolution=2000, snr=None,
                  lyaforest=0.0, lycutoff=True, Av=0.0, Av_bump=0.0, z_Av=0.0, redraw=True):

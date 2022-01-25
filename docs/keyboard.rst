@@ -60,14 +60,18 @@ Keybord bindings
 
 * **h**: choose lya
    
-   * **h + LEFT CLICK**         :  set redshift for lya line to be at the position of mouse
+   * **h + LEFT CLICK** on line label        :  highlight all the line labels corresponding to species of selected line label 
 
 * **j**: show the dispersion of the model fit from MCMC
-a
+
 * **k**: add line to the fixed line group
 
    * **k + MOUSE LEFT CLICK** on  line Label         :  add line label to highlighted fixed line group.  
+
+* **l**: choose lya
    
+   * **l + LEFT CLICK**         :  set redshift for lya line to be at the position of mouse
+
 * **m**: smooth spectrum
 
    * **m + MOUSE WHEEL FORWARD**      :  increase smoothness 
@@ -84,11 +88,6 @@ a
    
    * **p + two LEFT CLICKs**     :  create partial coverage line
 
-* **q**: continuum
-   
-   * **q**                              :  make continuum in window using smoothing
-   * **q + CRTL**                       :  show composite QSO continuum
-           
 * **r**: select region:
    
    * **r + <select by mouse>**          :  add region (how to work with regions see Tutorial)
@@ -103,6 +102,11 @@ a
 * **t**: show fit results:
    
    * **t + CTRL**                       :  show/hide fit result window
+
+* **q**: continuum
+   
+   * **q**                              :  make continuum in window using smoothing
+   * **q + CRTL**                       :  show composite QSO continuum
 
 * **u**: find doublet:
    
@@ -120,6 +124,10 @@ a
    
    * **s + <select by mouse>**          :  select bad pixels
    * **s + SHIFT + <select by mouse>**  :  unselect bad pixels
+
+* **y**: profile lieklihood:
+   
+   * **y + LEFT CLICK** on line label  :  show profile likelihood region in (logN, b) parameters for selected line label. The grid range is taken from fit model window.
 
 * z: zoom mode:
    

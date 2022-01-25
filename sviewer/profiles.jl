@@ -185,8 +185,6 @@ function get_element_name(name)
 end
 
 function doppler(name, turb, kin)
-    println(name)
-    println(get_element_name(name))
     name = get_element_name(name)
     if name == "D"
         mass = 2
@@ -775,7 +773,7 @@ function fitLM(spec, p_pars, add; tieds=Dict())
     lower = [p.min for (k, p) in pars if p.vary == true]
     upper = [p.max for (k, p) in pars if p.vary == true]
 
-    println(params, " ", lower, " ", upper)
+    #println(params, " ", lower, " ", upper)
     fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=50, lower=lower, upper=upper, show_trace=true, x_tol=1e-3)
     param, sigma, covar = copy(fit.param), stderror(fit), estimate_covar(fit)
 
