@@ -1307,7 +1307,7 @@ class preferencesWidget(QWidget):
             self.grid.addWidget(self.specview, ind, 1)
 
             ind += 1
-            self.grid.addWidget(QLabel('Fitting points view:'), ind, 0)
+            self.grid.addWidget(QLabel('Fitting pixels view:'), ind, 0)
             self.selectview = QComboBox()
             self.selectview.addItems(['points', 'color', 'regions'])
             self.selectview.setCurrentText(self.parent.selectview)
@@ -5843,7 +5843,6 @@ class GenerateAbsWidget(QWidget):
                 regs = np.argwhere(np.abs(np.diff(m)))
                 for r in range(0, len(regs), 2):
                     xmin, xmax = s.fit.x()[regs[r]], s.fit.x()[regs[r + 1]]
-                    # print(xmin, xmax)
                     for line in self.parent.abs.activelist:
                         if xmin < line.line.l() * (1 + self.parent.fit.sys[0].z.val) < xmax:
                             regions.append([xmin, xmax])
@@ -5864,7 +5863,6 @@ class GenerateAbsWidget(QWidget):
                 s = self.fit.fromJulia(res, unc)
                 res.append([self.parent.fit.getValue(str(p)) for p in self.parent.fit.list_fit()])
 
-        print(lnprobs)
         with open('temp/res.pickle', 'wb') as f:
             pickle.dump([str(p) for p in self.parent.fit.list_fit()], f)
             pickle.dump(res, f)
@@ -8114,9 +8112,9 @@ class sviewer(QMainWindow):
                 lnL = np.zeros((pg2.size, pg1.size))
                 for i1, v1 in enumerate(pg1):
                     print(i1)
-                    self.fit.setValue(p1, v1)
+                    self.fit.setValue(p1, v1, check=False)
                     for i2, v2 in enumerate(pg2):
-                        self.fit.setValue(p2, v2)
+                        self.fit.setValue(p2, v2, check=False)
                         self.s.prepareFit(ind=ind, exp_ind=exp_ind, all=True)
                         self.s.calcFit(ind=ind, exp_ind=exp_ind, recalc=True)
                         lnL[i2, i1] = self.s.chi2(exp_ind=exp_ind)
@@ -8136,8 +8134,8 @@ class sviewer(QMainWindow):
             for k, v in addinfo.items():
                 self.fit.setValue(k, v, 'addinfo')
             self.normalize(False)
-            self.s.remove(self.s.ind)
-            self.s.redraw()
+            #self.s.remove(self.s.ind)
+            #self.s.redraw()
         plt.show()
 
     def fitLM(self):

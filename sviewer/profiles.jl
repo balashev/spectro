@@ -573,12 +573,6 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
     end
 
     for line in spec.lines[line_mask]
-        i_min, i_max = binsearch(spec.x, line.l * (1 - 6 * x_instr), type="min"), binsearch(spec.x, line.l * (1 + 6 * x_instr), type="max")
-        if i_max - i_min > 1 && i_min > 1
-            for i in i_min:i_max
-                x_grid[i] = max(x_grid[i], round(Int, (spec.x[i] - spec.x[i-1]) / line.l / x_instr * 3))
-            end
-        end
         line.dx = voigt_range(line.a, 0.001 / line.tau0)
         x, r = voigt_step(line.a, line.tau0)
         x = line.l .+ x * line.ld
@@ -590,7 +584,14 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
                     x_grid[i] = max(x_grid[i], Int(floor((spec.x[i+1] - spec.x[i]) / (0.1  / maximum(r[k_min:k_max]) * line.ld)))+1)
                 end
             end
+            i_min, i_max = binsearch(spec.x, x[1] * (1 - 3 * x_instr), type="min"), binsearch(spec.x, x[end] * (1 + 3 * x_instr), type="max")
+            if i_max - i_min > 1 && i_min > 1
+                for i in i_min:i_max
+                    x_grid[i] = max(x_grid[i], round(Int, (spec.x[i] - spec.x[i-1]) / line.l / x_instr * 3))
+                end
+            end
         end
+
     end
 
     if timeit == 1

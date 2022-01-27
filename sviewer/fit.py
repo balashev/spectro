@@ -53,7 +53,7 @@ class par:
         self.right = right
         self.unc = a()
 
-    def set(self, val, attr='val'):
+    def set(self, val, attr='val', check=True):
         if attr == 'unc':
             if isinstance(val, (int, float)):
                 setattr(self, attr, a(self.val, val, self.form))
@@ -65,7 +65,7 @@ class par:
             setattr(self, attr, val)
             if attr == 'vary':
                 self.fit = self.vary
-        if attr == 'val':
+        if attr == 'val' and check:
             return self.check_range()
 
     def check_range(self):
@@ -495,7 +495,7 @@ class fitPars:
         for i, s, in enumerate(self.sys):
             s.ind = i
 
-    def setValue(self, name, val, attr='val'):
+    def setValue(self, name, val, attr='val', check=True):
         s = name.split('_')
         if attr in ['val', 'min', 'max', 'step', 'left', 'right']:
             val = float(val)
@@ -505,16 +505,16 @@ class fitPars:
         if s[0] in ['mu', 'dtoh']:
             if not hasattr(self, s[0]):
                 self.add(s[0])
-            res = getattr(self, s[0]).set(val, attr)
+            res = getattr(self, s[0]).set(val, attr, check=check)
 
         if s[0] in ['me', 'res', 'cf', 'dispz', 'disps', 'hcont']:
             if not hasattr(self, name):
                 self.add(name)
-            res = getattr(self, name).set(val, attr)
+            res = getattr(self, name).set(val, attr, check=check)
         if s[0] in ['cont']:
             if not hasattr(self, name):
                 self.cont.add(name)
-            res = getattr(self, name).set(val, attr)
+            res = getattr(self, name).set(val, attr, check=check)
 
         if s[0] in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
             while len(self.sys) <= int(s[1]):
@@ -522,13 +522,13 @@ class fitPars:
             if s[0] in ['turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
                 if not hasattr(self.sys[int(s[1])], s[0]):
                     self.sys[int(s[1])].add(s[0])
-            res = getattr(self.sys[int(s[1])], s[0]).set(val, attr)
+            res = getattr(self.sys[int(s[1])], s[0]).set(val, attr, check=check)
 
         if s[0] in ['b', 'N']:
             while len(self.sys) <= int(s[1]):
                 self.addSys()
             self.sys[int(s[1])].addSpecies(s[2])
-            res = getattr(self.sys[int(s[1])].sp[s[2]], s[0]).set(val, attr)
+            res = getattr(self.sys[int(s[1])].sp[s[2]], s[0]).set(val, attr, check=check)
 
         return res
 
