@@ -58,10 +58,10 @@ Composite spectrum (object 8 in Figure) indicate a composite spectrum of QSO. Cu
 
 * ``CTRL + LEFT CLICK``: hide composite spectrum.
 
-Fixed Line indicators
+Fixed Line Labels
 ---------------------
 
-Fixed Line indicators (object 9 in Figure) are separate (from objects 2-5) line labels to mark the absorption lines with fixed position, i.e. those positions (i.e. redshifts) do not change with changing of the main redshift in the redshift panel. Usage of this line labels is a convenient way to mark nuisance absorption lines seen in the spectrum (mostly several doublets that ). These lines are usually combined in the groups that allow to add/exclude certain line. Interactions:
+Fixed Line Labels (object 9 in Figure) are separate (from objects 2-5) line labels to mark the absorption lines with fixed position, i.e. those positions (i.e. redshifts) do not change with changing of the main redshift in the redshift panel. Usage of this line labels is a convenient way to mark nuisance absorption lines seen in the spectrum (mostly several doublets that ). These lines are usually combined in the groups that allow to add/exclude certain line. Interactions:
 
 * ``u + LEFT MOUSE BUTTON``: creat line group. 
 

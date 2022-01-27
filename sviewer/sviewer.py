@@ -1298,8 +1298,8 @@ class preferencesWidget(QWidget):
             ind = 0
             self.grid.addWidget(QLabel('Spectrum view:'), ind, 0)
             self.specview = QComboBox()
-            self.viewdict = OrderedDict([('step', 'step'), ('steperr', 'step + err'), ('line', 'lines'),
-                                         ('lineerr', 'lines + err'), ('point', 'points'), ('pointerr', 'points + err')])
+            self.viewdict = OrderedDict([('step', 'step'), ('steperr', 'step + uncert.'), ('line', 'lines'),
+                                         ('lineerr', 'lines + uncert.'), ('point', 'points'), ('pointerr', 'points + uncert.')])
             self.specview.addItems(list(self.viewdict.values()))
             self.specview.setCurrentText(self.viewdict[self.parent.specview])
             self.specview.currentIndexChanged.connect(self.setSpecview)
@@ -1309,7 +1309,7 @@ class preferencesWidget(QWidget):
             ind += 1
             self.grid.addWidget(QLabel('Fitting points view:'), ind, 0)
             self.selectview = QComboBox()
-            self.selectview.addItems(['point', 'color', 'region'])
+            self.selectview.addItems(['points', 'color', 'regions'])
             self.selectview.setCurrentText(self.parent.selectview)
             self.selectview.currentIndexChanged.connect(self.setSelect)
             self.selectview.setFixedSize(120, 30)

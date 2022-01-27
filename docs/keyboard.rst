@@ -9,13 +9,14 @@ Keybord bindings
 ----------------
 
 * **F1**:  show help/Howto.
-* **F2**:  show/hide list of exposures panel.
+* **F2**:  show/hide list of exposures widget.
 * **F3**:  show/hide choose fitted parameters panel.
 * **F4**:  show/hide residuals panel.
-* **F5**:  show/hide plot lines.
-* **F6**:  show/hide MCMC panel.
-* **F8**:  show/hide fit results panel.
+* **F5**:  show/hide plot widget.
+* **F6**:  show/hide MCMC widget.
+* **F8**:  show/hide fit results widget.
 * **F9**:  show/hide 2d spectrum panel.
+* **F11**:  show/hide Preferences menu.
 
 * **a**: add component:
 

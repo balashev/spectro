@@ -70,4 +70,4 @@ Before first use it can be useful to config some variable inside the code which 
 Julia
 -----
 
-Nevertheless that ``Spectro`` can work in the pure python installation, the performance of line profile fitting routines can be significantly enhanced by using ``Julia`` language. For this you need to install ``Julia`` (https://julialang.org/) and PyJulia package in Python. The  ``Spectro`` automatically check and used that Julia is installed. Once ``Julia`` is installed you can choose between ``Python`` and ``Julia`` in  ..Preferences:: menu to perform line profile fitting. 
+Nevertheless that ``Spectro`` can work in the pure python installation, the performance of line profile fitting routines can be significantly enhanced by using ``Julia`` language. For this you need to install ``Julia`` (https://julialang.org/) and PyJulia package in Python. The  ``Spectro`` automatically check that Julia is installed and used it. Once ``Julia`` is installed you can choose between ``Python`` and ``Julia`` to perform line profile fitting using settings avaliable in  :ref:`preferences` menu (``F11`` or ``View/Preferences`` in the main menu). 
