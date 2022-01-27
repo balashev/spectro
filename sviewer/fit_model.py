@@ -49,7 +49,7 @@ class FLineEdit(QLineEdit):
     def calcFit(self):
         print('calcFit')
         if self.var in ['N', 'b', 'z', 'kin', 'turb', 'v', 'c', 'Ntot', 'logn', 'logT']:
-            self.parent.parent.s.reCalcFit(self.parent.tab.currentIndex())
+            self.parent.parent.s.reCalcFit() #self.parent.tab.currentIndex())
         elif self.var in ['mu', 'dtoh'] or any([x in self.var for x in ['me', 'dispz', 'disps', 'res']]):
             self.parent.parent.s.prepareFit()
             self.parent.parent.s.calcFit()

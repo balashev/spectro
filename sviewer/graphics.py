@@ -157,22 +157,23 @@ class Speclist(list):
             t = Timer()
 
         for i, s in enumerate(self):
-            if exp_ind in [-1, i] and hasattr(s, 'fit_lines') and len(s.fit_lines) > 0:
-                if self.parent.fitType == 'regular':
-                    s.calcFit(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
+            if exp_ind in [-1, i]:
+                if hasattr(s, 'fit_lines') and len(s.fit_lines) > 0:
+                    if self.parent.fitType == 'regular':
+                        s.calcFit(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
 
-                elif self.parent.fitType == 'fft':
-                    s.calcFit_fft(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
+                    elif self.parent.fitType == 'fft':
+                        s.calcFit_fft(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
 
-                elif self.parent.fitType == 'fast':
-                    s.calcFit_fast(ind=ind, recalc=recalc, redraw=redraw, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit, timer=timer)
+                    elif self.parent.fitType == 'fast':
+                        s.calcFit_fast(ind=ind, recalc=recalc, redraw=redraw, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit, timer=timer)
 
-                elif self.parent.fitType == 'julia':
-                    s.calcFit_julia(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
+                    elif self.parent.fitType == 'julia':
+                        s.calcFit_julia(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
 
-            else:
-                s.set_fit(x=self[self.ind].spec.raw.x[self[self.ind].cont_mask], y=np.ones_like(self[self.ind].spec.raw.x[self[self.ind].cont_mask]))
-                s.set_gfit()
+                else:
+                    s.set_fit(x=self[self.ind].spec.raw.x[self[self.ind].cont_mask], y=np.ones_like(self[self.ind].spec.raw.x[self[self.ind].cont_mask]))
+                    s.set_gfit()
         if timer:
             t.time('fit ' + self.parent.fitType)
 
@@ -1346,7 +1347,7 @@ class Spectrum():
         # >>> plot fit point:
         self.set_fit_mask()
         if len(self.fit_mask.x()) > 0:
-            if self.parent.selectview == 'point':
+            if self.parent.selectview == 'points':
                 self.points = pg.ScatterPlotItem(x=self.spec.x()[self.fit_mask.x()], y=self.spec.y()[self.fit_mask.x()], size=self.points_size, brush=self.points_brush)
                 self.points.setZValue(3)
                 self.parent.vb.addItem(self.points)
@@ -1363,7 +1364,7 @@ class Spectrum():
                 self.points.setData(x=x, y=y)
                 self.parent.vb.addItem(self.points)
 
-            elif self.parent.selectview == 'region':
+            elif self.parent.selectview == 'regions':
                 self.updateRegions()
 
 
@@ -1484,7 +1485,7 @@ class Spectrum():
             except:
                 pass
         try:
-            if self.parent.selectview == 'region':
+            if self.parent.selectview == 'regions':
                 for r in self.regions:
                     self.parent.vb.removeItem(r)
         except:
@@ -1714,11 +1715,11 @@ class Spectrum():
         x, y = np.copy(self.spec.x()), np.copy(self.spec.y())
         if len(x) > 0:
             y[np.logical_not(self.fit_mask.x())] = np.NaN
-        if self.parent.selectview == 'point' or 'point' in self.parent.specview:
+        if self.parent.selectview == 'points' or 'point' in self.parent.specview:
             self.points.setData(x=x, y=y)
         elif self.parent.selectview == 'color':
             self.points.setData(x=x, y=y, connect='finite')
-        elif self.parent.selectview == 'region':
+        elif self.parent.selectview == 'regions':
             self.updateRegions()
 
     def updateRegions(self):

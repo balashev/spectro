@@ -2862,16 +2862,14 @@ class fitMCMCWidget(QWidget):
 
         #print(mask)
         names = [str(p).replace('_', ' ') for i, p in enumerate(self.parent.fit.list_fit()) if mask[i]]
-        if self.parent.options('MCMC_truths') == 'None':
-            truth = None
-        elif self.parent.options('MCMC_truths') == 'Best Fit':
+        truth = None
+        if self.parent.options('MCMC_truths') == 'Best Fit':
             inds = np.where(lnprobs == np.max(lnprobs))
-            truth = samples[inds[0][0], inds[1][0], :]
+            truth = samples[inds[0][0], inds[1][0], :][np.where(mask)[0]]
         elif self.parent.options('MCMC_truths') == 'Model':
-            truth = np.asarray([self.parent.fit.getValue(par) for par in pars])
+            truth = np.asarray([self.parent.fit.getValue(par) for par in pars])[np.where(mask)[0]]
         elif self.parent.options('MCMC_truths') == 'MAP':
             print('MAP estimate is not currently available')
-            truth = None
         #print('truths:', truth)
         
         if self.parent.options('MCMC_likelihood'):
@@ -2899,7 +2897,7 @@ class fitMCMCWidget(QWidget):
                 fig = c.plotter.plot(figsize=(20, 20),
                                         #filename="output/fit.png",
                                         display=True,
-                                        truth=truth[np.where(mask)[0]]
+                                        truth=truth,
                                         )
             if self.parent.options('MCMC_graph') == 'corner':
                 import corner
@@ -2907,7 +2905,7 @@ class fitMCMCWidget(QWidget):
                                        labels=names,
                                        show_titles=True,
                                        plot_contours=self.parent.options('MCMC_smooth'),
-                                       truths=truth[np.where(mask)[0]],
+                                       truths=truth,
                                        )
                 plt.show()
 
@@ -5873,6 +5871,7 @@ class GenerateAbsWidget(QWidget):
             pickle.dump(lnprobs, f)
 
         self.parent.fit.load()
+        self.parent.s.redraw()
 
     def showBoot(self):
         with open('temp/res.pickle', 'rb') as f:
@@ -8050,18 +8049,21 @@ class sviewer(QMainWindow):
                 s = Spectrum(self, name='temp', resolution=self.s[ind].resolution)
                 s.set_data([self.s[ind].spec.x()[m], self.s[ind].spec.norm.y[m], self.s[ind].spec.norm.err[m]])
                 s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
+                s.cont_mask = np.ones_like(s.spec.raw.x, dtype=bool)
+                s.cont.set_data(s.spec.raw.x, self.s[ind].cont.inter(s.spec.raw.x))
                 self.s.append(s)
-                self.calc_cont()
+                #self.calc_cont()
                 xmin, xmax = t.x[t.tau > 0.03][0], t.x[t.tau > 0.03][-1]
                 self.s[self.s.ind].add_points(xmin, 1.5, xmax, -0.5, remove=False, redraw=False)
                 self.normalize(True)
-                #self.plot.vb.disableAutoRange()
-                #self.s.redraw()
                 ind, exp_ind, all = -1, self.s.ind, True
-                saved_pars = {str(p): p for p in self.fit.list()}
+                #saved_pars = {str(p): p for p in self.fit.list()}
+                self.fit.save()
+                addinfo = {}
                 for p in self.fit.list():
                     if str(p).split('_')[0] in ['b', 'N'] and int(str(p).split('_')[1]) == self.comp and len(str(p).split('_')) > 2 and str(p).split('_')[2].strip() in line.name:
                         if str(p).split('_')[0] == 'b':
+                            addinfo = {str(p): self.fit.getValue(str(p), 'addinfo')}
                             self.fit.setValue(str(p), '', 'addinfo')
                         self.fit.setValue(str(p), 1, 'vary')
                         self.fit.setValue(str(p), 1, 'fit')
@@ -8130,10 +8132,9 @@ class sviewer(QMainWindow):
         self.s.chi2(exp_ind=exp_ind)
 
         if line is not None:
-            for k, v in saved_pars.items():
-                for attr in ['val', 'fit', 'vary', 'addinfo']:
-                    print(k, attr, getattr(v, attr))
-                    self.fit.setValue(k, getattr(v, attr), attr)
+            self.fit.load()
+            for k, v in addinfo.items():
+                self.fit.setValue(k, v, 'addinfo')
             self.normalize(False)
             self.s.remove(self.s.ind)
             self.s.redraw()
