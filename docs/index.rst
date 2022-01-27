@@ -19,4 +19,5 @@ Contents
    fitmodel
    mcmc
    plotlines
+   preferences
    
