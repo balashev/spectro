@@ -1,8 +1,3 @@
-show SiII
-show SiII*
-show SiII
-SiII
-show OIj1
 show OIj2
 FeIIj1
 show FeIIj1
@@ -19,3 +14,8 @@ show NiII
 show NiII
 SiII*
 show SiII*
+show H2 0 1
+show CII*
+show ZnII
+show CrII
+CIII

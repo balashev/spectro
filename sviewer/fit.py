@@ -751,6 +751,10 @@ class fitPars:
         for p, saved in zip(self.pars(), self.saved):
             self.setValue(p, saved.val)
 
+    def shake(self, scale=1):
+        for p in self.list_fit():
+            self.setValue(str(p), p.val + np.random.normal(scale=scale) * p.step, 'val')
+
     def setSpecific(self):
         self.addSys(z=2.8083543)
         self.setValue('b_0_SiIV', 10.6)

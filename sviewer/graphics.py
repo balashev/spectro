@@ -136,7 +136,7 @@ class Speclist(list):
             s.normalize(action=action)
         self.redraw()
 
-    def prepareFit(self, ind=-1, all=True):
+    def prepareFit(self, ind=-1, exp_ind=-1, all=True):
         self.parent.fit.update()
 
         if self.parent.fitType == 'julia':
@@ -144,19 +144,20 @@ class Speclist(list):
             self.parent.julia_pars = self.parent.julia.make_pars(self.parent.fit.list(), tieds=self.parent.fit.tieds)
             self.parent.julia_add = self.parent.julia.prepare_add(self.parent.fit, self.parent.julia_pars)
 
-        for s in self:
-            s.findFitLines(ind, all=all, debug=False)
+        for i, s in enumerate(self):
+            if exp_ind in [-1, i]:
+                s.findFitLines(ind, all=all, debug=False)
 
         if self.parent.fitType == 'julia':
             self.parent.julia_spec = self.parent.julia.prepare(self, self.parent.julia_pars, self.parent.julia_add)
 
-    def calcFit(self, ind=-1, recalc=False, redraw=True, timer=False):
+    def calcFit(self, ind=-1, exp_ind=-1, recalc=False, redraw=True, timer=False):
 
         if timer:
             t = Timer()
 
-        for s in self:
-            if hasattr(s, 'fit_lines') and len(s.fit_lines) > 0:
+        for i, s in enumerate(self):
+            if exp_ind in [-1, i] and hasattr(s, 'fit_lines') and len(s.fit_lines) > 0:
                 if self.parent.fitType == 'regular':
                     s.calcFit(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
 
@@ -175,10 +176,10 @@ class Speclist(list):
         if timer:
             t.time('fit ' + self.parent.fitType)
 
-    def calcFitComps(self, recalc=False):
+    def calcFitComps(self, ind=-1, exp_ind=-1, recalc=False):
         self.refreshFitComps()
-        for s in self:
-            if len(s.fit_lines) > 0:
+        for i, s in enumerate(self):
+            if exp_ind in [i, -1] and len(s.fit_lines) > 0:
                 for sys in self.parent.fit.sys:
                     #print('calcFitComps', sys.ind)
                     if self.parent.fitType == 'regular':
@@ -193,12 +194,12 @@ class Speclist(list):
                     elif self.parent.fitType == 'julia':
                         s.calcFit_julia(ind=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit, timer=False)
 
-    def reCalcFit(self, ind):
-        self.prepareFit(ind=-1)
-        self.calcFit(ind=-1)
-        if ind != -1:
-            self.calcFit(ind=ind)
-        self.chi2()
+    def reCalcFit(self, ind=-1, exp_ind=-1):
+        #self.prepareFit(ind=-1)
+        #self.calcFit(ind=-1)
+        self.prepareFit(ind=ind, exp_ind=exp_ind)
+        self.calcFit(ind=ind, exp_ind=exp_ind)
+        self.chi2(exp_ind=exp_ind)
 
     def refreshFitComps(self):
         for s in self:
@@ -208,20 +209,21 @@ class Speclist(list):
         if self.ind is not None:
             self[self.ind].redrawFitComps()
 
-    def chi2(self):
-        chi2 = np.sum(np.power(self.chi(), 2))
+    def chi2(self, exp_ind=-1):
+        chi2 = np.sum(np.power(self.chi(exp_ind=exp_ind), 2))
         n = 0
-        for s in self:
-            if hasattr(s, 'fit_mask') and s.fit_mask is not None:
+        for i, s in enumerate(self):
+            if exp_ind in [-1, i] and hasattr(s, 'fit_mask') and s.fit_mask is not None:
                 n += np.sum(s.fit_mask.x())
 
         self.parent.chiSquare.setText('  chi2 / dof = {0:.2f} / {1:d}'.format(chi2, int(n - len(self.parent.fit.list_fit()))))
         return chi2
 
-    def chi(self):
+    def chi(self, exp_ind=-1):
         chi = np.asarray([])
-        for s in self:
-            chi = np.append(chi, s.chi())
+        for i, s in enumerate(self):
+            if exp_ind in [-1, i]:
+                chi = np.append(chi, s.chi())
         return chi
 
     def selectCosmics(self):
@@ -292,7 +294,6 @@ class Speclist(list):
         self.redraw()
 
     def minmax(self):
-
         minv, maxv = self[0].spec.x()[0], self[0].spec.x()[0]
         for s in self:
             minv = np.min([minv, s.spec.x()[0]])

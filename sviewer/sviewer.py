@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
 from multiprocessing import Process
 import numdifftools as nd
+import pandas as pd
 import pickle
 import os
 import platform
@@ -5827,6 +5828,7 @@ class GenerateAbsWidget(QWidget):
             if self.parent.s.ind is not None:
                 self.parent.s.remove(self.parent.s.ind)
             self.parent.fit.load()
+            self.parent.fit.shake()
             self.parent.generate(template='const', z=self.parent.fit.sys[0].z.val, fit=True,
                                  xmin=self.gen_xmin, xmax=self.gen_xmax,
                                  resolution=self.gen_resolution, snr= snr,
@@ -6158,6 +6160,7 @@ class sviewer(QMainWindow):
         self.VandelsFile = self.options('VandelsFile', config=self.config)
         self.KodiaqFile = self.options('KodiaqFile', config=self.config)
         self.UVESfolder = self.options('UVESfolder', config=self.config)
+        self.ErositaFile = self.options('ErositaFile', config=self.config)
         self.IGMspecfile = self.options('IGMspecfile', config=self.config)
         self.MCMC_output = 'output/mcmc.hdf5'
         self.z_abs = 0
@@ -6744,6 +6747,13 @@ class sviewer(QMainWindow):
                 UVES.setStatusTip('load QSO sample from UVES ADP')
                 UVES.triggered.connect(self.showUVES)
 
+            Erosita = None
+            if self.ErositaFile is not None and os.path.isfile(self.ErositaFile):
+                Erosita = QAction('&Erosita-SDSS', self)
+                Erosita.setStatusTip('load Erosita-SDSS matched sample')
+                Erosita.triggered.connect(self.showErosita)
+            print(self.ErositaFile, Erosita)
+
             IGMspecMenu = None
             if self.IGMspecfile is not None and os.path.isfile(self.IGMspecfile):
                 IGMspecMenu = QMenu('&IGMspec', self)
@@ -6767,6 +6777,8 @@ class sviewer(QMainWindow):
                 samplesMenu.addAction(Kodiaq)
             if UVES is not None:
                 samplesMenu.addAction(UVES)
+            if Erosita is not None:
+                samplesMenu.addAction(Erosita)
             samplesMenu.addSeparator()
             if IGMspecMenu is not None:
                 samplesMenu.addMenu(IGMspecMenu)
@@ -7998,9 +8010,9 @@ class sviewer(QMainWindow):
         f = not self.normview
         if f:
             self.normalize()
-        self.s.prepareFit(ind, all=all)
-        self.s.calcFit(ind, redraw=True)
-        self.s.calcFitComps()
+        self.s.prepareFit(ind=ind, all=all)
+        self.s.calcFit(ind=ind, redraw=True)
+        self.s.calcFitComps(ind=ind)
         self.s.chi2()
         if f:
             self.normalize()
@@ -8021,61 +8033,110 @@ class sviewer(QMainWindow):
     def profileLikelihood(self, num=None, line=None):
         if not self.normview:
             self.normalize()
-        self.s.prepareFit(all=all)
 
-        if len(self.fit.list_fit()) == 1:
-            p = str(self.fit.list_fit()[0])
-            print(p)
-            if num is not None:
-                pg = np.linspace(self.fit.getValue(p, 'min'), self.fit.getValue(p, 'max'), num)
-            else:
-                pg = np.linspace(self.fit.getValue(p, 'min'), self.fit.getValue(p, 'max'), int((self.fit.getValue(p, 'max') - self.fit.getValue(p, 'min')) / self.fit.getValue(p, 'step'))+1)
-            lnL = np.zeros(pg.size)
-            for i, v in enumerate(pg):
-                print(i, v)
-                self.fit.setValue(p, v)
-                self.s.prepareFit(all=False)
-                self.s.calcFit(recalc=True)
-                lnL[i] = self.s.chi2()
+        if line is not None:
+            print(line.l(), line.f(), line.name)
+            if line.name in self.fit.sys[self.comp].sp.keys():
+                line.logN = self.fit.sys[self.comp].sp[line.name].N.max
+                line.b = self.fit.sys[self.comp].sp[line.name].b.max
+                line.z = self.fit.sys[self.comp].z.val
+                t = tau(line=line)
+                t.calctau(verbose=False)
+                xmin, xmax = t.x[0] - (t.x[-1] - t.x[0]), t.x[-1] + (t.x[-1] - t.x[0])
 
-            d = distr1d(pg, np.exp(np.min(lnL.flatten())-lnL))
-            d.dopoint()
-            d.plot(conf=0.683)
+                self.normalize(False)
+                ind = self.s.ind
+                m = (self.s[ind].spec.x() > xmin) * (self.s[ind].spec.x() < xmax)
+                s = Spectrum(self, name='temp', resolution=self.s[ind].resolution)
+                s.set_data([self.s[ind].spec.x()[m], self.s[ind].spec.norm.y[m], self.s[ind].spec.norm.err[m]])
+                s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
+                self.s.append(s)
+                self.calc_cont()
+                xmin, xmax = t.x[t.tau > 0.03][0], t.x[t.tau > 0.03][-1]
+                self.s[self.s.ind].add_points(xmin, 1.5, xmax, -0.5, remove=False, redraw=False)
+                self.normalize(True)
+                #self.plot.vb.disableAutoRange()
+                #self.s.redraw()
+                ind, exp_ind, all = -1, self.s.ind, True
+                saved_pars = {str(p): p for p in self.fit.list()}
+                for p in self.fit.list():
+                    if str(p).split('_')[0] in ['b', 'N'] and int(str(p).split('_')[1]) == self.comp and len(str(p).split('_')) > 2 and str(p).split('_')[2].strip() in line.name:
+                        if str(p).split('_')[0] == 'b':
+                            self.fit.setValue(str(p), '', 'addinfo')
+                        self.fit.setValue(str(p), 1, 'vary')
+                        self.fit.setValue(str(p), 1, 'fit')
+                    else:
+                        self.fit.setValue(str(p), 0, 'fit')
+        else:
+            ind, exp_ind, all = -1, -1, True
 
-            self.fit.setValue(p, d.point)
+        #self.s.prepareFit(ind=ind, all=all)
 
-        if len(self.fit.list_fit()) == 2:
-            p1, p2 = str(self.fit.list_fit()[0]), str(self.fit.list_fit()[1])
-            psv1, psv2 = self.fit.getValue(p1), self.fit.getValue(p2)
+        if 1:
+            if len(self.fit.list_fit()) == 1:
+                p = str(self.fit.list_fit()[0])
+                print(p)
+                if num is not None:
+                    pg = np.linspace(self.fit.getValue(p, 'min'), self.fit.getValue(p, 'max'), num)
+                else:
+                    pg = np.linspace(self.fit.getValue(p, 'min'), self.fit.getValue(p, 'max'), int((self.fit.getValue(p, 'max') - self.fit.getValue(p, 'min')) / self.fit.getValue(p, 'step'))+1)
+                lnL = np.zeros(pg.size)
+                for i, v in enumerate(pg):
+                    print(i, v)
+                    self.fit.setValue(p, v)
+                    self.s.prepareFit(ind=ind, exp_ind=exp_ind, all=False)
+                    self.s.calcFit(ind=ind, exp_ind=exp_ind, recalc=True)
+                    lnL[i] = self.s.chi2(exp_ind=exp_ind)
 
-            if num is not None:
-                pg1 = np.linspace(self.fit.getValue(p1, 'min'), self.fit.getValue(p1, 'max'), num)
-                pg2 = np.linspace(self.fit.getValue(p2, 'min'), self.fit.getValue(p2, 'max'), num)
-            else:
-                pg1 = np.linspace(self.fit.getValue(p1, 'min'), self.fit.getValue(p1, 'max'), int((self.fit.getValue(p1, 'max') - self.fit.getValue(p1, 'min')) / self.fit.getValue(p1, 'step'))+1)
-                pg2 = np.linspace(self.fit.getValue(p2, 'min'), self.fit.getValue(p2, 'max'), int((self.fit.getValue(p2, 'max') - self.fit.getValue(p2, 'min')) / self.fit.getValue(p2, 'step'))+1)
-            print(pg1, pg2)
-            lnL = np.zeros((pg2.size, pg1.size))
-            for i1, v1 in enumerate(pg1):
-                print(i1)
-                self.fit.setValue(p1, v1)
-                for i2, v2 in enumerate(pg2):
-                    self.fit.setValue(p2, v2)
-                    self.s.prepareFit(all=False)
-                    self.s.calcFit(recalc=True)
-                    lnL[i2, i1] = self.s.chi2()
+                d = distr1d(pg, np.exp(np.min(lnL.flatten())-lnL))
+                d.dopoint()
+                d.plot(conf=0.683)
 
+                self.fit.setValue(p, d.point)
 
-            d = distr2d(pg1, pg2, np.exp(np.min(lnL.flatten())-lnL))
-            #d = distr2d(pg1, pg2, np.exp(- lnL / np.min(lnL.flatten())))
-            d.plot_contour(conf_levels=[0.683, 0.954], xlabel=p1, ylabel=p2)
+            if len(self.fit.list_fit()) == 2:
+                p1, p2 = str(self.fit.list_fit()[0]), str(self.fit.list_fit()[1])
+                psv1, psv2 = self.fit.getValue(p1), self.fit.getValue(p2)
 
-            self.fit.setValue(p1, d.point[0])
-            self.fit.setValue(p2, d.point[1])
+                if num is not None:
+                    pg1 = np.linspace(self.fit.getValue(p1, 'min'), self.fit.getValue(p1, 'max'), num)
+                    pg2 = np.linspace(self.fit.getValue(p2, 'min'), self.fit.getValue(p2, 'max'), num)
+                else:
+                    if 1:
+                        pg1 = np.linspace(self.fit.getValue(p1, 'val') - 3 * self.fit.getValue(p1, 'step'), self.fit.getValue(p1, 'val') + 3 * self.fit.getValue(p1, 'step'), 20)
+                        pg2 = np.linspace(self.fit.getValue(p2, 'val') - 3 * self.fit.getValue(p2, 'step'), self.fit.getValue(p2, 'val') + 3 * self.fit.getValue(p2, 'step'), 20)
+                    else:
+                        pg1 = np.linspace(self.fit.getValue(p1, 'min'), self.fit.getValue(p1, 'max'), int((self.fit.getValue(p1, 'max') - self.fit.getValue(p1, 'min')) / self.fit.getValue(p1, 'step'))+1)
+                        pg2 = np.linspace(self.fit.getValue(p2, 'min'), self.fit.getValue(p2, 'max'), int((self.fit.getValue(p2, 'max') - self.fit.getValue(p2, 'min')) / self.fit.getValue(p2, 'step'))+1)
+                print(pg1, pg2)
+                lnL = np.zeros((pg2.size, pg1.size))
+                for i1, v1 in enumerate(pg1):
+                    print(i1)
+                    self.fit.setValue(p1, v1)
+                    for i2, v2 in enumerate(pg2):
+                        self.fit.setValue(p2, v2)
+                        self.s.prepareFit(ind=ind, exp_ind=exp_ind, all=True)
+                        self.s.calcFit(ind=ind, exp_ind=exp_ind, recalc=True)
+                        lnL[i2, i1] = self.s.chi2(exp_ind=exp_ind)
 
-        self.s.calcFit(recalc=True, redraw=True)
-        self.s.chi2()
+                d = distr2d(pg1, pg2, np.exp(np.min(lnL.flatten())-lnL))
+                #d = distr2d(pg1, pg2, np.exp(- lnL / np.min(lnL.flatten())))
+                d.plot_contour(conf_levels=[0.683, 0.954], xlabel=p1.replace('_', ' '), ylabel=p2.replace('_', ' '))
 
+                self.fit.setValue(p1, d.point[0])
+                self.fit.setValue(p2, d.point[1])
+
+        self.s.calcFit(ind=ind, exp_ind=exp_ind, recalc=True, redraw=True)
+        self.s.chi2(exp_ind=exp_ind)
+
+        if line is not None:
+            for k, v in saved_pars.items():
+                for attr in ['val', 'fit', 'vary', 'addinfo']:
+                    print(k, attr, getattr(v, attr))
+                    self.fit.setValue(k, getattr(v, attr), attr)
+            self.normalize(False)
+            self.s.remove(self.s.ind)
+            self.s.redraw()
         plt.show()
 
     def fitLM(self):
@@ -8293,8 +8354,8 @@ class sviewer(QMainWindow):
     def calc_cont(self):
         x = self.plot.vb.getState()['viewRange'][0]
         self.s[self.s.ind].calcCont(method='Smooth', xl=x[0], xr=x[-1], iter=3, clip=3, filter='hanning',
-                                           window=int(np.sum((self.s[self.s.ind].spec.x() > x[0]) * (self.s[self.s.ind].spec.x() < x[-1])) / 5)
-                                          )
+                                    window=int(np.sum((self.s[self.s.ind].spec.x() > x[0]) * (self.s[self.s.ind].spec.x() < x[-1])) / 2),
+                                    )
 
     def fitCheb(self, typ='cheb'):
         """
@@ -9410,7 +9471,7 @@ class sviewer(QMainWindow):
             dtype = [('plate', np.int_), ('MJD', np.int_), ('fiber', np.int_),
                      ('z_DLA', np.float_), ('HI', np.float_)]
 
-            self.DLAdata = np.genfromtxt('C:/science/Noterdaeme/GarnettDLAs/DLA22.dat', unpack=True, dtype=dtype)
+            self.DLAdata = np.genfromtxt('C:/science/Noterdaeme/DLAs/DLA_catalogs/Garnett/Garnett_ESDLAs/DLA22.dat', unpack=False, dtype=dtype)
             self.statusBar.setText('P94 list was loaded')
 
         if len(self.DLAdata) > 0:
@@ -9424,7 +9485,7 @@ class sviewer(QMainWindow):
             with open(filename) as f:
                 n = np.min([len(line.split()) for line in f])
 
-            self.Lyadata = np.genfromtxt(filename, names=True, unpack=True, usecols=range(n), delimiter='\t',
+            self.Lyadata = np.genfromtxt(filename, names=True, unpack=False, usecols=range(n), delimiter='\t',
                                          dtype = ('U20', 'U20', 'U20', float, float, float, float, float, float, float, float, 'U100'),
                                          )
             self.statusBar.setText('Lya sample was loaded')
@@ -9437,7 +9498,7 @@ class sviewer(QMainWindow):
 
         filename = self.options('Lyasamplefile').replace('sample.dat', 'lines.dat')
         if os.path.isfile(filename):
-            self.Lyalines = np.genfromtxt(filename, names=True, unpack=True,
+            self.Lyalines = np.genfromtxt(filename, names=True, unpack=False,
                                          dtype = (float, float, float, float, float, float, float, 'U20', 'U30', 'U30'),
                                          )
             self.statusBar.setText('Lya lines data was loaded')
@@ -9466,6 +9527,12 @@ class sviewer(QMainWindow):
         data = np.genfromtxt(self.UVESfolder+'list.dat', names=True, delimiter='\t',
                              dtype=('U20', '<f8', '<f8', '<i4', '<i4', 'U5', 'U20', 'U200'))
         self.UVESTable.setdata(data)
+
+    def showErosita(self):
+        df = pd.read_csv(self.ErositaFile)
+        data = df[['SDSS_NAME_fl', 'PLATE_fl', 'MJD_fl', 'FIBERID_fl', 'Z_fl', 'RA_fin', 'DEC_fin', 'srcname_fin', 'ML_FLUX_0', 'ML_FLUX_ERR_0', 'DET_LIKE_0']].to_records(index=False)
+        self.ErositaTable = QSOlistTable(self, 'Erosita', folder=os.path.dirname(self.ErositaFile))
+        self.ErositaTable.setdata(data)
 
     def showIGMspec(self, cat, data=None):
         self.IGMspecTable = IGMspecTable(self, cat)
@@ -9563,6 +9630,7 @@ class sviewer(QMainWindow):
         if snr is not None:
             s.spec.set(y=s.spec.raw.y + s.cont.y * np.random.normal(0.0, 1.0 / snr, s.spec.raw.n))
             s.spec.set(err=s.cont.y / snr)
+            s.spec.raw.interpolate()
 
         if redraw:
             self.s.redraw()

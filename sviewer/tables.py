@@ -224,6 +224,11 @@ class QSOlistTable(pg.TableWidget):
             self.setWindowTitle('KODIAQ DR2 catalog')
         if self.cat == 'UVES':
             self.setWindowTitle('UVES ADP QSO catalog')
+        if self.cat == 'Erosita':
+            self.setWindowTitle('Erosita-SDSS sample')
+            self.format = {'SDSS_NAME_fl': '%s', 'PLATE_ID': '%5d', 'MJD_fl': '%5d', 'FIBERID_fl': '%4d', 'Z_fl': '%.6f',
+                           'RA_fin': '%.7f', 'DEC_fin': '%.7f', 'srcname_fin': '%s', 'ML_FLUX_0': '%.4e',
+                           'ML_FLUX_ERR_0': '%.4e', 'DET_LIKE_0': '%.3f'}
         if self.cat is None:
             self.setWindowTitle('QSO list of files')
         self.cellDoubleClicked.connect(self.row_clicked)
@@ -257,6 +262,11 @@ class QSOlistTable(pg.TableWidget):
             self.contextMenu.addSeparator()
             self.contextMenu.addAction('Show header').triggered.connect(self.showHeader)
             self.cellChanged.connect(self.saveUVES)
+        if self.cat == 'Erosita':
+            self.contextMenu.addSeparator()
+            #self.contextMenu.addAction('Show header').triggered.connect(self.showHeader)
+            #self.cellChanged.connect(self.saveUVES)
+
     def setdata(self, data):
         self.data = data
         #print(self.data.dtype)
@@ -308,8 +318,7 @@ class QSOlistTable(pg.TableWidget):
                     self.parent.exportSpectrum(folder + plate + filename)
                     z_QSO, z_DLA, nHI = self.cell_value('z_QSO', row=i), self.cell_value('z_DLA', row=i), self.cell_value('NHI', row=i)
                     f.write('{:47} {:20} {:4} {:5} {:4} {:5} {:5}    {:5} \n'.format(plate + filename, plate + '-' + MJD + '-' + fiber,
-                                                                                     plate, MJD, fiber, z_QSO, z_DLA,
-                                                                                     nHI))
+                                                                                     plate, MJD, fiber, z_QSO, z_DLA, nHI))
 
     def makeStackSDSS(self):
         x = np.linspace(1000, 1600, 1800)
@@ -746,6 +755,14 @@ class QSOlistTable(pg.TableWidget):
                 mask = y != np.nan
                 self.parent.importSpectrum(self.cell_value('name'), spec=[x[mask], y[mask]])
                 self.parent.vb.enableAutoRange()
+
+        if 'Erosita' == self.cat:
+            if colInd == 0:
+                print(int(self.cell_value('PLATE_fl')), int(self.cell_value('MJD_fl')), int(self.cell_value('FIBERID_fl')))
+                self.parent.loadSDSS(plate=int(self.cell_value('PLATE_fl')), MJD=int(self.cell_value('MJD_fl')), fiber=int(self.cell_value('FIBERID_fl')))
+                self.parent.setz_abs(self.cell_value('Z_fl'))
+                # self.parent.s[-1].resolution = 2000
+                self.parent.statusBar.setText('Spectrum is imported: ' + self.parent.s[-1].filename)
 
         if load_spectrum:
 
