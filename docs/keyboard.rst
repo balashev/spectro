@@ -125,9 +125,9 @@ Keybord bindings
    * **s + <select by mouse>**          :  select bad pixels
    * **s + SHIFT + <select by mouse>**  :  unselect bad pixels
 
-* **y**: profile lieklihood:
+* **y**: likelihood region:
    
-   * **y + LEFT CLICK** on line label  :  show profile likelihood region in (logN, b) parameters for selected line label. The grid range is taken from fit model window.
+   * **y + LEFT CLICK** on line label  :  show a region of likelihood in (logN, b) parameter space for selected line label. The grid range is taken from fit model window as .
 
 * z: zoom mode:
    
