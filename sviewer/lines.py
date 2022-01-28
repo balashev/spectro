@@ -277,7 +277,8 @@ class LineLabel(pg.TextItem):
             if self.active and str(self.line) not in self.parent.parent.lines:
                 self.parent.parent.lines.add(str(self.line) + ' exp_' + str(self.parent.parent.s.ind))
             if not self.active:
-                self.parent.parent.lines.remove(str(self.line))
+                if str(self.line) in [' '.join(l.split()[:2]) for l in self.parent.parent.lines]:
+                    self.parent.parent.lines.pop([' '.join(l.split()[:2]) for l in self.parent.parent.lines].index(str(self.line)))
             ev.accept()
         else:
             if QApplication.keyboardModifiers() == Qt.ShiftModifier:
@@ -324,6 +325,8 @@ class LineLabel(pg.TextItem):
             elif self.parent.parent.plot.y_status:
                 self.parent.parent.plot.y_status = False
                 self.parent.parent.profileLikelihood(line=self.line)
+
+        self.update()
 
     def showInfo(self, show=None):
         if show is not None:

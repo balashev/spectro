@@ -32,11 +32,12 @@ Keybord bindings
   
 * **c**: component mode:
    
-   * **c**                              :  show/select next component
+   * **c** or **c + RIGHT ARROW**      :  show/select next component
+   * **c + LEFT ARROW**                :  show/select previous component
    * **c + CTRL**                       :  continuum fit options window
    * **c + SHIFT**                      :  change show component mode (none, one, all)
-   * **c + LEFT CLICK**               :  shift comnonent center at the position (line indicator have to be selected)
-   * **c + MOUSE WHEEL**              :  increase/decrease b parameter of the component
+   * **c + LEFT CLICK**                :  shift comnonent center at the position (line indicator have to be selected)
+   * **c + MOUSE WHEEL**               :  increase/decrease b parameter of the component
    * **c + <mouse drag>**               :  increase/decrease column density of the component 
 
 * **d**: deselect data points:

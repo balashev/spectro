@@ -1,7 +1,7 @@
 .. _preferences:
 
-Preference menu
-===============
+Preferences menu
+================
 
 Some of the global preference can be accessed/changed using Preferences menu. To open it please use ``F11`` or ``View/Preferences`` in the main menu.   
 
@@ -37,7 +37,7 @@ Provide setting that control the fit plofile calculation and appearence:
 
 * **tau limit**: set the characteristic limit until which the optical depth is calculated.
 
-* **Fit method**: choose the minimization method for least-squares estimation. This settings pass directly to ``minimize`` routine in ``optimize`` package within ``lmfit`` package. Works only for fit calculation using python.
+* **Fit method**: choose the minimization method for least-squares estimation. This setting pass directly to ``minimize`` routine in ``optimize`` package within ``lmfit`` package. Works only for fit calculation using python.
 
 * **Fit components**: choose the representation of individual fit component (besides the total fit profile). This also access by ``C + SHIFT``. Can be: 
 
