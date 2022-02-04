@@ -5827,7 +5827,6 @@ class GenerateAbsWidget(QWidget):
             if self.parent.s.ind is not None:
                 self.parent.s.remove(self.parent.s.ind)
             self.parent.fit.load()
-            self.parent.fit.shake()
             self.parent.generate(template='const', z=self.gen_z, fit=True,
                                  xmin=self.gen_xmin, xmax=self.gen_xmax,
                                  resolution=self.gen_resolution, snr= snr,
@@ -5854,6 +5853,9 @@ class GenerateAbsWidget(QWidget):
             s.set_fit_mask()
             self.parent.s.prepareFit(all=False)
 
+            self.parent.fit.shake()
+            self.parent.fit.update()
+
             if 1:
                 dof, x, unc = self.parent.julia.fitLM(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add, tieds=self.parent.fit.tieds)
                 res.append(x)
@@ -5861,7 +5863,7 @@ class GenerateAbsWidget(QWidget):
                 lnprobs.append(self.parent.s.chi2())
             else:
                 self.parent.fitAbs(timer=False)
-                s = self.fit.fromJulia(res, unc)
+                self.parent.fit.fromJulia(res, unc)
                 res.append([self.parent.fit.getValue(str(p)) for p in self.parent.fit.list_fit()])
 
         with open('temp/res.pickle', 'wb') as f:

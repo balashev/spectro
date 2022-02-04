@@ -769,16 +769,16 @@ function fitLM(spec, p_pars, add; tieds=Dict())
 
     pars = make_pars(p_pars, tieds=tieds, z_ref=true)
 
-    println("fitLM ", pars)
+    #println("fitLM ", pars)
     params = [p.val for (k, p) in pars if p.vary == true]
     lower = [p.min for (k, p) in pars if p.vary == true]
     upper = [p.max for (k, p) in pars if p.vary == true]
 
     #println(params, " ", lower, " ", upper)
-    fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=50, lower=lower, upper=upper, show_trace=true, x_tol=1e-3)
+    fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=100, lower=lower, upper=upper, show_trace=true, x_tol=1e-3)
     param, sigma, covar = copy(fit.param), stderror(fit), estimate_covar(fit)
 
-    println(dof(fit))
+    #println(dof(fit))
     i = 1
     for (k, p) in pars
         if p.vary == true
