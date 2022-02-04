@@ -745,11 +745,17 @@ class fitPars:
         return s
 
     def save(self):
-        self.saved = [copy(l) for l in self.list()]
+        self.saved = OrderedDict()
+        for k, v in self.pars().items():
+            p = copy(v)
+            for attr in ['val', 'min', 'max', 'step', 'addinfo']:
+                setattr(p, attr, copy(getattr(v, attr)))
+            self.saved[k] = p
 
     def load(self):
-        for p, saved in zip(self.pars(), self.saved):
-            self.setValue(p, saved.val)
+        for k in self.pars().keys():
+            for attr in ['val', 'min', 'max', 'step', 'addinfo']:
+                self.setValue(k, getattr(self.saved[k], attr), attr)
 
     def shake(self, scale=1):
         for p in self.list_fit():

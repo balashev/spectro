@@ -1,12 +1,3 @@
-show FeI
-FeI
-show CI
-show CI
-show NiII
-high CIV
-show NiII
-show NiII
-show NiII
 SiII*
 show SiII*
 show H2 0 1
@@ -19,3 +10,12 @@ LiI
 LiII
 stats
 stats
+show H2 0 1
+show H2 0 1
+show CI
+show CI
+hide CI
+SII
+FeI
+SiI
+MgI

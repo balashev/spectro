@@ -234,6 +234,7 @@ class ISM():
         if kind[0] == 'cosmicray':
             # >> from Bialy+2019
             x_e = self.x_e()
+            #print(self.p('n'), x_e)
             return self.p('CR') * 6.43 * 1.602e-12 * (1 + 4.06 * (x_e / (x_e + 0.07)) ** 0.5) * self.p('n') * (1 + x_e)
 
         if kind[0] == 'photo_c':

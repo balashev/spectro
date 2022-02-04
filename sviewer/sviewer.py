@@ -46,6 +46,7 @@ from ..stats import distr1d, distr2d
 from ..XQ100 import load_QSO
 from .console import *
 from .external import spectres
+from .erosita import *
 from .fit_model import *
 from .fit import *
 from .graphics import *
@@ -5827,7 +5828,7 @@ class GenerateAbsWidget(QWidget):
                 self.parent.s.remove(self.parent.s.ind)
             self.parent.fit.load()
             self.parent.fit.shake()
-            self.parent.generate(template='const', z=self.parent.fit.sys[0].z.val, fit=True,
+            self.parent.generate(template='const', z=self.gen_z, fit=True,
                                  xmin=self.gen_xmin, xmax=self.gen_xmax,
                                  resolution=self.gen_resolution, snr= snr,
                                  lyaforest=self.gen_lyaforest, lycutoff=False, Av=self.gen_Av, z_Av=self.gen_z_Av, redraw=True)
@@ -6197,6 +6198,7 @@ class sviewer(QMainWindow):
         self.rescale_ind = 0
         self.composite_status = False
         self.message = None
+        self.ErositaWidget = None
 
     def initUI(self):
         
@@ -9528,10 +9530,8 @@ class sviewer(QMainWindow):
         self.UVESTable.setdata(data)
 
     def showErosita(self):
-        df = pd.read_csv(self.ErositaFile)
-        data = df[['SDSS_NAME_fl', 'PLATE_fl', 'MJD_fl', 'FIBERID_fl', 'Z_fl', 'RA_fin', 'DEC_fin', 'srcname_fin', 'ML_FLUX_0', 'ML_FLUX_ERR_0', 'DET_LIKE_0']].to_records(index=False)
-        self.ErositaTable = QSOlistTable(self, 'Erosita', folder=os.path.dirname(self.ErositaFile))
-        self.ErositaTable.setdata(data)
+        if self.ErositaWidget is None:
+            self.ErositaWidget = ErositaWidget(self)
 
     def showIGMspec(self, cat, data=None):
         self.IGMspecTable = IGMspecTable(self, cat)
@@ -9586,7 +9586,7 @@ class sviewer(QMainWindow):
                 fill_value = 'extrapolate'
             elif template == 'const':
                 data = np.ones((2, 10))
-                data[0] = np.linspace(xmin/(1+z), xmax/(1+z), 10)
+                data[0] = np.linspace(xmin / (1 + z), xmax / (1 + z), 10)
                 fill_value = 1
             data[0] *= (1 + z)
             inter = interp1d(data[0], data[1], bounds_error=False, fill_value=fill_value, assume_sorted=True)

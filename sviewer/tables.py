@@ -226,8 +226,8 @@ class QSOlistTable(pg.TableWidget):
             self.setWindowTitle('UVES ADP QSO catalog')
         if self.cat == 'Erosita':
             self.setWindowTitle('Erosita-SDSS sample')
-            self.format = {'SDSS_NAME_fl': '%s', 'PLATE_ID': '%5d', 'MJD_fl': '%5d', 'FIBERID_fl': '%4d', 'Z_fl': '%.6f',
-                           'RA_fin': '%.7f', 'DEC_fin': '%.7f', 'srcname_fin': '%s', 'ML_FLUX_0': '%.4e',
+            self.format = {'SDSS_NAME_fl': '%s', 'PLATE_fl': '%5d', 'MJD_fl': '%5d', 'FIBERID_fl': '%4d', 'z': '%.6f',
+                           'RA_fin': '%.7f', 'DEC_fin': '%.7f', 'srcname_fin': '%s', 'F_X_int': '%.4e',
                            'ML_FLUX_ERR_0': '%.4e', 'DET_LIKE_0': '%.3f'}
         if self.cat is None:
             self.setWindowTitle('QSO list of files')
@@ -520,7 +520,6 @@ class QSOlistTable(pg.TableWidget):
                     else:
                         print(line.replace('\n', ''))
 
-
     def row_clicked(self, row=None):
 
         colInd = self.currentItem().column()
@@ -758,11 +757,21 @@ class QSOlistTable(pg.TableWidget):
 
         if 'Erosita' == self.cat:
             if colInd == 0:
-                print(int(self.cell_value('PLATE_fl')), int(self.cell_value('MJD_fl')), int(self.cell_value('FIBERID_fl')))
-                self.parent.loadSDSS(plate=int(self.cell_value('PLATE_fl')), MJD=int(self.cell_value('MJD_fl')), fiber=int(self.cell_value('FIBERID_fl')))
-                self.parent.setz_abs(self.cell_value('Z_fl'))
+                if all([self.columnIndex(name) is not None for name in ['PLATE_fl', 'FIBERID_fl', 'MJD_fl']]):
+                    self.parent.loadSDSS(plate=int(self.cell_value('PLATE_fl')), MJD=int(self.cell_value('MJD_fl')), fiber=int(self.cell_value('FIBERID_fl')))
+                    self.parent.statusBar.setText('Spectrum is imported: ' + self.parent.s[-1].filename)
+                elif self.columnIndex('SDSS_NAME_fl') is not None:
+                    self.parent.loadSDSS(name=self.cell_value('SDSS_NAME_fl'))
+                    self.parent.statusBar.setText('Spectrum is imported: ' + self.parent.s[-1].filename)
+                if self.columnIndex('z') is not None:
+                    self.parent.setz_abs(self.cell_value('z'))
+                    if self.parent.composite_status:
+                        self.parent.composite.z = float(self.cell_value('z'))
+                        self.parent.composite.calc_scale()
+                        self.parent.composite.redraw()
+                if self.parent.ErositaWidget is not None:
+                    self.parent.ErositaWidget.index(name=self.cell_value('SDSS_NAME_fl'))
                 # self.parent.s[-1].resolution = 2000
-                self.parent.statusBar.setText('Spectrum is imported: ' + self.parent.s[-1].filename)
 
         if load_spectrum:
 
@@ -825,7 +834,21 @@ class QSOlistTable(pg.TableWidget):
         if self.columnIndex(columnname) is not None:
             cell = self.item(row, self.columnIndex(columnname)).text()   # get cell at row, col
             return cell
-    
+
+    def getColumnData(self, column):
+        ind = self.columnIndex(column)
+        if ind is not None:
+            return [self.item(row, ind).text() for row in range(self.rowCount())]
+
+    def getRowIndex(self, column=None, value=None):
+        d = self.getColumnData(column)
+        if d is not None and value in d:
+            return d.index(value)
+
+    def selectRow(self, row):
+        for col in range(self.columnCount()):
+            self.item(row, col).setSelected(True)
+
     def show_H2_cand(self):
         
         self.mw = MatplotlibWidget(size=(200, 100), dpi=100)
