@@ -1155,6 +1155,8 @@ class atomicData(OrderedDict):
                     'OIII 4363',
                     'OIII 2320',
                     'OIII 2331',
+                    'OIII 3122',
+                    'OIII 3133',
                     'OII 3727',
                     'OII 3729',
                     'NII 6549',
@@ -1165,8 +1167,15 @@ class atomicData(OrderedDict):
                     'HeI 4471',
                     'HeI 4026',
                     'HeI 3888',
+                    'HeII 4687',
+                    'HeII 3204',
+                    'HeII 2734',
                     'SII 6718',
-                    'SII 6732'
+                    'SII 6732',
+                    'NeV 3346',
+                    'NeV 3426',
+                    'NeIII 3869',
+                    'NeIII 3968',
                     ]
         if lines:
             return self.list(linelist=linelist)

@@ -6,6 +6,7 @@ Created on Tue Aug 23 19:20:44 2016
 """
 import astropy.convolution as conv
 from astropy import constants as const
+from extinction import fitzpatrick99
 import matplotlib.pyplot as plt
 from numba import jit
 import numpy as np
@@ -571,9 +572,10 @@ def add_ext(x, z_ext=0, Av=0, kind='SMC'):
         et = {'SMC': 2, 'LMC': 6}
         data = np.genfromtxt('data/extinction.dat', skip_header=3, usecols=[0, et[kind]], unpack=True)
         inter = interp1d(data[0]*1e4, data[1], fill_value='extrapolate')
-    elif kind == 'MW':
-        pass
-    return np.exp(- 0.92 * Av * inter(x / (1 + z_ext)))
+        return np.exp(- 0.92 * Av * inter(x / (1 + z_ext)))
+
+    elif kind in ['MW', 'fitzpatrick99']:
+        return 10 ** (-0.4 * fitzpatrick99(np.asarray(x, dtype=float64) / (1 + z_ext), Av))
 
 def add_ext_bump(x, z_ext=0, Av=0, Av_bump=0):
     print(Av, Av_bump)

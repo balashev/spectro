@@ -325,6 +325,8 @@ mutable struct line
     ld::Float64
     dx::Float64
     cf::Int64
+    stack::Int64
+    stv::Dict{}
 end
 
 function update_lines(lines, pars; ind=0)
@@ -347,6 +349,9 @@ function update_lines(lines, pars; ind=0)
         line.tau0 = sqrt(π) * 0.008447972556327578 * (line.lam * 1e-8) * line.f * 10 ^ line.logN / (line.b * 1e5)
         line.a = line.g / 4 / π / line.b / 1e5 * line.lam * 1e-8
         line.ld = line.lam * line.b / 299794.26 * (1 + line.z)
+        if line.stack > -1
+            line.stv = Dict([s => pars[s * "_" * string(line.stack)].val for s in ["sts", "stNl", "stNu"]])
+        end
         append!(mask, (ind == 0) || (line.sys == ind-1))
     end
     return mask
@@ -355,7 +360,7 @@ end
 function prepare_lines(lines)
     fit_lines = Vector{line}(undef, size(lines)[1])
     for (i, l) in enumerate(lines)
-        fit_lines[i] = line(l.name, l.sys, l.l(), l.f(), l.g(), l.b, l.logN, l.z, l.l()*(1+l.z), 0, 0, 0, 0, l.cf)
+        fit_lines[i] = line(l.name, l.sys, l.l(), l.f(), l.g(), l.b, l.logN, l.z, l.l()*(1+l.z), 0, 0, 0, 0, l.cf, l.stack, Dict())
     end
     return fit_lines
 end
@@ -459,7 +464,7 @@ function pyratio_predict(pr, pars)
 end
 
 function update_coll_rate(pr, pars)
-    f_He = 0.08
+    f_He = 0 #0.08
     for i in 1:pr.num
         for j in 1:pr.num
             pr.coll_rate[i, j] = 0
@@ -548,6 +553,19 @@ function correct_continuum(conts, pars, x)
          #end
     end
     return c
+end
+
+function line_profile(line, x; toll=1e-6)
+    if line.stack == -1
+        return exp.( - line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x .- line.l) ./ line.ld)))
+    else
+        tau = line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x .- line.l) ./ line.ld))
+        tau_low =  tau .* 10 ^ (line.stv["stNl"] - line.logN)
+        tau_up = tau .* 10 ^ (line.stv["stNu"] - line.logN)
+        p = (exp.(- tau_low) .- exp.(- tau_up) .* 10 ^ ((line.stv["stNu"] - line.stv["stNl"]) * (line.stv["sts"] + 1)) .- (gamma.(line.stv["sts"] + 2, tau_low) .- gamma.(line.stv["sts"] + 2, tau_up)) ./ tau_low .^ (line.stv["sts"] + 1)) ./ (1 - 10 ^ ((line.stv["stNu"]-line.stv["stNl"]) * (line.stv["sts"] + 1)))
+        p[p .< toll] .= toll
+        return p
+    end
 end
 
 function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
@@ -648,7 +666,8 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
         y = ones(size(x))
         for line in spec.lines[line_mask]
             i_min, i_max = binsearch(x, line.l - line.dx * line.ld, type="min"), binsearch(x, line.l + line.dx * line.ld, type="max")
-            @. @views y[i_min:i_max] = y[i_min:i_max] .* exp.(-1 .* line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x[i_min:i_max] .- line.l) ./ line.ld)))
+            t = line_profile(line, x[i_min:i_max])
+            @. @views y[i_min:i_max] = y[i_min:i_max] .* t
         end
     else
         y = zeros(size(x))
@@ -657,23 +676,23 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
             append!(cfs, line.cf)
             append!(inds, i)
         end
-        #println(cfs, inds)
         for l in unique(cfs)
             if l > -1
                 cf = pars["cf_" * string(l)].val
             else
                 cf = 1
             end
-            #println(l, " ", cf)
             profile = zeros(size(x))
             for (i, c) in zip(inds, cfs)
                 if c == l
                     line = spec.lines[line_mask][i]
                     i_min, i_max = binsearch(x, line.l - line.dx * line.ld, type="min"), binsearch(x, line.l + line.dx * line.ld, type="max")
-                    @. @views profile[i_min:i_max] -= line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x[i_min:i_max] .- line.l) ./ line.ld))
+                    t = line_profile(line, x[i_min:i_max])
+                    @. @views profile[i_min:i_max] += log.(t)
                 end
             end
-            y += log.(exp.(profile) .* cf .+ (1 .- cf))
+            #y += log.(exp.(profile) .* cf .+ (1 .- cf))
+            y += real.(log.(exp.(profile) .* cf .+ (1 .- cf) .+ 0im))
         end
         y = exp.(y)
     end

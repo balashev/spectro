@@ -1,6 +1,7 @@
 from adjustText import adjust_text
 import astroplan
 import astropy.coordinates
+from astropy.cosmology import Planck15
 from astropy.io import ascii, fits
 from astropy.table import Table
 import astropy.time
@@ -31,8 +32,10 @@ from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget,
                              QStatusBar, QMenu, QButtonGroup, QMessageBox, QToolButton, QColorDialog)
 from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl, QTimer, pyqtSignal, QObject, QPropertyAnimation
 from PyQt5.QtGui import QDesktopServices, QPainter, QFont, QColor, QIcon
+from scipy.interpolate import interp1d, UnivariateSpline
 from scipy.special import erf
 from scipy.stats import gaussian_kde
+import sfdmap
 from shutil import copyfile
 import subprocess
 import tarfile
@@ -253,7 +256,14 @@ class plotSpectrum(pg.PlotWidget):
             if event.key() == Qt.Key_E:
                 if (QApplication.keyboardModifiers() == Qt.ControlModifier):
                     self.parent.s.remove(self.parent.s.ind)
+
+                if self.w_region is not None and not event.isAutoRepeat():
+                    for attr in ['w_region', 'w_label']:
+                        if hasattr(self, attr):
+                            self.vb.removeItem(getattr(self, attr))
+                    self.w_region = None
                 else:
+                    self.vb.setMouseMode(self.vb.RectMode)
                     self.e_status = True
 
             if event.key() == Qt.Key_F:
@@ -352,8 +362,9 @@ class plotSpectrum(pg.PlotWidget):
                 
             if event.key() == Qt.Key_W:
                 if self.w_region is not None and not event.isAutoRepeat():
-                    self.vb.removeItem(self.w_region)
-                    self.vb.removeItem(self.w_label)
+                    for attr in ['w_region', 'w_label']:
+                        if hasattr(self, attr):
+                            self.vb.removeItem(getattr(self, attr))
                     self.w_region = None
                 else:
                     self.vb.setMouseMode(self.vb.RectMode)
@@ -488,7 +499,7 @@ class plotSpectrum(pg.PlotWidget):
             if event.key() == Qt.Key_Z:
                 self.z_status = False
         
-            if any([event.key() == getattr(Qt, 'Key_'+s) for s in 'ABCDRSXZ']):
+            if any([event.key() == getattr(Qt, 'Key_'+s) for s in 'ABCDERSWXZ']):
                 self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
 
@@ -511,7 +522,7 @@ class plotSpectrum(pg.PlotWidget):
             self.regions.add(sort=False)
 
     def mouseReleaseEvent(self, event):
-        if any([getattr(self, s+'_status') for s in 'abcdrsuwx']):
+        if any([getattr(self, s+'_status') for s in 'abcdersuwx']):
             self.vb.setMouseMode(self.vb.PanMode)
             self.vb.rbScaleBox.hide()
         else:
@@ -631,7 +642,11 @@ class plotSpectrum(pg.PlotWidget):
                     self.u_status = False
                 #self.u_status += 1
 
-        if self.w_status:
+        if self.w_status or self.e_status:
+            for attr in ['w_region', 'w_label']:
+                if hasattr(self, attr) and getattr(self, attr) is not None:
+                    self.vb.removeItem(getattr(self, attr))
+
             s = self.parent.s[self.parent.s.ind]
             mask = np.logical_and(s.spec.x() > min(self.mousePoint.x(), self.mousePoint_saved.x()),
                                   s.spec.x() < max(self.mousePoint.x(), self.mousePoint_saved.x()))
@@ -649,21 +664,39 @@ class plotSpectrum(pg.PlotWidget):
                         s.fit.interpolate()
                         cont = s.fit.inter
                     curve2 = pg.PlotCurveItem(x=x, y=cont(x), pen=pg.mkPen())
-                    w = np.trapz(1.0 - y / cont(x), x=x)
-                    err_w = np.sqrt(np.sum((s.spec.err()[mask] / cont(x)[:-1:2] * np.diff(x)[::2])**2))
+                    if self.w_status:
+                        w = np.trapz(1.0 - y / cont(x), x=x)
+                        err_w = np.sqrt(np.sum((s.spec.err()[mask] / cont(x)[:-1:2] * np.diff(x)[::2])**2))
+                        text = 'w = {0:0.5f}+/-{1:0.5f}'.format(w, err_w)
+                    else:
+                        w = np.trapz(y - cont(x), x=x)
+                        err_w = np.sqrt(np.sum(((s.spec.err()[mask] - cont(x)[:-1:2]) * np.diff(x)[::2])**2))
+                        text = 'flux = {0:0.5f}+/-{1:0.5f}'.format(w, err_w)
+
                     self.w_region = pg.FillBetweenItem(curve1, curve2, brush=pg.mkBrush(44, 160, 44, 150))
                     self.vb.addItem(self.w_region)
-                    text = 'w = {0:0.5f}+/-{1:0.5f}'.format(w, err_w)
                     if hasattr(self.parent.abs, 'reference'):
-                        #print(self.parent.abs.reference.line.l(), 1 + self.parent.z_abs, (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value)
-                        dv = np.cumsum(np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])))
-                        dv90 = interp1d(dv/dv[-1], (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value, fill_value='extrapolate')
-                        m = np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])) < -0.1
-                        vx = (s.spec.x()[mask][m] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value
-                        text += ', log(w/l)={0:0.2f}, w_r = {1:0.5f}+/-{2:0.5f}, dv90 = {3:0.2f}'.format(np.log10(2 * w / (x[0]+x[-1])), w / (1+self.parent.z_abs), err_w / (1+self.parent.z_abs), dv90(0.95) - dv90(0.05))
-                        if self.parent.s[self.parent.s.ind].resolution not in [0, None]:
-                            text += ', d90_c = {:0.2f}'.format(np.sqrt((dv90(0.95) - dv90(0.05))**2 - (1.4 * ac.c.to('km/s').value / self.parent.s[self.parent.s.ind].resolution)**2))
-                        text += ', dv01={:0.2f}'.format(np.max(vx) - np.min(vx))
+                        if self.w_status:
+                            #print(self.parent.abs.reference.line.l(), 1 + self.parent.z_abs, (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value)
+                            dv = np.cumsum(np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])))
+                            dv90 = interp1d(dv/dv[-1], (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value, fill_value='extrapolate')
+                            m = np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])) < -0.1
+                            vx = (s.spec.x()[mask][m] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value
+                            text += ', log(w/l)={0:0.2f}, w_r = {1:0.5f}+/-{2:0.5f}, dv90 = {3:0.2f}'.format(np.log10(2 * w / (x[0]+x[-1])), w / (1+self.parent.z_abs), err_w / (1+self.parent.z_abs), dv90(0.95) - dv90(0.05))
+                            if self.parent.s[self.parent.s.ind].resolution not in [0, None]:
+                                text += ', d90_c = {:0.2f}'.format(np.sqrt((dv90(0.95) - dv90(0.05))**2 - (1.4 * ac.c.to('km/s').value / self.parent.s[self.parent.s.ind].resolution)**2))
+                            text += ', dv01={:0.2f}'.format(np.max(vx) - np.min(vx))
+                        else:
+                            vx = (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s')
+                            y = s.spec.y()[mask] - cont(s.spec.x()[mask])
+                            spline = UnivariateSpline(vx.value, y - np.max(y) / 2, s=0)
+                            if len(spline.roots()) == 2:
+                                r1, r2 = spline.roots()
+                                text += ', FWHM={:0.1f}'.format(np.abs(r1-r2))
+                            Sv = np.trapz(y, x=vx) * (1e-17 * u.erg / u.cm ** 2 / u.s / u.AA).to(u.Jy, equivalencies=u.spectral_density(self.parent.abs.reference.line.l() * (1 + self.parent.z_abs) * u.AA))
+                            Lnu = 1.04e-3 * Sv.value * (self.parent.abs.reference.line.l() * u.AA).to(u.GHz, equivalencies=u.spectral()).value / (1 + self.parent.z_abs) * Planck15.luminosity_distance(self.parent.z_abs).to('Mpc').value ** 2
+                            text += r', L={:0.1f} L_sun'.format(np.log10(Lnu))
+
                     self.w_label = pg.TextItem(text, anchor=(0, 1), color=(44, 160, 44))
                     self.w_label.setFont(QFont("SansSerif", 14))
                     self.parent.console.set(text)
@@ -863,7 +896,6 @@ class residualsWidget(pg.PlotWidget):
                 kde = gaussian_kde(y)
                 kde_x = np.linspace(np.min(y) - 1, np.max(y) + 1, int((np.max(y) - np.min(y))/0.1))
                 self.parent.s[self.parent.s.ind].kde_local.setData(x=-kde_x, y=kde.evaluate(kde_x))
-
 
 class spec2dWidget(pg.PlotWidget):
     """
@@ -3412,7 +3444,7 @@ class fitExtWidget(QWidget):
     def autoSelect(self):
         s = self.parent.s[self.parent.s.ind]
         z_em = float(self.z_em_value.text())
-        mask = s.spec.x() > 1250 * (1 + z_em)
+        mask = s.spec.x() > 1280 * (1 + z_em)
         if 0:
             y_0 = s.spec.y()[:]
             for factor in range(6):
@@ -3426,15 +3458,27 @@ class fitExtWidget(QWidget):
             s.calcCont(method='Smooth', xl=s.spec.x()[0]-1, xr=s.spec.x()[-1]+1, iter=3, clip=3, filter='hanning', window=window)
             mask *= np.abs((s.spec.y() - s.cont.y) / s.spec.err()) < 2
 
-        windows = [[1318, 1325], [1348, 1360], [1446, 1494], [1682, 1696], [1765, 1771],
-                   [1875, 1884], [2008, 2036], [2124, 2153], [2238, 2257], [2448, 2458], [2482, 2595],
-                   [3021, 3100], [3224, 3248], [3297, 3329], [3356, 3394], [3537, 3554], [3613, 3714], [3832, 3850],
-                   [3898, 3950], [3978, 4050], [4202, 4227], [4260, 4285], [4412, 4469]]
-        m = np.zeros_like(s.spec.x(), dtype=bool)
-        for w in windows:
-            m += (s.spec.x() > w[0] * (1 + z_em)) * (s.spec.x() < w[1] * (1 + z_em))
-        mask *= m
+        if 1:
+            # remove prominent emission lines regions
+            windows = [[1295, 1320], [1330, 1360], [1375, 1430], [1500, 1600], [1625, 1700], [1740, 1760],
+                       [1840, 1960], [2050, 2120], [2250, 2650], [2710, 2890], [2940, 2990], [3280, 3330],
+                       [3820, 3920], [4200, 4680], [4780, 5080], [5130, 5400], [5500, 5620], [5780, 6020],
+                       [6300, 6850], [7600, 8050], [8250, 8300], [8400, 8600], [9000, 9400], [9500, 9700],
+                       [9950, 10200]]
+            for w in windows:
+                mask *= (s.spec.x() < w[0] * (1 + z_em)) + (s.spec.x() > w[1] * (1 + z_em))
 
+        else:
+            windows = [[1318, 1325], [1348, 1360], [1446, 1494], [1682, 1696], [1765, 1771],
+                       [1875, 1884], [2008, 2036], [2124, 2153], [2238, 2257], [2448, 2458], [2482, 2595],
+                       [3021, 3100], [3224, 3248], [3297, 3329], [3356, 3394], [3537, 3554], [3613, 3714], [3832, 3850],
+                       [3898, 3950], [3978, 4050], [4202, 4227], [4260, 4285], [4412, 4469]]
+            m = np.zeros_like(s.spec.x(), dtype=bool)
+            for w in windows:
+                m += (s.spec.x() > w[0] * (1 + z_em)) * (s.spec.x() < w[1] * (1 + z_em))
+            mask *= m
+
+        # remove atmospheric absorption region
         windows = [[5560, 5600], [6865, 6930], [7580, 7690], [9300, 9600], [10150, 10400], [13200, 14600]]
         for w in windows:
             mask *= (s.spec.x() < w[0]) + (s.spec.x() > w[1])
@@ -3462,14 +3506,14 @@ class fitExtWidget(QWidget):
                 y *= add_ext_bump(x=s.spec.raw.x, z_ext=z_abs, Av=Av, Av_bump=Av_bump)
 
         if norm is None:
-            mask = np.logical_and(s.spec.raw.x > 1465 * (1 + z_em), s.spec.raw.x < 1475 * (1 + z_em))
-            norm = np.sum(s.spec.raw.y[mask]) / np.sum(y[mask])
+            norm = np.sum(s.spec.raw.y[s.mask.x()]) / np.sum(y[s.mask.x()])
 
-        y *= norm
-        s.cont.x, s.cont.y = s.spec.raw.x[:], y
-        s.cont.n = len(s.cont.y)
-        s.cont_mask = np.logical_not(np.isnan(s.spec.raw.x))
-        s.redraw()
+        if ~np.isnan(norm):
+            y *= norm
+            s.cont.x, s.cont.y = s.spec.raw.x[:], y
+            s.cont.n = len(s.cont.y)
+            s.cont_mask = np.logical_not(np.isnan(s.spec.raw.x))
+            s.redraw()
 
     def fitExt(self):
         s = self.parent.s[self.parent.s.ind]
@@ -3483,8 +3527,7 @@ class fitExtWidget(QWidget):
             y = temp * add_ext(x=s.spec.raw.x, z_ext=z_abs, Av=params.valuesdict()['Av'], kind=self.ec) * params.valuesdict()['norm']
             return (y[s.fit_mask.x()] - s.spec.raw.y[s.fit_mask.x()]) / s.spec.raw.err[s.fit_mask.x()]
 
-        mask = np.logical_and(s.spec.raw.x > 1465 * (1 + z_em), s.spec.raw.x < 1475 * (1 + z_em))
-        norm = np.sum(s.spec.raw.y[mask]) / np.sum(temp[mask])
+        norm = np.sum(s.spec.raw.y[s.mask.x()]) / np.sum(temp[s.mask.x()])
         print(norm)
         # create a set of Parameters
         params = Parameters()
@@ -6161,7 +6204,8 @@ class sviewer(QMainWindow):
         self.KodiaqFile = self.options('KodiaqFile', config=self.config)
         self.UVESfolder = self.options('UVESfolder', config=self.config)
         self.ErositaFile = self.options('ErositaFile', config=self.config)
-        self.IGMspecfile = self.options('IGMspecfile', config=self.config)
+        self.IGMspecFile = self.options('IGMspecFile', config=self.config)
+        self.SFDMapPath = self.options('SFDMapPath', config=self.config)
         self.MCMC_output = 'output/mcmc.hdf5'
         self.z_abs = 0
         self.lines = lineList(self)
@@ -6198,7 +6242,8 @@ class sviewer(QMainWindow):
         self.extract2dwindow = None
         self.fitContWindow = None
         self.rescale_ind = 0
-        self.composite_status = False
+        self.compositeQSO_status = False
+        self.compositeGal_status = False
         self.message = None
         self.ErositaWidget = None
 
@@ -6567,10 +6612,15 @@ class sviewer(QMainWindow):
         fitCont.setShortcut('Ctrl+C')
         fitCont.triggered.connect(partial(self.fitCont))
 
-        Composite = QAction('&QSO composite', self)
-        Composite.setStatusTip('Show composite qso spectrum')
-        Composite.setShortcut('Ctrl+Q')
-        Composite.triggered.connect(partial(self.showComposite))
+        CompositeQSO = QAction('&QSO composite', self)
+        CompositeQSO.setStatusTip('Show composite qso spectrum')
+        CompositeQSO.setShortcut('Ctrl+Q')
+        CompositeQSO.triggered.connect(partial(self.showCompositeQSO))
+
+        CompositeGal = QAction('&Galaxy template', self)
+        CompositeGal.setStatusTip('Show galaxy template spectrum')
+        CompositeGal.setShortcut('Ctrl+G')
+        CompositeGal.triggered.connect(partial(self.showCompositeGal))
 
         rescaleErrs = QAction('&Adjust errors', self)
         rescaleErrs.setStatusTip('Adjust uncertainties to dispersion in the spectrum')
@@ -6581,7 +6631,8 @@ class sviewer(QMainWindow):
         stackLines.triggered.connect(partial(self.stackLines))
 
         spec1dMenu.addAction(fitCont)
-        spec1dMenu.addAction(Composite)
+        spec1dMenu.addAction(CompositeQSO)
+        spec1dMenu.addAction(CompositeGal)
         spec1dMenu.addAction(rescaleErrs)
         spec1dMenu.addSeparator()
         spec1dMenu.addAction(stackLines)
@@ -6756,11 +6807,11 @@ class sviewer(QMainWindow):
             print(self.ErositaFile, Erosita)
 
             IGMspecMenu = None
-            if self.IGMspecfile is not None and os.path.isfile(self.IGMspecfile):
+            if self.IGMspecFile is not None and os.path.isfile(self.IGMspecFile):
                 IGMspecMenu = QMenu('&IGMspec', self)
                 IGMspecMenu.setStatusTip('Data from IGMspec database')
                 try:
-                    self.IGMspec = h5py.File(self.IGMspecfile, 'r')
+                    self.IGMspec = h5py.File(self.IGMspecFile, 'r')
                     for i in self.IGMspec.keys():
                         item = QAction('&'+i, self)
                         item.triggered.connect(partial(self.showIGMspec, i, None))
@@ -7401,10 +7452,10 @@ class sviewer(QMainWindow):
                 else:
                     hdulist = None
                     if ':' not in filename:
-                        filename = dir_path+filename
+                        filename = dir_path + filename
 
                 if 'IGMspec' in filename:
-                    if self.IGMspecfile is not None:
+                    if self.IGMspecFile is not None:
                         s1 = filename.split('/')
                         data = self.IGMspec[s1[1]]
                         d = np.empty([len(data['meta']['IGM_ID'])], dtype=[('SPEC_FILE', np.str_, 100)])
@@ -7423,7 +7474,7 @@ class sviewer(QMainWindow):
                         try:
                             if 'XSHOOTER' in hdulist[0].header['INSTRUME']:
                                 prihdr = hdulist[1].data
-                                s.set_data([prihdr[0][0][:]*10, prihdr[0][1][:]*1e17, prihdr[0][2][:]*1e17])
+                                s.set_data([prihdr[0][0][:] * 10, prihdr[0][1][:] * 1e17, prihdr[0][2][:] * 1e17])
 
                             if any([instr in hdulist[0].header['INSTRUME'] for instr in ['UVES', 'VIMOS']]):
                                 prihdr = hdulist[1].data
@@ -7435,6 +7486,20 @@ class sviewer(QMainWindow):
                                 if 'DATE-OBS' in hdulist[0].header:
                                     s.date = hdulist[0].header['DATE-OBS']
                                 print(s.resolution, s.date)
+
+                            if 'STIS' in hdulist[0].header['INSTRUME']:
+                                prihdr = hdulist[1].data
+
+                                for k in [0, 1]:
+                                    s = Spectrum(self, name=filename + f'_{k}')
+                                    r = range(k, hdulist[1].header['NAXIS2'], 2)
+                                    s.set_data([np.concatenate([np.r_[prihdr['WAVELENGTH'][i], prihdr['WAVELENGTH'][i][-1]] for i in r]),
+                                                np.concatenate([np.r_[prihdr['FLUX'][i], np.inf] for i in r]) * 1e12,
+                                                np.concatenate([np.r_[prihdr['ERROR'][i], np.inf] for i in r]) * 1e12])
+                                    if k == 0:
+                                        s.wavelmin = np.min(s.spec.raw.x)
+                                        s.wavelmax = np.max(s.spec.raw.x)
+                                        self.s.append(s)
 
                             if 'COS' in hdulist[0].header['INSTRUME']:
                                 prihdr = hdulist[1].data
@@ -7452,6 +7517,7 @@ class sviewer(QMainWindow):
                                             ])
                                 # for l, f, e in zip(prihdr['WAVELENGTH'], prihdr['FLUX'], prihdr['ERROR']):
                                 #    s.set_data()
+
                             if 'ESPRESSO' in hdulist[0].header['INSTRUME']:
                                 prihdr = hdulist[1].data
                                 print(prihdr['WAVE'])
@@ -8843,11 +8909,17 @@ class sviewer(QMainWindow):
         else:
             self.fitContWindow.close()
 
-    def showComposite(self):
-        if self.composite_status % 2 == 0:
-            self.composite = CompositeSpectrum(self, self.z_abs)
+    def showCompositeQSO(self):
+        if self.compositeQSO_status % 2 == 0:
+            self.compositeQSO = CompositeSpectrum(self, kind='QSO', z=self.z_abs)
         else:
-            self.composite.remove()
+            self.compositeQSO.remove()
+
+    def showCompositeGal(self):
+        if self.compositeGal_status % 2 == 0:
+            self.compositeGal = CompositeSpectrum(self, kind='Galaxy', z=self.z_abs)
+        else:
+            self.compositeGal.remove()
 
     def rescale(self):
         if self.rescale_ind == 0:
@@ -9060,14 +9132,26 @@ class sviewer(QMainWindow):
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    def loadSDSS(self, plate=None, MJD=None, fiber=None, name=None, z_abs=0, append=False):
+    def loadSDSS(self, plate=None, MJD=None, fiber=None, name=None, z_abs=0, append=False, gal_ext=True):
         out = True
         if name is not None and len(name) > 0:
             name = name.replace('J', '').replace('SDSS', '').replace(':', '').replace('−', '-').strip()
             ra, dec = (name[:name.index('+')], name[name.index('+'):]) if '+' in name else (name[:name.index('-')], name[name.index('-'):])
             ra, dec = hms_to_deg(ra), dms_to_deg(dec)
         else:
-            plate, fiber = int(plate), int(fiber)
+            plate, MJD, fiber = int(plate), int(MJD), int(fiber)
+            query = aqsdss.SDSS.query_specobj(plate=plate, fiberID=fiber, mjd=MJD)
+            if query is not None and len(query) == 1:
+                ra, dec = query[0]['ra'], query[0]['dec']
+            else:
+                gal_ext = 0
+
+        if gal_ext:
+            Av_gal = 3.1 * sfdmap.SFDMap(self.SFDMapPath).ebv(ra, dec)
+        else:
+            Av_gal = 0
+
+        print('Av_gal:', Av_gal)
         if self.SDSScat == 'DR12':
             try:
                 sdss = self.IGMspec['BOSS_DR12']
@@ -9077,8 +9161,9 @@ class sviewer(QMainWindow):
                 else:
                     ind = np.argmin((sdss['meta']['RA_GROUP'] - ra) ** 2 + (sdss['meta']['DEC_GROUP'] - dec) ** 2)
                 print(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'))
-                self.importSpectrum(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'), spec=[sdss['spec'][ind]['wave'], sdss['spec'][ind]['flux'],
-                                                 sdss['spec'][ind]['sig']], append=append)
+                ext = add_ext(sdss['spec'][ind]['wave'], Av_gal)
+                self.importSpectrum(sdss['meta'][ind]['SPEC_FILE'].decode('UTF-8'), spec=[sdss['spec'][ind]['wave'], sdss['spec'][ind]['flux'] / ext,
+                                                 sdss['spec'][ind]['sig'] / ext], append=append)
                 resolution = int(sdss['meta'][ind]['R'])
             except:
                 out = False
@@ -9095,8 +9180,9 @@ class sviewer(QMainWindow):
                 ind = np.argmin((sdss['meta']['RA'] - ra) ** 2 + (sdss['meta']['DEC'] - dec) ** 2)
             plate, MJD, fiber = sdss['meta']['PLATE'][ind], sdss['meta']['MJD'][ind], sdss['meta']['FIBERID'][ind]
             spec = self.SDSSDR14['data/{0:05d}/{2:04d}/{1:05d}'.format(plate, MJD, fiber)]
+            ext = add_ext(10**spec['loglam'][:], Av_gal)
             self.importSpectrum('spec-{0:05d}-{1:05d}-{2:04d}'.format(plate, MJD, fiber),
-                                spec=[10**spec['loglam'][:], spec['flux'][:], np.sqrt(1.0/spec['ivar'][:])],
+                                spec=[10**spec['loglam'][:], spec['flux'][:] / ext, np.sqrt(1.0/spec['ivar'][:]) / ext],
                                 mask=(spec['and_mask'][:] != 0), append=append)
             resolution = 1800
             #except:
@@ -9108,15 +9194,15 @@ class sviewer(QMainWindow):
             if self.SDSSquery is None:
                 self.SDSSquery = aqsdss.SDSS
             if name is not None and len(name) > 0:
-                print(ra, dec)
                 qso = self.SDSSquery.get_spectra(coordinates=astropy.coordinates.SkyCoord(ra, dec, frame='icrs', unit='deg'))[0]
             else:
                 qso = self.SDSSquery.get_spectra(plate=plate, fiberID=fiber, mjd=MJD)[0]
             #mask = qso[1].data['ivar'] > 0
             if qso is not None:
                 plate, MJD, fiber = qso[0].header['PLATEID'], qso[0].header['MJD'], qso[0].header['FIBERID']
+                ext = add_ext(10 ** qso[1].data['loglam'][:], Av_gal)
                 self.importSpectrum('spec-{0:05d}-{1:05d}-{2:04d}'.format(plate, MJD, fiber),
-                                    spec=[10 ** qso[1].data['loglam'][:], qso[1].data['flux'][:], np.sqrt(1.0 / qso[1].data['ivar'][:])],
+                                    spec=[10 ** qso[1].data['loglam'][:], qso[1].data['flux'][:] / ext, np.sqrt(1.0 / qso[1].data['ivar'][:]) / ext],
                                     mask=qso[1].data['and_mask'], append=append)
                 resolution = 1800
         else:

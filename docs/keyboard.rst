@@ -48,9 +48,11 @@ Keybord bindings
 * **e**: select exposure:
    
    * **e**                              :  select next exposure
-   * **e + KEY_UP / KEY_DOWN**      :  select next/previous exposure
-   * **e + <click on exposure>**          :  choose exposure which is clicked
+   * **e + KEY_UP / KEY_DOWN**          :  select next/previous exposure
+   * **e + KEY_RIGHT / KEY_LEFT**       :  select next/previous exposure
+   * **e + <click on exposure>**        :  choose exposure which is clicked
    * **e + CTRL**                       :  remove exposure 
+   * **e + <select by mouse>**          :  select area to calculate flux, FWHM and luminosity within selected region (e.g for emission line)
 
 * **f**: construct fit
    
@@ -60,7 +62,9 @@ Keybord bindings
    
 * **g**: fit gauss
 
-* **h**: choose lya
+   * **g + CRTL**                       :  show composite Galaxy spectrum (several templates avaliable)
+
+* **h**: highligh labels
    
    * **h + LEFT CLICK** on line label        :  highlight all the line labels corresponding to species of selected line label 
 
@@ -86,10 +90,12 @@ Keybord bindings
    * **o**                              :  change UVES setup 
    * **o + CRTL**                       :  open file
 
-* **p**: partial coverage
+* **p**: partial coverage and polynomial fitting
    
-   * **p + two LEFT CLICKs**     :  create partial coverage line
-
+   * **p + two LEFT CLICKs**            :  create partial coverage line
+   * **p + KEY_UP / KEY_DOWN**          :  fit selected points with polinomial higher degree
+   * **p + KEY_RIGHT / KEY_LEFT**       :  fit selected points with polinomial lower degree
+   
 * **r**: select region:
    
    * **r + <select by mouse>**          :  add region (how to work with regions see Tutorial)
@@ -108,7 +114,7 @@ Keybord bindings
 * **q**: continuum
    
    * **q**                              :  make continuum in window using smoothing
-   * **q + CRTL**                       :  show composite QSO continuum
+   * **q + CRTL**                       :  show composite QSO spectrum (several templates avaliable)
 
 * **u**: find doublet:
    
@@ -119,7 +125,7 @@ Keybord bindings
 * **w**: width of region:
    
    * **w + <select by mouse>**          :  select area to calculate equivalent width of absorption line. Continuum should be set for width calculation!
-   * **w + SHIFT + <select by mouse>** :  select area to calculate equivalent width of absorption line, substracting fit model. (i.e. respective fit model, but no to continuum) 
+   * **w + SHIFT + <select by mouse>**  :  select area to calculate equivalent width of absorption line, substracting fit model. (i.e. respective fit model, but no to continuum) 
    * **w**                              :  hide w-region
   
 * **x**: select bad pixels:

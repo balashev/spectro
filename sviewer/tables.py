@@ -765,12 +765,16 @@ class QSOlistTable(pg.TableWidget):
                     self.parent.statusBar.setText('Spectrum is imported: ' + self.parent.s[-1].filename)
                 if self.columnIndex('z') is not None:
                     self.parent.setz_abs(self.cell_value('z'))
-                    if self.parent.composite_status:
-                        self.parent.composite.z = float(self.cell_value('z'))
-                        self.parent.composite.calc_scale()
-                        self.parent.composite.redraw()
+                    if self.parent.compositeQSO_status % 2:
+                        self.parent.compositeQSO.z = float(self.cell_value('z'))
+                        self.parent.compositeQSO.calc_scale()
+                        self.parent.compositeQSO.redraw()
+                    if self.parent.compositeGal_status % 2:
+                        self.parent.compositeGal.z = float(self.cell_value('z'))
+                        self.parent.compositeGal.calc_scale()
+                        self.parent.compositeGal.redraw()
                 if self.parent.ErositaWidget is not None:
-                    self.parent.ErositaWidget.index(name=self.cell_value('SDSS_NAME_fl'))
+                    self.parent.ErositaWidget.index(name=self.cell_value('SDSS_NAME_fl'), ext=False)
                 # self.parent.s[-1].resolution = 2000
 
         if load_spectrum:

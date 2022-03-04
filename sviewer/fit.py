@@ -23,12 +23,16 @@ class par:
             self.dec = 1
         elif 'disps' in self.name:
             self.dec = 8
+        elif 'sts' in self.name:
+            self.dec = 3
+        elif 'stN' in self.name:
+            self.dec = 2
         else:
-            d = {'z': 7, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3,
-                 'Ntot': 3, 'logn': 3, 'logT': 3, 'logf': 3, 'rad': 3, 'hcont': 3}
+            d = {'z': 7, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3, 'hcont': 3,
+                 'Ntot': 3, 'logn': 3, 'logT': 3, 'logf': 3, 'rad': 3}
             self.dec = d[self.name]
 
-        if self.name in ['N', 'Ntot', 'logn', 'logT', 'rad', 'dtoh', 'me', 'mu']:
+        if self.name in ['N', 'Ntot', 'logn', 'logT', 'rad', 'dtoh', 'me', 'mu', 'sts', 'stNl', 'stNu']:
             self.form = 'l'
         else:
             self.form = 'd'
@@ -413,8 +417,8 @@ class fitPars:
         self.res_num = 0
         self.cf_fit = False
         self.cf_num = 0
-        self.disp_fit = False
         self.disp_num = 0
+        self.stack_num = 0
         self.tieds = {}
 
     def add(self, name):
@@ -436,9 +440,16 @@ class fitPars:
             setattr(self, name, par(self, name, 5000, 3000, 9000, 0.1, addinfo='exp_0'))
         if 'disps' in name:
             setattr(self, name, par(self, name, 1e-5, -1e-4, 1e-4, 1e-6, addinfo='exp_0'))
+        if 'sts' in name:
+            setattr(self, name, par(self, name, -1.5, -2, -1, 0.01))
+        if 'stNl' in name:
+            setattr(self, name, par(self, name, 18, 16, 20, 0.05))
+        if 'stNu' in name:
+            setattr(self, name, par(self, name, 21, 20, 22, 0.05))
+
 
     def remove(self, name):
-        if name in ['mu', 'dtoh', 'hcont'] or any([x in name for x in ['me', 'res', 'cf', 'disp']]):
+        if name in ['mu', 'dtoh', 'hcont'] or any([x in name for x in ['me', 'res', 'cf', 'disp', 'sts', 'stNu', 'stNl']]):
             if hasattr(self, name):
                 delattr(self, name)
         if 'cont_' in name:
@@ -507,7 +518,7 @@ class fitPars:
                 self.add(s[0])
             res = getattr(self, s[0]).set(val, attr, check=check)
 
-        if s[0] in ['me', 'res', 'cf', 'dispz', 'disps', 'hcont']:
+        if s[0] in ['me', 'res', 'cf', 'dispz', 'disps', 'hcont', 'sts', 'stNl', 'stNu']:
             if not hasattr(self, name):
                 self.add(name)
             res = getattr(self, name).set(val, attr, check=check)
@@ -574,11 +585,11 @@ class fitPars:
     def getPar(self, name):
         s = name.split('_')
         par = None
-        if s[0] in ['mu', 'dtoh']:
+        if s[0] in ['mu', 'dtoh', 'hcont']:
             if hasattr(self, s[0]):
                 par = getattr(self, s[0])
 
-        if s[0] in ['me', 'cont', 'res', 'cf', 'dispz', 'disps', 'hcont']:
+        if s[0] in ['me', 'cont', 'res', 'cf', 'dispz', 'disps', 'sts', 'stNl', 'stNu']:
             if hasattr(self, name):
                 par = getattr(self, name)
 
@@ -647,9 +658,16 @@ class fitPars:
                     if hasattr(self, attr):
                         p = getattr(self, attr)
                         pars[str(p)] = p
-            if self.disp_fit and self.disp_num > 0:
+            if self.disp_num > 0:
                 for i in range(self.disp_num):
                     for attr in ['dispz', 'disps']:
+                        attr = attr + '_' + str(i)
+                        if hasattr(self, attr):
+                            p = getattr(self, attr)
+                            pars[str(p)] = p
+            if self.stack_num > 0:
+                for i in range(self.stack_num):
+                    for attr in ['sts', 'stNl', 'stNu']:
                         attr = attr + '_' + str(i)
                         if hasattr(self, attr):
                             p = getattr(self, attr)
@@ -702,8 +720,10 @@ class fitPars:
             attrs = ['val', 'left', 'right', 'step', 'vary', 'addinfo']
             self.parent.plot.add_pcRegion()
         if 'disp' in s[0]:
-            self.disp_fit = True
             self.disp_num = max(self.disp_num, int(s[0][6:]) + 1)
+
+        if 'sts' in s[0]:
+            self.stack_num = max(self.stack_num, int(s[0][4:]) + 1)
 
         for attr, val in zip(reversed(attrs), reversed(s[1:])):
             self.setValue(s[0], val, attr)

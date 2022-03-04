@@ -764,7 +764,7 @@ class plotline():
             sum_cont = np.zeros(len(self.fit.x))
             for k in range(len(self.fit.x)):
                 for l in range(len(self.cont)):
-                    sum_cont[k] = sum_cont[k] + self.cont[l]*np.cos((l)*np.arccos(-1+(self.fit.x[k]-self.cont_range[0])/(self.cont_range[1]-self.cont_range[0])*2))
+                    sum_cont[k] = sum_cont[k] + self.cont[l] * np.cos((l) * np.arccos(-1 + (self.fit.x[k] - self.cont_range[0]) / (self.cont_range[1] - self.cont_range[0]) * 2))
                 self.fit.y = self.fit.y / sum_cont
                 for c in self.fit.comp:
                     c = c / sum_cont

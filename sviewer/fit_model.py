@@ -33,16 +33,16 @@ class FLineEdit(QLineEdit):
             validator.ScientificNotation
             if self.name[:1] == 'z':
                 validator.setDecimals(8)
-            if self.name[:1] in ['b', 'N', 'd', 'm', 'c', 'r', 'l']:
-                validator.setDecimals(5)
+            if self.name[:1] in ['b', 'N', 'd', 'm', 'c', 'r', 'l', 's']:
+                validator.setDecimals(4)
             self.setValidator(validator)
 
     def setLength(self, l=None):
         if l is None:
             if self.name[:1] == 'z':
                 self.setMaxLength(10)
-            if self.name[:1] in ['b', 'N', 'd', 'm', 'c', 'r', 'l']:
-                self.setMaxLength(9)
+            if self.name[:1] in ['b', 'N', 'd', 'm', 'c', 'r', 'l', 's']:
+                self.setMaxLength(7)
         else:
             self.setMaxLength(l)
 
@@ -314,7 +314,7 @@ class fitModelWidget(QWidget):
         self.cont_reg.clicked.connect(self.fromRegions)
         self.treeWidget.setItemWidget(self.cont_m, 5, self.cont_reg)
         self.cont_hier = QTreeWidgetItem(self.cont)
-        self.addChild('cont', 'hcont')
+        self.addChild('cont', 'hcont', text_val='hier factor')
         #self.treeWidget.setItemWidget(self.cont_m, 5, self.cont_reg)
         self.cont.setExpanded(self.parent.fit.cont_fit)
         for i in range(self.parent.fit.cont_num):
@@ -337,7 +337,7 @@ class fitModelWidget(QWidget):
         self.me_num.returnPressed.connect(self.numMeChanged)
         self.treeWidget.setItemWidget(self.me_m, 4, self.me_num)
         for i in range(self.parent.fit.me_num):
-            self.addChild('me', 'me_' + str(i))
+            self.addChild('me', 'me_' + str(i), text_val='Metal. ' + str(i))
 
         self.res = self.addParent(self.treeWidget, 'Resolution', expanded=self.parent.fit.res_num > 0)
         self.res.name = 'res'
@@ -350,7 +350,7 @@ class fitModelWidget(QWidget):
         self.res_num.returnPressed.connect(self.numResChanged)
         self.treeWidget.setItemWidget(self.res_m, 4, self.res_num)
         for i in range(self.parent.fit.res_num):
-            self.addChild('res', 'res_' + str(i))
+            self.addChild('res', 'res_' + str(i), text_val='res ' + str(i))
         #self.res.setExpanded(self.parent.fit.res_fit)
 
         self.cf = self.addParent(self.treeWidget, 'Covering factors', expanded=self.parent.fit.cf_fit)
@@ -364,10 +364,10 @@ class fitModelWidget(QWidget):
         self.cf_num.returnPressed.connect(self.numCfChanged)
         self.treeWidget.setItemWidget(self.cf_m, 4, self.cf_num)
         for i in range(self.parent.fit.cf_num):
-            self.addChild('cf', 'cf_' + str(i))
+            self.addChild('cf', 'cf_' + str(i), text_val='cf ' + str(i))
         self.cf.setExpanded(self.parent.fit.cf_fit)
 
-        self.disp = self.addParent(self.treeWidget, 'Dispersion', expanded=self.parent.fit.disp_fit)
+        self.disp = self.addParent(self.treeWidget, 'Dispersion', expanded=self.parent.fit.disp_num > 0)
         self.disp.name = 'disp'
 
         self.disp_m = QTreeWidgetItem(self.disp)
@@ -378,9 +378,23 @@ class fitModelWidget(QWidget):
         self.disp_num.returnPressed.connect(self.numDispChanged)
         self.treeWidget.setItemWidget(self.disp_m, 4, self.disp_num)
         for i in range(self.parent.fit.disp_num):
-            self.addChild('disp', 'dispz_' + str(i))
-            self.addChild('disp', 'disps_' + str(i))
+            self.addChild('disp', 'dispz_' + str(i), text_val='zero p. ' + str(i))
+            self.addChild('disp', 'disps_' + str(i), text_val='slope ' + str(i))
         #self.disp.setExpanded(self.parent.fit.disp_fit)
+
+        self.stack = self.addParent(self.treeWidget, 'Stack', expanded=self.parent.fit.stack_num > 0)
+        self.stack.name = 'stack'
+        self.stack_m = QTreeWidgetItem(self.stack)
+        self.stack_m.setTextAlignment(3, Qt.AlignRight)
+        self.stack_m.setText(3, 'num: ')
+        self.stack_num = FLineEdit(self, str(self.parent.fit.stack_num))
+        self.stack_num.setFixedSize(30, 30)
+        self.stack_num.returnPressed.connect(self.numStackChanged)
+        self.treeWidget.setItemWidget(self.stack_m, 4, self.stack_num)
+        for i in range(self.parent.fit.stack_num):
+            self.addChild('stack', 'sts_' + str(i), text_val='slope ' + str(i))
+            self.addChild('stack', 'stNl_' + str(i), text_val='N_low ' + str(i))
+            self.addChild('stack', 'stNu_' + str(i), text_val='N_up ' + str(i))
 
         self.treeWidget.itemExpanded.connect(self.stateChanged)
         self.treeWidget.itemCollapsed.connect(self.stateChanged)
@@ -433,17 +447,16 @@ class fitModelWidget(QWidget):
         self.parent.fit.cont[ind].update()
         return item
 
-    def addChild(self, parent, name):
+    def addChild(self, parent, name, text_val='value'):
         if 'cf' in name:
             attr = ['val', 'left', 'right', 'step']
-            sign = ['value: ', 'range: ', '....']
+            sign = [text_val + ': ', 'range: ', '....']
         else:
             attr = ['val', 'min', 'max', 'step']
-            sign = ['value: ', 'range: ', '....', 'step: ']
+            sign = [text_val + ': ', 'range: ', '....', 'step: ']
 
         if not hasattr(self.parent.fit, name):
             self.parent.fit.add(name)
-            print(name)
             if 'hcont' in name:
                 self.parent.fit.setValue('hcont', 0, 'vary')
         setattr(self, name, QTreeWidgetItem(getattr(self, parent)))
@@ -465,7 +478,7 @@ class fitModelWidget(QWidget):
                 #getattr(self, name + '_applied').triggered.connect(partial(self.setApplied, name=name))
                 self.treeWidget.setItemWidget(getattr(self, name), 10, getattr(self, name + '_applied'))
 
-            if any([x in name for x in ['res', 'cf', 'dispz']]) and k > 2:
+            if any([x in name for x in ['res', 'cf', 'dispz', 'sts']]) and k > 2:
                 setattr(self, name + '_applied_exp', QComboBox(self))
                 combo = getattr(self, name + '_applied_exp')
                 combo.setFixedSize(70, 30)
@@ -496,6 +509,9 @@ class fitModelWidget(QWidget):
             for i in range(self.parent.fit.cont[int(name.split('_')[1])].num):
                 info = self.parent.fit.getValue('cont_' + name.split('_')[1] + '_' + str(i), 'addinfo')
                 self.parent.fit.setValue('cont_' + name.split('_')[1] + '_' + str(i), info.split('_')[0] + '_' + sp1, 'addinfo')
+        elif 'sts' in name:
+            self.parent.fit.setValue(name, sp1, 'addinfo')
+            self.parent.fit.setValue(sp1, 0, 'vary')
         else:
             self.parent.fit.setValue(name, sp1, 'addinfo')
         self.refresh()
@@ -560,11 +576,11 @@ class fitModelWidget(QWidget):
 
     def updateDisp(self, excl=''):
         try:
-            self.disp.setExpanded(self.parent.fit.disp_fit)
+            #self.disp.setExpanded(self.parent.fit.disp_num > 0)
             self.disp_num.setText(str(self.parent.fit.disp_num))
         except:
             pass
-        if self.parent.fit.disp_fit:
+        if self.parent.fit.disp_num > 0:
             for disp in self.parent.fit.list():
                 if 'disp' in str(disp):
                     try:
@@ -588,6 +604,37 @@ class fitModelWidget(QWidget):
                             combo.setCurrentIndex(0)
                     except:
                         pass
+
+    def updateStack(self, excl=''):
+        try:
+            #self.disp.setExpanded(self.parent.fit.disp_num > 0)
+            self.stack_num.setText(str(self.parent.fit.stack_num))
+        except:
+            pass
+        if self.parent.fit.stack_num > 0:
+            for stack in self.parent.fit.list():
+                if 'st' in str(stack):
+                    try:
+                        names = ['val', 'max', 'min']
+                        for attr in names:
+                            if str(stack) + '_' + attr != excl:
+                                getattr(self, str(stack) + '_' + attr).setText(str(getattr(stack, attr)))
+                    except:
+                        pass
+                    if 'sts' in str(stack):
+                        try:
+                            combo = getattr(self, str(stack) + '_applied_exp')
+                            combo.clear()
+                            sp = list([str(f) for f in self.parent.fit.list() if any([t in str(f) for t in ['N_', 'Ntot']])])
+                            combo.addItems([''] + sp)
+                            s = getattr(stack, 'addinfo')
+                            if s != '' and s in sp:
+                                combo.setCurrentText(s)
+                                self.parent.fit.setValue(s, 0, 'vary')
+                            else:
+                                combo.setCurrentIndex(0)
+                        except:
+                            pass
 
     def updateCont(self, excl=''):
         try:
@@ -738,7 +785,7 @@ class fitModelWidget(QWidget):
                     self.parent.fit.remove('cf_'+str(i))
 
         if item.name == 'disp':
-            self.parent.fit.disp_fit = self.disp.isExpanded()
+            #self.parent.fit.disp_fit = self.disp.isExpanded()
             for i in range(self.parent.fit.disp_num):
                 if self.disp.isExpanded():
                     self.parent.fit.add('dispz_'+str(i))
@@ -807,7 +854,7 @@ class fitModelWidget(QWidget):
                 rang = range(self.parent.fit.cont[ind].num, k) if sign == 1 else range(self.parent.fit.cont[ind].num-1, k-1, -1)
                 for i in list(rang):
                     if k > self.parent.fit.cont[ind].num:
-                        self.addChild('region_' + str(ind), 'cont_' + str(ind) + '_' + str(i))
+                        self.addChild('region_' + str(ind), 'cont_' + str(ind) + '_' + str(i), text_val='cont_' + str(ind) + '_' + str(i))
                         self.parent.fit.cont[ind].update()
                     else:
                         self.parent.fit.remove('cont_' + str(ind) + '_' + str(i))
@@ -824,7 +871,7 @@ class fitModelWidget(QWidget):
             for i in list(rang):
                 if k > self.parent.fit.res_num:
                     self.parent.fit.add('res_' + str(i))
-                    self.addChild('res', 'res_' + str(i))
+                    self.addChild('res', 'res_' + str(i), text_val='res ' + str(i))
                 else:
                     self.parent.fit.remove('res_' + str(i))
                     getattr(self, 'res').removeChild(getattr(self, 'res_' + str(i)))
@@ -840,7 +887,7 @@ class fitModelWidget(QWidget):
             for i in list(rang):
                 if k > self.parent.fit.me_num:
                     self.parent.fit.add('me_' + str(i))
-                    self.addChild('me', 'me_' + str(i))
+                    self.addChild('me', 'me_' + str(i), text_val='Metal. ' + str(i))
                 else:
                     self.parent.fit.remove('me_' + str(i))
                     getattr(self, 'me').removeChild(getattr(self, 'me_' + str(i)))
@@ -875,12 +922,30 @@ class fitModelWidget(QWidget):
                 if k > self.parent.fit.disp_num:
                     for attr in ['dispz', 'disps']:
                         self.parent.fit.add(attr + '_' + str(i))
-                        self.addChild('disp', attr + '_' + str(i))
+                        self.addChild('disp', attr + '_' + str(i), text_val=attr + ' ' + str(i))
                 else:
                     for attr in ['dispz', 'disps']:
                         self.parent.fit.remove(attr + '_' + str(i))
                         getattr(self, 'disp').removeChild(getattr(self, attr + '_' + str(i)))
             self.parent.fit.disp_num = k
+            if self.refr:
+                self.refresh()
+
+    def numStackChanged(self):
+        k = int(self.stack_num.text())
+        sign = 1 if k > self.parent.fit.stack_num else -1
+        if k != self.parent.fit.stack_num:
+            rang = range(self.parent.fit.stack_num, k) if sign == 1 else range(self.parent.fit.stack_num-1, k-1, -1)
+            for i in list(rang):
+                if k > self.parent.fit.stack_num:
+                    for attr, name in zip(['sts', 'stNl', 'stNu'], ['slope', 'N_low', 'N_up']):
+                        self.parent.fit.add(attr + '_' + str(i))
+                        self.addChild('stack', attr + '_' + str(i), text_val=name + ' ' + str(i))
+                else:
+                    for attr in ['sts', 'stNl', 'stNu']:
+                        self.parent.fit.remove(attr + '_' + str(i))
+                        getattr(self, 'stack').removeChild(getattr(self, attr + '_' + str(i)))
+            self.parent.fit.stack_num = k
             if self.refr:
                 self.refresh()
 
@@ -894,7 +959,7 @@ class fitModelWidget(QWidget):
         self.parent.fit.cont[ind].update()
 
     def onChanged(self, s, attr):
-        if s in ['mu', 'dtoh'] or any([c in s for c in ['me', 'cont', 'res', 'cf', 'disp']]):
+        if s in ['mu', 'dtoh'] or any([c in s for c in ['me', 'cont', 'res', 'cf', 'disp', 'sts', 'stNu', 'stNl']]):
             print(hasattr(self.parent.fit, s))
             if hasattr(self.parent.fit, s):
                 setattr(getattr(self.parent.fit, s), attr, float(getattr(self, s + '_' + attr).text()))
@@ -921,6 +986,7 @@ class fitModelWidget(QWidget):
         self.updateCF(excl=excl)
         self.updateDisp(excl=excl)
         self.updateCont(excl=excl)
+        self.updateStack(excl=excl)
         if self.tab.currentIndex() > -1:
             self.tab.currentWidget().refresh()
 
@@ -1201,7 +1267,7 @@ class fitModelSysWidget(QFrame):
         self.refresh()
 
     def varyChanged(self):
-        for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
+        for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'sts', 'stNl', 'stNu']:
             if hasattr(self.fit.sys[self.ind], s):
                 setattr(getattr(self.fit.sys[self.ind], s), 'vary', getattr(self, s + '_vary').isChecked())
             #print('state:', getattr(getattr(self.fit.sys[self.ind], s), 'vary'))

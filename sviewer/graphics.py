@@ -6,6 +6,7 @@ Created on Thu Dec 22 11:38:59 2016
 """
 import astropy.constants as ac
 from astropy.convolution import convolve, Gaussian1DKernel, Gaussian2DKernel
+from astropy.io import fits
 from astropy.modeling.models import Moffat1D
 from bisect import bisect_left
 from ccdproc import cosmicray_lacosmic
@@ -480,7 +481,7 @@ class plotLineSpectrum(pg.PlotCurveItem):
     def generatePath(self, xi, yi, path=True):
         if 'step' in self.view:
             ## each value in the x/y arrays generates 2 points.
-            x = xi[:, np.newaxis] + [0,0]
+            x = xi[:, np.newaxis] + [0, 0]
             dx = np.diff(xi) / 2
             dx = np.append(dx, dx[-1])
             x[:, 0] -= dx
@@ -489,6 +490,8 @@ class plotLineSpectrum(pg.PlotCurveItem):
             y = as_strided(yi, shape=[len(yi), 2], strides=[yi.strides[0], 0]).flatten()
         if 'line' in self.view:
             x, y = xi[:], yi[:]
+
+        print(self.opts['connect'], x, y)
         if path:
             return pg.functions.arrayToQPath(x, y, connect=self.opts['connect'])
         else:
@@ -1335,7 +1338,7 @@ class Spectrum():
                 self.g_point.setZValue(2)
                 self.parent.vb.addItem(self.g_point)
             if 'step' in self.view or 'line' in self.view:
-                self.g_line = plotLineSpectrum(parent=self, view=self.view, x=x, y=y, clickable=True)
+                self.g_line = plotLineSpectrum(parent=self, view=self.view, x=x, y=y, clickable=True, connect='finite')
                 self.g_line.setPen(self.pen)
                 self.g_line.sigClicked.connect(self.specClicked)
                 self.g_line.setZValue(2)
@@ -1655,7 +1658,7 @@ class Spectrum():
             self.res.x = self.spec.x()[self.fit_mask.x()]
             self.res.y = (self.spec.y()[self.fit_mask.x()] - self.fit.line.f(self.spec.x()[self.fit_mask.x()])) / self.spec.err()[self.fit_mask.x()]
             self.residuals.setData(x=self.res.x, y=self.res.y)
-            if len(self.res.y) > 1 and not np.isnan(np.sum(self.res.y)) and not np.isinf(np.sum(self.res.y)):
+            if len(self.res.y) > 1 and np.sum(~np.isfinite(self.res.y)) == 0:
                 kde = gaussian_kde(self.res.y)
                 self.kde.x = np.linspace(np.min(self.res.y)-1, np.max(self.res.y)+1, len(self.res.x))
                 self.kde.y = kde.evaluate(self.kde.x)
@@ -1922,6 +1925,13 @@ class Spectrum():
                                     cf_exp = cf.addinfo.split('_')[1] if len(cf.addinfo.split('_')) > 1 else 'all'
                                     if (sys.ind in cf_sys) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l()*(1+l.z) > cf.left and l.l()*(1+l.z) < cf.right:
                                         l.cf = i
+                            l.stack = -1
+                            if self.parent.fit.stack_num > 0:
+                                for i in range(self.parent.fit.stack_num):
+                                    st = self.parent.fit.getValue('sts_'+str(i), 'addinfo')
+                                    if st.strip() == 'N_{0:d}_{1:s}'.format(l.sys, sp.strip()):
+                                        l.stack = i
+
                             if all:
                                 if l.range[0] < x[-1] and l.range[1] > x[0]:
                                     self.fit_lines += [l]
@@ -1996,7 +2006,7 @@ class Spectrum():
                 flux = flux * self.correctContinuum(x)
 
             # >>> correct for dispersion:
-            if self.parent.fit.disp_fit:
+            if self.parent.fit.disp_num > 0:
                 for i in range(self.parent.fit.disp_num):
                     if getattr(self.parent.fit, 'dispz_' + str(i)).addinfo == 'exp_' + str(self.ind()):
                         f = interp1d(x + (x - getattr(self.parent.fit, 'dispz_' + str(i)).val) * getattr(self.parent.fit,'disps_' + str(i)).val, flux, bounds_error=False, fill_value=1)
@@ -2232,7 +2242,7 @@ class Spectrum():
                 flux = flux * self.correctContinuum(x)
 
             # >>> correct for dispersion:
-            if self.parent.fit.disp_fit:
+            if self.parent.fit.disp_num > 0:
                 for i in range(self.parent.fit.disp_num):
                     if getattr(self.parent.fit, 'dispz_' + str(i)).addinfo == 'exp_' + str(self.ind()):
                         f = interp1d(x + (x - getattr(self.parent.fit, 'dispz_' + str(i)).val) * getattr(self.parent.fit, 'disps_' + str(i)).val, flux, bounds_error=False, fill_value=1)
@@ -2716,25 +2726,38 @@ class VerticalRegionItem(pg.UIGraphicsItem):
 
 
 class CompositeSpectrum():
-    def __init__(self, parent, z=0.0):
+    def __init__(self, parent, kind='QSO', z=0.0):
         self.parent = parent
         self.z = z
         self.f = 1
-        self.color = pg.mkColor(243, 193, 58)
-        self.parent.composite_status += 1
-        if self.parent.composite_status == 1:
-            self.spec = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
-            self.spec[1] = smooth(self.spec[1], mode='same')
-        if self.parent.composite_status == 3:
-            self.spec = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
-        elif self.parent.composite_status == 5:
-            self.spec = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
+        self.type = kind
+        if self.type == 'QSO':
+            self.parent.compositeQSO_status += 1
+            self.pen = pg.mkPen(color=pg.mkColor(243, 193, 58), width=5, alpha=0.7)
+        elif self.type == 'Galaxy':
+            self.parent.compositeGal_status += 1
+            self.pen = pg.mkPen(color=pg.mkColor(103, 120, 245), width=3, alpha=0.5)
+        self.setData()
         self.calc_scale()
         self.draw()
 
+    def setData(self):
+        if self.type == 'QSO':
+            if self.parent.compositeQSO_status == 1:
+                self.spec = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
+                self.spec[1] = smooth(self.spec[1], mode='same')
+            if self.parent.compositeQSO_status == 3:
+                self.spec = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
+            elif self.parent.compositeQSO_status == 5:
+                self.spec = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
+        elif self.type == 'Galaxy':
+            if self.parent.compositeGal_status % 2:
+                f = fits.open(f"data/SDSS/spDR2-0{23 + self.parent.compositeGal_status // 2}.fit")
+                self.spec = 10 ** (f[0].header['COEFF0'] + f[0].header['COEFF1'] * np.arange(f[0].header['NAXIS1'])), f[0].data[0]
+
     def draw(self):
         #self.gline = pg.PlotCurveItem(x=self.spec[0] * (1 + self.z), y=self.spec[1] * (1 + self.f), pen=pg.mkPen(color=self.color, width=2), clickable=True)
-        self.gline = CompositeGraph(self, x=self.spec[0] * (1 + self.z), y=self.spec[1] * self.f, pen=pg.mkPen(color=self.color, width=5, alpha=0.8), clickable=True)
+        self.gline = CompositeGraph(self, x=self.spec[0] * (1 + self.z), y=self.spec[1] * self.f, pen=self.pen, clickable=True)
         self.gline.sigClicked.connect(self.lineClicked)
         self.parent.vb.addItem(self.gline)
 
@@ -2753,9 +2776,15 @@ class CompositeSpectrum():
         print(self.f)
 
     def remove(self):
-        self.parent.composite_status += 1
-        if self.parent.composite_status == 6:
-            self.parent.composite_status = 0
+        if self.type == 'QSO':
+            self.parent.compositeQSO_status += 1
+            if self.parent.compositeQSO_status == 6:
+                self.parent.compositeQSO_status = 0
+        if self.type == 'Galaxy':
+            self.parent.compositeGal_status += 1
+            if self.parent.compositeGal_status == 12:
+                self.parent.compositeGal_status = 0
+
         self.parent.vb.removeItem(self.gline)
         del self
 
