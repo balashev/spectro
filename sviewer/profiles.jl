@@ -430,7 +430,7 @@ function prepare_add(fit, pars)
             #println(pr.balance(debug="C"))
             #println(pr.balance(debug="IR"))
             #println(pr.balance(debug="UV"))
-            add["pyratio"][parse(Int, ind) + 1] = pyratio(ind, collect(keys(pr.pars)), s, pr.species[s].num, pr.species[s].Aij, pr.balance(debug="C"), pr.balance(debug="CMB"), pr.species[s].rad_rate, pr.species[s].pump_rate, prepare_coll(pr, s))
+            add["pyratio"][parse(Int, ind) + 1] = pyratio(ind, collect(keys(pr.pars)), s, pr.species[s].num, pr.species[s].Eij, pr.species[s].Aij, pr.species[s].Bij, pr.balance(debug="C"), pr.species[s].rad_rate, pr.species[s].pump_rate, prepare_coll(pr, s))
         end
     end
     #println(add)
@@ -440,11 +440,20 @@ end
 ##############################################################################
 function pyratio_predict(pr, pars)
     #pars["logT_" * ind].val
-    W = pr.spont_rate .+ pr.cmb_rate
+    W = pr.Aij
+
     update_coll_rate(pr, pars)
     if any(s in pr.pars for s in ["n", "e"])
         W = W .+ pr.coll_rate
     end
+
+    if "CMB" in pr.pars
+        TCMB = pars["CMB_" * pr.ind].val
+    else
+        TCMB = 2.726 * (pars["z_" * pr.ind].val + 1)
+    end
+    W = W .+ cmb_rate(pr.Bij, pr.Eij, TCMB)
+
     if "rad" in pr.pars
         W = W .+ pr.rad_rate .* 10 ^ pars["rad_" * pr.ind].val
     end
@@ -461,6 +470,10 @@ function pyratio_predict(pr, pars)
     #println(K[2:end, 1])
     #println(K[2:end, 2:end] \ (-1 .* K[2:end, 1]))
     return insert!(abs.(K[2:end, 2:end] \ (-1 .* K[2:end, 1])), 1, 1)
+end
+
+function cmb_rate(Bij, Eij, TCMB)
+    return Bij .* 8 .* π .* 6.62607015e-27 .* Eij .^ 3 ./ (exp.(Eij .* 6.62607015e-27 ./ 1.380649e-16 .* 2.99792458e10 ./ TCMB) .- 1 .+ 1.66533e-16)
 end
 
 function update_coll_rate(pr, pars)
@@ -502,9 +515,10 @@ mutable struct pyratio
     pars::Array{String}
     species::String
     num::Int64
-    spont_rate::Array{Float64, 2}
+    Eij::Array{Float64, 2}
+    Aij::Array{Float64, 2}
+    Bij::Array{Float64, 2}
     coll_rate::Array{Float64, 2}
-    cmb_rate::Array{Float64, 2}
     rad_rate::Array{Float64, 2}
     pump_rate::Array{Float64, 2}
     coll::Dict{}
@@ -596,10 +610,10 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
         x = line.l .+ x * line.ld
         if size(x)[1] > 0
             i_min, i_max = binsearch(spec.x, x[1], type="min"), binsearch(spec.x, x[end], type="max") - 1
-            if i_max - i_min > 1 && i_min > 0
+            if i_max - i_min > 0 && i_min > 0
                 for i in i_min:i_max
                     k_min, k_max = binsearch(x, spec.x[i]), binsearch(x, spec.x[i+1])
-                    x_grid[i] = max(x_grid[i], Int(floor((spec.x[i+1] - spec.x[i]) / (0.1  / maximum(r[k_min:k_max]) * line.ld)))+1)
+                    x_grid[i] = max(x_grid[i], Int(floor((spec.x[i+1] - spec.x[i]) / (0.1 / maximum(r[k_min:k_max]) * line.ld)))+1)
                 end
             end
             i_min, i_max = binsearch(spec.x, x[1] * (1 - 3 * x_instr), type="min"), binsearch(spec.x, x[end] * (1 + 3 * x_instr), type="max")

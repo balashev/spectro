@@ -114,6 +114,8 @@ class speci:
         self.setBij()
         self.setAij()
 
+        self.rad_rate = np.zeros([self.num, self.num])
+        self.pump_rate = np.zeros([self.num, self.num])
         #print(self.stats, self.energy, self.descr, self.Aij)
         #print(self.coll[2].rate)
     
@@ -969,10 +971,12 @@ class pyratio():
                     if any(x in self.pars.keys() for x in ['n', 'e', 'H2', 'H']):
                         W[u, l] += self.collision_rate(speci, u, l)
 
+        if debug in [None, 'CMB']:
+            if 'CMB' in self.pars:
+                W += np.multiply(speci.Bij, self.rad_field(speci.Eij, sed_type='CMB'))
+                print(np.multiply(speci.Bij, self.rad_field(speci.Eij, sed_type='CMB')))
+
         if 'rad' in self.pars:
-            #if debug in [None, 'CMB']:
-            #    if 'rad' in self.pars:
-            #        W += np.multiply(speci.Bij, self.rad_field(speci.Eij, sed_type='CMB'))
 
             if debug in [None, 'UV']:
                 if self.pumping == 'full':
@@ -984,6 +988,7 @@ class pyratio():
                     W += self.species[name].pump_rate * 10 ** self.pars['rad'].value
 
             if debug in [None, 'IR']:
+                print(self.radiation)
                 if self.radiation == 'full':
                     for u in range(speci.num):
                         for l in range(speci.num):

@@ -7183,7 +7183,7 @@ class sviewer(QMainWindow):
                                 for t in range(n):
                                     i += 1
                                     w = d[i].split()
-                                    self.s[ind].spline.add(float(w[0]), float(w[1]))
+                                    self.s[ind].spline.add(x=float(w[0]), y=float(w[1]))
                                 self.s[ind].calc_spline()
 
                         if 'fitting_points' in d[i]:
@@ -7460,7 +7460,7 @@ class sviewer(QMainWindow):
                         data = self.IGMspec[s1[1]]
                         d = np.empty([len(data['meta']['IGM_ID'])], dtype=[('SPEC_FILE', np.str_, 100)])
                         d['SPEC_FILE'] = np.array([x[:] for x in data['meta']['SPEC_FILE']])
-                        ind = [i for i, d in enumerate(d['SPEC_FILE']) if  s1[2] in d][0]
+                        ind = [i for i, d in enumerate(d['SPEC_FILE']) if s1[2] in d][0]
                         s.set_data([data['spec'][ind]['wave'], data['spec'][ind]['flux'], data['spec'][ind]['sig']], mask=data['spec'][ind]['and_mask'])
                         if s1[1] == 'KODIAQ_DR1':
                             s.spec.raw.clean(min=-1, max=2)
@@ -7493,7 +7493,7 @@ class sviewer(QMainWindow):
                                 for k in [0, 1]:
                                     s = Spectrum(self, name=filename + f'_{k}')
                                     r = range(k, hdulist[1].header['NAXIS2'], 2)
-                                    s.set_data([np.concatenate([np.r_[prihdr['WAVELENGTH'][i], prihdr['WAVELENGTH'][i][-1]] for i in r]),
+                                    s.set_data([np.concatenate([np.r_[prihdr['WAVELENGTH'][i], 2 * prihdr['WAVELENGTH'][i][-1] - prihdr['WAVELENGTH'][i][-2]] for i in r]),
                                                 np.concatenate([np.r_[prihdr['FLUX'][i], np.inf] for i in r]) * 1e12,
                                                 np.concatenate([np.r_[prihdr['ERROR'][i], np.inf] for i in r]) * 1e12])
                                     if k == 0:

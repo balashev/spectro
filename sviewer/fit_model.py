@@ -47,10 +47,9 @@ class FLineEdit(QLineEdit):
             self.setMaxLength(l)
 
     def calcFit(self):
-        print('calcFit')
-        if self.var in ['N', 'b', 'z', 'kin', 'turb', 'v', 'c', 'Ntot', 'logn', 'logT']:
+        if self.var in ['N', 'b', 'z', 'kin', 'turb', 'v', 'c', 'Ntot', 'logn', 'logT', 'rad', 'CMB']:
             self.parent.parent.s.reCalcFit() #self.parent.tab.currentIndex())
-        elif self.var in ['mu', 'dtoh'] or any([x in self.var for x in ['me', 'dispz', 'disps', 'res']]):
+        elif self.var in ['mu', 'dtoh'] or any([x in self.var for x in ['me', 'dispz', 'disps', 'res', 'st']]):
             self.parent.parent.s.prepareFit()
             self.parent.parent.s.calcFit()
 
@@ -1075,12 +1074,12 @@ class fitModelSysWidget(QFrame):
         # ------------------ z --------------------------------
         attr = ['val', 'min', 'max', 'step']
         sign = ['val: ', 'range: ', '....', 'step: ']
-        self.z =  self.addParent(self.treeWidget, 'redshift', checkable=True, expanded=True)
+        self.z = self.addParent(self.treeWidget, 'redshift', checkable=True, expanded=True)
         cons_vary = all([hasattr(self.fit.sys[self.ind], attr) for attr in ['turb', 'kin']])
-        Ncons_vary = all([hasattr(self.fit.sys[self.ind], attr) for attr in ['Ntot', 'logT', 'logn']])
+        Ncons_vary = all([hasattr(self.fit.sys[self.ind], attr) for attr in ['Ntot', 'logT', 'logn', 'rad', 'CMB']])
         self.cons = self.addParent(self.treeWidget, 'b tied', checkable=True, expanded=cons_vary)
         self.Ncons = self.addParent(self.treeWidget, 'N tied', checkable=True, expanded=Ncons_vary)
-        for s, name in zip(['z', 'turb', 'kin', 'Ntot', 'logT', 'logn', 'logf', 'rad'], ['z', 'b_turb', 'Tkin, K', 'N_tot', 'logT', 'logn', 'logf', 'UV/dist']):
+        for s, name in zip(['z', 'turb', 'kin', 'Ntot', 'logT', 'logn', 'logf', 'rad', 'CMB'], ['z', 'b_turb', 'Tkin, K', 'N_tot', 'logT', 'logn', 'logf', 'UV/dist', 'CMB']):
             if s == 'z':
                 item = QTreeWidgetItem(self.z)
             elif s in ['turb', 'kin']:
@@ -1102,7 +1101,7 @@ class fitModelSysWidget(QFrame):
             setattr(self, s + '_vary', QCheckBox())
             getattr(self, s + '_vary').setChecked(getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
             getattr(self, s + '_vary').stateChanged.connect(self.varyChanged)
-            if (s in ['turb', 'kin'] and not cons_vary) or (s in ['Ntot', 'logT', 'logn', 'logf', 'rad'] and not Ncons_vary):
+            if (s in ['turb', 'kin'] and not cons_vary) or (s in ['Ntot', 'logT', 'logn', 'logf', 'rad', 'CMB'] and not Ncons_vary):
                 self.fit.sys[self.ind].remove(s)
 
             self.treeWidget.setItemWidget(item, 2, getattr(self, s + '_vary'))
@@ -1267,7 +1266,7 @@ class fitModelSysWidget(QFrame):
         self.refresh()
 
     def varyChanged(self):
-        for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'sts', 'stNl', 'stNu']:
+        for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB', 'sts', 'stNl', 'stNu']:
             if hasattr(self.fit.sys[self.ind], s):
                 setattr(getattr(self.fit.sys[self.ind], s), 'vary', getattr(self, s + '_vary').isChecked())
             #print('state:', getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
@@ -1287,7 +1286,7 @@ class fitModelSysWidget(QFrame):
                 else:
                     self.fit.sys[self.ind].remove(s)
         if item == self.Ncons:
-            for s in ['Ntot', 'logn', 'logT', 'logf', 'rad']:
+            for s in ['Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
                 if self.Ncons.isExpanded():
                     self.fit.sys[self.ind].add(s)
                 else:
@@ -1303,7 +1302,7 @@ class fitModelSysWidget(QFrame):
         self.refresh()
 
     def onChanged(self, s, attr, species=None):
-        if s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
+        if s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
             setattr(getattr(self.fit.sys[self.ind], s), attr, float(getattr(self, s + '_' + attr).text()))
         if s in ['b', 'N']:
             setattr(getattr(self.fit.sys[self.ind].sp[species], s), attr, float(getattr(self, species + '_' + s + '_' + attr).text()))
@@ -1346,7 +1345,7 @@ class fitModelSysWidget(QFrame):
             self.fit.update(what=what, ind=ind)
 
             names = ['val', 'max', 'min', 'step']
-            for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
+            for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
                 if hasattr(self.fit.sys[self.ind], s):
                     getattr(self, s + '_vary').setChecked(getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
                     for attr in names:

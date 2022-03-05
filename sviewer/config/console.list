@@ -1,21 +1,21 @@
-rescale err 0.5
-rescale err 0.5
-set err 0.0005
-rescale err 2
-rescale err 2
-set err 0.01
-set err 0.01
-set err 0.01
-show DI
-rescale err 3
-show COj0
-show COj1
-show COj2
-show COj3
-show CI
-show CI*
 show CI**
 show Cl I
 show ClI
 SII
 show SII
+rescale 1e17
+show CO
+rescale 1e17
+rescale 10
+rescale 1e16
+rescale 10
+rescale 10
+rescale 1e16
+rescale 1e15
+rescale 1e15
+y 0 1
+rescale 100
+rescale 10
+rescale 10
+rescale 10
+rescale 10

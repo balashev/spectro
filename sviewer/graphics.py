@@ -332,13 +332,14 @@ class gline():
 
     def set_data(self, *args, **kwargs):
         self.delete()
-        self.add(*args, **kwargs)
+        self.add(**kwargs)
 
-    def add(self, x, y, err=[], axis=0):
-        self.x, self.y = np.append(self.x, x), np.append(self.y, y)
-        if len(err) > 0:
-            self.err = np.append(self.err, err)
+    def add(self, **kwargs):
+        for k, v in kwargs.items():
+            if v is not None:
+                setattr(self, k, np.append(getattr(self, k), v))
         # self.apply_region()
+        self.sort()
         self.n = len(self.x)
 
     def delete(self, arg=None, x=None, y=None):
@@ -359,10 +360,12 @@ class gline():
         self.n = len(self.x)
 
     def interpolate(self, err=False, fill_value=np.NaN):
+        m = np.logical_and(np.isfinite(self.y), np.isfinite(self.x))
+        #print(np.sum(np.logical_not(m)))
         if not err:
-            self.interpol = interp1d(self.x, self.y, bounds_error=False, fill_value=fill_value, assume_sorted=True)
+            self.interpol = interp1d(self.x[m], self.y[m], bounds_error=False, fill_value=fill_value, assume_sorted=True)
         else:
-            self.err_interpol = interp1d(self.x, self.err, bounds_error=False, fill_value=fill_value, assume_sorted=True)
+            self.err_interpol = interp1d(self.x[m], self.err[m], bounds_error=False, fill_value=fill_value, assume_sorted=True)
 
     def index(self, x):
         return np.searchsorted(self.x, x)
@@ -394,6 +397,8 @@ class gline():
             self.y = self.y[args]
         if len(self.err) > 0:
             self.err = self.err[args]
+        if len(self.mask) > 0:
+            self.mask = self.mask[args]
 
     def find_nearest(self, x=None, y=None):
         if self.n > 0:
@@ -491,7 +496,6 @@ class plotLineSpectrum(pg.PlotCurveItem):
         if 'line' in self.view:
             x, y = xi[:], yi[:]
 
-        print(self.opts['connect'], x, y)
         if path:
             return pg.functions.arrayToQPath(x, y, connect=self.opts['connect'])
         else:
@@ -608,6 +612,7 @@ class specline():
             self.current().err = err
         if mask is not None:
             self.current().mask = mask
+        #self.current().sort()
 
     def interpolate(self):
         self.current().interpolate()
@@ -1539,14 +1544,14 @@ class Spectrum():
             if len(data) >= 3:
                 if mask is not None:
                     mask = np.logical_and(mask, np.logical_and(data[1] != 0, data[2] != 0))
-                self.spec.set(data[0], data[1], err=data[2], mask=mask)
+                self.spec.raw.set_data(x=data[0], y=data[1], err=data[2], mask=mask)
                 if len(data) == 4:
-                    self.cont.set_data(data[0], data[3])
+                    self.cont.set_data(x=data[0], y=data[3])
                     self.cont_mask = np.ones_like(self.spec.x(), dtype=bool)
             elif len(data) == 2:
                 if mask is not None:
                     mask = np.logical_and(mask, (data[1] != 0))
-                self.spec.set(data[0], data[1], mask=mask)
+                self.spec.raw.set_data(x=data[0], y=data[1], mask=mask)
             else:
                 mask = data[1] != np.NaN
         self.spec.raw.interpolate()
@@ -1766,8 +1771,8 @@ class Spectrum():
                 self.parent.vb.addItem(self.mask_regions[-1])
 
     def add_spline(self, x, y, name=''):
-        getattr(self, 'spline'+name).add(x, y)
-        getattr(self, 'spline'+name).sort()
+        getattr(self, 'spline'+name).add(x=x, y=y)
+        #getattr(self, 'spline'+name).sort()
         getattr(self, 'g_spline'+name).setData(x=getattr(self, 'spline'+name).x, y=getattr(self, 'spline'+name).y)
         self.calc_spline(name=name)
         self.update_fit()
@@ -1797,7 +1802,8 @@ class Spectrum():
 
         if getattr(self, 'spline'+name).n > 1:
             setattr(self, 'cont_mask'+name, (getattr(self, 'spec'+name).raw.x > getattr(self, 'spline'+name).x[0]) & (getattr(self, 'spec'+name).raw.x < getattr(self, 'spline'+name).x[-1]))
-            getattr(self, 'cont'+name).set_data(getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)], splev(getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)], tck))
+            getattr(self, 'cont'+name).set_data(x=getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)],
+                                                y=splev(getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)], tck))
         else:
             setattr(self, 'cont_mask' + name, None)
             setattr(self, 'cont'+name, gline())
@@ -1861,7 +1867,7 @@ class Spectrum():
                     ys = smooth(y[mask], window_len=window, window=filter, mode='same')
                     inter = interp1d(self.spec.raw.x[mask], ys, fill_value=(ys[0], ys[-1]), bounds_error=False)
                     if i == iter - 1:
-                        self.spline.set_data(self.spec.raw.x[inds], inter(self.spec.raw.x[inds]))
+                        self.spline.set_data(x=self.spec.raw.x[inds], y=inter(self.spec.raw.x[inds]))
                         self.g_spline.setData(x=self.spline.x, y=self.spline.y)
                     tck = splrep(self.spec.raw.x[inds], inter(self.spec.raw.x[inds]), k=3)
                     ys = splev(self.spec.raw.x[mask], tck)
@@ -1869,14 +1875,14 @@ class Spectrum():
             inter = interp1d(self.spec.raw.x[mask], ys, fill_value=(ys[0], ys[-1]), bounds_error=False)
             if new:
                 self.cont_mask = (xl < self.spec.raw.x) & (self.spec.raw.x < xr)
-                self.cont.set_data(self.spec.raw.x[self.cont_mask], inter(self.spec.raw.x[self.cont_mask]))
+                self.cont.set_data(x=self.spec.raw.x[self.cont_mask], y=inter(self.spec.raw.x[self.cont_mask]))
             else:
                 y = np.copy(self.spec.raw.y)
                 y[self.cont_mask] = self.cont.y
                 mask = (xl < self.spec.raw.x) * (self.spec.raw.x < xr)
                 y[mask] = inter(self.spec.raw.x[mask])
                 self.cont_mask = np.logical_or(self.cont_mask, mask)
-                self.cont.set_data(self.spec.raw.x[self.cont_mask], y[self.cont_mask])
+                self.cont.set_data(x=self.spec.raw.x[self.cont_mask], y=y[self.cont_mask])
             self.redraw()
 
     def findFitLines(self, ind=-1, tlim=0.01, all=True, debug=True):

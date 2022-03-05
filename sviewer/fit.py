@@ -29,7 +29,7 @@ class par:
             self.dec = 2
         else:
             d = {'z': 7, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3, 'hcont': 3,
-                 'Ntot': 3, 'logn': 3, 'logT': 3, 'logf': 3, 'rad': 3}
+                 'Ntot': 3, 'logn': 3, 'logT': 3, 'logf': 3, 'rad': 3, 'CMB': 3}
             self.dec = d[self.name]
 
         if self.name in ['N', 'Ntot', 'logn', 'logT', 'rad', 'dtoh', 'me', 'mu', 'sts', 'stNl', 'stNu']:
@@ -39,7 +39,7 @@ class par:
 
         if self.name in ['b', 'N']:
             self.sys = self.parent.parent
-        elif self.name in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
+        elif self.name in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
             self.sys = self.parent
         else:
             self.sys = None
@@ -131,7 +131,7 @@ class par:
 
     def __repr__(self):
         s = self.name
-        if self.name in ['z', 'b', 'N', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
+        if self.name in ['z', 'b', 'N', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
             s += '_' + str(self.sys.ind)
         if self.name in ['b', 'N']:
             s += '_' + self.parent.name
@@ -139,7 +139,7 @@ class par:
 
     def __str__(self):
         s = self.name
-        if self.name in ['z', 'b', 'N', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
+        if self.name in ['z', 'b', 'N', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
             s += '_' + str(self.sys.ind)
         if self.name in ['b', 'N']:
             s += '_' + self.parent.name
@@ -224,10 +224,12 @@ class fitSystem:
         if name in 'logf':
             self.logf = par(self, 'logf', 0, -6, 0, 0.05)
         if name in 'rad':
-            self.rad = par(self, 'rad', 0, -6, 6, 0.05)
+            self.rad = par(self, 'rad', 0, -6, 30, 0.05)
+        if name in 'CMB':
+            self.CMB = par(self, 'CMB', 2.726 * (1 + self.z.val), 0, 50, 0.05)
 
     def remove(self, name):
-        if name in ['turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
+        if name in ['turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
             if hasattr(self, name):
                 delattr(self, name)
 
@@ -242,7 +244,7 @@ class fitSystem:
 
     def duplicate(self, other):
         self.z.duplicate(other.z)
-        attrs = ['turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']
+        attrs = ['turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']
         for attr in attrs:
             if hasattr(other, attr):
                 self.add(attr)
@@ -270,6 +272,7 @@ class fitSystem:
         #t = Timer('pyratio '+ str(self.parent.sys.index(self)))
         if init or self.pr is None:
             if self == self.parent.sys[0]:
+
                 self.pr = pyratio(z=self.z.val, pumping='simple', radiation='simple', sed_type=self.rad.addinfo)
 
                 #print('init', self.pr.pumping, self.pr.radiation,  self.pr.sed_type)
@@ -277,10 +280,11 @@ class fitSystem:
                 for s in self.sp.keys():
                     if 'CO' in s:
                         d['CO'][0] = 0 if s[3:4].strip() == '' else max(d['CO'][0], int(s[3:4]))
-                        pars = ['T', 'n', 'f', 'rad']
+                        pars = ['T', 'n', 'f', 'CMB']
+                        self.pr = pyratio(z=self.z.val, radiation='full', sed_type='CMB')
                     if 'CI' in s:
                         d['CI'][0] = 0 if s[3:4].strip() == '' else max(d['CI'][0], int(s[3:4]))
-                        pars = ['T', 'n', 'f', 'rad']
+                        pars = ['T', 'n', 'f', 'rad', 'CMB']
                     if 'FeII' in s:
                         d['FeII'][0] = 0 if s[5:6].strip() == '' else max(d['FeII'][0], int(s[5:6]))
                         pars = ['T', 'e', 'rad']
@@ -305,6 +309,8 @@ class fitSystem:
                 self.pr.pars['f'].value = self.logf.val
             if 'rad' in self.pr.pars.keys():
                 self.pr.pars['rad'].value = self.rad.val
+            if 'CMB' in self.pr.pars.keys():
+                self.pr.pars['CMB'].value = self.CMB.val
             for k in self.pr.species.keys():
                 col = self.pr.predict(name=k, level=-1, logN=self.Ntot.val)
                 for s in self.sp.keys():
@@ -527,10 +533,10 @@ class fitPars:
                 self.cont.add(name)
             res = getattr(self, name).set(val, attr, check=check)
 
-        if s[0] in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
+        if s[0] in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
             while len(self.sys) <= int(s[1]):
                 self.addSys()
-            if s[0] in ['turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
+            if s[0] in ['turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
                 if not hasattr(self.sys[int(s[1])], s[0]):
                     self.sys[int(s[1])].add(s[0])
             res = getattr(self.sys[int(s[1])], s[0]).set(val, attr, check=check)
@@ -561,7 +567,7 @@ class fitPars:
                             if 'DI' in k and hasattr(self, 'dtoh'):
                                 s.N.val = sys.sp['HI'].N.val + self.dtoh.val
 
-                if what in ['all', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
+                if what in ['all', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
                     if hasattr(sys, 'Ntot'):
                         sys.pyratio()
 
@@ -593,7 +599,7 @@ class fitPars:
             if hasattr(self, name):
                 par = getattr(self, name)
 
-        if s[0] in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
+        if s[0] in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
             if len(self.sys) > int(s[1]) and hasattr(self.sys[int(s[1])], s[0]):
                 par = getattr(self.sys[int(s[1])], s[0])
 
@@ -675,7 +681,7 @@ class fitPars:
         if len(self.sys) > 0:
             for i, sys in enumerate(self.sys):
                 if ind in [None, i]:
-                    for attr in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad']:
+                    for attr in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
                         if hasattr(sys, attr):
                             p = getattr(sys, attr)
                             pars[str(p)] = p
