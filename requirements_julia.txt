@@ -1,0 +1,15 @@
+DataStructures
+Interpolations
+ImageFiltering
+LsqFit
+PeriodicTable
+Polynomials
+Roots
+SpecialFunctions
+DelimitedFiles
+Distributed
+Random
+PyCall
+Combinatorics
+AdvancedHMC
+ForwardDiff

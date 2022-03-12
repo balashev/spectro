@@ -12,8 +12,7 @@ import numpy as np
 import os
 import pyqtgraph as pg
 from PyQt5.QtCore import Qt, QVariant
-from PyQt5.QtGui import QHeaderView, QSizePolicy
-from PyQt5.QtWidgets import (QApplication, )
+from PyQt5.QtWidgets import QHeaderView, QSizePolicy
 from scipy.interpolate import interp1d
 
 from spectro.sdss import SDSS

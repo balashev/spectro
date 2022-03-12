@@ -455,9 +455,9 @@ class atomicData(OrderedDict):
                             lin = data[name]['lines'][str(i)]
                             l = line(name, lin[0][0], lin[0][1], lin[0][2], ref=lin[0][3])
                             for attr in ['j_l', 'nu_l', 'j_u', 'nu_u']:
-                                if 'None' not in ref[attr]:
+                                if b'None' not in ref[attr]:
                                     setattr(l, attr, int(ref[attr]))
-                            if 'None' not in ref['band']:
+                            if b'None' not in ref['band']:
                                 setattr(l, 'band', ref['band'])
                             if linelist is None or any([str(l) in lin or lin in str(l) for lin in linelist]):
                                 if linelist is None:

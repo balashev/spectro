@@ -1,21 +1,21 @@
-show CI**
-show Cl I
-show ClI
-SII
-show SII
-rescale 1e17
-show CO
-rescale 1e17
-rescale 10
-rescale 1e16
-rescale 10
-rescale 10
-rescale 1e16
-rescale 1e15
-rescale 1e15
-y 0 1
 rescale 100
 rescale 10
 rescale 10
 rescale 10
 rescale 10
+stats
+set cont 1 window
+y 0 1
+y 0 10000
+set cont 1 window
+stats
+set cont 1 window
+stats
+stats
+stats
+stats
+set err 0.03
+rescale err 0.7
+set cont 1 window
+rescale 1e17
+hide CO

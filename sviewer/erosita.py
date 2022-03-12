@@ -12,8 +12,7 @@ from functools import partial
 import os
 import pandas as pd
 from PyQt5.QtCore import Qt, QPoint
-from PyQt5.QtGui import QDoubleValidator
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QMenu, QToolButton,
+from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QMenu, QToolButton,
                              QLabel, QCheckBox, QFrame, QTextEdit, QSplitter, QComboBox, QAction)
 from scipy.stats import linregress
 import sfdmap
@@ -30,10 +29,17 @@ class dataPlot(pg.PlotWidget):
         self.y_axis = axis[1]
         self.setLabel('bottom', self.x_axis)
         self.setLabel('left', self.y_axis)
-        self.reg = None
+        self.reg = {'all': None, 'selected': None}
         self.vb = self.getViewBox()
         self.cursorpos = pg.TextItem(anchor=(0, 1), fill=pg.mkBrush(0, 0, 0, 0.5))
         self.vb.addItem(self.cursorpos, ignoreBounds=True)
+        self.selectedstat = {'shown': pg.TextItem(anchor=(1, 1), fill=pg.mkBrush(0, 0, 0, 0.5)),
+                             'selected': pg.TextItem(anchor=(1, 1), fill=pg.mkBrush(0, 0, 0, 0.5)),
+                             'shown_sel': pg.TextItem(anchor=(1, 1), fill=pg.mkBrush(0, 0, 0, 0.5))}
+        for k in self.selectedstat.keys():
+            self.vb.addItem(self.selectedstat[k], ignoreBounds=True)
+        self.corr = {'all': pg.TextItem(anchor=(0, 0), fill=pg.mkBrush(0, 0, 0, 0.5)),
+                     'selected': pg.TextItem(anchor=(0, 0), fill=pg.mkBrush(0, 0, 0, 0.5))}
         self.s_status = False
         self.d_status = False
         self.show()
@@ -54,13 +60,17 @@ class dataPlot(pg.PlotWidget):
             else:
                 self.disableAutoRange()
 
-    def plotRegression(self, x=None, y=None):
-        if self.reg is not None:
-            self.removeItem(self.reg)
+    def plotRegression(self, x=None, y=None, name='all', remove=True):
+        if self.reg[name] is not None and remove:
+            self.removeItem(self.reg[name])
+            self.vb.removeItem(self.corr[name])
 
         if x is not None and y is not None:
-            self.reg = pg.PlotCurveItem(x, y, pen=pg.mkPen(0, 127, 255, width=6))
-            self.addItem(self.reg)
+            pens = {'all': pg.mkPen(0, 127, 255, width=6), 'selected': pg.mkPen(30, 250, 127, width=6)}
+            self.reg[name] = pg.PlotCurveItem(x, y, pen=pens[name])
+            self.addItem(self.reg[name])
+            self.vb.addItem(self.corr[name], ignoreBounds=True)
+            self.plotRegLabels(self.vb.sceneBoundingRect())
 
     def keyPressEvent(self, event):
         super(dataPlot, self).keyPressEvent(event)
@@ -111,9 +121,28 @@ class dataPlot(pg.PlotWidget):
         super(dataPlot, self).mouseMoveEvent(event)
         self.mousePoint = self.vb.mapSceneToView(event.pos())
         self.mouse_moved = True
-        self.cursorpos.setText('x={0:.3f}, y={1:.2f}'.format(self.mousePoint.x(), self.mousePoint.y()))
+
         pos = self.vb.sceneBoundingRect()
+        self.cursorpos.setText('x={0:.3f}, y={1:.2f}'.format(self.mousePoint.x(), self.mousePoint.y()))
         self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(pos.left() + 10, pos.bottom() - 10)))
+        for ind, name in enumerate(['shown_sel', 'selected', 'shown']):
+            if name == 'shown_sel':
+                s = np.sum(np.logical_and(np.isfinite(self.parent.x[self.parent.mask]),
+                                          np.isfinite(self.parent.y[self.parent.mask])))
+            if name == 'selected':
+                s = np.sum(self.parent.mask)
+            if name == 'shown':
+                s = np.sum(np.logical_and(np.isfinite(self.parent.x),
+                                          np.isfinite(self.parent.y)))
+            self.selectedstat[name].setText(name + '={0:d}'.format(s))
+            self.selectedstat[name].setPos(self.vb.mapSceneToView(QPoint(pos.right() - 10, pos.bottom() - 10 - ind * 20)))
+        self.plotRegLabels(pos)
+
+    def plotRegLabels(self, pos):
+        for name, ind in zip(['all', 'selected'], [10, 30]):
+            if self.reg[name] is not None:
+                self.corr[name].setPos(self.vb.mapSceneToView(QPoint(pos.left() + 10, pos.top() + ind)))
+                self.corr[name].setText(name + ': ' + self.parent.reg[name])
 
     def mouseDoubleClickEvent(self, ev):
         super(dataPlot, self).mouseDoubleClickEvent(ev)
@@ -190,13 +219,21 @@ class ErositaWidget(QWidget):
             #print(opt, self.parent.options(opt), func(self.parent.options(opt)))
             setattr(self, opt, func(self.parent.options(opt)))
 
-        self.axis_list = ['z', 'Fx_int', 'Fx', 'Fuv', 'Lx', 'Luv', 'u-b', 'r-i', 'Av_gal', 'Av_int']
-        self.axis_info = {'z': ['z', lambda x: x, 'z'], 'Fx_int': ['F_X_int', lambda x: np.log10(x), 'log (F_X_int, erg/s/cm2)'],
-                          'Fx': ['F_X', lambda x: np.log10(x), 'log (F_X, erg/s/cm2/Hz)'], 'Fuv': ['F_UV', lambda x: np.log10(x), 'log (F_UV, erg/s/cm2/Hz)'],
-                          'Lx': ['L_X', lambda x: np.log10(x), 'log (L_X, erg/s/Hz)'], 'Luv': ['L_UV', lambda x: np.log10(x), 'log (L_UV, erg/s/Hz)'],
-                          'u-b': ['u-b', lambda x: x, 'u - b'], 'r-i': ['r-i', lambda x: x, 'r - i'],
-                          'Av_gal': ['Av_gal', lambda x: x, 'Av (galactic)'], 'Av_int': ['Av_int', lambda x: x, 'Av (intrinsic)']}
+        self.axis_list = ['z', 'Fx_int', 'Fx', 'Fuv', 'Lx', 'Luv', 'u-b', 'r-i', 'Av_gal', 'Av_int', 'r_gal', 'Luv_corr']
+        self.axis_info = {'z': ['z', lambda x: x, 'z'],
+                          'Fx_int': ['F_X_int', lambda x: np.log10(x), 'log (F_X_int, erg/s/cm2)'],
+                          'Fx': ['F_X', lambda x: np.log10(x), 'log (F_X, erg/s/cm2/Hz)'],
+                          'Fuv': ['F_UV', lambda x: np.log10(x), 'log (F_UV, erg/s/cm2/Hz)'],
+                          'Lx': ['L_X', lambda x: np.log10(x), 'log (L_X, erg/s/Hz)'],
+                          'Luv': ['L_UV', lambda x: np.log10(x), 'log (L_UV, erg/s/Hz)'],
+                          'u-b': ['u-b', lambda x: x, 'u - b'],
+                          'r-i': ['r-i', lambda x: x, 'r - i'],
+                          'Av_gal': ['Av_gal', lambda x: x, 'Av (galactic)'],
+                          'Av_int': ['Av_int', lambda x: x, 'Av (intrinsic)'],
+                          'r_gal': ['r_gal', lambda x: x, 'Galaxy fraction (from Rakshit)'],
+                          'Luv_corr': ['L_UV_corr', lambda x: np.log10(x), 'log (L_UV corrected, erg/s/Hz)']}
         self.ind = None
+        self.corr_status = 0
         self.ext = {}
 
     def initGUI(self):
@@ -230,7 +267,7 @@ class ErositaWidget(QWidget):
         xaxis.setFixedSize(40, 30)
 
         self.x_axis = QComboBox()
-        self.x_axis.setFixedSize(50, 30)
+        self.x_axis.setFixedSize(70, 30)
         self.x_axis.addItems(self.axis_list)
         self.x_axis.setCurrentText(self.ero_x_axis)
         self.x_axis.currentIndexChanged.connect(partial(self.axisChanged, 'x_axis'))
@@ -239,7 +276,7 @@ class ErositaWidget(QWidget):
         yaxis.setFixedSize(40, 30)
 
         self.y_axis = QComboBox()
-        self.y_axis.setFixedSize(50, 30)
+        self.y_axis.setFixedSize(70, 30)
         self.y_axis.addItems(self.axis_list)
         self.y_axis.setCurrentText(self.ero_y_axis)
         self.y_axis.currentIndexChanged.connect(partial(self.axisChanged, 'y_axis'))
@@ -361,6 +398,7 @@ class ErositaWidget(QWidget):
         self.mask = np.zeros(len(self.df['z']), dtype=bool)
 
     def getData(self):
+        print()
         self.x_lambda, self.y_lambda = self.axis_info[self.ero_x_axis][1], self.axis_info[self.ero_y_axis][1]
         self.x, self.y, self.SDSScolors = None, None, False
         if self.axis_info[self.ero_x_axis][0] in self.df.columns:
@@ -382,6 +420,10 @@ class ErositaWidget(QWidget):
             self.dataPlot.setLabel('bottom', self.axis_info[self.ero_x_axis][2])
             self.dataPlot.setLabel('left', self.axis_info[self.ero_y_axis][2])
 
+            if self.ind is not None:
+                self.dataPlot.plotData(x=[self.x[self.ind]], y=[self.y[self.ind]],
+                                       name='clicked', color=(255, 3, 62), size=20, rescale=False)
+
             if ind is None:
                 self.dataPlot.plotData(x=self.x, y=self.y)
 
@@ -390,14 +432,10 @@ class ErositaWidget(QWidget):
                         self.dataPlot.plotData(x=self.x_lambda(self.ext[name][self.axis_info[self.ero_x_axis][0]]),
                                                y=self.y_lambda(self.ext[name][self.axis_info[self.ero_y_axis][0]]),
                                                name=name, color=(200, 150, 50))
-            if self.ind is not None:
-                self.dataPlot.plotData(x=[self.x[self.ind]], y=[self.y[self.ind]],
-                                       name='clicked', color=(255, 3, 62), size=20, rescale=False)
 
             if np.sum(self.mask) > 0:
                 self.dataPlot.plotData(x=self.x[self.mask], y=self.y[self.mask],
                                        name='selected', color=(100, 255, 30), rescale=False)
-
 
     def addExternalCatalog(self, name, show=True):
         if name == 'Risaliti2015':
@@ -473,6 +511,7 @@ class ErositaWidget(QWidget):
     def calc_Lum(self):
 
         dl = Planck15.luminosity_distance(self.df['z'].to_numpy()).to('cm')
+        print(dl)
 
         if 'L_X' not in self.df.columns:
             self.df.insert(len(self.df.columns), 'L_X', np.nan)
@@ -485,6 +524,10 @@ class ErositaWidget(QWidget):
             self.df.insert(len(self.df.columns), 'L_UV', np.nan)
         self.df['L_UV'] = np.nan
 
+        if 'LUV_corr' not in self.df.columns:
+            self.df.insert(len(self.df.columns), 'L_UV_corr', np.nan)
+        self.df['LUV_corr'] = np.nan
+
         name = 'L_UV_{0:4d}'.format(int(float(self.lambdaUV.text())))
         if name not in self.df.columns:
             self.df.insert(len(self.df.columns), name, np.nan)
@@ -493,6 +536,13 @@ class ErositaWidget(QWidget):
         if 'F_UV' in self.df.columns:
             self.df['L_UV'] = 4 * np.pi * dl ** 2 * self.df['F_UV'] #/ (1 + self.df['Z_fl'])
             self.df[name] = 4 * np.pi * dl ** 2 * self.df[name.replace('L', 'F')] / (1 + self.df['z'])
+
+        if 'Av_int' in self.df.columns:
+            for i, d in self.df.iterrows():
+                if np.isfinite(d['Av_int']):
+                    self.df['LUV_corr'][i] = 4 * np.pi * dl[i].value ** 2 * d[name.replace('L', 'F')] / (1 + d['z']) / 10 ** (-0.4 * fitzpatrick99(np.asarray([float(self.lambdaUV.text())]), d['Av_int']))
+                else:
+                    print(i)
 
         self.save_data()
         self.updateData()
@@ -607,7 +657,7 @@ class ErositaWidget(QWidget):
             self.updateData()
             self.save_data()
 
-    def calc_mask(self, spec, z_em=0, iter=3, window=201, clip=2.5):
+    def calc_mask(self, spec, z_em=0, iter=3, window=301, clip=2.0):
         mask = np.asarray(spec[3][:] == 0, dtype=bool)
         mask *= spec[0] > 1280 * (1 + z_em)
         for i in range(iter):
@@ -651,17 +701,35 @@ class ErositaWidget(QWidget):
             return inter(x)
 
     def correlate(self):
-        x, y, = self.df[self.axis_info[self.ero_x_axis][0]], self.df[self.axis_info[self.ero_y_axis][0]]
-        m = x.notna() * y.notna() * (x > 0) * (y > 0)
-        x, y = self.x_lambda(x[m].to_numpy()), self.y_lambda(y[m].to_numpy())
-        slope, intercept, r, p, stderr = linregress(x, y)
-        print(slope, intercept, r, p, stderr)
-        line = f'Regression line: y={intercept:.2f}+{slope:.2f}x, r={r:.2f}'
-        reg = lambda x: intercept + slope * x
-        xreg = np.asarray([np.min(x), np.max(x)])
-        self.dataPlot.plotRegression(x=xreg, y=reg(xreg))
-
-        print(np.std(y - reg(x)))
+        self.corr_status = 1 - self.corr_status
+        if self.corr_status:
+            self.reg = {'all': 'checked', 'selected': 'checked'}
+            x, y, = self.df[self.axis_info[self.ero_x_axis][0]], self.df[self.axis_info[self.ero_y_axis][0]]
+            m = x.notna() * y.notna() * (x > 0) * (y > 0)
+            x, y = self.x_lambda(x[m].to_numpy()), self.y_lambda(y[m].to_numpy())
+            slope, intercept, r, p, stderr = linregress(x, y)
+            print(slope, intercept, r, p, stderr)
+            line = f'Regression line: y={intercept:.2f}+{slope:.2f}x, r={r:.2f}'
+            reg = lambda x: intercept + slope * x
+            xreg = np.asarray([np.min(x), np.max(x)])
+            self.reg['all'] = "{0:.3f} x + {1:.3f}, disp={2:.2f}".format(slope, intercept, np.std(y - reg(x)))
+            self.dataPlot.plotRegression(x=xreg, y=reg(xreg), name='all')
+            print(np.sum(np.logical_and(np.isfinite(self.x[self.mask]), np.isfinite(self.y[self.mask]))))
+            if np.sum(np.logical_and(np.isfinite(self.x[self.mask]), np.isfinite(self.y[self.mask]))):
+                x, y, = self.df[self.axis_info[self.ero_x_axis][0]], self.df[self.axis_info[self.ero_y_axis][0]]
+                m = x.notna() * y.notna() * (x > 0) * (y > 0) * self.mask
+                x, y = self.x_lambda(x[m].to_numpy()), self.y_lambda(y[m].to_numpy())
+                slope, intercept, r, p, stderr = linregress(x, y)
+                print(slope, intercept, r, p, stderr)
+                line = f'Regression line: y={intercept:.2f}+{slope:.2f}x, r={r:.2f}'
+                reg = lambda x: intercept + slope * x
+                xreg = np.asarray([np.min(x), np.max(x)])
+                self.reg['selected'] = "{0:.3f} x + {1:.3f}, disp={2:.2f}".format(slope, intercept, np.std(y - reg(x)))
+                self.dataPlot.plotRegression(x=xreg, y=reg(xreg), name='selected')
+            print(self.reg)
+        else:
+            self.dataPlot.plotRegression(name='all', remove=True)
+            self.dataPlot.plotRegression(name='selected', remove=True)
 
     def save_data(self):
         self.df.to_csv(self.parent.ErositaFile, index=False)

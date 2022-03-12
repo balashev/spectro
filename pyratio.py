@@ -974,7 +974,6 @@ class pyratio():
         if debug in [None, 'CMB']:
             if 'CMB' in self.pars:
                 W += np.multiply(speci.Bij, self.rad_field(speci.Eij, sed_type='CMB'))
-                print(np.multiply(speci.Bij, self.rad_field(speci.Eij, sed_type='CMB')))
 
         if 'rad' in self.pars:
 

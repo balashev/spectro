@@ -1349,7 +1349,7 @@ class Spectrum():
                 self.g_line.setZValue(2)
                 self.parent.vb.addItem(self.g_line)
 
-            if len(self.spec.mask()) > 0 and np.sum(~self.spec.mask()) > 0:
+            if len(self.spec.mask()) > 0 and np.sum(np.logical_not(self.spec.mask())) > 0:
                 self.updateMask()
 
         # >>> plot fit point:

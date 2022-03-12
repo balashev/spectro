@@ -6138,9 +6138,9 @@ class buttonpanel(QFrame):
         id = getIDfromName(self.parent.s[self.parent.s.ind].filename)
         print(id)
         if typ == 'SAS':
-            url = QUrl('https://dr14.sdss.org/spectrumDetail?mjd={0:d}&fiber={1:d}&plateid={2:d}'.format(id[1],id[2],id[0]))
+            url = QUrl('https://dr17.sdss.org/sptical/spectrum/view?plateid={0:d}&mjd={1:d}&fiber={2:d}&run2d=any&zwarning=0&matches=any'.format(id[0], id[1], id[2]))
         elif typ == 'SkyS':
-            url = QUrl('http://skyserver.sdss.org/dr14/en/tools/explore/Summary.aspx?plate={0:d}&fiber={1:d}&mjd={2:d}'.format(id[0], id[2], id[1]))
+            url = QUrl('http://skyserver.sdss.org/dr17/en/tools/explore/Summary.aspx?plate={0:d}&fiber={1:d}&mjd={2:d}'.format(id[0], id[2], id[1]))
         if not QDesktopServices.openUrl(url):
             QMessageBox.warning(self, 'Open Url', 'Could not open url')
 
@@ -6319,7 +6319,8 @@ class sviewer(QMainWindow):
         spec2dMenu = menubar.addMenu('&2d spec')
         combineMenu = menubar.addMenu('&Combine')
         SDSSMenu = menubar.addMenu('&SDSS')
-        samplesMenu = menubar.addMenu('&Samples')
+        if self.developer:
+            samplesMenu = menubar.addMenu('&Samples')
         generateMenu = menubar.addMenu('&Generate')
         obsMenu = menubar.addMenu('&Observations')
         helpMenu = menubar.addMenu('&Help')
