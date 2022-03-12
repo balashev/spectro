@@ -6138,7 +6138,7 @@ class buttonpanel(QFrame):
         id = getIDfromName(self.parent.s[self.parent.s.ind].filename)
         print(id)
         if typ == 'SAS':
-            url = QUrl('https://dr17.sdss.org/sptical/spectrum/view?plateid={0:d}&mjd={1:d}&fiber={2:d}&run2d=any&zwarning=0&matches=any'.format(id[0], id[1], id[2]))
+            url = QUrl('https://dr17.sdss.org/optical/spectrum/view?plateid={0:d}&mjd={1:d}&fiber={2:d}&run2d=any&zwarning=0&matches=any'.format(id[0], id[1], id[2]))
         elif typ == 'SkyS':
             url = QUrl('http://skyserver.sdss.org/dr17/en/tools/explore/Summary.aspx?plate={0:d}&fiber={1:d}&mjd={2:d}'.format(id[0], id[2], id[1]))
         if not QDesktopServices.openUrl(url):
