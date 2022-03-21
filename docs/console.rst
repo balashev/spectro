@@ -31,8 +31,11 @@ The list of avaliable commands:
 * **y <num1> <num2>**: adjust the y-axis scale to <num1>..<num2>.
 * **rescale <arg> <float>**: rescale the spectrum/continuum/error by <float> factor. It applies with a window region. The <arg> specifed what is rescaled:
 
-    * : rescale both flux and pixel uncertainties.
+    * **y**: rescale flux.
     * **err** or **unc**: rescale only pixel uncertainties.
+    * <no arg>: rescale both flux and pixel uncertainties.
+    * **x**: rescale wavelenghts by constant factor.
+    * **z**: rescale wavelenghts by redshift factor.
     * **spline** or **cont**: rescale B-continuum.
 
 * **shift <arg> <float>**: shift spectrum by <float>, l = l + <float>. If <arg>=v than the shift is in velocity space, i.e. l = l * (1 + <float>/c).

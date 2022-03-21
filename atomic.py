@@ -458,7 +458,7 @@ class atomicData(OrderedDict):
                                 if b'None' not in ref[attr]:
                                     setattr(l, attr, int(ref[attr]))
                             if b'None' not in ref['band']:
-                                setattr(l, 'band', ref['band'])
+                                setattr(l, 'band', ref['band'].decode('UTF-8'))
                             if linelist is None or any([str(l) in lin or lin in str(l) for lin in linelist]):
                                 if linelist is None:
                                     self.lines[e].append(l)
@@ -756,7 +756,19 @@ class atomicData(OrderedDict):
             mask = CO['level'] == i
             for l in CO[mask]:
                 self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'], nu_u=l['band']))
-                self[name].lines[-1].band = l['name'].decode()
+                self[name].lines[-1].band = l['name'].decode('UTF-8')
+
+        CO = np.genfromtxt(self.folder + r'/data/13CO_data.dat', skip_header=1, names=True, dtype=None)
+        for i in np.unique(CO['level']):
+            name = '13COj' + str(i)
+            self[name] = e(name)
+            self[name].lines = []
+            mask = CO['level'] == i
+            for l in CO[mask]:
+                self[name].lines.append(
+                    line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'],
+                         nu_u=l['band']))
+                self[name].lines[-1].band = l['name'].decode('UTF-8')
 
     def readHF(self):
         HF = np.genfromtxt(self.folder + r'/data/molec/HF.dat', skip_header=1, unpack=True, dtype=None)
@@ -1225,6 +1237,21 @@ class atomicData(OrderedDict):
         elif isinstance(n, (list, tuple)):
             return s.list(['H2j' + str(i) for i in n])
 
+    @classmethod
+    def CO(cls, n=7, isotope=''):
+        """
+        create instance of COlist
+
+        parameters:
+            - n    : if list - specify rotational levels to read
+                     if int - read J_l<=n
+        """
+        s = cls()
+        s.readdatabase()
+        if isinstance(n, int):
+            return s.list([isotope + 'COj' + str(i) for i in range(n)])
+        elif isinstance(n, (list, tuple)):
+            return s.list([isotope + 'COj' + str(i) for i in n])
 
 def oscill_strength(A=1e9, nu=3e15):
     """
@@ -1541,7 +1568,6 @@ if __name__ == '__main__':
         #A.getfromNIST('MnII', 3)
         A.makedatabase()
         #A.readdatabase()
-        #print([str(line) for line in A.list('CH+')])
 
     if 0:
         A = atomicData()

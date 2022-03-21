@@ -809,6 +809,56 @@ class plotline():
         print(texts)
         adjust_text(texts, only_move={'text': 'x'})
 
+    def showLineLabels(self, species='H2', levels=[0, 1, 2, 3, 4, 5], pos=0.84, dpos=0.03, color='cornflowerblue', show_ticks=True, kind='full'):
+        if 1:
+            ymin, ymax = self.ax.get_ylim()
+            pos_y, dpos = ymin + pos * (ymax - ymin), dpos * (ymax - ymin)
+            xmin, xmax = self.ax.get_xlim()
+        if species == 'H2':
+            lines = atomicData.H2(levels)
+            lines = [l for l in lines if l.l() * (1 + self.parent.z_ref) > xmin and l.l() * (1 + self.parent.z_ref) < xmax]
+            s = set([str(line).split()[1][:str(line).split()[1].index('-')] for line in lines])
+        if 'CO' in species:
+            lines = atomicData.CO(levels, isotope=species[:species.index('CO')])
+            lines = [l for l in lines if l.l() * (1 + self.parent.z_ref) > xmin and l.l() * (1 + self.parent.z_ref) < xmax]
+            s = set([line.band + ' {0:d}-0'.format(line.nu_u) for line in lines])
+        #print(s)
+        #print(lines)
+        texts = []
+        for band in s:
+            if species == 'H2':
+                if ('L' in band and (int(band.split('-')[0][1:]) % 2 == 0 or (np.max(levels) < 5 and int(band.split('-')[0][1:]) < 10))):
+                    pos_y = pos
+                elif 'W' in band:
+                    pos_y = pos - 2 * dpos - 2 * dpos * (ymax - ymin)
+                else:
+                    pos_y = pos - dpos - dpos * (ymax - ymin)
+
+            b_lines = [line for line in lines if band.replace(' ', '') in str(line)]
+            b_lines = [line for line in b_lines if line.l() * (1 + self.parent.z_ref) > xmin and line.l() * (1 + self.parent.z_ref) < xmax]
+            if str(min(levels)) in [str(line).split()[0][str(line).split()[0].index("j")+1:] for line in b_lines]:
+                l = [line.l() for line in b_lines]
+                if show_ticks:
+                    for line in b_lines:
+                        print(line, line.j_l)
+                        if line.j_l in levels:
+                            self.ax.plot([line.l() * (1 + self.parent.z_ref), line.l() * (1 + self.parent.z_ref)],
+                                         [pos_y, pos_y + dpos], lw=1.0, color=color, ls='-')
+                            if kind == 'full':
+                                texts.append(self.ax.text(line.l() * (1 + self.parent.z_ref), pos_y + dpos, str(line.j_l),
+                                                          ha='center', va='bottom', fontsize=self.parent.font - 4, color=color))
+
+                    self.ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)],
+                                 [pos_y + dpos, pos_y + dpos], lw=1.0, color=color, ls='-')
+                if kind == 'short':
+                    self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0',
+                                              ha='right', va='bottom', fontsize=self.parent.font-4, color=color)
+                elif kind == 'full':
+                    self.ax.text((np.min(l) - (np.max(l) - np.min(l)) / 30) * (1 + self.parent.z_ref), pos_y + dpos, band + ':',
+                                              ha='right', va='bottom', fontsize=self.parent.font - 4, color=color)
+        #print(texts)
+        #adjust_text(texts, only_move={'text': 'x'})
+
     def __str__(self):
         return 'plot line object: ' + str(self.name) + ', ' + str(self.wavelength)
     

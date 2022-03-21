@@ -1,21 +1,21 @@
-rescale 100
-rescale 10
-rescale 10
-rescale 10
-rescale 10
+show CIj2
+show Coj1
+show COj1
+show COj2
+hide CI
+show Ci
+show CI
+show H2 0 1
+show H2 0 1
+show CI
+high HI
+show H2 0 1
 stats
-set cont 1 window
-y 0 1
-y 0 10000
-set cont 1 window
-stats
-set cont 1 window
-stats
-stats
-stats
-stats
-set err 0.03
-rescale err 0.7
-set cont 1 window
-rescale 1e17
-hide CO
+show CII*
+show CI*
+show CI**
+ZiII
+ZnII
+show ZnII
+SII
+show SII

@@ -1,7 +1,8 @@
 from astropy.cosmology import Planck15, FlatLambdaCDM, LambdaCDM
 from astropy.io import fits
 import astropy.units as u
-from extinction import fitzpatrick99
+from dust_extinction.averages import G03_SMCBar
+import itertools
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.lib.recfunctions as rfn
@@ -13,7 +14,7 @@ import os
 import pandas as pd
 from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QMenu, QToolButton,
-                             QLabel, QCheckBox, QFrame, QTextEdit, QSplitter, QComboBox, QAction)
+                             QLabel, QCheckBox, QFrame, QTextEdit, QSplitter, QComboBox, QAction, QSizePolicy)
 from scipy.stats import linregress
 import sfdmap
 from .tables import *
@@ -347,17 +348,22 @@ class ErositaWidget(QWidget):
 
         calcExt = QPushButton('Calc Ext:')
         calcExt.setFixedSize(80, 30)
-        calcExt.clicked.connect(partial(self.calc_ext, ind=None))
+        calcExt.clicked.connect(partial(self.calc_ext, ind=None, gal=None))
 
         self.QSOtemplate = QComboBox(self)
         self.QSOtemplate.addItems(['Slesing', 'VanDen Berk', 'HST'])
         self.QSOtemplate.setFixedSize(100, 30)
-        self.template_name = 'Slesing'
-        self.QSOtemplate.setCurrentText(self.template_name)
+        self.template_name_qso = 'Slesing'
+        self.QSOtemplate.setCurrentText(self.template_name_qso)
+        self.template_name_gal = 0
 
         self.plotExt = QCheckBox("plot")
         self.plotExt.setChecked(True)
         self.plotExt.setFixedSize(80, 30)
+
+        self.galExt = QCheckBox("add galaxy")
+        self.galExt.setChecked(True)
+        self.galExt.setFixedSize(120, 30)
 
         l.addWidget(lambdaUV)
         l.addWidget(QLabel('    '))
@@ -365,6 +371,7 @@ class ErositaWidget(QWidget):
         l.addWidget(calcExt)
         l.addWidget(self.QSOtemplate)
         l.addWidget(self.plotExt)
+        l.addWidget(self.galExt)
         l.addStretch()
 
         layout.addLayout(l)
@@ -476,7 +483,7 @@ class ErositaWidget(QWidget):
                 self.ErositaTable.selectRow(row)
                 self.ErositaTable.row_clicked(row=row)
             if x is None and self.plotExt.isChecked():
-                self.calc_ext(self.ind, plot=self.plotExt.isChecked())
+                self.calc_ext(self.ind, plot=self.plotExt.isChecked(), gal=self.galExt.isChecked())
 
             self.updateData(ind=self.ind)
 
@@ -505,13 +512,44 @@ class ErositaWidget(QWidget):
         filename = os.path.dirname(self.parent.ErositaFile) + '/spectra/spec-{0:04d}-{2:05d}-{1:04d}.fits'.format(int(plate), int(fiber), int(mjd))
         if os.path.exists(filename):
             qso = fits.open(filename)
-            ext = 10 ** (-0.4 * fitzpatrick99(np.asarray(10 ** qso[1].data['loglam'][:], dtype=np.float64), Av_gal)) if ~np.isnan(Av_gal) else np.ones_like(qso[1].data['loglam'])
+            ext = G03_SMCBar().extinguish(1e4 / np.asarray(10 ** qso[1].data['loglam'][:], dtype=np.float64), Av=Av_gal) if ~np.isnan(Av_gal) else np.ones_like(qso[1].data['loglam'])
             return [10 ** qso[1].data['loglam'][:], qso[1].data['flux'][:] / ext, np.sqrt(1.0 / qso[1].data['ivar'][:]) / ext, qso[1].data['and_mask']]
+
+    def calc_FUV(self):
+        k = 0
+        if 'F_UV' not in self.df.columns:
+            self.df.insert(len(self.df.columns), 'F_UV', np.nan)
+        self.df['F_UV'] = np.nan
+
+        name = 'F_UV_{0:4d}'.format(int(float(self.lambdaUV.text())))
+        if name not in self.df.columns:
+            self.df.insert(len(self.df.columns), name, np.nan)
+        self.df[name] = np.nan
+
+        for i, d in self.df.iterrows():
+            print(i)
+            if d['z'] > 3500 / self.ero_lUV - 1:
+                spec = self.loadSDSS(d['PLATE_fl'], d['FIBERID_fl'], d['MJD_fl'], Av_gal=d['Av_gal'])
+                if spec is not None:
+                    mask = (spec[0] > (self.ero_lUV - 10) * (1 + d['z'])) * (
+                                spec[0] < (self.ero_lUV + 10) * (1 + d['z'])) * (spec[3] == 0)
+                    if np.sum(mask) > 0 and not np.isnan(np.mean(spec[1][mask])) and not np.mean(spec[2][mask]) == 0:
+                        k += 1
+                        nm = np.nanmean(spec[1][mask]) * 1e-17 * u.erg / u.cm ** 2 / u.AA / u.s
+                        wm = np.average(spec[1][mask], weights=spec[2][mask]) * 1e-17 * u.erg / u.cm ** 2 / u.AA / u.s
+                        # print(nm, wm)
+                        self.df['F_UV'][i] = nm.to(u.erg / u.cm ** 2 / u.s / u.Hz, equivalencies=u.spectral_density(
+                            self.ero_lUV * u.AA * (1 + d['z']))).value / (1 + d['z'])
+                        self.df[name][i] = nm.to(u.erg / u.cm ** 2 / u.s / u.Hz, equivalencies=u.spectral_density(
+                            self.ero_lUV * u.AA * (1 + d['z']))).value
+                        # self.df['F_UV'] in erg/s/cm^2/Hz
+
+        self.updateData()
+        self.save_data()
 
     def calc_Lum(self):
 
         dl = Planck15.luminosity_distance(self.df['z'].to_numpy()).to('cm')
-        print(dl)
 
         if 'L_X' not in self.df.columns:
             self.df.insert(len(self.df.columns), 'L_X', np.nan)
@@ -524,9 +562,9 @@ class ErositaWidget(QWidget):
             self.df.insert(len(self.df.columns), 'L_UV', np.nan)
         self.df['L_UV'] = np.nan
 
-        if 'LUV_corr' not in self.df.columns:
+        if 'L_UV_corr' not in self.df.columns:
             self.df.insert(len(self.df.columns), 'L_UV_corr', np.nan)
-        self.df['LUV_corr'] = np.nan
+        self.df['L_UV_corr'] = np.nan
 
         name = 'L_UV_{0:4d}'.format(int(float(self.lambdaUV.text())))
         if name not in self.df.columns:
@@ -540,7 +578,7 @@ class ErositaWidget(QWidget):
         if 'Av_int' in self.df.columns:
             for i, d in self.df.iterrows():
                 if np.isfinite(d['Av_int']):
-                    self.df['LUV_corr'][i] = 4 * np.pi * dl[i].value ** 2 * d[name.replace('L', 'F')] / (1 + d['z']) / 10 ** (-0.4 * fitzpatrick99(np.asarray([float(self.lambdaUV.text())]), d['Av_int']))
+                    self.df['L_UV_corr'][i] = 4 * np.pi * dl[i].value ** 2 * d[name.replace('L', 'F')] / (1 + d['z']) / G03_SMCBar().extinguish(1e4 / np.asarray([float(self.lambdaUV.text())]), Av=d['Av_int'])
                 else:
                     print(i)
 
@@ -560,43 +598,18 @@ class ErositaWidget(QWidget):
         self.save_data()
         self.updateData()
 
-    def calc_FUV(self):
-        k = 0
-        if 'F_UV' not in self.df.columns:
-            self.df.insert(len(self.df.columns), 'F_UV', np.nan)
-        self.df['F_UV'] = np.nan
+    def calc_ext(self, ind=None, plot=False, gal=True):
 
-        name = 'F_UV_{0:4d}'.format(int(float(self.lambdaUV.text())))
-        if name not in self.df.columns:
-            self.df.insert(len(self.df.columns), name, np.nan)
-        self.df[name] = np.nan
-
-        for i, d in self.df.iterrows():
-            print(i)
-            if d['z'] > 3500 / self.ero_lUV - 1:
-                spec = self.loadSDSS(d['PLATE_fl'], d['FIBERID_fl'], d['MJD_fl'], Av_gal=d['Av_gal'])
-                if spec is not None:
-                    mask = (spec[0] > (self.ero_lUV - 10) * (1 + d['z'])) * (spec[0] < (self.ero_lUV + 10) * (1 + d['z'])) * (spec[3] == 0)
-                    if np.sum(mask) > 0 and not np.isnan(np.mean(spec[1][mask])) and not np.mean(spec[2][mask]) == 0:
-                        k += 1
-                        nm = np.nanmean(spec[1][mask]) * 1e-17 * u.erg / u.cm ** 2 / u.AA / u.s
-                        wm = np.average(spec[1][mask], weights=spec[2][mask]) * 1e-17 * u.erg / u.cm ** 2 / u.AA / u.s
-                        #print(nm, wm)
-                        self.df['F_UV'][i] = nm.to(u.erg / u.cm ** 2 / u.s / u.Hz, equivalencies=u.spectral_density(self.ero_lUV * u.AA * (1 + d['z']))).value / (1 + d['z'])
-                        self.df[name][i] = nm.to(u.erg / u.cm ** 2 / u.s / u.Hz, equivalencies=u.spectral_density(self.ero_lUV * u.AA * (1 + d['z']))).value
-                        # self.df['F_UV'] in erg/s/cm^2/Hz
-
-        self.updateData()
-        self.save_data()
-
-    def calc_ext(self, ind=None, plot=False):
+        if gal is None:
+            gal = self.galExt.isChecked()
 
         if 'Av_int' not in self.df.columns:
             self.df.insert(len(self.df.columns), 'Av_int', np.nan)
         if ind is None:
             self.df['Av_int'] = np.nan
 
-        self.load_template(smooth_window=7)
+        self.load_template_qso(smooth_window=7)
+        self.load_template_gal(smooth_window=3)
 
         if ind is None:
             fmiss = open("temp/av_missed.dat", "w")
@@ -613,10 +626,15 @@ class ErositaWidget(QWidget):
                     mask = self.calc_mask(spec, z_em=d['z'], iter=3, window=201, clip=2.5)
                     if np.sum(mask) > 50:
                         sm = [np.asarray(spec[0][mask], dtype=np.float64), spec[1][mask], spec[2][mask]]
-                        temp = self.load_template(x=sm[0], z_em=d['z'], init=False)
+                        temp = self.load_template_qso(x=sm[0], z_em=d['z'], init=False)
+                        temp_gal = self.load_template_gal(x=sm[0], z_em=d['z'], init=False)
 
                         def fcn2min(params):
-                            y = temp * 10 ** (-0.4 * fitzpatrick99(sm[0] / (1 + d['z']), params.valuesdict()['Av'])) * params.valuesdict()['norm']
+                            y = temp * G03_SMCBar().extinguish(1e4 / sm[0] * (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm']
+                            return (y - sm[1]) / sm[2]
+
+                        def fcn2min_gal(params):
+                            y = temp * G03_SMCBar().extinguish(1e4 / sm[0] * (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'] + temp_gal * params.valuesdict()['norm_gal']
                             return (y - sm[1]) / sm[2]
 
                         #norm = np.average(sm[1], weights=sm[2]) / np.average(temp)
@@ -625,15 +643,20 @@ class ErositaWidget(QWidget):
                         params = Parameters()
                         params.add('Av', value=0.0, min=-5, max=5)
                         params.add('norm', value=norm, min=0, max=1e10)
-
+                        if gal:
+                            params.add('norm_gal', value=np.nanmean(sm[1]) / np.nanmean(temp_gal), min=0, max=1e10)
+                            fcn2min = fcn2min_gal
                         # do fit, here with leastsq model
                         minner = Minimizer(fcn2min, params, nan_policy='propagate', calc_covar=True)
                         result = minner.minimize()
 
                         if plot:
-                            temp = self.load_template(x=spec[0], z_em=d['z'], init=False)
+                            temp = self.load_template_qso(x=spec[0], z_em=d['z'], init=False)
                             ax.plot(spec[0], temp * result.params['norm'].value, '-', color='tab:blue', zorder=2, label='composite')
-                            ax.plot(spec[0], temp * 10 ** (-0.4 * fitzpatrick99(np.asarray(spec[0], dtype=np.float64) / (1 + d['z']), result.params['Av'].value)) * result.params['norm'].value, '-', color='tomato', zorder=3, label='comp with ext')
+                            m = spec[0] / (1 + d['z']) > 1000
+                            ax.plot(spec[0][m], temp[m] * G03_SMCBar().extinguish(1e4 / np.asarray(spec[0][m], dtype=np.float64) * (1 + d['z']), Av=result.params['Av'].value) * result.params['norm'].value, '-', color='tomato', zorder=3, label='comp with ext')
+                            if gal:
+                                ax.plot(spec[0], self.load_template_gal(x=spec[0], z_em=d['z'], init=False) * result.params['norm_gal'].value, '-', color='tab:purple', zorder=2, label='galaxy')
                             ax.set_title("{0:4d} {1:19s} {2:5d} {3:5d} {4:4d} Av={5:4.2f}".format(i, d['SDSS_NAME_fl'], d['PLATE_fl'], d['MJD_fl'], d['FIBERID_fl'], result.params['Av'].value))
                             #ax.set_title("{0:4d} {1:19s} Av={2:4.2f}".format(i, d['SDSS_NAME_fl'], result.params['Av'].value))
                             if 0:
@@ -644,7 +667,7 @@ class ErositaWidget(QWidget):
                                 ymin, ymax = ax.get_ylim()[0] * np.ones_like(spec[0]), ax.get_ylim()[1] * np.ones_like(spec[0])
                                 ax.fill_between(spec[0], ymin, ymax, where=mask, color='tab:green', alpha=0.3, zorder=0)
                             fig.legend(loc=1, fontsize=16, borderaxespad=2)
-                        print(result.params['Av'].value)
+                        print(i, result.params['Av'].value)
                         self.df['Av_int'][i] = result.params['Av'].value
                     else:
                         if ind is None:
@@ -657,16 +680,41 @@ class ErositaWidget(QWidget):
             self.updateData()
             self.save_data()
 
+    def expand_mask(self, mask, exp_pixel=1):
+        m = np.copy(mask)
+        for p in itertools.product(np.linspace(-exp_pixel, exp_pixel, 2*exp_pixel+1).astype(int), repeat=2):
+            m1 = np.copy(mask)
+            if p[0] < 0:
+                m1 = np.insert(m1[:p[0]], [0]*np.abs(p[0]), 0, axis=0)
+            if p[0] > 0:
+                m1 = np.insert(m1[p[0]:], [m1.shape[0]-p[0]]*p[0], 0, axis=0)
+            m = np.logical_or(m, m1)
+        #print(np.sum(mask), np.sum(m))
+        #print(np.where(mask)[0], np.where(m)[0])
+        return m
+
+    def sdss_mask(self, mask):
+        m = np.asarray([[s == '1' for s in np.binary_repr(m, width=29)[::-1]] for m in mask])
+        l = [20, 22, 23, 26]
+        return np.sum(m[:, l], axis=1)
+
     def calc_mask(self, spec, z_em=0, iter=3, window=301, clip=2.0):
-        mask = np.asarray(spec[3][:] == 0, dtype=bool)
+        mask = np.logical_not(self.sdss_mask(spec[3]))
+        #mask = np.asarray(spec[3][:] == 0, dtype=bool)
+        #print(np.sum(mask))
         mask *= spec[0] > 1280 * (1 + z_em)
+        #print(np.sum(mask))
         for i in range(iter):
+            m = np.zeros_like(spec[0])
             if window > 0 and np.sum(mask) > window:
                 if i > 0:
-                    mask[mask] *= np.abs(sm - spec[1][mask]) / spec[2][mask] < clip
-
+                    m[mask] = np.abs(sm - spec[1][mask]) / spec[2][mask] > clip
+                    mask *= np.logical_not(self.expand_mask(m, exp_pixel=3))
+                    #mask[mask] *= np.abs(sm - spec[1][mask]) / spec[2][mask] < clip
                 sm = smooth(spec[1][mask], window_len=window, window='hanning', mode='same')
 
+        mask = np.logical_not(self.expand_mask(np.logical_not(mask), exp_pixel=3))
+        #print(np.sum(mask))
         # remove prominent emission lines regions
         windows = [[1295, 1320], [1330, 1360], [1375, 1430], [1500, 1600], [1625, 1700], [1740, 1760],
                    [1840, 1960], [2050, 2120], [2250, 2650], [2710, 2890], [2940, 2990], [3280, 3330],
@@ -676,28 +724,42 @@ class ErositaWidget(QWidget):
         for w in windows:
             mask *= (spec[0] < w[0] * (1 + z_em)) + (spec[0] > w[1] * (1 + z_em))
 
+        #print(np.sum(mask))
         # remove atmospheric absorption region
         windows = [[5560, 5600], [6865, 6930], [7580, 7690], [9300, 9600], [10150, 10400], [13200, 14600]]
         for w in windows:
             mask *= (spec[0] < w[0]) + (spec[0] > w[1])
 
+        #print(np.sum(mask))
         return mask
 
-    def load_template(self, x=None, z_em=0, smooth_window=None, init=True):
+    def load_template_qso(self, x=None, z_em=0, smooth_window=None, init=True):
         if init:
-            if self.template_name in ['VandenBerk', 'HST', 'Slesing']:
-                if self.template_name == 'VandenBerk':
-                    self.template = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
-                elif self.template_name == 'HST':
-                    self.template = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
-                elif self.template_name == 'Slesing':
-                    self.template = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
+            if self.template_name_qso in ['VandenBerk', 'HST', 'Slesing']:
+                if self.template_name_qso == 'VandenBerk':
+                    self.template_qso = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
+                elif self.template_name_qso == 'HST':
+                    self.template_qso = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
+                elif self.template_name_qso == 'Slesing':
+                    self.template_qso = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
 
             if smooth_window is not None:
-                self.template[1] = smooth(self.template[1], window_len=smooth_window, window='hanning', mode='same')
+                self.template_qso[1] = smooth(self.template_qso[1], window_len=smooth_window, window='hanning', mode='same')
 
         if x is not None:
-            inter = interp1d(self.template[0] * (1 + z_em), self.template[1], bounds_error=False, fill_value='extrapolate', assume_sorted=True)
+            inter = interp1d(self.template_qso[0] * (1 + z_em), self.template_qso[1], bounds_error=False, fill_value=0, assume_sorted=True)
+            return inter(x)
+
+    def load_template_gal(self, x=None, z_em=0, smooth_window=None, init=True):
+        if init:
+            f = fits.open(f"data/SDSS/spDR2-0{23 + self.template_name_gal}.fit")
+            self.template_gal = [10 ** (f[0].header['COEFF0'] + f[0].header['COEFF1'] * np.arange(f[0].header['NAXIS1'])), f[0].data[0]]
+
+            if smooth_window is not None:
+                self.template_gal[1] = smooth(self.template_gal[1], window_len=smooth_window, window='hanning', mode='same')
+
+        if x is not None:
+            inter = interp1d(self.template_gal[0] * (1 + z_em), self.template_gal[1], bounds_error=False, fill_value=0, assume_sorted=True)
             return inter(x)
 
     def correlate(self):
@@ -707,9 +769,9 @@ class ErositaWidget(QWidget):
             x, y, = self.df[self.axis_info[self.ero_x_axis][0]], self.df[self.axis_info[self.ero_y_axis][0]]
             m = x.notna() * y.notna() * (x > 0) * (y > 0)
             x, y = self.x_lambda(x[m].to_numpy()), self.y_lambda(y[m].to_numpy())
+            print(x, y)
             slope, intercept, r, p, stderr = linregress(x, y)
             print(slope, intercept, r, p, stderr)
-            line = f'Regression line: y={intercept:.2f}+{slope:.2f}x, r={r:.2f}'
             reg = lambda x: intercept + slope * x
             xreg = np.asarray([np.min(x), np.max(x)])
             self.reg['all'] = "{0:.3f} x + {1:.3f}, disp={2:.2f}".format(slope, intercept, np.std(y - reg(x)))
@@ -721,7 +783,6 @@ class ErositaWidget(QWidget):
                 x, y = self.x_lambda(x[m].to_numpy()), self.y_lambda(y[m].to_numpy())
                 slope, intercept, r, p, stderr = linregress(x, y)
                 print(slope, intercept, r, p, stderr)
-                line = f'Regression line: y={intercept:.2f}+{slope:.2f}x, r={r:.2f}'
                 reg = lambda x: intercept + slope * x
                 xreg = np.asarray([np.min(x), np.max(x)])
                 self.reg['selected'] = "{0:.3f} x + {1:.3f}, disp={2:.2f}".format(slope, intercept, np.std(y - reg(x)))

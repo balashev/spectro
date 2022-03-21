@@ -1619,7 +1619,7 @@ class showLinesWidget(QWidget):
                  'Line labels:', '', '', 'font', '',
                  '', 'hor.:', '', 'vert.:', '',
                  'Continuum', '', '', '', '',
-                 'H2:', '', '', 'pos:', '',
+                 'H2/CO:', '', '', 'pos:', '',
                  'Covering factor:', '', '', '', '',]
 
         positions = [(i, j) for i in range(25) for j in range(5)]
@@ -1783,10 +1783,10 @@ class showLinesWidget(QWidget):
         l = QHBoxLayout()
         self.showButton = QPushButton("Show")
         self.showButton.setFixedSize(110, 30)
-        self.showButton.clicked.connect(partial(self.showPlot, False, []))
+        self.showButton.clicked.connect(partial(self.showPlot, False))
         expButton = QPushButton("Export")
         expButton.setFixedSize(110, 30)
-        expButton.clicked.connect(partial(self.showPlot, True, []))
+        expButton.clicked.connect(partial(self.showPlot, True))
         self.file = QLineEdit(self.plotfile)
         self.file.setFixedSize(350, 30)
         self.file.textChanged[str].connect(self.setFilename)
@@ -1934,7 +1934,7 @@ class showLinesWidget(QWidget):
     def onCompLsChoose(self):
         self.comp_ls = self.lscomp.currentText()
 
-    def showPlot(self, savefig=True, showH2=[]):
+    def showPlot(self, savefig=True):
         fig = plt.figure(figsize=(self.width, self.height), dpi=300)
         #self.subplot = self.mw.getFigure().add_subplot(self.rows, self.cols, 1)
 
@@ -2156,10 +2156,11 @@ class showLinesWidget(QWidget):
                                         #p.ax.text(p.x_max - (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='right', va='bottom', fontsize=p.font_labels, color=color)
                                         p.ax.text(p.x_min + (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='left', va='bottom', fontsize=p.font_labels, color=color)
 
-                print(self.show_H2)
-                if self.show_H2.strip() != '':
-                    p.showH2(levels=[int(s) for s in self.show_H2.split()], pos=self.pos_H2)
-
+                if self.show_H2.strip() != '' :
+                    for sp in ['H2', 'CO', '13CO']:
+                        if any([sp.startswith(sp) for sp in self.parent.fit.list_species()]):
+                            p.showLineLabels(species=sp, levels=[int(s) for s in self.show_H2.split()], pos=self.pos_H2, kind='full')
+                    
                 if self.show_cont:
                     print(self.show_cont)
                     p.ax.plot(s.cheb.x(), s.cheb.y(), '--k', lw=1)
@@ -6193,8 +6194,8 @@ class sviewer(QMainWindow):
         self.SDSSLeefolder = self.options('SDSSLeefolder', config=self.config)
         self.SDSSdata = []
         self.SDSSquery = None
-        self.SDSS_filters_status = 0
-        self.sdss_filters = None
+        self.filters_status = {'SDSS': 0, 'Gaia': 0, '2MASS': 0, 'VISTA':0 , 'WISE': 0}
+        self.filters = {'SDSS': None, 'Gaia': None, '2MASS': None, 'VISTA': None, 'WISE': None}
         self.UVESSetup_status = False
         self.XQ100folder = self.options('XQ100folder', config=self.config)
         self.P94folder = self.options('P94folder', config=self.config)
@@ -6327,9 +6328,9 @@ class sviewer(QMainWindow):
         
         # >>> create File Menu items
         # >>> create File Menu items
-        newAction = QAction('&New', self)
-        newAction.setStatusTip('New session / clear previous')
-        newAction.triggered.connect(self.newSession)
+        clearAction = QAction('&Clear', self)
+        clearAction.setStatusTip('Clear current session')
+        clearAction.triggered.connect(self.clearSession)
 
         openAction = QAction('&Open...', self)
         openAction.setShortcut('Ctrl+O')
@@ -6379,7 +6380,7 @@ class sviewer(QMainWindow):
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(QApplication.instance().quit)
 
-        fileMenu.addAction(newAction)
+        fileMenu.addAction(clearAction)
         fileMenu.addSeparator()
         fileMenu.addAction(openAction)
         fileMenu.addAction(saveAction)
@@ -6631,12 +6632,47 @@ class sviewer(QMainWindow):
         stackLines.setStatusTip('Stack chosen absorption lines')
         stackLines.triggered.connect(partial(self.stackLines))
 
+        FilterMenu = QMenu('&Filters:', self)
+        FilterMenu.setStatusTip('Show the photometric filters')
+
+        SDSSfilters = QAction('&SDSS filters', self, checkable=True)
+        SDSSfilters.setStatusTip('Show SDSS filters')
+        SDSSfilters.triggered.connect(partial(self.show_filters, name='SDSS'))
+        SDSSfilters.setChecked(self.filters_status['SDSS'])
+
+        Gaiafilters = QAction('&Gaia filters', self, checkable=True)
+        Gaiafilters.setStatusTip('Show Gaia filters')
+        Gaiafilters.triggered.connect(partial(self.show_filters, name='Gaia'))
+        Gaiafilters.setChecked(self.filters_status['Gaia'])
+
+        TwoMASSfilters = QAction('&2MASS filters', self, checkable=True)
+        TwoMASSfilters.setStatusTip('Show 2MASS filters')
+        TwoMASSfilters.triggered.connect(partial(self.show_filters, name='2MASS'))
+        TwoMASSfilters.setChecked(self.filters_status['2MASS'])
+
+        VISTAfilters = QAction('&VISTA filters', self, checkable=True)
+        VISTAfilters.setStatusTip('Show VISTA filters')
+        VISTAfilters.triggered.connect(partial(self.show_filters, name='VISTA'))
+        VISTAfilters.setChecked(self.filters_status['VISTA'])
+
+        WISEfilters = QAction('&WISE filters', self, checkable=True)
+        WISEfilters.setStatusTip('Show WISE filters')
+        WISEfilters.triggered.connect(partial(self.show_filters, name='WISE'))
+        WISEfilters.setChecked(self.filters_status['WISE'])
+
         spec1dMenu.addAction(fitCont)
         spec1dMenu.addAction(CompositeQSO)
         spec1dMenu.addAction(CompositeGal)
         spec1dMenu.addAction(rescaleErrs)
         spec1dMenu.addSeparator()
         spec1dMenu.addAction(stackLines)
+        spec1dMenu.addSeparator()
+        spec1dMenu.addMenu(FilterMenu)
+        FilterMenu.addAction(SDSSfilters)
+        FilterMenu.addAction(Gaiafilters)
+        FilterMenu.addAction(TwoMASSfilters)
+        FilterMenu.addAction(VISTAfilters)
+        FilterMenu.addAction(WISEfilters)
 
         # >>> create 2d spec Menu items
 
@@ -6703,13 +6739,7 @@ class sviewer(QMainWindow):
         loadSDSS.setStatusTip('Load SDSS by Plate/fiber')
         loadSDSS.triggered.connect(self.showSDSSdialog)
 
-        SDSSfilters = QAction('&SDSS filters', self, checkable=True)
-        SDSSfilters.setStatusTip('Add SDSS filters magnitudes')
-        SDSSfilters.triggered.connect(self.show_SDSS_filters)
-        SDSSfilters.setChecked(self.SDSS_filters_status)
-
         SDSSMenu.addAction(loadSDSS)
-        SDSSMenu.addAction(SDSSfilters)
         SDSSMenu.addSeparator()
 
         if self.developer:
@@ -6805,7 +6835,6 @@ class sviewer(QMainWindow):
                 Erosita = QAction('&Erosita-SDSS', self)
                 Erosita.setStatusTip('load Erosita-SDSS matched sample')
                 Erosita.triggered.connect(self.showErosita)
-            print(self.ErositaFile, Erosita)
 
             IGMspecMenu = None
             if self.IGMspecFile is not None and os.path.isfile(self.IGMspecFile):
@@ -7077,7 +7106,7 @@ class sviewer(QMainWindow):
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    def newSession(self):
+    def clearSession(self):
 
         # >>> remove regions:
         for r in reversed(self.plot.regions[:]):
@@ -7472,73 +7501,86 @@ class sviewer(QMainWindow):
                     if hdulist is None:
                         hdulist = fits.open(filename)
                     if 'INSTRUME' in hdulist[0].header:
+                        #try:
+                        if 'XSHOOTER' in hdulist[0].header['INSTRUME']:
+                            prihdr = hdulist[1].data
+                            s.set_data([prihdr[0][0][:] * 10, prihdr[0][1][:] * 1e17, prihdr[0][2][:] * 1e17])
+
+                        if any([instr in hdulist[0].header['INSTRUME'] for instr in ['UVES', 'VIMOS']]):
+                            prihdr = hdulist[1].data
+                            l = prihdr[0][0][:]
+                            coef = 1e17 if 'VIMOS' in hdulist[0].header['INSTRUME'] else 1
+                            s.set_data([l, prihdr[0][1][:]*coef, prihdr[0][2][:]*coef])
+                            if 'SPEC_RES' in hdulist[0].header:
+                                s.resolution = hdulist[0].header['SPEC_RES']
+                            if 'DATE-OBS' in hdulist[0].header:
+                                s.date = hdulist[0].header['DATE-OBS']
+                            print(s.resolution, s.date)
+
+                        if 'STIS' in hdulist[0].header['INSTRUME']:
+                            prihdr = hdulist[1].data
+
+                            for k in [0, 1]:
+                                s = Spectrum(self, name=filename + f'_{k}')
+                                r = range(k, hdulist[1].header['NAXIS2'], 2)
+                                s.set_data([np.concatenate([np.r_[prihdr['WAVELENGTH'][i], 2 * prihdr['WAVELENGTH'][i][-1] - prihdr['WAVELENGTH'][i][-2]] for i in r]),
+                                            np.concatenate([np.r_[prihdr['FLUX'][i], np.inf] for i in r]) * 1e12,
+                                            np.concatenate([np.r_[prihdr['ERROR'][i], np.inf] for i in r]) * 1e12])
+                                if k == 0:
+                                    s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
+                                    self.s.append(s)
+
+                        if 'COS' in hdulist[0].header['INSTRUME']:
+                            prihdr = hdulist[1].data
+                            print(prihdr['WAVELENGTH'])
+                            s.set_data([[np.r_[prihdr['WAVELENGTH'][i], 2 * prihdr['WAVELENGTH'][i][-1] - prihdr['WAVELENGTH'][i][-2]] for i in range(hdulist[1].header['NAXIS2'])],
+                                        np.concatenate([np.r_[prihdr['FLUX'][i], np.inf] for i in range(hdulist[1].header['NAXIS2'])]) * 1e15,
+                                        np.concatenate([np.r_[prihdr['ERROR'][i], np.inf] for i in range(hdulist[1].header['NAXIS2'])]) * 1e15,
+                                        ])
+                            s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
+                            self.s.append(s)
+                            s = Spectrum(self, name=filename+'_2')
+                            s.set_data([prihdr['WAVELENGTH'][1],
+                                        1e17 * prihdr['FLUX'][1],
+                                        1e17 * prihdr['ERROR'][1]
+                                        ])
+                            # for l, f, e in zip(prihdr['WAVELENGTH'], prihdr['FLUX'], prihdr['ERROR']):
+                            #    s.set_data()
+
+                        if 'MagE' in hdulist[0].header['INSTRUME']:
+                            for k in [0, 1]:
+                                s = Spectrum(self, name=filename + f'_{k}')
+                                print(len(hdulist) - 1)
+                                r = range(k+1, len(hdulist) - 1, 2)
+                                print([i for i in r])
+                                print(np.concatenate([np.r_[hdulist[i].data['OPT_WAVE'], 2 * hdulist[i].data['OPT_WAVE'][-1] - hdulist[i].data['OPT_WAVE'][-2]] for i in r]))
+                                s.set_data([np.concatenate([np.r_[hdulist[i].data['OPT_WAVE'], 2 * hdulist[i].data['OPT_WAVE'][-1] - hdulist[i].data['OPT_WAVE'][-2]] for i in r]),
+                                            np.concatenate([np.r_[hdulist[i].data['OPT_COUNTS'], np.inf] for i in r]),
+                                            np.concatenate([np.r_[hdulist[i].data['OPT_COUNTS_SIG'], np.inf] for i in r])])
+                                if k == 0:
+                                    s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
+                                    self.s.append(s)
+
+                        if 'ESPRESSO' in hdulist[0].header['INSTRUME']:
+                            prihdr = hdulist[1].data
+                            print(prihdr['WAVE'])
+                            s.set_data([prihdr['WAVE'][0], prihdr['FLUX'][0] * 1e17, prihdr['ERR'][0] * 1e17])
+
+                        if 'FUV' in hdulist[0].header['INSTRUME']:
+                            prihdr = hdulist[1].data
+                            s.set_data([prihdr['WAVE'], prihdr['FLUX'] * 1e17, prihdr['ERROR'] * 1e17])
+
                         try:
-                            if 'XSHOOTER' in hdulist[0].header['INSTRUME']:
-                                prihdr = hdulist[1].data
-                                s.set_data([prihdr[0][0][:] * 10, prihdr[0][1][:] * 1e17, prihdr[0][2][:] * 1e17])
-
-                            if any([instr in hdulist[0].header['INSTRUME'] for instr in ['UVES', 'VIMOS']]):
-                                prihdr = hdulist[1].data
-                                l = prihdr[0][0][:]
-                                coef = 1e17 if 'VIMOS' in hdulist[0].header['INSTRUME'] else 1
-                                s.set_data([l, prihdr[0][1][:]*coef, prihdr[0][2][:]*coef])
-                                if 'SPEC_RES' in hdulist[0].header:
-                                    s.resolution = hdulist[0].header['SPEC_RES']
-                                if 'DATE-OBS' in hdulist[0].header:
-                                    s.date = hdulist[0].header['DATE-OBS']
-                                print(s.resolution, s.date)
-
-                            if 'STIS' in hdulist[0].header['INSTRUME']:
-                                prihdr = hdulist[1].data
-
-                                for k in [0, 1]:
-                                    s = Spectrum(self, name=filename + f'_{k}')
-                                    r = range(k, hdulist[1].header['NAXIS2'], 2)
-                                    s.set_data([np.concatenate([np.r_[prihdr['WAVELENGTH'][i], 2 * prihdr['WAVELENGTH'][i][-1] - prihdr['WAVELENGTH'][i][-2]] for i in r]),
-                                                np.concatenate([np.r_[prihdr['FLUX'][i], np.inf] for i in r]) * 1e12,
-                                                np.concatenate([np.r_[prihdr['ERROR'][i], np.inf] for i in r]) * 1e12])
-                                    if k == 0:
-                                        s.wavelmin = np.min(s.spec.raw.x)
-                                        s.wavelmax = np.max(s.spec.raw.x)
-                                        self.s.append(s)
-
-                            if 'COS' in hdulist[0].header['INSTRUME']:
-                                prihdr = hdulist[1].data
-                                s.set_data([prihdr['WAVELENGTH'][0],
-                                            1e17 * prihdr['FLUX'][0],
-                                            1e17 * prihdr['ERROR'][0]
-                                            ])
-                                s.wavelmin = np.min(s.spec.raw.x)
-                                s.wavelmax = np.max(s.spec.raw.x)
-                                self.s.append(s)
-                                s = Spectrum(self, name=filename+'_2')
-                                s.set_data([prihdr['WAVELENGTH'][1],
-                                            1e17 * prihdr['FLUX'][1],
-                                            1e17 * prihdr['ERROR'][1]
-                                            ])
-                                # for l, f, e in zip(prihdr['WAVELENGTH'], prihdr['FLUX'], prihdr['ERROR']):
-                                #    s.set_data()
-
-                            if 'ESPRESSO' in hdulist[0].header['INSTRUME']:
-                                prihdr = hdulist[1].data
-                                print(prihdr['WAVE'])
-                                s.set_data([prihdr['WAVE'][0], prihdr['FLUX'][0] * 1e17, prihdr['ERR'][0] * 1e17])
-
-                            if 'FUV' in hdulist[0].header['INSTRUME']:
-                                prihdr = hdulist[1].data
-                                s.set_data([prihdr['WAVE'], prihdr['FLUX'] * 1e17, prihdr['ERROR'] * 1e17])
-
-                            try:
-                                if corr:
-                                    s.helio_vel = hdulist[0].header['HIERARCH ESO QC VRAD HELICOR']
-                                    s.apply_shift(s.helio_vel)
-                                    s.airvac()
-                                    s.spec.raw.interpolate()
-                            except:
-                                pass
+                            if corr:
+                                s.helio_vel = hdulist[0].header['HIERARCH ESO QC VRAD HELICOR']
+                                s.apply_shift(s.helio_vel)
+                                s.airvac()
+                                s.spec.raw.interpolate()
                         except:
-                            print('fits file was not loaded')
-                            return False
+                            pass
+                        #except:
+                        #    print('fits file was not loaded')
+                        #    return False
 
                     elif 'TELESCOP' in hdulist[0].header:
                         if 'SDSS' in hdulist[0].header['TELESCOP']:
@@ -7663,10 +7705,11 @@ class sviewer(QMainWindow):
         else:
             self.s.draw()
             
-        if self.SDSS_filters_status:
-            m = max([max(s.spec.raw.y) for s in self.s])
-            for f in self.sdss_filters:
-                f.update(m)
+        for name, status in self.filters_status.items():
+            if status:
+                m = max([max(s.spec.raw.y) for s in self.s])
+                for f in self.filters[name]:
+                    f.update(m)
 
     def import2dSpectrum(self, filelist, spec=None, header=0, dir_path='', ind=None, append=False):
 
@@ -8914,13 +8957,15 @@ class sviewer(QMainWindow):
         if self.compositeQSO_status % 2 == 0:
             self.compositeQSO = CompositeSpectrum(self, kind='QSO', z=self.z_abs)
         else:
-            self.compositeQSO.remove()
+            if hasattr(self, 'compositeQSO'):
+                self.compositeQSO.remove()
 
     def showCompositeGal(self):
         if self.compositeGal_status % 2 == 0:
             self.compositeGal = CompositeSpectrum(self, kind='Galaxy', z=self.z_abs)
         else:
-            self.compositeGal.remove()
+            if hasattr(self, 'compositeGal'):
+                self.compositeGal.remove()
 
     def rescale(self):
         if self.rescale_ind == 0:
@@ -9133,7 +9178,7 @@ class sviewer(QMainWindow):
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    def loadSDSS(self, plate=None, MJD=None, fiber=None, name=None, z_abs=0, append=False, gal_ext=True):
+    def loadSDSS(self, plate=None, MJD=None, fiber=None, name=None, z_abs=0, append=False, gal_ext=False):
         out = True
         if name is not None and len(name) > 0:
             name = name.replace('J', '').replace('SDSS', '').replace(':', '').replace('−', '-').strip()
@@ -9243,6 +9288,12 @@ class sviewer(QMainWindow):
                 hdulist = fits.open(filename)
                 data = hdulist[1].data
                 self.SDSSdata = np.array(hdulist[1].data)
+            elif '.csv' in filename:
+                print(filename)
+                self.SDSSdata = pd.read_csv(filename, keep_default_na=False).to_records(index=False)
+            elif '.xlsx' in filename:
+                print(filename)
+                self.SDSSdata = pd.read_excel(filename, keep_default_na=False).to_records(index=False)
         else:
             self.SDSSdata = []
             data = np.genfromtxt(filename, names=True, dtype=None, unpack=True)
@@ -9450,22 +9501,31 @@ class sviewer(QMainWindow):
         s_fit.toGUI('w')
         s_fit.plot('covar')
 
-    def show_SDSS_filters(self):
-        if self.sdss_filters is None:
-            self.sdss_filters = [SpectrumFilter(self, f) for f in ['u', 'g', 'r', 'i', 'z']]
-                
-        self.SDSS_filters_status = not self.SDSS_filters_status
-        if self.SDSS_filters_status:
+    def show_filters(self, name='SDSS'):
+        if self.filters[name] is None:
+            if name == 'SDSS':
+                self.filters[name] = [SpectrumFilter(self, f) for f in ['u', 'g', 'r', 'i', 'z']]
+            elif name == 'Gaia':
+                self.filters[name] = [SpectrumFilter(self, f) for f in ['G', 'G_BP', 'G_RP']]
+            elif name == 'VISTA':
+                self.filters[name] = [SpectrumFilter(self, f) for f in ['Y_VISTA', 'J_VISTA', 'H_VISTA', 'Ks_VISTA']]
+            elif name == '2MASS':
+                self.filters[name] = [SpectrumFilter(self, f) for f in ['J_2MASS', 'H_2MASS', 'Ks_2MASS']]
+            elif name == 'WISE':
+                self.filters[name] = [SpectrumFilter(self, f) for f in ['W1', 'W2', 'W3', 'W4']]
+
+        self.filters_status[name] = not self.filters_status[name]
+        if self.filters_status[name]:
             try:
                 m = max([max(s.spec.y) for s in self.s])
             except:
                 m = 1
-            for f in self.sdss_filters:
+            for f in self.filters[name]:
                 f.set_gobject(m)
                 self.vb.addItem(f.gobject)
                 self.vb.addItem(f.label)
         else:
-            for f in self.sdss_filters:
+            for f in self.filters[name]:
                 self.vb.removeItem(f.gobject)
                 self.vb.removeItem(f.label)
 
@@ -9473,13 +9533,13 @@ class sviewer(QMainWindow):
         if 1:
             self.SDSS_phot = SDSSPhotWidget(self)
         else:
-            if self.sdss_filters is None:
-                self.sdss_filters = [SpectrumFilter(self, f) for f in ['u', 'g', 'r', 'i', 'z']]
+            if self.filters['SDSS'] is None:
+                self.filters['SDSS'] = [SpectrumFilter(self, f) for f in ['u', 'g', 'r', 'i', 'z']]
             data = self.IGMspec['BOSS_DR12']
             num = len(data['meta']['Z_VI'])
             out = np.zeros([num, 5])
             for i, d in enumerate(data['spec']):
-                out[i] = [f.get_value(x=d['wave'], y=d['flux']) for f in self.sdss_filters]
+                out[i] = [f.get_value(x=d['wave'], y=d['flux']) for f in self.filters['SDSS']]
             out = np.insert(out, 0, data['meta']['THING_ID'], axis=1)
             np.savetxt('temp/sdss_photo.dat', out, fmt='%9i %.2f %.2f %.2f %.2f %.2f')
 
@@ -9724,14 +9784,15 @@ class sviewer(QMainWindow):
             self.s.redraw()
             self.vb.enableAutoRange()
 
-        if self.SDSS_filters_status:
-            m = max([max(self.s[self.s.ind].spec.y())])
-            for f in self.sdss_filters:
-                f.update(m)
+        for name, status in self.filters_status.items():
+            if status:
+                m = max([max(self.s[self.s.ind].spec.y())])
+                for f in self.filters[name]:
+                    f.update(m)
 
-        if self.SDSS_filters_status:
+        if self.filters_status['SDSS']:
             d = {}
-            for f in self.sdss_filters:
+            for f in self.filters['SDSS']:
                 d[f.name] = f.value
             return d
 

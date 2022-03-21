@@ -189,7 +189,9 @@ class QSOlistTable(pg.TableWidget):
         self.format = None
         if 'SDSS' == self.cat:
             self.setWindowTitle('SDSS list of files')
-            self.format = {'SDSS_NAME': '%s', 'PLATE': '%5d', 'MJD': '%5d', 'FIBERID': '%4d'}
+            self.format = {'SDSS_NAME': '%s', 'PLATE': '%5d', 'MJD': '%5d', 'FIBERID': '%4d',
+                           'Z_QSO': '%.3f', 'Z_ABS': '%.3f', 'RA': '%.4f', 'DEC': '%.4f',
+                           'u': '%.2f', 'g': '%.2f', 'r': '%.2f', 'z': '%.2f', 'i': '%.2f'}
                            #'f5': '%.6f'}
         if 'SDSSLee' == self.cat:
             self.setWindowTitle('SDSS DR9 Lee list of files')
@@ -272,7 +274,8 @@ class QSOlistTable(pg.TableWidget):
         self.setData(data)
         if self.format is not None:
             for k, v in self.format.items():
-                self.setFormat(v, self.columnIndex(k))
+                if self.columnIndex(k) is not None:
+                    self.setFormat(v, self.columnIndex(k))
         self.resizeColumnsToContents()
         self.horizontalHeader().setResizeMode(QHeaderView.Stretch)
         self.horizontalHeader().setResizeMode(0, QHeaderView.ResizeToContents)
@@ -540,7 +543,7 @@ class QSOlistTable(pg.TableWidget):
                 print('spectrum loaded')
                 if 1:
                     ind = np.where((self.data[plate_name] == int(self.cell_value(plate_name))) & (self.data[fiber_name] == int(self.cell_value(fiber_name))))[0][0]
-                    for attr in ['Z', 'Z_VI', 'Z_PCE', 'Z_CIV', 'z_em']:
+                    for attr in ['Z', 'Z_VI', 'Z_PCE', 'Z_CIV', 'z_em', 'Z_QSO']:
                         if attr in self.data.dtype.names:
                             self.parent.setz_abs(self.data[attr][ind])
                             break
@@ -757,10 +760,10 @@ class QSOlistTable(pg.TableWidget):
         if 'Erosita' == self.cat:
             if colInd == 0:
                 if all([self.columnIndex(name) is not None for name in ['PLATE_fl', 'FIBERID_fl', 'MJD_fl']]):
-                    self.parent.loadSDSS(plate=int(self.cell_value('PLATE_fl')), MJD=int(self.cell_value('MJD_fl')), fiber=int(self.cell_value('FIBERID_fl')))
+                    self.parent.loadSDSS(plate=int(self.cell_value('PLATE_fl')), MJD=int(self.cell_value('MJD_fl')), fiber=int(self.cell_value('FIBERID_fl')), gal_ext=True)
                     self.parent.statusBar.setText('Spectrum is imported: ' + self.parent.s[-1].filename)
                 elif self.columnIndex('SDSS_NAME_fl') is not None:
-                    self.parent.loadSDSS(name=self.cell_value('SDSS_NAME_fl'))
+                    self.parent.loadSDSS(name=self.cell_value('SDSS_NAME_fl'), gal_ext=True)
                     self.parent.statusBar.setText('Spectrum is imported: ' + self.parent.s[-1].filename)
                 if self.columnIndex('z') is not None:
                     self.parent.setz_abs(self.cell_value('z'))

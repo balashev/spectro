@@ -278,7 +278,7 @@ class fitSystem:
                 #print('init', self.pr.pumping, self.pr.radiation,  self.pr.sed_type)
                 d = {'CO': [-1, 10], 'CI': [-1, 3], 'FeII': [-1, 13], 'H2': [-1, 3]}
                 for s in self.sp.keys():
-                    if 'CO' in s:
+                    if s.startswith('CO'):
                         d['CO'][0] = 0 if s[3:4].strip() == '' else max(d['CO'][0], int(s[3:4]))
                         pars = ['T', 'n', 'f', 'CMB']
                         self.pr = pyratio(z=self.z.val, radiation='full', sed_type='CMB')
@@ -631,6 +631,13 @@ class fitPars:
 
     def list_vary(self):
         return [par for par in self.list() if par.vary]
+
+    def list_species(self):
+        species = set()
+        for sys in self.sys:
+            species.update(list(sys.sp.keys()))
+
+        return species
 
     def pars(self, ind=None):
         pars = OrderedDict()
