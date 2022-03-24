@@ -354,10 +354,10 @@ class Console(QTextEdit):
                     #if self.parent.s[self.parent.s.ind].spline.n > 0:
                     #    self.parent.s[self.parent.s.ind].spline.y *= float(args[-1])
                     #    self.parent.s[self.parent.s.ind].calc_spline()
-                if args[1] == 'x' or len(args) == 2:
+                if args[1] == 'x':
                     self.parent.s[self.parent.s.ind].spec.raw.x[mask] *= float(args[-1])
                     self.parent.s.redraw()
-                if args[1] == 'z' or len(args) == 2:
+                if args[1] == 'z':
                     self.parent.s[self.parent.s.ind].spec.raw.x[mask] *= (1 + float(args[-1]))
                     self.parent.s.redraw()
                 if args[1] in ['err', 'unc'] or len(args) == 2:

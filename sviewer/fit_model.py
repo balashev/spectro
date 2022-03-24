@@ -98,7 +98,6 @@ class chooseSystemPC(QToolButton):
         self.sys = []
         self.update()
         self.setText(self.currentText())
-
         self.setMenu(self.toolmenu)
         self.setPopupMode(QToolButton.InstantPopup)
 

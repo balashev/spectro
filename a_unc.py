@@ -9,6 +9,23 @@ from scipy.stats import rv_continuous
 from scipy.integrate import quad
 import warnings
 
+def column(matrix, attr):
+    if isinstance(matrix[0], a):
+        if isinstance(attr, str):
+            if attr == 'v':
+                attr = 'val'
+            if attr == 'm':
+                attr = 'minus'
+            if attr == 'p':
+                attr = 'plus'
+            return [getattr(row,attr) for row in matrix]
+
+    elif isinstance(matrix[0], list):
+        if isinstance(attr, (int, float)):
+            return [row[attr] for row in matrix]
+    else:
+        return matrix
+
 class a:
     r"""
     This class provide basic arithmetic operations with the values

@@ -17,6 +17,7 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QP
                              QLabel, QCheckBox, QFrame, QTextEdit, QSplitter, QComboBox, QAction, QSizePolicy)
 from scipy.stats import linregress
 import sfdmap
+from .graphics import SpectrumFilter
 from .tables import *
 from .utils import smooth
 
@@ -198,6 +199,30 @@ class ComboMultipleBox(QToolButton):
         if self.name == 'extcat':
             self.parent.addExternalCatalog(item, show=getattr(self, item).isChecked())
 
+class Filter():
+    def __init__(self, parent, name, value=None, err=None):
+        self.parent = parent
+        self.name, self.value, self.err = name, value, err
+        self.filter = SpectrumFilter(self.parent.parent, self.name + '_VISTA')
+        if value is not None and err is not None:
+            print(self.filter.get_flux(value) * 1e17)
+            self.scatter = pg.ErrorBarItem(x=self.filter.l_eff, y=self.filter.get_flux(value) * 1e17,
+                                          top=(self.filter.get_flux(value + err) - self.filter.get_flux(value)) * 1e17,
+                                          bottom=(self.filter.get_flux(value) - self.filter.get_flux(value - err)) * 1e17,
+                                          beam=2, pen=pg.mkPen(width=2, color=self.filter.color))
+            self.errorbar = pg.ScatterPlotItem(x=[self.filter.l_eff], y=[self.filter.get_flux(value) * 1e17],
+                                                size=10, pen=pg.mkPen(width=2, color='w'), brush=pg.mkBrush(*self.filter.color))
+        else:
+            self.scatter, self.errorbar = None, None
+        self.x = self.filter.data.x[:]
+        self.calc_weight()
+
+    def calc_weight(self, z=0):
+        num = int((np.log(self.x[-1]) - np.log(self.x[0])) / 0.001)
+        x = np.exp(np.linspace(np.log(self.x[0]), np.log(self.x[-1]), num))
+        self.weight = np.sqrt(np.sum(self.filter.inter(x)) / np.max(self.filter.data.y))
+        #print('weight:', self.name, self.weight)
+
 class ErositaWidget(QWidget):
     def __init__(self, parent):
         super(ErositaWidget, self).__init__()
@@ -220,10 +245,11 @@ class ErositaWidget(QWidget):
             #print(opt, self.parent.options(opt), func(self.parent.options(opt)))
             setattr(self, opt, func(self.parent.options(opt)))
 
-        self.axis_list = ['z', 'Fx_int', 'Fx', 'Fuv', 'Lx', 'Luv', 'u-b', 'r-i', 'Av_gal', 'Av_int', 'r_gal', 'Luv_corr']
+        self.axis_list = ['z', 'Fx_int', 'Fx', 'det_like', 'Fuv', 'Lx', 'Luv', 'u-b', 'r-i', 'Av_gal', 'Av_int', 'r_gal', 'Luv_corr']
         self.axis_info = {'z': ['z', lambda x: x, 'z'],
                           'Fx_int': ['F_X_int', lambda x: np.log10(x), 'log (F_X_int, erg/s/cm2)'],
                           'Fx': ['F_X', lambda x: np.log10(x), 'log (F_X, erg/s/cm2/Hz)'],
+                          'det_like': ['DET_LIKE_0', lambda x: np.log10(x), 'log (Xray detection lnL)'],
                           'Fuv': ['F_UV', lambda x: np.log10(x), 'log (F_UV, erg/s/cm2/Hz)'],
                           'Lx': ['L_X', lambda x: np.log10(x), 'log (L_X, erg/s/Hz)'],
                           'Luv': ['L_UV', lambda x: np.log10(x), 'log (L_UV, erg/s/Hz)'],
@@ -236,6 +262,7 @@ class ErositaWidget(QWidget):
         self.ind = None
         self.corr_status = 0
         self.ext = {}
+        self.filters = {}
 
     def initGUI(self):
         area = DockArea()
@@ -351,9 +378,9 @@ class ErositaWidget(QWidget):
         calcExt.clicked.connect(partial(self.calc_ext, ind=None, gal=None))
 
         self.QSOtemplate = QComboBox(self)
-        self.QSOtemplate.addItems(['Slesing', 'VanDen Berk', 'HST'])
+        self.QSOtemplate.addItems(['Slesing', 'VanDen Berk', 'HST', 'power', 'composite'])
         self.QSOtemplate.setFixedSize(100, 30)
-        self.template_name_qso = 'Slesing'
+        self.template_name_qso = 'composite'
         self.QSOtemplate.setCurrentText(self.template_name_qso)
         self.template_name_gal = 0
 
@@ -475,17 +502,41 @@ class ErositaWidget(QWidget):
         elif name is not None:
             ind = np.where(self.df['SDSS_NAME_fl'] == name)[0][0]
 
+        print(x, y, name, ind, self.df['SDSS_NAME_fl'][ind])
+
         if ind is not None:
+
             self.ind = ind
             if name is None and self.ErositaTable.columnIndex('SDSS_NAME_fl') is not None:
                 row = self.ErositaTable.getRowIndex(column='SDSS_NAME_fl', value=self.df['SDSS_NAME_fl'][ind])
                 self.ErositaTable.setCurrentCell(row, 0)
                 self.ErositaTable.selectRow(row)
                 self.ErositaTable.row_clicked(row=row)
+
             if x is None and self.plotExt.isChecked():
                 self.calc_ext(self.ind, plot=self.plotExt.isChecked(), gal=self.galExt.isChecked())
+            else:
+                self.set_filters(ind, clear=True)
+
+            for k, f in self.filters.items():
+                self.parent.plot.vb.addItem(f.scatter)
+                self.parent.plot.vb.addItem(f.errorbar)
 
             self.updateData(ind=self.ind)
+
+    def set_filters(self, ind, clear=False):
+        if clear:
+            for k, f in self.filters.items():
+                try:
+                    self.parent.plot.vb.removeItem(f.scatter)
+                    self.parent.plot.vb.removeItem(f.errorbar)
+                except:
+                    pass
+        self.filters = {}
+        for k in ['J', 'H', 'K']:
+            #print(k, self.df[k + 'MAG_fl'][ind], self.df['ERR_' + k + 'MAG_fl'][ind])
+            if not np.isnan(self.df[k + 'MAG_fl'][ind]) and not np.isnan(self.df['ERR_' + k + 'MAG_fl'][ind]):
+                self.filters[k] = Filter(self, k, value=self.df[k + 'MAG_fl'][ind], err=self.df['ERR_' + k + 'MAG_fl'][ind])
 
     def select_points(self, x1, y1, x2, y2, remove=False, add=False):
         x1, x2, y1, y2 = np.min([x1, x2]), np.max([x1, x2]), np.min([y1, y2]), np.max([y1, y2])
@@ -507,8 +558,11 @@ class ErositaWidget(QWidget):
         self.ero_lUV = float(self.lambdaUV.text())
         self.parent.options('ero_lUV', self.ero_lUV)
 
-    def loadSDSS(self, plate, fiber, mjd, Av_gal=np.nan):
+    def getSDSSind(self, name):
+        ind = np.where(self.df['SDSS_NAME_fl'] == name)[0][0]
+        return self.df['PLATE_fl'][ind], self.df['MJD_fl'][ind], self.df['FIBERID_fl'][ind]
 
+    def loadSDSS(self, plate, fiber, mjd, Av_gal=np.nan):
         filename = os.path.dirname(self.parent.ErositaFile) + '/spectra/spec-{0:04d}-{2:05d}-{1:04d}.fits'.format(int(plate), int(fiber), int(mjd))
         if os.path.exists(filename):
             qso = fits.open(filename)
@@ -553,7 +607,7 @@ class ErositaWidget(QWidget):
 
         if 'L_X' not in self.df.columns:
             self.df.insert(len(self.df.columns), 'L_X', np.nan)
-        self.df['L_X'] =np.nan
+        self.df['L_X'] = np.nan
 
         if 'F_X' in self.df.columns:
             self.df['L_X'] = 4 * np.pi * dl ** 2 * self.df['F_X'] #/ (1 + self.df['Z_fl'])
@@ -617,11 +671,20 @@ class ErositaWidget(QWidget):
         print('calc_ext:', ind)
         for i, d in self.df.iterrows():
             if ind is None or i == int(ind):
+                spec = self.loadSDSS(d['PLATE_fl'], d['FIBERID_fl'], d['MJD_fl'], Av_gal=d['Av_gal'])
+
+                self.set_filters(i, clear=True)
+
                 if plot:
                     fig, ax = plt.subplots()
-                spec = self.loadSDSS(d['PLATE_fl'], d['FIBERID_fl'], d['MJD_fl'], Av_gal=d['Av_gal'])
-                if plot:
                     ax.plot(spec[0], spec[1], '-k', lw=.5, zorder=2, label='spectrum')
+                    for k, f in self.filters.items():
+                        print(f.value, f.err, f.filter.get_flux(d[k + 'MAG_fl']))
+                        ax.errorbar(f.filter.l_eff, f.filter.get_flux(d[k + 'MAG_fl']) * 1e17,
+                                    yerr=(f.filter.get_flux(f.value + f.err) - f.filter.get_flux(f.value)) * 1e17,
+                                    marker='s', color=[c/255 for c in f.filter.color])
+
+
                 if spec is not None:
                     mask = self.calc_mask(spec, z_em=d['z'], iter=3, window=201, clip=2.5)
                     if np.sum(mask) > 50:
@@ -631,11 +694,11 @@ class ErositaWidget(QWidget):
 
                         def fcn2min(params):
                             y = temp * G03_SMCBar().extinguish(1e4 / sm[0] * (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm']
-                            return (y - sm[1]) / sm[2]
+                            return np.append((y - sm[1]) / sm[2], [f.weight / f.err * (f.value - f.filter.get_value(x=f.x, y=self.load_template_qso(x=f.x, z_em=d['z'], init=False) * G03_SMCBar().extinguish(1e4 / f.x * (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'])) for f in self.filters.values()])
 
                         def fcn2min_gal(params):
                             y = temp * G03_SMCBar().extinguish(1e4 / sm[0] * (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'] + temp_gal * params.valuesdict()['norm_gal']
-                            return (y - sm[1]) / sm[2]
+                            return np.append((y - sm[1]) / sm[2], [f.weight / f.err * (f.value - f.filter.get_value(x=f.x, y=self.load_template_qso(x=f.x, z_em=d['z'], init=False) * G03_SMCBar().extinguish(1e4 / f.x * (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'])) for f in self.filters.values()])
 
                         #norm = np.average(sm[1], weights=sm[2]) / np.average(temp)
                         norm = np.nanmean(sm[1]) / np.nanmean(temp)
@@ -654,7 +717,16 @@ class ErositaWidget(QWidget):
                             temp = self.load_template_qso(x=spec[0], z_em=d['z'], init=False)
                             ax.plot(spec[0], temp * result.params['norm'].value, '-', color='tab:blue', zorder=2, label='composite')
                             m = spec[0] / (1 + d['z']) > 1000
-                            ax.plot(spec[0][m], temp[m] * G03_SMCBar().extinguish(1e4 / np.asarray(spec[0][m], dtype=np.float64) * (1 + d['z']), Av=result.params['Av'].value) * result.params['norm'].value, '-', color='tomato', zorder=3, label='comp with ext')
+                            ax.plot(spec[0][m], temp[m] * G03_SMCBar().extinguish(1e4 / np.asarray(spec[0][m], dtype=np.float64) * (1 + d['z']), Av=result.params['Av'].value) * result.params['norm'].value,
+                                    '-', color='tomato', zorder=3, label='comp with ext')
+                            for k, f in self.filters.items():
+                                temp = self.load_template_qso(x=f.x, z_em=d['z'], init=False)
+                                print(k, d[k + 'MAG_fl'], f.filter.get_value(x=f.x, y=temp * G03_SMCBar().extinguish(1e4 / f.x * (1 + d['z']), Av=result.params['Av'].value) * result.params['norm'].value))
+                                ax.plot(f.x, temp * G03_SMCBar().extinguish(1e4 / f.x * (1 + d['z']), Av=result.params['Av'].value) * result.params['norm'].value,
+                                        '-', color='tomato', zorder=3)
+                                    #ax.scatter(f[0].l_eff, f[0].get_value(x=f[0].data.x, y=temp * G03_SMCBar().extinguish(1e4 / f[0].data.x * (1 + d['z']), Av=result.params['Av'].value) * result.params['norm'].value),
+                                    #           s=20, marker='o', c=[c/255 for c in f[0].color])
+
                             if gal:
                                 ax.plot(spec[0], self.load_template_gal(x=spec[0], z_em=d['z'], init=False) * result.params['norm_gal'].value, '-', color='tab:purple', zorder=2, label='galaxy')
                             ax.set_title("{0:4d} {1:19s} {2:5d} {3:5d} {4:4d} Av={5:4.2f}".format(i, d['SDSS_NAME_fl'], d['PLATE_fl'], d['MJD_fl'], d['FIBERID_fl'], result.params['Av'].value))
@@ -735,14 +807,25 @@ class ErositaWidget(QWidget):
 
     def load_template_qso(self, x=None, z_em=0, smooth_window=None, init=True):
         if init:
-            if self.template_name_qso in ['VandenBerk', 'HST', 'Slesing']:
+            if self.template_name_qso in ['VandenBerk', 'HST', 'Slesing', 'power', 'composite']:
                 if self.template_name_qso == 'VandenBerk':
                     self.template_qso = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
                 elif self.template_name_qso == 'HST':
                     self.template_qso = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
                 elif self.template_name_qso == 'Slesing':
                     self.template_qso = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
-
+                elif self.template_name_qso == 'power':
+                    self.template_qso = np.ones((2, 1000))
+                    self.template_qso[0] = np.linspace(500, 25000, self.template_qso.shape[1])
+                    self.template_qso[1] = np.power(self.template_qso[0] / 2500, -1.9)
+                    smooth_window = None
+                elif self.template_name_qso == 'composite':
+                    data = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
+                    data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
+                    x = data[0][-1] + np.arange(1, int((25000 - data[0][-1]) / 0.4)) * 0.4
+                    y = np.power(x / 2500, -1.9) * 6.542031
+                    data = np.append(data, [x, y, y / 10], axis=1)
+                    self.template_qso = data
             if smooth_window is not None:
                 self.template_qso[1] = smooth(self.template_qso[1], window_len=smooth_window, window='hanning', mode='same')
 

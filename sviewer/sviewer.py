@@ -3292,12 +3292,18 @@ class fitExtWidget(QWidget):
         l = QHBoxLayout()
         l.addWidget(QLabel('Template:'))
         temp_group = QButtonGroup(self)
-        for template in ['VandenBerk', 'HST', 'Slesing']:
+        self.smooth_template = {'VandenBerk': 7, 'HST': 7, 'Slesing': 7, 'power': None, 'composite': 7}
+        for template in ['VandenBerk', 'HST', 'Slesing', 'power', 'composite']:
             setattr(self, template, QRadioButton(template))
             temp_group.addButton(getattr(self, template))
             l.addWidget(getattr(self, template))
             getattr(self, template).toggled.connect(partial(self.set, 'template', template))
-        self.HST.setChecked(True)
+        self.Slesing.setChecked(True)
+        self.slope = -1.7
+        self.slopeField = QLineEdit()
+        self.slopeField.setFixedSize(70, 30)
+        self.slopeField.setText('{0:.2f}'.format(self.slope))
+        l.addWidget(self.slopeField)
         l.addStretch(1)
         layout.addLayout(l)
 
@@ -3414,9 +3420,10 @@ class fitExtWidget(QWidget):
         return frame
 
     def load_template(self, x=None, z_em=0, smooth_window=None):
-        if self.template in ['VandenBerk', 'HST', 'Slesing']:
+        if self.template in ['VandenBerk', 'HST', 'Slesing', 'power']:
             if self.template == 'VandenBerk':
                 data = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
+                data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
                 data[0] *= (1 + z_em)
                 fill_value = (1.3, 0.5)
             elif self.template == 'HST':
@@ -3425,6 +3432,21 @@ class fitExtWidget(QWidget):
                 fill_value = 'extrapolate'
             elif self.template == 'Slesing':
                 data = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
+                data[0] *= (1 + z_em)
+                fill_value = 'extrapolate'
+            elif self.template == 'power':
+                self.slope = float(self.slopeField.text())
+                data = np.ones((2, 10000))
+                data[0] = np.linspace(500, 25000, data.shape[1])
+                data[1] = np.power(data[0] / 2500, self.slope)
+                data[0] *= (1 + z_em)
+                fill_value = 'extrapolate'
+            elif self.template == 'composite':
+                data = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
+                data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
+                x = data[0][-1] + np.arange(1, int((25000 - data[0][-1]) / 0.4)) * 0.4
+                y = np.power(x / 2500, -1.9) * 6.542031
+                data = np.append(data, [x, y, y / 10], axis=1)
                 data[0] *= (1 + z_em)
                 fill_value = 'extrapolate'
             elif self.template == 'const':
@@ -3497,7 +3519,7 @@ class fitExtWidget(QWidget):
         Av = float(self.Av_value.text())
         Av_bump = float(self.Av_bump_value.text())
 
-        y = self.load_template(z_em=z_em, smooth_window=7)
+        y = self.load_template(z_em=z_em, smooth_window=self.smooth_template[self.template])
 
         s = self.parent.s[self.parent.s.ind]
         if self.tab.tabText(self.tab.currentIndex()) == 'Emperical':
@@ -3522,7 +3544,7 @@ class fitExtWidget(QWidget):
         z_abs = float(self.z_abs_value.text())
         Av = float(self.Av_value.text())
         Av_bump = float(self.Av_bump_value.text())
-        temp = self.load_template(z_em=z_em, smooth_window=7)
+        temp = self.load_template(z_em=z_em, smooth_window=self.smooth_template[self.template])
 
         def fcn2min(params):
             y = temp * add_ext(x=s.spec.raw.x, z_ext=z_abs, Av=params.valuesdict()['Av'], kind=self.ec) * params.valuesdict()['norm']

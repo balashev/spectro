@@ -1,12 +1,3 @@
-show CIj2
-show Coj1
-show COj1
-show COj2
-hide CI
-show Ci
-show CI
-show H2 0 1
-show H2 0 1
 show CI
 high HI
 show H2 0 1
@@ -19,3 +10,12 @@ ZnII
 show ZnII
 SII
 show SII
+show CI
+show ZnII
+show MgI
+show H2 0 1
+show SiII*
+y 0 1
+rescale 2.2
+rescale 2.2
+rescale 0.85

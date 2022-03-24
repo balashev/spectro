@@ -2623,9 +2623,15 @@ class SpectrumFilter():
     def __init__(self, parent, name=None):
         self.parent = parent
         self.name = name
+        self.correct_name()
         self.init_data()
         self.gobject = None
         self.get_value()
+
+    def correct_name(self):
+        d = {'K_VISTA': 'Ks_VISTA', 'Y': 'Y_VISTA', 'J': 'J_VISTA', 'H': 'H_VISTA', 'K': 'Ks_VISTA', 'Ks': 'Ks_VISTA'}
+        if self.name in d.keys():
+            self.name = d[self.name]
 
     def init_data(self):
         if self.name == 'u':
@@ -2702,7 +2708,7 @@ class SpectrumFilter():
             data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + f'/data/filters/2MASS_2MASS.{self.name}.dat'.replace('_2MASS.dat', '.dat'),
                 skip_header=0, usecols=(0, 1), unpack=True)
             self.data = gline(x=data[0], y=data[1])
-        if self.name in ['Y_VISTA', 'J_VISTA', 'H_VISTA', 'Ks_VISTA']:
+        if self.name in ['Y_VISTA', 'J_VISTA', 'H_VISTA', 'Ks_VISTA', 'K_VISTA']:
             data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + f'/data/filters/Paranal_VISTA.{self.name}.dat'.replace('_VISTA.dat', '.dat'),
                 skip_header=0, usecols=(0, 1), unpack=True)
             self.data = gline(x=data[0], y=data[1])
@@ -2736,7 +2742,7 @@ class SpectrumFilter():
 
     def get_value(self, x=None, y=None):
         try:
-            print(self.name, self.mag_type)
+            #print(self.name, self.mag_type)
             if self.mag_type == 'Asinh':
                 m0 = -2.5 / np.log(10) * (np.log(self.b))
                 if x is None or y is None:
@@ -2756,13 +2762,30 @@ class SpectrumFilter():
                 #print(np.trapz(y * 1e-17 * x ** 2 / ac.c.to('Angstrom/s').value * self.inter(x), x=x) / np.trapz(self.inter(x), x=x))
                 # y in 1e-17 erg/s/cm^2/AA a typical units in SDSS data
                 flux = np.trapz(y * 1e-17 * x * self.inter(x), x=x) / np.trapz(x * self.inter(x), x=x)
-                print(flux)
+                #print(flux)
                 self.value = - 2.5 * np.log10(flux / self.zp)
-                print(self.value)
+                #print(self.value)
         except:
             self.value = np.nan
         return self.value
 
+    def get_flux(self, value):
+        #print(self.name, self.mag_type)
+        if self.mag_type == 'Asinh':
+            if 0:
+                m0 = -2.5 / np.log(10) * (np.log(self.b))
+                if x is None or y is None:
+                    x, y = self.parent.s[self.parent.s.ind].spec.x(), self.parent.s[self.parent.s.ind].spec.y()
+                mask = np.logical_and(x > self.data.x[0], x < self.data.x[-1])
+                x, y = x[mask], y[mask]
+                #flux = np.trapz(y * 1e-33 * x * self.inter(x), x=x)
+                #self.value = 2.5 / np.log(10) * (np.arcsinh(flux / self.flux_0 / 2 / self.b) + np.log(self.b))
+                flux = - 2.5 / np.log(10) * (np.arcsinh(y * 1e-17 * x**2 / ac.c.to('Angstrom/s').value / self.flux_0 / 2 / self.b) + np.log(self.b))
+                #print(flux)
+                self.value = np.trapz(flux * x * self.inter(x), x=x) / np.trapz(x * self.inter(x), x=x)
+        elif self.mag_type == 'Pogson':
+            flux = self.zp * 10 ** (- value / 2.5)
+        return flux
 
 class VerticalRegionItem(pg.UIGraphicsItem):
 
@@ -2828,11 +2851,21 @@ class CompositeSpectrum():
         if self.type == 'QSO':
             if self.parent.compositeQSO_status == 1:
                 self.spec = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
+                self.spec = self.spec[:, np.logical_or(self.spec[1] != 0, self.spec[1] != 0)]
                 self.spec[1] = smooth(self.spec[1], mode='same')
-            if self.parent.compositeQSO_status == 3:
+                if 1:
+                    x = self.spec[0][-1] + np.arange(1, int((25000 - self.spec[0][-1]) / 0.4)) * 0.4
+                    y = np.power(x / 2500, -1.9) * 6.542031
+                    self.spec = np.append(self.spec, [x, y, y / 10], axis=1)
+
+            elif self.parent.compositeQSO_status == 3:
                 self.spec = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
             elif self.parent.compositeQSO_status == 5:
                 self.spec = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
+            elif self.parent.compositeQSO_status == 7:
+                self.spec = np.ones((2, 1000))
+                self.spec[0] = np.linspace(500, 25000, self.spec.shape[1])
+                self.spec[1] = np.power(self.spec[0] / 2500, -1.9)
         elif self.type == 'Galaxy':
             print('gal_status: ', self.parent.compositeGal_status)
             if self.parent.compositeGal_status % 2:
@@ -2862,7 +2895,7 @@ class CompositeSpectrum():
     def remove(self):
         if self.type == 'QSO':
             self.parent.compositeQSO_status += 1
-            if self.parent.compositeQSO_status == 6:
+            if self.parent.compositeQSO_status == 8:
                 self.parent.compositeQSO_status = 0
         if self.type == 'Galaxy':
             self.parent.compositeGal_status += 1
