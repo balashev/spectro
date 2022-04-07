@@ -30,7 +30,7 @@ from scipy.optimize import curve_fit, least_squares
 from scipy.signal import savgol_filter, lombscargle, medfilt
 from scipy.stats import gaussian_kde
 
-from ..profiles import tau, convolveflux, makegrid
+from ..profiles import tau, convolveflux, makegrid, add_ext
 from .external import sg_smooth as sg
 from .utils import Timer, debug, MaskableList, moffat_func, smooth
 
@@ -2629,7 +2629,7 @@ class SpectrumFilter():
         self.get_value()
 
     def correct_name(self):
-        d = {'K_VISTA': 'Ks_VISTA', 'Y': 'Y_VISTA', 'J': 'J_VISTA', 'H': 'H_VISTA', 'K': 'Ks_VISTA', 'Ks': 'Ks_VISTA'}
+        d = {'K_VISTA': 'Ks_VISTA', 'Y': 'Y_VISTA', 'J': 'J_2MASS', 'H': 'H_2MASS', 'K': 'Ks_2MASS', 'Ks': 'Ks_2MASS'}
         if self.name in d.keys():
             self.name = d[self.name]
 
@@ -2649,47 +2649,29 @@ class SpectrumFilter():
         if self.name == 'z':
             self.m0 = 20.32
             self.b = 7.4e-10
-        if self.name == 'G':
-            self.m0 = 25.688
-            self.zp = 2.5e-9
-        if self.name == 'G_BP':
-            self.zp = 4.04e-9
-        if self.name == 'G_RP':
-            self.zp = 1.29e-9
-        if self.name == 'J_2MASS':
-            self.zp = 3.13e-10
-        if self.name == 'H_2MASS':
-            self.zp = 1.13e-10
-        if self.name == 'Ks_2MASS':
-            self.zp = 4.28e-11
-        if self.name == 'Y_VISTA':
-            self.zp = 6.01e-10
-        if self.name == 'J_VISTA':
-            self.zp = 2.98e-10
-        if self.name == 'H_VISTA':
-            self.zp = 1.15e-10
-        if self.name == 'Ks_VISTA':
-            self.zp = 4.41e-11
-        if self.name == 'W1':
-            self.zp = 8.18e-12
-        if self.name == 'W2':
-            self.zp = 2.42e-12
-        if self.name == 'W3':
-            self.zp = 6.52e-14
-        if self.name == 'W4':
-            self.zp = 5.09e-15
+
+        zp = {'u': 3.75e-9, 'g': 5.45e-9, 'r': 2.5e-9, 'i': 1.39e-9, 'z': 8.39e-10,
+              'G': 2.5e-9, 'G_BP': 4.04e-9, 'G_RP': 1.29e-9,
+              'J_2MASS': 3.13e-10, 'H_2MASS': 1.13e-10, 'Ks_2MASS': 4.28e-11,
+              'Y_VISTA': 6.01e-10, 'J_VISTA': 2.98e-10, 'H_VISTA': 1.15e-10, 'Ks_VISTA': 4.41e-11,
+              'W1': 8.18e-12, 'W2': 2.42e-12, 'W3': 6.52e-14, 'W4': 5.09e-15,
+              'NUV': 4.45e-9, 'FUV': 6.5e-9,
+              }
+        self.zp = zp[self.name]
 
         colors = {'u': (23, 190, 207), 'g': (44, 160, 44), 'r': (214, 39, 40), 'i': (227, 119, 194),
                   'z': (31, 119, 180),
                   'G': (225, 168, 18), 'G_BP': (0, 123, 167), 'G_RP': (227, 66, 52),
                   'J_2MASS': (152, 255, 152), 'H_2MASS': (8, 232, 222), 'Ks_2MASS': (30, 144, 255),
                   'Y_VISTA': (212, 245, 70), 'J_VISTA': (142, 245, 142), 'H_VISTA': (18, 222, 212), 'Ks_VISTA': (20, 134, 245),
-                  'W1': (231, 226, 83), 'W2': (225, 117, 24), 'W3': (227, 66, 52), 'W4': (199, 21, 133)}
+                  'W1': (231, 226, 83), 'W2': (225, 117, 24), 'W3': (227, 66, 52), 'W4': (199, 21, 133),
+                  'NUV': (227, 66, 52), 'FUV': (0, 123, 167),
+                  }
         self.color = colors[self.name]
 
         if self.name in ['u', 'g', 'r', 'i', 'z']:
             self.mag_type = 'Asinh'
-        if self.name in ['G', 'G_BP', 'G_RP', 'J_2MASS', 'H_2MASS', 'Ks_2MASS', 'Y_VISTA', 'J_VISTA', 'H_VISTA', 'Ks_VISTA', 'W1', 'W2', 'W3', 'W4']:
+        if self.name in ['G', 'G_BP', 'G_RP', 'J_2MASS', 'H_2MASS', 'Ks_2MASS', 'Y_VISTA', 'J_VISTA', 'H_VISTA', 'Ks_VISTA', 'W1', 'W2', 'W3', 'W4', 'NUV', 'FUV']:
             self.mag_type = 'Pogson'
 
         self.data = None
@@ -2716,6 +2698,10 @@ class SpectrumFilter():
             data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + f'/data/filters/WISE_WISE.{self.name}.dat',
                                  skip_header=0, usecols=(0, 1), unpack=True)
             self.data = gline(x=data[0], y=data[1])
+        if self.name in ['NUV', 'FUV']:
+            data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + f'/data/filters/GALEX_GALEX.{self.name}.dat',
+                                 skip_header=0, usecols=(0, 1), unpack=True)
+            self.data = gline(x=data[0], y=data[1])
 
         #self.flux_0 = np.trapz(3.631e-29 * ac.c.to('Angstrom/s').value / self.data.x**2 * self.data.y, x=self.data.x)
         #self.flux_0 = np.trapz(3.631 * 3e-18 / self.data.x * self.data.y, x=self.data.x)
@@ -2725,7 +2711,7 @@ class SpectrumFilter():
         self.ymax_pos = np.argmax(self.data.y)
         self.inter = interp1d(self.data.x, self.data.y, bounds_error=False, fill_value=0, assume_sorted=True)
         self.l_eff = np.sqrt(np.trapz(self.inter(self.data.x) * self.data.x, x=self.data.x) / np.trapz(self.inter(self.data.x) / self.data.x, x=self.data.x))
-        print(self.l_eff)
+        #print(self.l_eff)
 
     def update(self, level):
         self.gobject.setData(x=self.data.x, y=level * self.data.y)
@@ -2740,7 +2726,17 @@ class SpectrumFilter():
         self.label.setFont(QFont("SansSerif", 16))
         self.label.setPos(self.data.x[self.ymax_pos], level * self.data.y[self.ymax_pos])
 
-    def get_value(self, x=None, y=None):
+    def get_value(self, x=None, y=None, flux=None):
+        """
+        return magnitude in photometric filter. Important that flux should be in erg/s/cm^2/A
+        Args:
+            x:
+            y:
+            flux:
+
+        Returns:
+
+        """
         try:
             #print(self.name, self.mag_type)
             if self.mag_type == 'Asinh':
@@ -2755,14 +2751,14 @@ class SpectrumFilter():
                 #print(flux)
                 self.value = np.trapz(flux * x * self.inter(x), x=x) / np.trapz(x * self.inter(x), x=x)
             elif self.mag_type == 'Pogson':
-                if x is None or y is None:
-                    x, y = self.parent.s[self.parent.s.ind].spec.x(), self.parent.s[self.parent.s.ind].spec.y()
-                mask = np.logical_and(x > self.data.x[0], x < self.data.x[-1])
-                x, y = x[mask], y[mask]
-                #print(np.trapz(y * 1e-17 * x ** 2 / ac.c.to('Angstrom/s').value * self.inter(x), x=x) / np.trapz(self.inter(x), x=x))
-                # y in 1e-17 erg/s/cm^2/AA a typical units in SDSS data
-                flux = np.trapz(y * 1e-17 * x * self.inter(x), x=x) / np.trapz(x * self.inter(x), x=x)
-                #print(flux)
+                if flux is None:
+                    if x is None or y is None:
+                        x, y = self.parent.s[self.parent.s.ind].spec.x(), self.parent.s[self.parent.s.ind].spec.y()
+                    mask = np.logical_and(x > self.data.x[0], x < self.data.x[-1])
+                    x, y = x[mask], y[mask]
+                    #print(np.trapz(y * 1e-17 * x ** 2 / ac.c.to('Angstrom/s').value * self.inter(x), x=x) / np.trapz(self.inter(x), x=x))
+                    # y in 1e-17 erg/s/cm^2/AA a typical units in SDSS data
+                    flux = np.trapz(y * 1e-17 * x * self.inter(x), x=x) / np.trapz(x * self.inter(x), x=x)
                 self.value = - 2.5 * np.log10(flux / self.zp)
                 #print(self.value)
         except:
@@ -2835,7 +2831,7 @@ class CompositeSpectrum():
     def __init__(self, parent, kind='QSO', z=0.0):
         self.parent = parent
         self.z = z
-        self.f = 1
+        self.f, self.av = 1, 0
         self.type = kind
         if self.type == 'QSO':
             self.parent.compositeQSO_status += 1
@@ -2853,11 +2849,15 @@ class CompositeSpectrum():
                 self.spec = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
                 self.spec = self.spec[:, np.logical_or(self.spec[1] != 0, self.spec[1] != 0)]
                 self.spec[1] = smooth(self.spec[1], mode='same')
-                if 1:
-                    x = self.spec[0][-1] + np.arange(1, int((25000 - self.spec[0][-1]) / 0.4)) * 0.4
-                    y = np.power(x / 2500, -1.9) * 6.542031
+                if 0:
+                    #x = self.spec[0][-1] + np.arange(1, int((25000 - self.spec[0][-1]) / 0.4)) * 0.4
+                    x = self.spec[0][-1] * np.linspace(1, 30, 100)
+                    y = np.power(x / 11350, -0.5) * 0.43
                     self.spec = np.append(self.spec, [x, y, y / 10], axis=1)
-
+                else:
+                    data = np.genfromtxt('data/SDSS/QSO1_template_norm.sed', skip_header=0, unpack=True)
+                    m = data[0] > self.spec[0][-1]
+                    self.spec = np.append(self.spec, [data[0][m], data[1][m] * self.spec[1][-1] / data[1][m][0], data[1][m] / 30], axis=1)
             elif self.parent.compositeQSO_status == 3:
                 self.spec = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
             elif self.parent.compositeQSO_status == 5:
@@ -2879,7 +2879,7 @@ class CompositeSpectrum():
         self.parent.vb.addItem(self.gline)
 
     def redraw(self):
-        self.gline.setData(x=self.spec[0] * (1 + self.z), y=self.spec[1] * self.f)
+        self.gline.setData(x=self.spec[0] * (1 + self.z), y=self.spec[1] * self.f * add_ext(self.spec[0], z_ext=0, Av=self.av, kind='SMC'))
         #self.label.redraw()
 
     def calc_scale(self):
@@ -2916,7 +2916,7 @@ class CompositeGraph(pg.PlotCurveItem):
         self.setZValue(5)
 
     def mouseDragEvent(self, ev):
-        if QApplication.keyboardModifiers() == Qt.ShiftModifier:
+        if QApplication.keyboardModifiers() in [Qt.ShiftModifier, Qt.AltModifier]:
             if ev.button() != Qt.LeftButton:
                 ev.ignore()
                 return
@@ -2927,7 +2927,7 @@ class CompositeGraph(pg.PlotCurveItem):
                 self.start = None
                 return
             else:
-                self.redraw(start=self.start, finish=ev.pos())
+                self.redraw_pos(start=self.start, finish=ev.pos(), modifier=QApplication.keyboardModifiers())
                 self.start = ev.pos()
                 if self.start is None:
                     ev.ignore()
@@ -2935,9 +2935,14 @@ class CompositeGraph(pg.PlotCurveItem):
 
             ev.accept()
 
-    def redraw(self, start, finish):
-        self.parent.z = finish.x() / start.x() * (1 + self.parent.z) - 1
-        self.parent.f = self.parent.f * finish.y() / start.y()
+
+    def redraw_pos(self, start, finish, modifier=Qt.ShiftModifier):
+        if modifier == Qt.ShiftModifier:
+            self.parent.z = finish.x() / start.x() * (1 + self.parent.z) - 1
+            self.parent.f = self.parent.f * finish.y() / start.y()
+        elif modifier == Qt.AltModifier:
+            self.parent.av = self.parent.av + (1 - finish.y() / start.y())
+            self.parent.parent.statusBar.setText('Av={0:5.2}'.format(self.parent.av))
         self.parent.redraw()
 
     def mouseClickEvent(self, ev):

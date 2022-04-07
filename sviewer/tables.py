@@ -759,10 +759,10 @@ class QSOlistTable(pg.TableWidget):
 
         if 'Erosita' == self.cat:
             if colInd == 0:
-                if all([self.columnIndex(name) is not None for name in ['PLATE_fl', 'FIBERID_fl', 'MJD_fl']]):
-                    plate, MJD, fiber = int(self.cell_value('PLATE_fl')), int(self.cell_value('MJD_fl')), int(self.cell_value('FIBERID_fl'))
-                elif self.columnIndex('SDSS_NAME_fl') is not None:
-                    plate, MJD, fiber = self.parent.ErositaWidget.getSDSSind(name=self.cell_value('SDSS_NAME_fl'))
+                if all([self.columnIndex(name) is not None for name in ['PLATE', 'FIBERID', 'MJD']]):
+                    plate, MJD, fiber = int(self.cell_value('PLATE')), int(self.cell_value('MJD')), int(self.cell_value('FIBERID'))
+                elif self.columnIndex('SDSS_NAME') is not None:
+                    plate, MJD, fiber = self.parent.ErositaWidget.getSDSSind(name=self.cell_value('SDSS_NAME'))
                 else:
                     plate = None
 
@@ -781,7 +781,7 @@ class QSOlistTable(pg.TableWidget):
                             self.parent.compositeGal.calc_scale()
                             self.parent.compositeGal.redraw()
 
-                    self.parent.ErositaWidget.index(name=self.cell_value('SDSS_NAME_fl')  , ext=False)
+                    self.parent.ErositaWidget.index(name=self.cell_value('SDSS_NAME'), ext=False)
                 # self.parent.s[-1].resolution = 2000
 
         if load_spectrum:

@@ -2061,7 +2061,7 @@ if __name__ == '__main__':
         
 
     # CI calculation
-    if 1:
+    if 0:
         fig, ax = plt.subplots()
         z_dla = 1.70465
         pr = pyratio(z=z_dla)
@@ -2595,25 +2595,28 @@ if __name__ == '__main__':
             plt.show()
 
     # >>> CI calculations:
-    if 0:
-        pr = pyratio(z=2.6)
+    if 1:
+        pr = pyratio(z=1.17)
         pr.add_spec('CI', num=3)
-        pr.set_pars(['T', 'n', 'f', 'rad'])
-        pr.pars['n'].value = 4
+        pr.set_pars(['T', 'n', 'f'])
+        pr.pars['n'].value = 2
         pr.pars['T'].value = np.log10(100)
         pr.pars['f'].value = 0
+        fig, ax = plt.subplots()
         print(pr.predict())
         if 1:
-            n, T = np.linspace(1, 4, 10), np.linspace(1, 2.5, 10)
+            n, T = np.linspace(0.7, 3.8, 100), np.linspace(1, 3.5, 50)
             X, Y = np.meshgrid(n, T)
             z = np.zeros_like(X)
             for i, ni in enumerate(n):
                 for k, Tk in enumerate(T):
                     pr.pars['n'].value, pr.pars['T'].value = ni, Tk
                     pop = pr.predict()
-                    z[i, k] = pop[1] - np.log10(np.sum(np.power(10, pop)))
-                    print(pop, z[i, k])
-            cs = plt.contourf(X, Y, z, levels=100)
-            plt.contour(X, Y, z, levels=[-1.5, -1.0, -0.5, 0.0], linestyles='--', colors='k')
-            plt.colorbar(cs)
+                    #z[k, i] = pop[1] - np.log10(np.sum(np.power(10, pop)))
+                    z[k, i] = pop[1]
+            cs = ax.contourf(X, Y, z, levels=100)
+            ax.contour(X, Y, z, levels=[-1.0, -0.5, 0.0, 0.4], linestyles='--', colors='k')
+            fig.colorbar(cs)
+            ax.set_xlabel(r"$\log n_{\rm H} [\rm cm^{-3}]$")
+            ax.set_ylabel(r"$\log T, K$")
             plt.show()

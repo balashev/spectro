@@ -6,6 +6,7 @@ Created on Tue Aug 23 19:20:44 2016
 """
 import astropy.convolution as conv
 from astropy import constants as const
+from dust_extinction.averages import G03_SMCBar
 from extinction import fitzpatrick99
 import matplotlib.pyplot as plt
 from numba import jit
@@ -519,7 +520,7 @@ def add_LyaForest(x, z_em=0, factor=1, kind='trans'):
         trans = np.array([[3360, 3580, 3773, 4089, 4493, 4866, 5357, 6804, 7417, 7700],
                           [1.0, 0.931, 0.879, 0.823, 0.742, 0.663, 0.547, 0.203, 0.071, 0]])
         inter = interp1d(trans[0], trans[1], bounds_error=False, fill_value=(1, 0))
-        mask = x < (z_em-0.05+1)*1215.67
+        mask = x < (z_em - 0.05 + 1) * 1215.67
         corr[mask] = inter(x[mask])
 
     if kind == 'lines':
@@ -568,14 +569,33 @@ def add_ext(x, z_ext=0, Av=0, kind='SMC'):
     return:
         - corr      : correction array at each x.
     """
-    if kind in ['SMC', 'LMC']:
-        et = {'SMC': 2, 'LMC': 6}
-        data = np.genfromtxt('data/extinction.dat', skip_header=3, usecols=[0, et[kind]], unpack=True)
-        inter = interp1d(data[0]*1e4, data[1], fill_value='extrapolate')
-        return np.exp(- 0.92 * Av * inter(x / (1 + z_ext)))
+    if isinstance(x, (int, float)):
+        x = np.asarray([x])
+    if Av in [None, 0]:
+        return np.ones_like(x)
+    else:
+        if kind in ['SMC', 'LMC']:
+            if 0:
+                et = {'SMC': 2, 'LMC': 6}
+                data = np.genfromtxt('data/extinction.dat', skip_header=3, usecols=[0, et[kind]], unpack=True)
+                inter = interp1d(data[0]*1e4, data[1], fill_value='extrapolate')
+                return np.exp(- 0.92 * Av * inter(x / (1 + z_ext)))
+            if len(x) > 3:
+                if np.sort(x / (1 + z_ext))[2] > 1e5 / 3 or np.sort(x / (1 + z_ext))[-2] < 1e3:
+                    return np.ones_like(x)
+                else:
+                    x1 = x[(x / (1 + z_ext) < 1e5 / 3) * (x / (1 + z_ext) > 1e3)]
+                    ext = interp1d(x1 / (1 + z_ext), G03_SMCBar().extinguish(1e4 / np.asarray(x1 / (1 + z_ext), dtype=np.float64), Av=Av), fill_value='extrapolate')
+                    ext = ext(x / (1 + z_ext))
+                    ext[(ext > 1) * (x / (1 + z_ext) > 1e5 / 3)] = 1
+                    return ext
+            else:
+                return G03_SMCBar().extinguish(1e4 / np.asarray(x / (1 + z_ext), dtype=np.float64), Av=Av)
 
-    elif kind in ['MW', 'fitzpatrick99']:
-        return 10 ** (-0.4 * fitzpatrick99(np.asarray(x, dtype=float64) / (1 + z_ext), Av))
+        elif kind in ['MW', 'fitzpatrick99']:
+            return 10 ** (-0.4 * fitzpatrick99(np.asarray(x, dtype=float64) / (1 + z_ext), Av))
+
+
 
 def add_ext_bump(x, z_ext=0, Av=0, Av_bump=0):
     print(Av, Av_bump)

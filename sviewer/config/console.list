@@ -1,21 +1,21 @@
-show CI
-high HI
-show H2 0 1
-stats
-show CII*
-show CI*
-show CI**
-ZiII
-ZnII
-show ZnII
-SII
-show SII
-show CI
+rescale 1.7 all
+rescale 0.6
+set err 0.00001
+show SiII
+N SiII
+logN siII
+logN SiII
+logN SiII
 show ZnII
 show MgI
-show H2 0 1
-show SiII*
-y 0 1
-rescale 2.2
-rescale 2.2
-rescale 0.85
+logN MgI
+show CI
+show CIj1
+show CIj2
+Si
+SI
+show Si
+show SI
+show SII
+SII
+logN SiII

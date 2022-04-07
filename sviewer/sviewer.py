@@ -3293,7 +3293,7 @@ class fitExtWidget(QWidget):
         l.addWidget(QLabel('Template:'))
         temp_group = QButtonGroup(self)
         self.smooth_template = {'VandenBerk': 7, 'HST': 7, 'Slesing': 7, 'power': None, 'composite': 7}
-        for template in ['VandenBerk', 'HST', 'Slesing', 'power', 'composite']:
+        for template in ['VandenBerk', 'HST', 'Slesing', 'composite', 'power']:
             setattr(self, template, QRadioButton(template))
             temp_group.addButton(getattr(self, template))
             l.addWidget(getattr(self, template))
@@ -3444,9 +3444,14 @@ class fitExtWidget(QWidget):
             elif self.template == 'composite':
                 data = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
                 data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
-                x = data[0][-1] + np.arange(1, int((25000 - data[0][-1]) / 0.4)) * 0.4
-                y = np.power(x / 2500, -1.9) * 6.542031
-                data = np.append(data, [x, y, y / 10], axis=1)
+                if 0:
+                    x = data[0][-1] + np.arange(1, int((25000 - data[0][-1]) / 0.4)) * 0.4
+                    y = np.power(x / 2500, -1.9) * 6.542031
+                    data = np.append(data, [x, y, y / 10], axis=1)
+                else:
+                    d2 = np.genfromtxt('data/SDSS/QSO1_template_norm.sed', skip_header=0, unpack=True)
+                    m = d2[0] > data[0][-1]
+                    data = np.append(data, [d2[0][m], d2[1][m] * data[1][-1] / d2[1][m][0], d2[1][m] / 30], axis=1)
                 data[0] *= (1 + z_em)
                 fill_value = 'extrapolate'
             elif self.template == 'const':
@@ -6216,8 +6221,8 @@ class sviewer(QMainWindow):
         self.SDSSLeefolder = self.options('SDSSLeefolder', config=self.config)
         self.SDSSdata = []
         self.SDSSquery = None
-        self.filters_status = {'SDSS': 0, 'Gaia': 0, '2MASS': 0, 'VISTA':0 , 'WISE': 0}
-        self.filters = {'SDSS': None, 'Gaia': None, '2MASS': None, 'VISTA': None, 'WISE': None}
+        self.filters_status = {'SDSS': 0, 'Gaia': 0, '2MASS': 0, 'VISTA':0 , 'WISE': 0, 'GALEX': 0}
+        self.filters = {'SDSS': None, 'Gaia': None, '2MASS': None, 'VISTA': None, 'WISE': None, 'GALEX': None}
         self.UVESSetup_status = False
         self.XQ100folder = self.options('XQ100folder', config=self.config)
         self.P94folder = self.options('P94folder', config=self.config)
@@ -6682,6 +6687,11 @@ class sviewer(QMainWindow):
         WISEfilters.triggered.connect(partial(self.show_filters, name='WISE'))
         WISEfilters.setChecked(self.filters_status['WISE'])
 
+        GALEXfilters = QAction('&GALEX filters', self, checkable=True)
+        GALEXfilters.setStatusTip('Show GALEX filters')
+        GALEXfilters.triggered.connect(partial(self.show_filters, name='GALEX'))
+        GALEXfilters.setChecked(self.filters_status['GALEX'])
+
         spec1dMenu.addAction(fitCont)
         spec1dMenu.addAction(CompositeQSO)
         spec1dMenu.addAction(CompositeGal)
@@ -6695,6 +6705,7 @@ class sviewer(QMainWindow):
         FilterMenu.addAction(TwoMASSfilters)
         FilterMenu.addAction(VISTAfilters)
         FilterMenu.addAction(WISEfilters)
+        FilterMenu.addAction(GALEXfilters)
 
         # >>> create 2d spec Menu items
 
@@ -9535,6 +9546,8 @@ class sviewer(QMainWindow):
                 self.filters[name] = [SpectrumFilter(self, f) for f in ['J_2MASS', 'H_2MASS', 'Ks_2MASS']]
             elif name == 'WISE':
                 self.filters[name] = [SpectrumFilter(self, f) for f in ['W1', 'W2', 'W3', 'W4']]
+            elif name == 'GALEX':
+                self.filters[name] = [SpectrumFilter(self, f) for f in ['NUV', 'FUV']]
 
         self.filters_status[name] = not self.filters_status[name]
         if self.filters_status[name]:
