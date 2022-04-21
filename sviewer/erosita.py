@@ -1,3 +1,4 @@
+import astropy.constants as ac
 from astropy.cosmology import Planck15, FlatLambdaCDM, LambdaCDM
 from astropy.io import fits
 import astropy.units as u
@@ -17,11 +18,13 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QP
                              QLabel, QCheckBox, QFrame, QTextEdit, QSplitter, QComboBox, QAction, QSizePolicy)
 from scipy.interpolate import interp1d
 from scipy.stats import linregress
+from sklearn import linear_model
 import sfdmap
 from .graphics import SpectrumFilter
 from .tables import *
-from .utils import smooth
+from .utils import smooth, Timer
 from ..profiles import add_ext, add_LyaForest
+from ..stats import distr2d
 
 class dataPlot(pg.PlotWidget):
     def __init__(self, parent, axis):
@@ -33,7 +36,7 @@ class dataPlot(pg.PlotWidget):
         self.y_axis = axis[1]
         self.setLabel('bottom', self.x_axis)
         self.setLabel('left', self.y_axis)
-        self.reg = {'all': None, 'selected': None}
+        self.reg = {'all': None, 'all_r': None, 'selected': None}
         self.vb = self.getViewBox()
         self.cursorpos = pg.TextItem(anchor=(0, 1), fill=pg.mkBrush(0, 0, 0, 0.5))
         self.vb.addItem(self.cursorpos, ignoreBounds=True)
@@ -43,6 +46,7 @@ class dataPlot(pg.PlotWidget):
         for k in self.selectedstat.keys():
             self.vb.addItem(self.selectedstat[k], ignoreBounds=True)
         self.corr = {'all': pg.TextItem(anchor=(0, 0), fill=pg.mkBrush(0, 0, 0, 0.5)),
+                     'all_r': pg.TextItem(anchor=(0, 0), fill=pg.mkBrush(0, 0, 0, 0.5)),
                      'selected': pg.TextItem(anchor=(0, 0), fill=pg.mkBrush(0, 0, 0, 0.5))}
         self.s_status = False
         self.d_status = False
@@ -70,7 +74,7 @@ class dataPlot(pg.PlotWidget):
             self.vb.removeItem(self.corr[name])
 
         if x is not None and y is not None:
-            pens = {'all': pg.mkPen(0, 127, 255, width=6), 'selected': pg.mkPen(30, 250, 127, width=6)}
+            pens = {'all': pg.mkPen(0, 127, 255, width=6), 'selected': pg.mkPen(30, 250, 127, width=6), 'all_r': pg.mkPen(0, 127, 255, width=4, style=Qt.DashLine)}
             self.reg[name] = pg.PlotCurveItem(x, y, pen=pens[name])
             self.addItem(self.reg[name])
             self.vb.addItem(self.corr[name], ignoreBounds=True)
@@ -100,6 +104,10 @@ class dataPlot(pg.PlotWidget):
 
             if event.key() == Qt.Key_D:
                 self.d_status = False
+
+            if (event.key() == Qt.Key_S or event.key() == Qt.Key_D) and hasattr(self.parent, 'd'):
+                self.parent.d.plot(frac=0.15)
+                plt.show()
 
         if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'SD']):
             self.vb.setMouseMode(self.vb.PanMode)
@@ -143,7 +151,7 @@ class dataPlot(pg.PlotWidget):
         self.plotRegLabels(pos)
 
     def plotRegLabels(self, pos):
-        for name, ind in zip(['all', 'selected'], [10, 30]):
+        for name, ind in zip(['all', 'all_r', 'selected'], [10, 30, 50]):
             if self.reg[name] is not None:
                 self.corr[name].setPos(self.vb.mapSceneToView(QPoint(pos.left() + 10, pos.top() + ind)))
                 self.corr[name].setText(name + ': ' + self.parent.reg[name])
@@ -218,15 +226,17 @@ class ComboMultipleBox(QToolButton):
 
 
 class Filter():
-    def __init__(self, parent, name, value=None, flux=None, err=None):
+    def __init__(self, parent, name, value=None, flux=None, err=None, system='AB'):
         self.parent = parent
         self.name = name
-        self.filter = SpectrumFilter(self.parent.parent, self.name)
+        self.filter = SpectrumFilter(self.parent.parent, name=self.name, system=system)
+        self.system = system
 
         if value is not None:
             self.value, self.err = value, err
         elif flux is not None:
             self.value, self.err = self.filter.get_value(flux=flux), self.filter.get_value(flux+err) - self.filter.get_value(flux)
+
         #print(name, self.value, self.err)
         if value is not None and err is not None:
             self.flux = self.filter.get_flux(value) * 1e17
@@ -249,6 +259,102 @@ class Filter():
             self.weight = 1 #np.sqrt(np.sum(self.filter.inter(x)) / np.max(self.filter.data.y))
         #self.weight = 1
         #print('weight:', self.name, self.weight)
+
+class sed_template():
+    def __init__(self, name, smooth_window=None, xmin=None, xmax=None, z=0):
+        self.name = name
+        self.load_data(smooth_window=smooth_window, xmin=xmin, xmax=xmax, z=z)
+
+    def flux(self, x=None):
+        if x is not None:
+            return self.inter(x)
+        else:
+            return self.y
+
+    def load_data(self, smooth_window=None, xmin=None, xmax=None, z=0):
+        if self.name in ['VandenBerk', 'HST', 'Slesing', 'power', 'composite']:
+            self.type = 'qso'
+
+            if self.name == 'VandenBerk':
+                self.x, self.y = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
+            elif self.name == 'HST':
+                self.x, self.y = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
+            elif self.name == 'Slesing':
+                self.x, self.y = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True, usecols=(0, 1))
+            elif self.name == 'power':
+                self.x = np.linspace(500, 25000, 1000)
+                self.y = np.power(self.x / 2500, -1.9)
+                smooth_window = None
+            elif self.name == 'composite':
+                if 1:
+                    self.x, self.y = np.genfromtxt('data/SDSS/QSO_composite.dat', skip_header=0, unpack=True)
+                    self.x, self.y = self.x[self.x > 0], self.y[self.x > 0]
+                else:
+                    self.template_qso = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
+                    self.template_qso = self.template_qso[:,
+                                        np.logical_or(self.template_qso[1] != 0, self.template_qso[2] != 0)]
+                    if 0:
+                        x = self.template_qso[0][-1] + np.arange(1, int((25000 - self.template_qso[0][
+                            -1]) / 0.4)) * 0.4
+                        y = np.power(x / 2500, -1.9) * 6.542031
+                        self.template_qso = np.append(self.template_qso, [x, y, y / 10], axis=1)
+                    else:
+                        if 1:
+                            data = np.genfromtxt('data/SDSS/QSO1_template_norm.sed', skip_header=0, unpack=True)
+                            data[0] = ac.c.cgs.value() / 10 ** data[0] * 1e8
+                            print(data[0])
+                            m = (data[0] > self.template_qso[0][-1]) * (data[0] < self.ero_tempmax)
+                            self.template_qso = np.append(self.template_qso, [data[0][m],
+                                                                              data[1][m] * self.template_qso[1][
+                                                                                  -1] / data[1][m][0],
+                                                                              data[1][m] / 30], axis=1)
+                        else:
+                            data = np.genfromtxt('data/SDSS/Richards2006.dat', skip_header=0, unpack=True)
+                            m = (data[0] > self.template_qso[0][-1]) * (data[0] < self.ero_tempmax)
+                            self.template_qso = np.append(self.template_qso,
+                                                          [data[0][m], data[1][m] * self.template_qso[1][-1] /
+                                                           data[1][m][0], data[1][m] / 30], axis=1)
+                        x = self.template_qso[0][0] + np.linspace(
+                            int((self.ero_tempmin - self.template_qso[0][0]) / 0.4), -1) * 0.4
+                        y = np.power(x / self.template_qso[0][0], -1.0) * self.template_qso[1][0]
+                        self.template_qso = np.append([x, y, y / 10], self.template_qso, axis=1)
+
+        elif self.name in ['S0', 'Sa', 'Sb', 'Sc', 'Sd', 'Sdm', 'Ell2', 'Ell5', 'Ell13', 'Sey2', 'Sey18']:
+            if 0:
+                if isinstance(self.template_name_gal, int):
+                    f = fits.open(f"data/SDSS/spDR2-0{23 + self.template_name_gal}.fit")
+                    self.template_gal = [
+                        10 ** (f[0].header['COEFF0'] + f[0].header['COEFF1'] * np.arange(f[0].header['NAXIS1'])),
+                        f[0].data[0]]
+
+                    if smooth_window is not None:
+                        self.template_gal[1] = smooth(self.template_gal[1], window_len=smooth_window,
+                                                      window='hanning', mode='same')
+            self.x, self.y = np.genfromtxt(f'data/SDSS/{self.name}_template_norm.sed', unpack=True)
+
+                    # mask = (self.template_gal[0] > self.ero_tempmin) * (self.template_gal[0] < self.ero_tempmax)
+                    # self.template_gal = [self.template_gal[0][mask], self.template_gal[1][mask]]
+
+        elif self.name in ['torus']:
+            self.x, self.y = np.genfromtxt(f'data/SDSS/torus.dat', unpack=True)
+            self.x, self.y = ac.c.cgs.value / 10 ** self.x[::-1] * 1e8, self.y[::-1]
+
+        if xmin is not None or xmax is not None:
+            mask = np.ones_like(self.x, dtype=bool)
+            if xmin is not None:
+                mask *= self.x > xmin
+            if xmax is not None:
+                mask *= self.x < xmax
+
+            self.x, self.y = self.x[mask], self.y[mask]
+
+        if z > 0:
+            self.y *= add_LyaForest(self.x * (1 + z), z_em=z)
+
+        if smooth_window is not None:
+            self.y = smooth(self.y, window_len=smooth_window, window='hanning', mode='same')
+
+        self.inter = interp1d(self.x, self.y, bounds_error=False, fill_value=0, assume_sorted=True)
 
 class ErositaWidget(QWidget):
     def __init__(self, parent):
@@ -276,7 +382,7 @@ class ErositaWidget(QWidget):
                           'L_X', 'L_UV', 'L_UV_corr', 'L_UV_corr_host_photo',
                           'Av_int', 'Av_int_host', 'Av_int_photo', 'Av_int_host_photo',
                           'chi2_av', 'chi2_av_host', 'chi2_av_photo', 'chi2_av_host_photo',
-                          'f_host', 'f_host_photo', 'r_host']
+                          'Av_host', 'Av_host_photo', 'f_host', 'f_host_photo', 'L_host', 'L_host_photo', 'r_host']
         self.axis_info = {'z': [lambda x: x, 'z'],
                           'F_X_int': [lambda x: np.log10(x), 'log (F_X_int, erg/s/cm2)'],
                           'F_X': [lambda x: np.log10(x), 'log (F_X, erg/s/cm2/Hz)'],
@@ -284,6 +390,8 @@ class ErositaWidget(QWidget):
                           'F_UV': [lambda x: np.log10(x), 'log (F_UV, erg/s/cm2/Hz)'],
                           'L_X': [lambda x: np.log10(x), 'log (L_X, erg/s/Hz)'],
                           'L_UV': [lambda x: np.log10(x), 'log (L_UV, erg/s/Hz)'],
+                          'L_UV_corr': [lambda x: np.log10(x), 'log (L_UV corrected, erg/s/Hz)'],
+                          'L_UV_corr_host_photo': [lambda x: np.log10(x), 'log (L_UV corrected, erg/s/Hz) with host and photometry'],
                           'u-b': [lambda x: x, 'u - b'],
                           'r-i': [lambda x: x, 'r - i'],
                           'Av_gal': [lambda x: x, 'Av (galactic)'],
@@ -295,11 +403,13 @@ class ErositaWidget(QWidget):
                           'chi2_av_host': [lambda x: x, 'chi^2 extinction fit with host'],
                           'chi2_av_photo': [lambda x: x, 'chi^2 extinction fit with photometry'],
                           'chi2_av_host_photo': [lambda x: x, 'chi^2 extinction fit with host and photometry'],
+                          'Av_host': [lambda x: x, 'Av (host)'],
+                          'Av_host_photo': [lambda x: x, 'Av (host) with photometry'],
                           'f_host': [lambda x: x, 'Galaxy fraction (from my fit)'],
                           'f_host_photo': [lambda x: x, 'Galaxy fraction (from my fit) with photometry'],
+                          'L_host': [lambda x: np.log10(x), 'log (L_host, L_sun)'],
+                          'L_host_photo': [lambda x: np.log10(x), 'log (L_host, L_sun) with photometry'],
                           'r_host': [lambda x: x, 'Galaxy fraction (from Rakshit)'],
-                          'L_UV_corr': [lambda x: np.log10(x), 'log (L_UV corrected, erg/s/Hz)'],
-                          'L_UV_corr_host_photo': [lambda x: np.log10(x), 'log (L_UV corrected, erg/s/Hz)']
                           }
         self.ind = None
         self.corr_status = 0
@@ -394,6 +504,13 @@ class ErositaWidget(QWidget):
         correlate.setFixedSize(120, 30)
         correlate.clicked.connect(self.correlate)
 
+        robust = QLabel('+ robust:')
+        robust.setFixedSize(60, 30)
+        self.robust = QComboBox(self)
+        self.robust.addItems(['None', 'RANSAC', 'Huber'])
+        self.robust.setCurrentText('RANSAC')
+        self.robust.setFixedSize(100, 30)
+
         cats = QLabel('+ cat.:')
         cats.setFixedSize(40, 30)
         self.extcat = ComboMultipleBox(self, name='extcat')
@@ -406,6 +523,8 @@ class ErositaWidget(QWidget):
         l.addWidget(calcFUV)
         l.addWidget(calcLum)
         l.addWidget(correlate)
+        l.addWidget(robust)
+        l.addWidget(self.robust)
         l.addWidget(cats)
         l.addWidget(self.extcat)
         l.addStretch()
@@ -425,6 +544,26 @@ class ErositaWidget(QWidget):
         calcExt.setFixedSize(80, 30)
         calcExt.clicked.connect(partial(self.calc_ext, ind=None, gal=None))
 
+        self.method = QComboBox(self)
+        self.method.addItems(['leastsq', 'least_squares', 'nelder', 'emcee'])
+        self.method.setFixedSize(120, 30)
+        self.method.setCurrentText('leastsq')
+
+        self.plotExt = QCheckBox("plot")
+        self.plotExt.setChecked(True)
+        self.plotExt.setFixedSize(80, 30)
+
+        l.addWidget(QLabel('                   '))
+        l.addWidget(calcExtGal)
+        l.addWidget(calcExt)
+        l.addWidget(self.method)
+        l.addWidget(self.plotExt)
+        l.addStretch()
+
+        layout.addLayout(l)
+
+        l = QHBoxLayout()
+
         self.QSOtemplate = QComboBox(self)
         self.QSOtemplate.addItems(['Slesing', 'VanDen Berk', 'HST', 'power', 'composite'])
         self.QSOtemplate.setFixedSize(120, 30)
@@ -440,24 +579,6 @@ class ErositaWidget(QWidget):
         self.tempmax.setText('{0:6.1f}'.format(self.ero_tempmax))
         self.tempmax.textEdited.connect(self.tempRangeChanged)
 
-        l.addWidget(QLabel('                   '))
-        l.addWidget(calcExtGal)
-        l.addWidget(calcExt)
-        l.addWidget(self.QSOtemplate)
-        l.addWidget(QLabel('range:'))
-        l.addWidget(self.tempmin)
-        l.addWidget(QLabel('..'))
-        l.addWidget(self.tempmax)
-        l.addStretch()
-
-        layout.addLayout(l)
-
-        l = QHBoxLayout()
-
-        self.plotExt = QCheckBox("plot")
-        self.plotExt.setChecked(True)
-        self.plotExt.setFixedSize(80, 30)
-
         self.addPhoto = QCheckBox("add photometry")
         self.addPhoto.setChecked(True)
         self.addPhoto.setFixedSize(140, 30)
@@ -472,7 +593,11 @@ class ErositaWidget(QWidget):
         self.hosts.update()
 
         l.addWidget(QLabel('                   '))
-        l.addWidget(self.plotExt)
+        l.addWidget(self.QSOtemplate)
+        l.addWidget(QLabel('range:'))
+        l.addWidget(self.tempmin)
+        l.addWidget(QLabel('..'))
+        l.addWidget(self.tempmax)
         l.addWidget(self.addPhoto)
         l.addWidget(self.hostExt)
         l.addWidget(self.hosts)
@@ -567,7 +692,7 @@ class ErositaWidget(QWidget):
                                             ((2e3 * u.eV).to(u.Hz, equivalencies=u.spectral()).value)
 
         if show:
-            self.dataPlot.plotData(x=self.x_lambda(self.ext[name][self.self.ero_x_axis]),
+            self.dataPlot.plotData(x=self.x_lambda(self.ext[name][self.ero_x_axis]),
                                    y=self.y_lambda(self.ext[name][self.ero_y_axis]),
                                    name=name, color=(200, 150, 50))
 
@@ -616,12 +741,32 @@ class ErositaWidget(QWidget):
         self.filters = {}
         if self.addPhoto.isChecked():
             for k in ['FUV', 'NUV']:
-                if not np.isnan(self.df[f'{k}mag'][ind]) and not np.isnan(self.df[f'e_{k}mag'][ind]):
-                    self.filters[k] = Filter(self, k, value=self.df[f'{k}mag'][ind], err=self.df[f'e_{k}mag'][ind])
+                if 0:
+                    if not np.isnan(self.df[f'{k}mag'][ind]) and not np.isnan(self.df[f'e_{k}mag'][ind]):
+                        self.filters[k] = Filter(self, k, value=self.df[f'{k}mag'][ind], err=self.df[f'e_{k}mag'][ind])
+                else:
+                    if self.df['GALEX_MATCHED'][ind] and not np.isnan(self.df[f'{k}mag'][ind]) and not np.isnan(self.df[f'e_{k}mag'][ind]):
+                        self.filters[k] = Filter(self, k, value=-2.5 * np.log10(np.exp(1.0)) * np.arcsinh(self.df[f'{k}'][ind] / 0.01) + 28.3,
+                                                 err=-2.5 * np.log10(np.exp(1.0)) * (np.arcsinh(self.df[f'{k}'][ind] / 0.01) - np.arcsinh((self.df[f'{k}'][ind] + 1 / np.sqrt(self.df[f'{k}_IVAR'][ind])) / 0.01)))
+                        print(-2.5 * np.log10(np.exp(1.0)) * np.arcsinh(self.df[f'{k}'][ind] / 0.01) + 28.3)
+            if 0:
+                for i, k in enumerate(['u', 'g', 'r', 'i', 'z']):
+                    self.filters[k] = Filter(self, k, value=self.df[f'PSFMAG{i}'][ind], err=0.1)
 
-            for k in ['J', 'H', 'K', 'W1', 'W2', 'W3', 'W4']:
+            for k in ['J', 'H', 'K']:
+                if self.df[k + 'RDFLAG'][ind] == 2:
+                    self.filters[k + '_2MASS'] = Filter(self, k + '_2MASS', value=self.df[k + 'MAG'][ind], err=self.df['ERR_' + k + 'MAG'][ind], system='Vega')
+
+            for k in ['Y', 'J', 'H', 'K']:
+                if self.df['UKIDSS_MATCHED'][ind]:
+                    self.filters[k + '_UKIDSS'] = Filter(self, k + '_UKIDSS', system='AB',
+                                                         value=22.5 - 2.5 * np.log10(self.df[k + 'FLUX'][ind] / 3.631e-32),
+                                                         err=2.5 * np.log10(1 + self.df[k + 'FLUX_ERR'][ind] / self.df[k + 'FLUX'][ind]))
+
+            for k in ['W1', 'W2', 'W3', 'W4']:
                 if not np.isnan(self.df[k + 'MAG'][ind]) and not np.isnan(self.df['ERR_' + k + 'MAG'][ind]):
-                    self.filters[k] = Filter(self, k, value=self.df[k + 'MAG'][ind], err=self.df['ERR_' + k + 'MAG'][ind])
+                    self.filters[k] = Filter(self, k, system='Vega',
+                                             value=self.df[k + 'MAG'][ind], err=self.df['ERR_' + k + 'MAG'][ind])
 
     def select_points(self, x1, y1, x2, y2, remove=False, add=False):
         x1, x2, y1, y2 = np.min([x1, x2]), np.max([x1, x2]), np.min([y1, y2]), np.max([y1, y2])
@@ -632,6 +777,13 @@ class ErositaWidget(QWidget):
             self.mask = np.logical_or(self.mask, mask)
         elif not add and remove:
             self.mask = np.logical_and(self.mask, ~mask)
+
+        if np.sum(self.mask) > 20:
+            self.d = distr2d(self.x[self.mask], self.y[self.mask])
+            for axis in ['x', 'y']:
+                print(self.d.marginalize(axis))
+                print(axis, self.d.marginalize(axis).stats(latex=3))
+
         self.updateData()
 
     def extinction(self, x, Av=None):
@@ -639,7 +791,7 @@ class ErositaWidget(QWidget):
         Return extinction for provided wavelengths
         Args:
             Av: visual extinction
-            x: wavelenghts in Ansgstrem
+            x: wavelenghts in Angstrem
 
         Returns: extinction
         """
@@ -692,7 +844,7 @@ class ErositaWidget(QWidget):
 
         for i, d in self.df.iterrows():
             print(i)
-            if d['z'] > 3500 / self.ero_lUV - 1:
+            if np.isfinite(d['z']) and d['z'] > 3500 / self.ero_lUV - 1:
                 spec = self.loadSDSS(d['PLATE'], d['FIBERID'], d['MJD'], Av_gal=d['Av_gal'])
                 if spec is not None:
                     mask = (spec[0] > (self.ero_lUV - 10) * (1 + d['z'])) * (
@@ -713,14 +865,12 @@ class ErositaWidget(QWidget):
 
     def calc_Lum(self):
 
+        mask = np.isfinite(self.df['z'].to_numpy())
         dl = Planck15.luminosity_distance(self.df['z'].to_numpy()).to('cm')
 
         if 'L_X' not in self.df.columns:
             self.df.insert(len(self.df.columns), 'L_X', np.nan)
         self.df['L_X'] = np.nan
-
-        if 'F_X' in self.df.columns:
-            self.df['L_X'] = 4 * np.pi * dl ** 2 * self.df['F_X'] #/ (1 + self.df['Z'])
 
         if 'L_UV' not in self.df.columns:
             self.df.insert(len(self.df.columns), 'L_UV', np.nan)
@@ -739,14 +889,19 @@ class ErositaWidget(QWidget):
             self.df.insert(len(self.df.columns), name, np.nan)
         self.df[name] = np.nan
 
+        if 'F_X' in self.df.columns:
+            self.df.loc[mask, 'L_X'] = 4 * np.pi * dl[mask] ** 2 * self.df['F_X'][mask] #/ (1 + self.df['Z'])
+
         if 'F_UV' in self.df.columns:
-            self.df['L_UV'] = 4 * np.pi * dl ** 2 * self.df['F_UV'] #/ (1 + self.df['Z'])
-            self.df[name] = 4 * np.pi * dl ** 2 * self.df[name.replace('L', 'F')] / (1 + self.df['z'])
+            self.df.loc[mask, 'L_UV'] = 4 * np.pi * dl[mask] ** 2 * self.df['F_UV'][mask] #/ (1 + self.df['Z'])
+            self.df.loc[mask, name] = 4 * np.pi * dl[mask] ** 2 * self.df[name.replace('L', 'F')][mask] / (1 + self.df['z'][mask])
 
         for attr in ['', '_host_photo']:
             if 'Av_int' + attr in self.df.columns:
                 for i, d in self.df.iterrows():
-                    if np.isfinite(d['Av_int' + attr]):
+                    if mask[i] and np.isfinite(d['Av_int' + attr]):
+                        #print(i, dl[i].value)
+                        #print(self.df.loc[i, 'L_UV_corr' + attr])
                         self.df.loc[i, 'L_UV_corr' + attr] = 4 * np.pi * dl[i].value ** 2 * d[name.replace('L', 'F')] / (1 + d['z']) / self.extinction(float(self.lambdaUV.text()), Av=d['Av_int' + attr])
                     else:
                         print(i)
@@ -768,175 +923,214 @@ class ErositaWidget(QWidget):
         self.save_data()
         self.updateData()
 
+    def calc_host_luminosity(self, ind=None, norm=None):
+        """
+        Calculate the lumonicity of the host galaxy
+        Args:
+            ind: index of the QSO, if None, than run for all
+
+        Returns:
+
+        """
+        self.df.loc[i, 'Av_host' + '_photo' * self.addPhoto.isChecked()]
+
+        for i, d in self.df.iterrows():
+            if ((ind is None) or (ind is not None and i == int(ind))) and np.isfinite(d['z']):
+                self.df.loc[i, 'Av_host' + '_photo' * self.addPhoto.isChecked()]
+
     def calc_ext(self, ind=None, plot=False, gal=True):
 
-        for attr in ['Av_int', 'Av_int_photo', 'Av_int_host', 'Av_int_host_photo', 'f_host', 'f_host_photo', 'chi2_av', 'chi2_av_photo', 'chi2_av_host', 'chi2_av_host_photo', 'host_type', 'host_type_photo']:
+        for attr in ['Av_int', 'Av_int_photo', 'Av_int_host', 'Av_int_host_photo', 'f_host', 'f_host_photo',
+                     'chi2_av', 'chi2_av_photo', 'chi2_av_host', 'chi2_av_host_photo',
+                     'Av_host', 'Av_host_photo', 'host_type', 'host_type_photo', 'L_host', 'L_host_photo']:
             if attr not in self.df.columns:
                 self.df.insert(len(self.df.columns), attr, np.nan)
 
         if np.sum(self.mask) == 0:
-            self.mask = np.ones(len(self.df['z']), dtype=bool)
-
-        if ind is None and np.sum(self.mask) == len(self.df['z']):
-            if not self.addPhoto.isChecked():
-                self.df['Av_int'] = np.nan
-                self.df['chi2_av'] = np.nan
-                if self.hostExt.isChecked():
-                    self.df['Av_int_host'] = np.nan
-                    self.df['chi2_av_host'] = np.nan
-                    self.df['f_host'] = np.nan
-                    self.df['f_host_type'] = np.nan
-            else:
-                self.df['Av_int_photo'] = np.nan
-                self.df['chi2_av_photo'] = np.nan
-                if self.hostExt.isChecked():
-                    self.df['Av_int_host_photo'] = np.nan
-                    self.df['chi2_av_host_photo'] = np.nan
-                    self.df['f_host_photo'] = np.nan
-                    self.df['f_host_photo_type'] = np.nan
-
-        self.load_template_qso(smooth_window=7, init=True)
-        self.load_template_gal(smooth_window=3, init=True)
+            self.mask = np.ones(len(self.df['SDSS_NAME']), dtype=bool)
 
         if ind is None:
             fmiss = open("temp/av_missed.dat", "w")
 
+        method = self.method.currentText()
+
         print('calc_ext:', ind)
         for i, d in self.df.iterrows():
-            if (ind is None and self.mask[i]) or (ind is not None and i == int(ind)):
+            if ((ind is None and self.mask[i]) or (ind is not None and i == int(ind))) and np.isfinite(d['z']):
                 spec = self.loadSDSS(d['PLATE'], d['FIBERID'], d['MJD'], Av_gal=d['Av_gal'])
 
-                self.set_filters(i, clear=True)
+                #print(spec, d['PLATE'], d['FIBERID'], d['MJD'])
+                mask = self.calc_mask(spec, z_em=d['z'], iter=3, window=201, clip=2.5)
+                if np.sum(mask) > 20:
+                    self.set_filters(i, clear=True)
+                    if plot:
+                        fig, ax = plt.subplots(figsize=(20, 12))
+                        ax.plot(spec[0] / (1 + d['z']), spec[1], '-k', lw=.5, zorder=2, label='spectrum')
+                        for k, f in self.filters.items():
+                            ax.errorbar([f.filter.l_eff / (1 + d['z'])], [f.flux], yerr=[[f.err_flux[0]], [f.err_flux[1]]], marker='s', color=[c / 255 for c in f.filter.color])
 
-                if plot:
-                    fig, ax = plt.subplots()
-                    ax.plot(spec[0] / (1 + d['z']), spec[1], '-k', lw=.5, zorder=2, label='spectrum')
-                    for k, f in self.filters.items():
-                        ax.errorbar([f.filter.l_eff / (1 + d['z'])], [f.flux], yerr=[[f.err_flux[0]], [f.err_flux[1]]], marker='s', color=[c/255 for c in f.filter.color])
+                    sm = [np.asarray(spec[0][mask], dtype=np.float64), spec[1][mask], spec[2][mask]]
+                    bbb = sed_template(name='composite', xmin=self.ero_tempmin, xmax=self.ero_tempmax, z=d['z'])
+                    tor = sed_template(name='torus', xmin=self.ero_tempmin, xmax=self.ero_tempmax, z=d['z'])
 
-                if spec is not None:
-                    mask = self.calc_mask(spec, z_em=d['z'], iter=3, window=201, clip=2.5)
-                    if np.sum(mask) > 50:
-                        sm = [np.asarray(spec[0][mask], dtype=np.float64), spec[1][mask], spec[2][mask]]
-                        temp = self.load_template_qso(x=sm[0], z_em=d['z'])
-                        temp_gal = self.load_template_gal(x=sm[0], z_em=d['z'])
+                    def fcn2min(params):
+                        chi = (temp_bbb * self.extinction(sm[0] / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm_bbb'] + temp_tor * params.valuesdict()['norm_tor'] - sm[1]) / sm[2]
+                        for f in self.filters.values():
+                            if f.x[0] > self.ero_tempmin * (1 + d['z']) and f.x[-1] < self.ero_tempmax * (1 + d['z']) and np.isfinite(f.value) and np.isfinite(f.err):
+                                chi = np.append(chi, [f.weight / f.err * (f.value - f.filter.get_value(x=f.x, y=bbb.flux(f.x / (1 + d['z'])) * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm_bbb'] + tor.flux(f.x / (1 + d['z'])) * params.valuesdict()['norm_tor']))])
+                        return chi
 
-                        def fcn2min(params):
-                            chi = (temp * self.extinction(sm[0] / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'] - sm[1]) / sm[2]
-                            for f in self.filters.values():
-                                if f.x[0] > self.ero_tempmin * (1 + d['z']) and f.x[-1] < self.ero_tempmax * (1 + d['z']) and np.isfinite(f.value) and np.isfinite(f.err):
-                                    chi = np.append(chi, [f.weight / f.err * (f.value - f.filter.get_value(x=f.x, y=self.load_template_qso(x=f.x, z_em=d['z']) * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm']))])
-                            return chi
+                    def fcn2min_gal(params):
+                        #print(params)
+                        #t = Timer()
+                        chi = (temp_bbb * self.extinction(sm[0] / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm_bbb'] + temp_tor * params.valuesdict()['norm_tor'] + temp_gal * params.valuesdict()['norm_host'] * self.extinction(sm[0] / (1 + d['z']), Av=params.valuesdict()['Av_host']) - sm[1]) / sm[2]
+                        #t.time('spec')
+                        for f in self.filters.values():
+                            if f.x[0] > self.ero_tempmin * (1 + d['z']) and f.x[-1] < self.ero_tempmax * (1 + d['z']) and np.isfinite(f.value) and np.isfinite(f.err):
+                                #print(f.name, f.weight, f.err, f.value, f.filter.get_value(x=f.x, y=self.load_template_qso(x=f.x, z_em=d['z']) * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'] + self.load_template_gal(x=f.x, z_em=d['z']) * params.valuesdict()['norm_gal']), self.load_template_qso(x=f.x, z_em=d['z']) * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'], self.load_template_gal(x=f.x, z_em=d['z']) * params.valuesdict()['norm_gal'])
+                                #print(f.name, f.weight, f.err, f.value, f.filter.get_value(x=f.x, y=self.load_template_qso(x=f.x, z_em=d['z']) * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'] + self.load_template_gal(x=f.x, z_em=d['z']) * params.valuesdict()['norm_gal']))
+                                chi = np.append(chi, [f.weight / f.err * (f.value - f.filter.get_value(x=f.x, y=bbb.flux(f.x / (1 + d['z'])) * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm_bbb'] + tor.flux(f.x / (1 + d['z'])) * params.valuesdict()['norm_tor'] + gal.flux(f.x / (1 + d['z'])) * params.valuesdict()['norm_host'] * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av_host']) ))])
+                                #t.time(f.name)
+                        return chi
 
-                        def fcn2min_gal(params):
-                            chi = (temp * self.extinction(sm[0] / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'] + temp_gal * params.valuesdict()['norm_host'] - sm[1]) / sm[2]
-                            for f in self.filters.values():
-                                if f.x[0] > self.ero_tempmin * (1 + d['z']) and f.x[-1] < self.ero_tempmax * (1 + d['z']) and np.isfinite(f.value) and np.isfinite(f.err):
-                                    #print(f.name, f.weight, f.err, f.value, f.filter.get_value(x=f.x, y=self.load_template_qso(x=f.x, z_em=d['z']) * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'] + self.load_template_gal(x=f.x, z_em=d['z']) * params.valuesdict()['norm_gal']), self.load_template_qso(x=f.x, z_em=d['z']) * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'], self.load_template_gal(x=f.x, z_em=d['z']) * params.valuesdict()['norm_gal'])
-                                    #print(f.name, f.weight, f.err, f.value, f.filter.get_value(x=f.x, y=self.load_template_qso(x=f.x, z_em=d['z']) * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'] + self.load_template_gal(x=f.x, z_em=d['z']) * params.valuesdict()['norm_gal']))
-                                    chi = np.append(chi, [f.weight / f.err * (f.value - f.filter.get_value(x=f.x, y=self.load_template_qso(x=f.x, z_em=d['z']) * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'] + self.load_template_gal(x=f.x, z_em=d['z']) * params.valuesdict()['norm_host']))])
-                            return chi
+                    temp_bbb = bbb.flux(sm[0] / (1 + d['z']))
+                    temp_tor = tor.flux(sm[0] / (1 + d['z']))
+                    norm = np.nanmean(sm[1]) / np.nanmean(temp_bbb)
+                    # create a set of Parameters
+                    params = Parameters()
+                    params.add('Av', value=0.0, min=-10, max=10)
+                    params.add('norm_bbb', value=norm, min=0, max=1e10)
+                    params.add('norm_tor', value=norm / np.max(temp_bbb) * np.max(temp_tor), min=0, max=1e10)
+                    minner = Minimizer(fcn2min, params, nan_policy='propagate', calc_covar=True)
+                    result = minner.minimize(method=method)
+                    chi = fcn2min(result.params)
+                    chi2_min = np.sum(chi ** 2) / (len(chi) - len(params))
+                    print(i, result.params['Av'].value, result.params['norm_bbb'].value, result.params['norm_tor'].value, chi2_min)
+                    self.df.loc[i, 'Av_int' + '_photo' * self.addPhoto.isChecked()] = result.params['Av'].value
+                    self.df.loc[i, 'chi2_av' + '_photo' * self.addPhoto.isChecked()] = chi2_min
 
-                        #norm = np.average(sm[1], weights=sm[2]) / np.average(temp)
-                        norm = np.nanmean(sm[1]) / np.nanmean(temp)
-                        # create a set of Parameters
-                        params = Parameters()
-                        params.add('Av', value=0.0, min=-10, max=10)
-                        params.add('norm', value=norm, min=0, max=1e10)
-                        minner = Minimizer(fcn2min, params, nan_policy='propagate', calc_covar=True)
-                        result = minner.minimize()
-                        chi = fcn2min(result.params)
-                        chi2_min = np.sum(chi ** 2) / (len(chi) - len(params))
-                        print(i, result.params['Av'].value, result.params['norm'].value, chi2_min)
-                        self.df.loc[i, 'Av_int' + '_photo' * self.addPhoto.isChecked()] = result.params['Av'].value
-                        self.df.loc[i, 'chi2_av' + '_photo' * self.addPhoto.isChecked()] = chi2_min
+                    results = []
+                    if self.hostExt.isChecked():
+                        for host in range(len(self.host_templates)):
+                            gal = sed_template(name=self.host_templates[host], smooth_window=3, xmin=self.ero_tempmin, xmax=self.ero_tempmax, z=d['z'])
+                            temp_gal = gal.flux(sm[0] / (1 + d['z']))
+                            params = Parameters()
+                            params.add('Av', value=result.params['Av'].value, min=-10, max=10)
+                            params.add('norm_bbb', value=result.params['norm_bbb'].value, min=0, max=1e10)
+                            if any([f in self.filters.keys() for f in ['W3', 'W4']]):
+                                params.add('norm_tor', value=result.params['norm_tor'].value, min=0, max=1e10)
+                            else:
+                                params.add('norm_tor', value=0, vary=False, min=0, max=1e10)
+                            if any([f in self.filters.keys() for f in ['J', 'H', 'K', 'W1', 'W2']]):
+                                params.add('norm_host', value=result.params['norm_bbb'].value / 100, min=0, max=1e10)
+                                params.add('Av_host', value=0, min=0, max=5)
+                            else:
+                                params.add('norm_host', value=0, vary=False, min=0, max=1e10)
+                                params.add('Av_host', value=0, vary=False, min=0, max=5)
+                            minner = Minimizer(fcn2min_gal, params, nan_policy='propagate', calc_covar=True)
+                            results.append(minner.minimize(method=method))
+                            #report_fit(results[-1])
+                            chi = fcn2min_gal(results[-1].params)
+                            chi2 = np.sum(chi ** 2) / (len(chi) - len(results[-1].params))
+                            print(i, "{0:s} Av={1:.3f} b={2:.2f} t={3:.2f} h={4:.5f} Avh={5:.2f} {6:.5f}".format(self.host_templates[host], results[-1].params['Av'].value, results[-1].params['norm_bbb'].value, results[-1].params['norm_tor'].value, results[-1].params['norm_host'].value, results[-1].params['Av_host'].value, chi2))
+                            #print("{0:.3f} {1:.2f} {2:.2f} {3:.5f}, {4:.2f}".format(results[-1].params['Av'].stderr, results[-1].params['norm_bbb'].stderr, results[-1].params['norm_tor'].stderr, results[-1].params['norm_host'].stderr, results[-1].params['Av_host'].stderr))
+                            #print(results[-1].nfev)
+                            if host == 0 or chi2 < chi2_min:
+                                chi2_min, host_min = chi2, host
+                        #print(i, result.params['Av'].value, result.params['norm'].value, result.params['norm_host'].value, np.sum(chi ** 2) / (len(chi) - len(params)))
 
-                        results = []
+                        result = results[host_min]
+                        self.template_name_gal = host_min
+                        gal = sed_template(name=self.host_templates[host_min], smooth_window=3, xmin=self.ero_tempmin, xmax=self.ero_tempmax, z=d['z'])
+                        temp_gal = gal.flux(sm[0] / (1 + d['z']))
+                        self.df.loc[i, 'Av_int_host' + '_photo' * self.addPhoto.isChecked()] = result.params['Av'].value
+                        self.df.loc[i, 'chi2_av_host' + '_photo' * self.addPhoto.isChecked()] = chi2_min
+                        self.df.loc[i, 'Av_host' + '_photo' * self.addPhoto.isChecked()] = result.params['Av_host'].value
+                        #self.df.loc[i, 'f_host' + '_photo' * self.addPhoto.isChecked()] = 1 / (1 + (result.params['norm_bbb'].value * np.trapz(bbb.flux(gal.x) * self.extinction(gal.x, Av=result.params['Av'].value), x=gal.x) / (result.params['norm_host'].value * np.trapz(gal.y, x=gal.x))))
+                        self.df.loc[i, 'f_host' + '_photo' * self.addPhoto.isChecked()] = 1 / (1 + (result.params['norm_bbb'].value * bbb.flux(5100) * self.extinction(5100, Av=result.params['Av'].value) + result.params['norm_tor'].value * tor.flux(5100)) / (result.params['norm_host'].value * gal.flux(5100) * self.extinction(5100, Av=result.params['Av_host'].value)))
+                        self.df.loc[i, 'host_type' + '_photo' * self.addPhoto.isChecked()] = self.host_templates[host_min]
+                        self.df.loc[i, 'L_host' + '_photo' * self.addPhoto.isChecked()] = result.params['norm_host'].value * np.trapz(gal.y * self.extinction(gal.x, Av=result.params['Av_host'].value), x=gal.x * (1 + d['z'])) * 4 * np.pi * Planck15.luminosity_distance(self.df.loc[i, 'z']).to('cm').value ** 2 * 1e-17 / 3.846e33
+                        print(self.df['f_host' + '_photo' * self.addPhoto.isChecked()][i], self.df['host_type' + '_photo' * self.addPhoto.isChecked()][i], self.df['L_host' + '_photo' * self.addPhoto.isChecked()][i])
+
+                    if plot:
+                        # >>> plot templates:
+                        ax.plot(bbb.x, bbb.y * result.params['norm_bbb'].value, '--', color='tab:blue', zorder=2, label='composite')
+                        ax.plot(bbb.x, bbb.y * result.params['norm_bbb'].value * self.extinction(bbb.x, Av=result.params['Av'].value),
+                                '-', color='tab:blue', zorder=3, label='comp with ext')
+                        ax.plot(tor.x, tor.y * result.params['norm_tor'].value, '--', color='tab:orange', zorder=2, label='composite')
                         if self.hostExt.isChecked():
-                            for host in range(len(self.host_templates)):
-                                self.template_name_gal = host
-                                self.load_template_gal(smooth_window=3, init=True)
-                                temp_gal = self.load_template_gal(x=sm[0], z_em=d['z'])
-                                params = Parameters()
-                                params.add('Av', value=result.params['Av'].value, min=-10, max=10)
-                                params.add('norm', value=result.params['norm'].value, min=0, max=1e10)
-                                params.add('norm_host', value=result.params['norm'].value / 10, min=0, max=1e10)
-                                minner = Minimizer(fcn2min_gal, params, nan_policy='propagate', calc_covar=True)
-                                results.append(minner.minimize())
-                                chi = fcn2min_gal(results[-1].params)
-                                chi2 = np.sum(chi ** 2) / (len(chi) - len(results[-1].params))
-                                print(i, "{0:s} {1:.3f} {2:.2f} {3:.2f} {4:.5f}".format(self.host_templates[self.template_name_gal], results[-1].params['Av'].value, results[-1].params['norm'].value, results[-1].params['norm_host'].value, chi2))
-                                if host == 0 or chi2 < chi2_min:
-                                    chi2_min, host_min = chi2, host
-                            #print(i, result.params['Av'].value, result.params['norm'].value, result.params['norm_host'].value, np.sum(chi ** 2) / (len(chi) - len(params)))
+                            ax.plot(gal.x, gal.y * result.params['norm_host'].value, '--', color='tab:purple', zorder=2, label='galaxy')
+                            ax.plot(gal.x, gal.y * result.params['norm_host'].value * self.extinction(gal.x, Av=result.params['Av_host'].value),
+                                    '-', color='tab:purple', zorder=2, label='galaxy')
 
-                            result = results[host_min]
-                            self.template_name_gal = host_min
-                            self.load_template_gal(smooth_window=3, init=True)
-                            temp_gal = self.load_template_gal(x=sm[0], z_em=d['z'])
-                            self.df.loc[i, 'Av_int_host' + '_photo' * self.addPhoto.isChecked()] = result.params['Av'].value
-                            self.df.loc[i, 'chi2_av_host' + '_photo' * self.addPhoto.isChecked()] = chi2_min
-                            self.df.loc[i, 'f_host' + '_photo' * self.addPhoto.isChecked()] = 1 / (1 + (result.params['norm'].value * np.trapz(self.load_template_qso(x=self.template_gal[0]) * self.extinction(self.template_gal[0], Av=result.params['Av'].value), x=self.template_gal[0])) / (result.params['norm_host'].value * np.trapz(self.template_gal[1], x=self.template_gal[0])))
-                            self.df.loc[i, 'host_type' + '_photo' * self.addPhoto.isChecked()] = self.host_templates[host_min]
-                            print(self.df['f_host' + '_photo' * self.addPhoto.isChecked()][i], self.df['host_type' + '_photo' * self.addPhoto.isChecked()][i])
-
-                        if plot:
-                            # >>> plot templates:
-                            ax.plot(self.template_qso[0], self.template_qso[1] * result.params['norm'].value,
-                                    '--', color='tab:blue', zorder=2, label='composite')
-                            ax.plot(self.template_qso[0], self.template_qso[1] * result.params['norm'].value * self.extinction(self.template_qso[0], Av=result.params['Av'].value),
-                                    '-', color='tab:blue', zorder=3, label='comp with ext')
+                        # >>> plot filters fluxes:
+                        for k, f in self.filters.items():
+                            temp = bbb.flux(f.x / (1 + d['z'])) * self.extinction(f.x / (1 + d['z']), Av=result.params['Av'].value) * result.params['norm_bbb'].value + tor.flux(f.x / (1 + d['z'])) * result.params['norm_tor'].value
                             if self.hostExt.isChecked():
-                                ax.plot(self.template_gal[0], self.template_gal[1] * result.params['norm_host'].value,
-                                        '-', color='tab:purple', zorder=2, label='galaxy')
+                                temp += gal.flux(f.x / (1 + d['z'])) * result.params['norm_host'].value * self.extinction(f.x / (1 + d['z']), Av=result.params['Av_host'].value)
+                            ax.plot(f.x / (1 + d['z']), temp, '-', color='tomato', zorder=3)
+                            #ax.scatter(f.filter.l_eff, f.filter.get_value(x=f.x, y=temp * self.extinction(f.x * (1 + d['z']), Av=result.params['Av'].value) * result.params['norm'].value),
+                            #           s=20, marker='o', c=[c/255 for c in f.filter.color])
 
-                            # >>> plot filters fluxes:
-                            for k, f in self.filters.items():
-                                temp = self.load_template_qso(x=f.x, z_em=d['z']) * self.extinction(f.x / (1 + d['z']), Av=result.params['Av'].value) * result.params['norm'].value
-                                if self.hostExt.isChecked():
-                                    temp += self.load_template_gal(x=f.x, z_em=d['z']) * result.params['norm_host'].value
-                                ax.plot(f.x / (1 + d['z']), temp, '-', color='tomato', zorder=3)
-                                #ax.scatter(f.filter.l_eff, f.filter.get_value(x=f.x, y=temp * self.extinction(f.x * (1 + d['z']), Av=result.params['Av'].value) * result.params['norm'].value),
-                                #           s=20, marker='o', c=[c/255 for c in f.filter.color])
+                        # >>> total profile:
+                        temp = bbb.flux(spec[0] / (1 + d['z'])) * result.params['norm_bbb'].value * self.extinction(spec[0] / (1 + d['z']), Av=result.params['Av'].value) + tor.flux(spec[0] / (1 + d['z'])) * result.params['norm_tor'].value
+                        if self.hostExt.isChecked():
+                            temp += gal.flux(spec[0] / (1 + d['z'])) * result.params['norm_host'].value * self.extinction(spec[0] / (1 + d['z']), Av=result.params['Av_host'].value)
 
-                            # >>> total profile:
-                            temp = self.load_template_qso(x=spec[0], z_em=d['z']) * result.params['norm'].value * self.extinction(spec[0] / (1 + d['z']), Av=result.params['Av'].value)
-                            if self.hostExt.isChecked():
-                                temp += self.load_template_gal(x=spec[0], z_em=d['z']) * result.params['norm_host'].value
+                        ax.plot(spec[0] / (1 + d['z']), temp, '-', color='tab:red', zorder=3, label='total profile')
+                        #print(np.sum(((temp - spec[1]) / spec[2])[mask] ** 2) / np.sum(mask))
 
-                            ax.plot(spec[0] / (1 + d['z']), temp, '-', color='tab:red', zorder=3, label='total profile')
-                            #print(np.sum(((temp - spec[1]) / spec[2])[mask] ** 2) / np.sum(mask))
+                        if self.addPhoto.isChecked():
+                            ax.set_xlim([8e2, 3e5])
+                        else:
+                            ax.set_xlim([np.min(spec[0] / (1 + d['z'])), np.max(spec[0] / (1 + d['z']))])
+                        title = "id={0:4d} {1:19s} ({2:5d} {3:5d} {4:4d}) z={5:5.3f} Av={6:4.2f} chi2={7:4.2f}".format(i, d['SDSS_NAME'], d['PLATE'], d['MJD'], d['FIBERID'], d['z'], result.params['Av'].value, chi2_min)
+                        if self.hostExt.isChecked():
+                            title += " fgal={1:4.2f} {0:s}".format(self.host_templates[host_min], self.df['f_host' + '_photo' * self.addPhoto.isChecked()][i])
+                        ax.set_title(title)
+                        ax.set_ylim([0.001, ax.get_ylim()[1]])
 
-                            if self.addPhoto.isChecked():
-                                ax.set_xlim([8e2, 3e5])
-                            else:
-                                ax.set_xlim([np.min(spec[0] / (1 + d['z'])), np.max(spec[0] / (1 + d['z']))])
-                            title = "id={0:4d} {1:19s} ({2:5d} {3:5d} {4:4d}) z={5:5.3f} Av={6:4.2f} chi2={7:4.2f}".format(i, d['SDSS_NAME'], d['PLATE'], d['MJD'], d['FIBERID'], d['z'], result.params['Av'].value, chi2_min)
-                            if self.hostExt.isChecked():
-                                title += " f_gal={1:4.2f} {0:s}".format(self.host_templates[host_min], self.df['f_host' + '_photo' * self.addPhoto.isChecked()][i])
-                            ax.set_title(title)
+                        if 0:
+                            inds = np.where(np.diff(mask))[0]
+                            for s, f in zip(range(0, len(inds), 2), range(1, len(inds), 2)):
+                                ax.axvspan(spec[0][inds[s]], spec[0][inds[f]], color='tab:green', alpha=0.3, zorder=1)
+                        else:
+                            ymin, ymax = ax.get_ylim()[0] * np.ones_like(spec[0] / (1 + d['z'])), ax.get_ylim()[1] * np.ones_like(spec[0] / (1 + d['z']))
+                            ax.fill_between(spec[0] / (1 + d['z']), ymin, ymax, where=mask, color='tab:green', alpha=0.3, zorder=0)
+                        fig.legend(loc=1, fontsize=16, borderaxespad=2)
 
-                            if 0:
-                                inds = np.where(np.diff(mask))[0]
-                                for s, f in zip(range(0, len(inds), 2), range(1, len(inds), 2)):
-                                    ax.axvspan(spec[0][inds[s]], spec[0][inds[f]], color='tab:green', alpha=0.3, zorder=1)
-                            else:
-                                ymin, ymax = ax.get_ylim()[0] * np.ones_like(spec[0] / (1 + d['z'])), ax.get_ylim()[1] * np.ones_like(spec[0] / (1 + d['z']))
-                                ax.fill_between(spec[0] / (1 + d['z']), ymin, ymax, where=mask, color='tab:green', alpha=0.3, zorder=0)
-                            fig.legend(loc=1, fontsize=16, borderaxespad=2)
-
+                else:
+                    if not self.addPhoto.isChecked():
+                        self.df.loc[i, 'Av_int'] = np.nan
+                        self.df.loc[i, 'chi2_av'] = np.nan
+                        if self.hostExt.isChecked():
+                            self.df.loc[i, 'Av_int_host'] = np.nan
+                            self.df.loc[i, 'chi2_av_host'] = np.nan
+                            self.df.loc[i, 'Av_host'] = np.nan
+                            self.df.loc[i, 'f_host'] = np.nan
+                            self.df.loc[i, 'f_host_type'] = np.nan
                     else:
-                        if ind is None:
-                            fmiss.write("{0:4d} {1:19s} {2:5d} {3:5d} {4:4d} \n".format(i, self.df['SDSS_NAME'][i], self.df['PLATE'][i], self.df['MJD'][i], self.df['FIBERID'][i]))
+                        self.df.loc[i, 'Av_int_photo'] = np.nan
+                        self.df.loc[i, 'chi2_av_photo'] = np.nan
+                        if self.hostExt.isChecked():
+                            self.df.loc[i, 'Av_int_host_photo'] = np.nan
+                            self.df.loc[i, 'chi2_av_host_photo'] = np.nan
+                            self.df.loc[i, 'Av_host_photo'] = np.nan
+                            self.df.loc[i, 'f_host_photo'] = np.nan
+                            self.df.loc[i, 'f_host_photo_type'] = np.nan
+
+                    if ind is None:
+                        fmiss.write("{0:4d} {1:19s} {2:5d} {3:5d} {4:4d} \n".format(i+1, self.df['SDSS_NAME'][i], self.df['PLATE'][i], self.df['MJD'][i], self.df['FIBERID'][i]))
         if plot:
             if self.addPhoto.isChecked():
                 ax.set_xscale('log')
                 ax.set_yscale('log')
 
+            #plt.get_current_fig_manager().full_screen_toggle()
             plt.show()
 
-        if np.sum(self.mask) == len(self.df['z']):
-            self.mask = np.zeros(len(self.df['z']), dtype=bool)
+        if np.sum(self.mask) == len(self.df['SDSS_NAME']):
+            self.mask = np.zeros(len(self.df['SDSS_NAME']), dtype=bool)
 
         if ind is None:
             fmiss.close()
@@ -961,29 +1155,45 @@ class ErositaWidget(QWidget):
         l = [20, 22, 23, 26]
         return np.sum(m[:, l], axis=1)
 
-    def calc_mask(self, spec, z_em=0, iter=3, window=301, clip=2.0):
+    def calc_mask(self, spec, z_em=0, iter=3, window=101, clip=3.0):
         mask = np.logical_not(self.sdss_mask(spec[3]))
-        #mask = np.asarray(spec[3][:] == 0, dtype=bool)
-        #print(np.sum(mask))
+        print(np.sum(mask))
+
         mask *= spec[0] > 1280 * (1 + z_em)
-        #print(np.sum(mask))
+
         for i in range(iter):
             m = np.zeros_like(spec[0])
             if window > 0 and np.sum(mask) > window:
                 if i > 0:
                     m[mask] = np.abs(sm - spec[1][mask]) / spec[2][mask] > clip
-                    mask *= np.logical_not(self.expand_mask(m, exp_pixel=3))
+                    mask *= np.logical_not(self.expand_mask(m, exp_pixel=2))
                     #mask[mask] *= np.abs(sm - spec[1][mask]) / spec[2][mask] < clip
                 sm = smooth(spec[1][mask], window_len=window, window='hanning', mode='same')
 
         mask = np.logical_not(self.expand_mask(np.logical_not(mask), exp_pixel=3))
+
+        mask[mask] *= (spec[1][mask] > 0) * (spec[1][mask] / spec[2][mask] > 1)
+        print(np.sum(mask))
+
         #print(np.sum(mask))
-        # remove prominent emission lines regions
-        windows = [[1295, 1320], [1330, 1360], [1375, 1430], [1500, 1600], [1625, 1700], [1740, 1760],
-                   [1840, 1960], [2050, 2120], [2250, 2650], [2710, 2890], [2940, 2990], [3280, 3330],
-                   [3820, 3920], [4200, 4680], [4780, 5080], [5130, 5400], [5500, 5620], [5780, 6020],
-                   [6300, 6850], [7600, 8050], [8250, 8300], [8400, 8600], [9000, 9400], [9500, 9700],
-                   [9950, 10200]]
+        # remove  emission lines regions
+        if 0:
+            # all emission lines
+            windows = [[1295, 1320], [1330, 1360], [1375, 1430], [1500, 1600], [1625, 1700], [1740, 1760],
+                       [1840, 1960], [2050, 2120], [2250, 2650], [2710, 2890], [2940, 2990], [3280, 3330],
+                       [3820, 3920], [4200, 4680], [4780, 5080], [5130, 5400], [5500, 5620], [5780, 6020],
+                       [6300, 6850], [7600, 8050], [8250, 8300], [8400, 8600], [9000, 9400], [9500, 9700],
+                       [9950, 10200]]
+        else:
+            # only strong ones
+            windows = [[1295, 1320], [1330, 1360], [1375, 1430], [1500, 1600], [1625, 1700], [1740, 1760],
+                       [1840, 1960], [2050, 2120], [2250, 2400], #[2250, 2650], #[2710, 2890],
+                       [2760, 2860], #[2940, 2990], [3280, 3330],
+                       [3820, 3920], #[4200, 4680],
+                       [4920, 5080], #[4780, 5080],
+                       [5130, 5400], [5500, 5620], [5780, 6020],
+                       [6300, 6850], [7600, 8050], [8250, 8300], [8400, 8600], [9000, 9400], [9500, 9700],
+                       [9950, 10200]]
         for w in windows:
             mask *= (spec[0] < w[0] * (1 + z_em)) + (spec[0] > w[1] * (1 + z_em))
 
@@ -996,79 +1206,41 @@ class ErositaWidget(QWidget):
         #print(np.sum(mask))
         return mask
 
-    def load_template_qso(self, x=None, z_em=0, smooth_window=None, init=False):
-        if init:
-            if self.template_name_qso in ['VandenBerk', 'HST', 'Slesing', 'power', 'composite']:
-                if self.template_name_qso == 'VandenBerk':
-                    self.template_qso = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
-                elif self.template_name_qso == 'HST':
-                    self.template_qso = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
-                elif self.template_name_qso == 'Slesing':
-                    self.template_qso = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
-                elif self.template_name_qso == 'power':
-                    self.template_qso = np.ones((2, 1000))
-                    self.template_qso[0] = np.linspace(500, 25000, self.template_qso.shape[1])
-                    self.template_qso[1] = np.power(self.template_qso[0] / 2500, -1.9)
-                    smooth_window = None
-                elif self.template_name_qso == 'composite':
-                    self.template_qso = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
-                    self.template_qso = self.template_qso[:, np.logical_or(self.template_qso[1] != 0, self.template_qso[2] != 0)]
-                    if 0:
-                        x = self.template_qso[0][-1] + np.arange(1, int((25000 - self.template_qso[0][-1]) / 0.4)) * 0.4
-                        y = np.power(x / 2500, -1.9) * 6.542031
-                        self.template_qso = np.append(self.template_qso, [x, y, y / 10], axis=1)
-                    else:
-                        if 1:
-                            data = np.genfromtxt('data/SDSS/QSO1_template_norm.sed', skip_header=0, unpack=True)
-                            m = (data[0] > self.template_qso[0][-1]) * (data[0] < self.ero_tempmax)
-                            self.template_qso = np.append(self.template_qso, [data[0][m], data[1][m] * self.template_qso[1][-1] / data[1][m][0], data[1][m] / 30], axis=1)
-                        x = self.template_qso[0][0] + np.linspace(int((self.ero_tempmin - self.template_qso[0][0]) / 0.4), -1) * 0.4
-                        y = np.power(x / self.template_qso[0][0], -1.0) * self.template_qso[1][0]
-                        self.template_qso = np.append([x, y, y / 10], self.template_qso, axis=1)
-            if smooth_window is not None:
-                self.template_qso[1] = smooth(self.template_qso[1], window_len=smooth_window, window='hanning', mode='same')
-        else:
-            if x is not None:
-                inter = interp1d(self.template_qso[0] * (1 + z_em), self.template_qso[1] * add_LyaForest(self.template_qso[0] * (1 + z_em), z_em=z_em), bounds_error=False, fill_value=0, assume_sorted=True)
-                return inter(x)
-            else:
-                return self.template_qso[1]
-
-    def load_template_gal(self, x=None, z_em=0, smooth_window=None, init=False):
-        if init:
-            if 0:
-                if isinstance(self.template_name_gal, int):
-                    f = fits.open(f"data/SDSS/spDR2-0{23 + self.template_name_gal}.fit")
-                    self.template_gal = [10 ** (f[0].header['COEFF0'] + f[0].header['COEFF1'] * np.arange(f[0].header['NAXIS1'])), f[0].data[0]]
-
-                    if smooth_window is not None:
-                        self.template_gal[1] = smooth(self.template_gal[1], window_len=smooth_window, window='hanning', mode='same')
-            if isinstance(self.template_name_gal, int):
-                self.template_gal = np.genfromtxt(f'data/SDSS/{self.host_templates[self.template_name_gal]}_template_norm.sed', unpack=True)
-                if 1:
-                    mask = (self.template_gal[0] > self.ero_tempmin) * (self.template_gal[0] < self.ero_tempmax)
-                    self.template_gal = [self.template_gal[0][mask], self.template_gal[1][mask]]
-        else:
-            if x is not None:
-                inter = interp1d(self.template_gal[0] * (1 + z_em), self.template_gal[1], bounds_error=False, fill_value=0, assume_sorted=True)
-                return inter(x)
-            else:
-                return self.template_gal[1]
-
     def correlate(self):
         self.corr_status = 1 - self.corr_status
         if self.corr_status:
-            self.reg = {'all': 'checked', 'selected': 'checked'}
+            self.reg = {'all': 'checked', 'all_r': 'checked', 'selected': 'checked'}
             x, y, = self.x_lambda(self.df[self.ero_x_axis]), self.y_lambda(self.df[self.ero_y_axis])
-            m = x.notna() * y.notna() # * (x > 0) * (y > 0)
+            m = x.notna() * y.notna()  # * (x > 0) * (y > 0)
             x, y = x[m].to_numpy(), y[m].to_numpy()
             print(x, y)
+
             slope, intercept, r, p, stderr = linregress(x, y)
             print(slope, intercept, r, p, stderr)
             reg = lambda x: intercept + slope * x
             xreg = np.asarray([np.min(x), np.max(x)])
             self.reg['all'] = "{0:.3f} x + {1:.3f}, disp={2:.2f}".format(slope, intercept, np.std(y - reg(x)))
             self.dataPlot.plotRegression(x=xreg, y=reg(xreg), name='all')
+
+            if self.robust.currentText() in ['Huber', 'RANSAC']:
+                if self.robust.currentText() == 'Huber':
+                    regres = linear_model.HuberRegressor()
+                elif self.robust.currentText() == 'RANSAC':
+                    regres = linear_model.RANSACRegressor()
+                regres.fit(x[:, np.newaxis], y)
+                if self.robust.currentText() == 'RANSAC':
+                    inlier_mask = regres.inlier_mask_
+                    outlier_mask = np.logical_not(inlier_mask)
+                    print(np.sum(outlier_mask))
+                    slope, intercept = regres.estimator_.coef_[0], regres.estimator_.intercept_
+                elif self.robust.currentText() == 'Huber':
+                    inlier_mask = np.ones_like(x, dtype=bool)
+                    slope, intercept = regres.coef_[0], regres.intercept_
+                self.dataPlot.plotRegression(x=xreg, y=regres.predict(xreg[:, np.newaxis]), name='all_r')
+                std = np.std(y[inlier_mask] - regres.predict(x[:, np.newaxis])[inlier_mask])
+                print(slope, intercept, std)
+                self.reg['all_r'] = "{0:.3f} x + {1:.3f}, disp={2:.2f}".format(slope, intercept, std)
+
             print(np.sum(np.logical_and(np.isfinite(self.x[self.mask]), np.isfinite(self.y[self.mask]))))
             if np.sum(np.logical_and(np.isfinite(self.x[self.mask]), np.isfinite(self.y[self.mask]))):
                 x, y, = self.x_lambda(self.df[self.ero_x_axis]), self.y_lambda(self.df[self.ero_y_axis])
@@ -1081,8 +1253,10 @@ class ErositaWidget(QWidget):
                 self.reg['selected'] = "{0:.3f} x + {1:.3f}, disp={2:.2f}".format(slope, intercept, np.std(y - reg(x)))
                 self.dataPlot.plotRegression(x=xreg, y=reg(xreg), name='selected')
             print(self.reg)
+
         else:
             self.dataPlot.plotRegression(name='all', remove=True)
+            self.dataPlot.plotRegression(name='all_r', remove=True)
             self.dataPlot.plotRegression(name='selected', remove=True)
 
     def save_data(self):

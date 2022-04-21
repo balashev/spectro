@@ -1,15 +1,3 @@
-rescale 1.7 all
-rescale 0.6
-set err 0.00001
-show SiII
-N SiII
-logN siII
-logN SiII
-logN SiII
-show ZnII
-show MgI
-logN MgI
-show CI
 show CIj1
 show CIj2
 Si
@@ -19,3 +7,15 @@ show SI
 show SII
 SII
 logN SiII
+H2j0
+H2j1
+1.108 * 1.08
+1013 * 0.0205
+H2j0
+H2j4
+show Na
+NaI
+MgII
+MgI
+MgIII
+show CIII

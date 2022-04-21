@@ -2620,50 +2620,64 @@ class regionItem(pg.LinearRegionItem):
         return "{0:.1f}..{1:.1f} ".format(self.getRegion()[0], self.getRegion()[1]) + self.addinfo
 
 class SpectrumFilter():
-    def __init__(self, parent, name=None):
+    def __init__(self, parent, name=None, system='AB'):
         self.parent = parent
         self.name = name
+        self.system = system
         self.correct_name()
         self.init_data()
         self.gobject = None
         self.get_value()
 
     def correct_name(self):
-        d = {'K_VISTA': 'Ks_VISTA', 'Y': 'Y_VISTA', 'J': 'J_2MASS', 'H': 'H_2MASS', 'K': 'Ks_2MASS', 'Ks': 'Ks_2MASS'}
+        d = {'K_VISTA': 'Ks_VISTA', 'Y': 'Y_VISTA', 'J': 'J_2MASS', 'H': 'H_2MASS', 'K': 'Ks_2MASS', 'Ks': 'Ks_2MASS', 'K_2MASS': 'Ks_2MASS'}
         if self.name in d.keys():
             self.name = d[self.name]
 
     def init_data(self):
         if self.name == 'u':
-            self.m0 = 22.12
+            self.m0 = 24.63
             self.b = 1.4e-10
         if self.name == 'g':
-            self.m0 = 22.60
+            self.m0 = 25.11
             self.b = 0.9e-10
         if self.name == 'r':
-            self.m0 = 22.29
+            self.m0 = 24.80
             self.b = 1.2e-10
         if self.name == 'i':
-            self.m0 = 21.85
+            self.m0 = 24.36
             self.b = 1.8e-10
         if self.name == 'z':
-            self.m0 = 20.32
+            self.m0 = 22.83
             self.b = 7.4e-10
+        if self.name == 'NUV':
+            self.m0 = 28.3
+        if self.name == 'FUV':
+            self.m0 = 28.3
 
-        zp = {'u': 3.75e-9, 'g': 5.45e-9, 'r': 2.5e-9, 'i': 1.39e-9, 'z': 8.39e-10,
-              'G': 2.5e-9, 'G_BP': 4.04e-9, 'G_RP': 1.29e-9,
-              'J_2MASS': 3.13e-10, 'H_2MASS': 1.13e-10, 'Ks_2MASS': 4.28e-11,
-              'Y_VISTA': 6.01e-10, 'J_VISTA': 2.98e-10, 'H_VISTA': 1.15e-10, 'Ks_VISTA': 4.41e-11,
-              'W1': 8.18e-12, 'W2': 2.42e-12, 'W3': 6.52e-14, 'W4': 5.09e-15,
-              'NUV': 4.45e-9, 'FUV': 6.5e-9,
-              }
-        self.zp = zp[self.name]
+        zp_vega = {'u': 3.75e-9, 'g': 5.45e-9, 'r': 2.5e-9, 'i': 1.39e-9, 'z': 8.39e-10,
+                   'G': 2.5e-9, 'G_BP': 4.04e-9, 'G_RP': 1.29e-9,
+                   'J_2MASS': 3.13e-10, 'H_2MASS': 1.13e-10, 'Ks_2MASS': 4.28e-11,
+                   'Y_VISTA': 6.01e-10, 'J_VISTA': 2.98e-10, 'H_VISTA': 1.15e-10, 'Ks_VISTA': 4.41e-11,
+                   'Z_UKIDSS': 8.71e-10, 'Y_UKIDSS': 5.81e-10, 'J_UKIDSS': 3.0e-10, 'H_UKIDSS': 1.17e-10, 'K_UKIDSS': 3.99e-11,
+                   'W1': 8.18e-12, 'W2': 2.42e-12, 'W3': 6.52e-14, 'W4': 5.09e-15,
+                   'NUV': 4.45e-9, 'FUV': 6.51e-9,
+                }
+        zp_ab = {'u': 8.36e-9, 'g': 4.99e-9, 'r': 2.89e-9, 'i': 1.96e-9, 'z': 1.37e-09,
+                 'G': 3.19e-9, 'G_BP': 4.32e-9, 'G_RP': 1.88e-9,
+                 'J_2MASS': 7.21e-10, 'H_2MASS': 4.05e-10, 'Ks_2MASS': 2.35e-10,
+                 'Y_VISTA': 1.05e-9, 'J_VISTA': 6.98e-10, 'H_VISTA': 4.07e-10, 'Ks_VISTA': 2.37e-10,
+                 'Z_UKIDSS': 1.39e-9, 'Y_UKIDSS': 1.026e-9, 'J_UKIDSS': 7.0e-10, 'H_UKIDSS': 4.11e-10, 'K_UKIDSS': 2.26e-10,
+                 'W1': 9.9e-11, 'W2': 5.22e-11, 'W3': 9.36e-12, 'W4': 2.27e-12,
+                 'NUV': 2.05e-8, 'FUV': 4.54e-8,
+                }
+        self.zp = {'Vega': zp_vega[self.name], 'AB': zp_ab[self.name]}
 
-        colors = {'u': (23, 190, 207), 'g': (44, 160, 44), 'r': (214, 39, 40), 'i': (227, 119, 194),
-                  'z': (31, 119, 180),
+        colors = {'u': (23, 190, 207), 'g': (44, 160, 44), 'r': (214, 39, 40), 'i': (227, 119, 194), 'z': (31, 119, 180),
                   'G': (225, 168, 18), 'G_BP': (0, 123, 167), 'G_RP': (227, 66, 52),
                   'J_2MASS': (152, 255, 152), 'H_2MASS': (8, 232, 222), 'Ks_2MASS': (30, 144, 255),
                   'Y_VISTA': (212, 245, 70), 'J_VISTA': (142, 245, 142), 'H_VISTA': (18, 222, 212), 'Ks_VISTA': (20, 134, 245),
+                  'Z_UKIDSS': (235, 255, 50), 'Y_UKIDSS': (202, 235, 80), 'J_UKIDSS': (132, 235, 132), 'H_UKIDSS': (18, 212, 222), 'K_UKIDSS': (10, 124, 255),
                   'W1': (231, 226, 83), 'W2': (225, 117, 24), 'W3': (227, 66, 52), 'W4': (199, 21, 133),
                   'NUV': (227, 66, 52), 'FUV': (0, 123, 167),
                   }
@@ -2671,7 +2685,9 @@ class SpectrumFilter():
 
         if self.name in ['u', 'g', 'r', 'i', 'z']:
             self.mag_type = 'Asinh'
-        if self.name in ['G', 'G_BP', 'G_RP', 'J_2MASS', 'H_2MASS', 'Ks_2MASS', 'Y_VISTA', 'J_VISTA', 'H_VISTA', 'Ks_VISTA', 'W1', 'W2', 'W3', 'W4', 'NUV', 'FUV']:
+        if self.name in ['NUV', 'FUV', 'G', 'G_BP', 'G_RP', 'J_2MASS', 'H_2MASS', 'Ks_2MASS',
+                         'Z_UKIDSS', 'Y_UKIDSS', 'J_UKIDSS', 'H_UKIDSS', 'K_UKIDSS',
+                         'Y_VISTA', 'J_VISTA', 'H_VISTA', 'Ks_VISTA', 'W1', 'W2', 'W3', 'W4']:
             self.mag_type = 'Pogson'
 
         self.data = None
@@ -2694,6 +2710,10 @@ class SpectrumFilter():
             data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + f'/data/filters/Paranal_VISTA.{self.name}.dat'.replace('_VISTA.dat', '.dat'),
                 skip_header=0, usecols=(0, 1), unpack=True)
             self.data = gline(x=data[0], y=data[1])
+        if self.name in ['Z_UKIDSS', 'Y_UKIDSS', 'J_UKIDSS', 'H_UKIDSS', 'K_UKIDSS']:
+            data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + f'/data/filters/UKIRT_UKIDSS.{self.name}.dat'.replace('_UKIDSS.dat', '.dat'),
+                skip_header=0, usecols=(0, 1), unpack=True)
+            self.data = gline(x=data[0], y=data[1])
         if self.name in ['W1', 'W2', 'W3', 'W4']:
             data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + f'/data/filters/WISE_WISE.{self.name}.dat',
                                  skip_header=0, usecols=(0, 1), unpack=True)
@@ -2706,12 +2726,12 @@ class SpectrumFilter():
         #self.flux_0 = np.trapz(3.631e-29 * ac.c.to('Angstrom/s').value / self.data.x**2 * self.data.y, x=self.data.x)
         #self.flux_0 = np.trapz(3.631 * 3e-18 / self.data.x * self.data.y, x=self.data.x)
 
-        self.flux_0 = 3.631e-20  # standart calibration flux in maggies
+        self.flux_0 = 3.631e-20 # in erg/s/cm^2/Hz. This is standart calibration flux in maggies
         self.norm = np.trapz(self.data.x * self.data.y, x=self.data.x)
         self.ymax_pos = np.argmax(self.data.y)
         self.inter = interp1d(self.data.x, self.data.y, bounds_error=False, fill_value=0, assume_sorted=True)
         self.l_eff = np.sqrt(np.trapz(self.inter(self.data.x) * self.data.x, x=self.data.x) / np.trapz(self.inter(self.data.x) / self.data.x, x=self.data.x))
-        #print(self.l_eff)
+        #print(self.name, self.l_eff)
 
     def update(self, level):
         self.gobject.setData(x=self.data.x, y=level * self.data.y)
@@ -2726,7 +2746,7 @@ class SpectrumFilter():
         self.label.setFont(QFont("SansSerif", 16))
         self.label.setPos(self.data.x[self.ymax_pos], level * self.data.y[self.ymax_pos])
 
-    def get_value(self, x=None, y=None, flux=None):
+    def get_value(self, x=None, y=None, flux=None, system=None):
         """
         return magnitude in photometric filter. Important that flux should be in erg/s/cm^2/A
         Args:
@@ -2737,19 +2757,22 @@ class SpectrumFilter():
         Returns:
 
         """
+        if system == None:
+            system = self.system
         try:
             #print(self.name, self.mag_type)
             if self.mag_type == 'Asinh':
-                m0 = -2.5 / np.log(10) * (np.log(self.b))
+                #m0 = -2.5 / np.log(10) * (np.log(self.b))
                 if x is None or y is None:
                     x, y = self.parent.s[self.parent.s.ind].spec.x(), self.parent.s[self.parent.s.ind].spec.y()
                 mask = np.logical_and(x > self.data.x[0], x < self.data.x[-1])
                 x, y = x[mask], y[mask]
-                #flux = np.trapz(y * 1e-33 * x * self.inter(x), x=x)
-                #self.value = 2.5 / np.log(10) * (np.arcsinh(flux / self.flux_0 / 2 / self.b) + np.log(self.b))
-                flux = - 2.5 / np.log(10) * (np.arcsinh(y * 1e-17 * x**2 / ac.c.to('Angstrom/s').value / self.flux_0 / 2 / self.b) + np.log(self.b))
-                #print(flux)
-                self.value = np.trapz(flux * x * self.inter(x), x=x) / np.trapz(x * self.inter(x), x=x)
+                flux = np.trapz(y * 1e-17 * x * self.inter(x), x=x) / np.trapz(x * self.inter(x), x=x) * self.l_eff ** 2 / ac.c.to('Angstrom/s').value
+                if self.name in ['u', 'g', 'r', 'i', 'z']:
+                    self.value = - 2.5 / np.log(10) * np.arcsinh(flux / self.flux_0 / 2 / self.b) + self.m0
+                elif self.name in ['NUV', 'FUV']:
+                    self.value = - 2.5 * np.log10(np.exp(1)) * np.arcsinh(flux / self.flux_0 / 1e-9 / 0.01) + self.m0
+
             elif self.mag_type == 'Pogson':
                 if flux is None:
                     if x is None or y is None:
@@ -2759,28 +2782,23 @@ class SpectrumFilter():
                     #print(np.trapz(y * 1e-17 * x ** 2 / ac.c.to('Angstrom/s').value * self.inter(x), x=x) / np.trapz(self.inter(x), x=x))
                     # y in 1e-17 erg/s/cm^2/AA a typical units in SDSS data
                     flux = np.trapz(y * 1e-17 * x * self.inter(x), x=x) / np.trapz(x * self.inter(x), x=x)
-                self.value = - 2.5 * np.log10(flux / self.zp)
+                self.value = - 2.5 * np.log10(flux / self.zp[system])
                 #print(self.value)
         except:
             self.value = np.nan
         return self.value
 
-    def get_flux(self, value):
+    def get_flux(self, value, system=None):
         #print(self.name, self.mag_type)
+        if system == None:
+            system = self.system
         if self.mag_type == 'Asinh':
-            if 0:
-                m0 = -2.5 / np.log(10) * (np.log(self.b))
-                if x is None or y is None:
-                    x, y = self.parent.s[self.parent.s.ind].spec.x(), self.parent.s[self.parent.s.ind].spec.y()
-                mask = np.logical_and(x > self.data.x[0], x < self.data.x[-1])
-                x, y = x[mask], y[mask]
-                #flux = np.trapz(y * 1e-33 * x * self.inter(x), x=x)
-                #self.value = 2.5 / np.log(10) * (np.arcsinh(flux / self.flux_0 / 2 / self.b) + np.log(self.b))
-                flux = - 2.5 / np.log(10) * (np.arcsinh(y * 1e-17 * x**2 / ac.c.to('Angstrom/s').value / self.flux_0 / 2 / self.b) + np.log(self.b))
-                #print(flux)
-                self.value = np.trapz(flux * x * self.inter(x), x=x) / np.trapz(x * self.inter(x), x=x)
+            if self.name in ['u', 'g', 'r', 'i', 'z']:
+                flux = self.flux_0 * ac.c.to('Angstrom/s').value / self.l_eff ** 2 * 10 ** (-value / 2.5) * (1 - (10 ** (value / 2.5) * self.b) ** 2)
+            elif self.name in ['NUV', 'FUV']:
+                flux = self.flux_0 * 1e-9 * 0.01 * ac.c.to('Angstrom/s').value / self.l_eff ** 2 * np.sinh(-self.m0 - value / 2.5 / np.log10(np.exp(1)))
         elif self.mag_type == 'Pogson':
-            flux = self.zp * 10 ** (- value / 2.5)
+            flux = self.zp[system] * 10 ** (- value / 2.5)
         return flux
 
 class VerticalRegionItem(pg.UIGraphicsItem):
@@ -2845,6 +2863,7 @@ class CompositeSpectrum():
 
     def setData(self):
         if self.type == 'QSO':
+            self.qso_names = ['X-shooter', 'SDSS', 'HST', 'power']
             if self.parent.compositeQSO_status == 1:
                 self.spec = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
                 self.spec = self.spec[:, np.logical_or(self.spec[1] != 0, self.spec[1] != 0)]
@@ -2866,11 +2885,17 @@ class CompositeSpectrum():
                 self.spec = np.ones((2, 1000))
                 self.spec[0] = np.linspace(500, 25000, self.spec.shape[1])
                 self.spec[1] = np.power(self.spec[0] / 2500, -1.9)
+            self.parent.statusBar.setText(f'QSO template {self.qso_names[self.parent.compositeQSO_status // 2]} is loaded' )
         elif self.type == 'Galaxy':
-            print('gal_status: ', self.parent.compositeGal_status)
+            #print('gal_status: ', self.parent.compositeGal_status)
             if self.parent.compositeGal_status % 2:
-                f = fits.open(f"data/SDSS/spDR2-0{23 + self.parent.compositeGal_status // 2}.fit")
-                self.spec = 10 ** (f[0].header['COEFF0'] + f[0].header['COEFF1'] * np.arange(f[0].header['NAXIS1'])), f[0].data[0]
+                if 0:
+                    f = fits.open(f"data/SDSS/spDR2-0{23 + self.parent.compositeGal_status // 2}.fit")
+                    self.spec = 10 ** (f[0].header['COEFF0'] + f[0].header['COEFF1'] * np.arange(f[0].header['NAXIS1'])), f[0].data[0]
+                else:
+                    self.gal_names = ['S0', 'Sa', 'Sb', 'Sc', 'Sd', 'Sdm', 'Ell2', 'Ell5', 'Ell13', 'Sey2', 'Sey18']
+                    self.spec = np.genfromtxt(f'data/SDSS/{self.gal_names[self.parent.compositeGal_status // 2]}_template_norm.sed', unpack=True)
+                    self.parent.statusBar.setText(f'Galaxy composite loaded {self.gal_names[self.parent.compositeGal_status // 2]}_template_norm.sed')
 
     def draw(self):
         #self.gline = pg.PlotCurveItem(x=self.spec[0] * (1 + self.z), y=self.spec[1] * (1 + self.f), pen=pg.mkPen(color=self.color, width=2), clickable=True)
@@ -2890,7 +2915,7 @@ class CompositeSpectrum():
         #print(np.nanmean(s.spec.y()[ms]), np.nanmean(self.spec[1][mc]))
         if np.sum(mc) > 10 and np.sum(ms) > 10:
             self.f = np.nanmean(s.spec.y()[ms]) / np.nanmean(self.spec[1][mc])
-        print(self.f)
+        #print(self.f)
 
     def remove(self):
         if self.type == 'QSO':
@@ -2899,7 +2924,7 @@ class CompositeSpectrum():
                 self.parent.compositeQSO_status = 0
         if self.type == 'Galaxy':
             self.parent.compositeGal_status += 1
-            if self.parent.compositeGal_status == 12:
+            if self.parent.compositeGal_status == len(self.gal_names) * 2: #12:
                 self.parent.compositeGal_status = 0
 
         self.parent.vb.removeItem(self.gline)

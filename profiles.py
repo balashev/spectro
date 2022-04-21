@@ -6,6 +6,7 @@ Created on Tue Aug 23 19:20:44 2016
 """
 import astropy.convolution as conv
 from astropy import constants as const
+from astropy import units as u
 from dust_extinction.averages import G03_SMCBar
 from extinction import fitzpatrick99
 import matplotlib.pyplot as plt
@@ -561,7 +562,7 @@ def add_ext(x, z_ext=0, Av=0, kind='SMC'):
     """
     calculate extinction at given redshift
     parameters: 
-        - x         : the wavelength grid
+        - x         : the wavelength grid in Angstrem
         - z_ext     : redshift of extinction applied
         - Av        : Av 
         - kind      : type of extinction curve, can be either 'SMC', 'LMC'
@@ -571,6 +572,7 @@ def add_ext(x, z_ext=0, Av=0, kind='SMC'):
     """
     if isinstance(x, (int, float)):
         x = np.asarray([x])
+
     if Av in [None, 0]:
         return np.ones_like(x)
     else:
@@ -580,22 +582,24 @@ def add_ext(x, z_ext=0, Av=0, kind='SMC'):
                 data = np.genfromtxt('data/extinction.dat', skip_header=3, usecols=[0, et[kind]], unpack=True)
                 inter = interp1d(data[0]*1e4, data[1], fill_value='extrapolate')
                 return np.exp(- 0.92 * Av * inter(x / (1 + z_ext)))
-            if len(x) > 3:
-                if np.sort(x / (1 + z_ext))[2] > 1e5 / 3 or np.sort(x / (1 + z_ext))[-2] < 1e3:
-                    return np.ones_like(x)
+            if 0:
+                if len(x) > 3:
+                    if np.sort(x / (1 + z_ext))[2] > 1e5 / 3 or np.sort(x / (1 + z_ext))[-2] < 1e3:
+                        return np.ones_like(x)
+                    else:
+                        x1 = x[(x / (1 + z_ext) < 1e5 / 3) * (x / (1 + z_ext) > 1e3)]
+                        ext = interp1d(x1 / (1 + z_ext), G03_SMCBar().extinguish(1e4 / u.micron / np.asarray(x1 / (1 + z_ext), dtype=np.float64), Av=Av), fill_value='extrapolate')
+                        ext = ext(x / (1 + z_ext))
+                        ext[(ext > 1) * (x / (1 + z_ext) > 1e5 / 3)] = 1
+                        return ext
                 else:
-                    x1 = x[(x / (1 + z_ext) < 1e5 / 3) * (x / (1 + z_ext) > 1e3)]
-                    ext = interp1d(x1 / (1 + z_ext), G03_SMCBar().extinguish(1e4 / np.asarray(x1 / (1 + z_ext), dtype=np.float64), Av=Av), fill_value='extrapolate')
-                    ext = ext(x / (1 + z_ext))
-                    ext[(ext > 1) * (x / (1 + z_ext) > 1e5 / 3)] = 1
-                    return ext
-            else:
-                return G03_SMCBar().extinguish(1e4 / np.asarray(x / (1 + z_ext), dtype=np.float64), Av=Av)
+                    return G03_SMCBar().extinguish(1e4 / u.micron / np.asarray(x / (1 + z_ext), dtype=np.float64), Av=Av)
+            if 1:
+                # extinction parametrization from AGNfitter
+                return 10 ** (-0.4 * Av * (1.39 * (1e4 / np.asarray(x, dtype=np.float64) * (1 + z_ext)) ** 1.2 - 0.38) / 2.74)
 
         elif kind in ['MW', 'fitzpatrick99']:
             return 10 ** (-0.4 * fitzpatrick99(np.asarray(x, dtype=float64) / (1 + z_ext), Av))
-
-
 
 def add_ext_bump(x, z_ext=0, Av=0, Av_bump=0):
     print(Av, Av_bump)

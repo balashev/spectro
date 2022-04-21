@@ -767,7 +767,7 @@ class QSOlistTable(pg.TableWidget):
                     plate = None
 
                 if plate is not None:
-                    self.parent.loadSDSS(plate=plate, MJD=MJD, fiber=fiber, gal_ext=True)
+                    self.parent.loadSDSS(plate=plate, MJD=MJD, fiber=fiber, gal_ext=True, erosita=True)
                     self.parent.statusBar.setText('Spectrum is imported: ' + self.parent.s[-1].filename)
 
                     if self.columnIndex('z') is not None:

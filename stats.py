@@ -239,8 +239,8 @@ class distr2d():
     def minter(self, x):
         return -self.inter(x[0], x[1])[0]
 
-    def level(self, x, level):
-        return self.inter(x) - level
+    #def level(self, x, level):
+    #    return self.inter(x) - level
 
     def minmax(self, level):
         if level > 0 and level < self.zmax:
@@ -290,16 +290,19 @@ class distr2d():
         return: level
             - level          :  pdf value above pdf contains conf level of probability
         """
-        x, y = np.linspace(np.min(self.x), np.max(self.x), 300), np.linspace(np.min(self.y), np.max(self.y), 300)
-        z = self.inter(x, y)
-        if 1:
-            res = optimize.bisect(self.func, 0, self.zmax, args=(conf, x, y, z), xtol=self.xtol, disp=self.debug)
+        if conf == 0:
+            return self.zmax
         else:
-            res = optimize.fsolve(self.func, self.zmax/2, args=(conf, x, y, z), xtol=self.xtol, disp=self.debug)[0]
-        if self.debug:
-            print('fsolve:', res)
+            x, y = np.linspace(np.min(self.x), np.max(self.x), 300), np.linspace(np.min(self.y), np.max(self.y), 300)
+            z = self.inter(x, y)
+            if 1:
+                res = optimize.bisect(self.func, 0, self.zmax, args=(conf, x, y, z), xtol=self.xtol, disp=self.debug)
+            else:
+                res = optimize.fsolve(self.func, self.zmax/2, args=(conf, x, y, z), xtol=self.xtol, disp=self.debug)[0]
+            if self.debug:
+                print('fsolve:', res)
 
-        return res
+            return res
 
     def dointerval(self, conf=0.683, verbose=False):
         """
@@ -361,24 +364,31 @@ class distr2d():
                     w.addItem(line)
         app.instance().exec_()
 
-    def plot_contour(self, conf_levels=None, ax=None, xlabel='', ylabel='', limits=None, ls=['--'],
+    def plot_contour(self, conf_levels=None, levels=100, ax=None, xlabel='', ylabel='', limits=None, ls=['--'],
                      color='dodgerblue', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False,
                      font=14, title=None, zorder=1, label=None):
+
         if ax == None:
             fig, ax = plt.subplots()
+
         self.dopoint()
+
         if conf_levels == None:
             conf_levels = [0.683]
         if type(conf_levels) in [float, int]:
             conf_levels = [conf_levels]
         conf_levels = np.sort(conf_levels)[::-1]
+
         if cmap is not None:
             if isinstance(cmap, str):
                 cmap = getattr(cm, cmap)
             my_cmap = cmap(np.arange(cmap.N))
-            my_cmap[:,-1] = np.linspace(alpha*(0.6+0.4*alpha), 0.6+0.4*alpha, cmap.N)
+            my_cmap[:, -1] = np.linspace(alpha * (0.6 + 0.4 * alpha), 0.6 + 0.4 * alpha, cmap.N)
             my_cmap = ListedColormap(my_cmap)
-            cs = ax.contourf(self.X, self.Y, self.z / self.zmax, 100, cmap=my_cmap, zorder=zorder)
+            if not isinstance(levels, int):
+                levels = np.sort([self.level(c) for c in levels] / self.zmax)
+            cs = ax.contourf(self.X, self.Y, self.z / self.zmax, levels, cmap=my_cmap, zorder=zorder, lw=0)
+
         if color is not None:
             levels = [self.level(c) for c in conf_levels]
             if limits == None or limits == 0:
@@ -386,7 +396,7 @@ class distr2d():
                                zorder=zorder, label=label)
             else:
                 c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, linestyles='-', alpha=0)
-                x, y = c.collections[0].get_segments()[0][:,0], c.collections[0].get_segments()[0][:,1]
+                x, y = c.collections[0].get_segments()[0][:,0], c.collections[0].get_segments()[0][:, 1]
                 inter = interpolate.interp1d(x, y)
                 x = np.linspace(x[0], x[-1], 30)
                 ax.plot(x, inter(x), '-', c=color)
@@ -394,7 +404,7 @@ class distr2d():
                     lolims, uplims = False, True
                 if limits > 0:
                     lolims, uplims = True, False
-                x = np.linspace(x[0], x[-1], 10)
+                x = np.linspace(x[0], x[-1], 20)
                 ax.errorbar(x, inter(x), yerr=np.abs(limits), lolims=lolims, fmt='o', color=color, uplims=uplims, markersize=0, capsize=0, zorder=zorder, label=label)
             if ls is not None:
                 for c, s in zip(c.collections[:len(ls)], ls[::-1]):
@@ -414,6 +424,7 @@ class distr2d():
              conf_levels=None, xlabel='', ylabel='', limits=None, ls=None,
              color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False,
              font=14, title=None, zorder=1):
+
         if fig is None:
             fig = plt.figure()
         ax = fig.add_axes([indent, indent, 1 - indent - frac, 1 - indent - frac])

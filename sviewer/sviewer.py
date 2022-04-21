@@ -6221,8 +6221,8 @@ class sviewer(QMainWindow):
         self.SDSSLeefolder = self.options('SDSSLeefolder', config=self.config)
         self.SDSSdata = []
         self.SDSSquery = None
-        self.filters_status = {'SDSS': 0, 'Gaia': 0, '2MASS': 0, 'VISTA':0 , 'WISE': 0, 'GALEX': 0}
-        self.filters = {'SDSS': None, 'Gaia': None, '2MASS': None, 'VISTA': None, 'WISE': None, 'GALEX': None}
+        self.filters_status = {'SDSS': 0, 'Gaia': 0, '2MASS': 0, 'VISTA':0, 'UKIDSS': 0, 'WISE': 0, 'GALEX': 0}
+        self.filters = {'SDSS': None, 'Gaia': None, '2MASS': None, 'VISTA': None, 'UKIDSS': None, 'WISE': None, 'GALEX': None}
         self.UVESSetup_status = False
         self.XQ100folder = self.options('XQ100folder', config=self.config)
         self.P94folder = self.options('P94folder', config=self.config)
@@ -6682,6 +6682,11 @@ class sviewer(QMainWindow):
         VISTAfilters.triggered.connect(partial(self.show_filters, name='VISTA'))
         VISTAfilters.setChecked(self.filters_status['VISTA'])
 
+        UKIDSSfilters = QAction('&UKIDSS filters', self, checkable=True)
+        UKIDSSfilters.setStatusTip('Show UKIDSS filters')
+        UKIDSSfilters.triggered.connect(partial(self.show_filters, name='UKIDSS'))
+        UKIDSSfilters.setChecked(self.filters_status['UKIDSS'])
+
         WISEfilters = QAction('&WISE filters', self, checkable=True)
         WISEfilters.setStatusTip('Show WISE filters')
         WISEfilters.triggered.connect(partial(self.show_filters, name='WISE'))
@@ -6703,7 +6708,7 @@ class sviewer(QMainWindow):
         FilterMenu.addAction(SDSSfilters)
         FilterMenu.addAction(Gaiafilters)
         FilterMenu.addAction(TwoMASSfilters)
-        FilterMenu.addAction(VISTAfilters)
+        FilterMenu.addAction(UKIDSSfilters)
         FilterMenu.addAction(WISEfilters)
         FilterMenu.addAction(GALEXfilters)
 
@@ -9211,7 +9216,7 @@ class sviewer(QMainWindow):
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-    def loadSDSS(self, plate=None, MJD=None, fiber=None, name=None, z_abs=0, append=False, gal_ext=False):
+    def loadSDSS(self, plate=None, MJD=None, fiber=None, name=None, z_abs=0, append=False, gal_ext=False, erosita=False):
         out = True
         if name is not None and len(name) > 0:
             name = name.replace('J', '').replace('SDSS', '').replace(':', '').replace('−', '-').strip()
@@ -9231,7 +9236,21 @@ class sviewer(QMainWindow):
             Av_gal = 0
 
         print('Av_gal:', Av_gal)
-        if self.SDSScat == 'DR12':
+
+        if erosita:
+            print('erosita')
+            try:
+                filename = os.path.dirname(self.ErositaFile) + '/spectra/spec-{0:04d}-{1:05d}-{2:04d}.fits'.format(int(plate), int(MJD), int(fiber))
+                if os.path.exists(filename):
+                    qso = fits.open(filename)
+                    ext = add_ext(10 ** qso[1].data['loglam'][:], Av_gal)
+                    self.importSpectrum('spec-{0:05d}-{1:05d}-{2:04d}'.format(plate, MJD, fiber),
+                                        spec=[10 ** qso[1].data['loglam'][:], qso[1].data['flux'][:] / ext, np.sqrt(1.0 / qso[1].data['ivar'][:]) / ext],
+                                        mask=qso[1].data['and_mask'])
+                resolution = 1800
+            except:
+                out = False
+        elif self.SDSScat == 'DR12':
             try:
                 sdss = self.IGMspec['BOSS_DR12']
 
@@ -9544,6 +9563,8 @@ class sviewer(QMainWindow):
                 self.filters[name] = [SpectrumFilter(self, f) for f in ['Y_VISTA', 'J_VISTA', 'H_VISTA', 'Ks_VISTA']]
             elif name == '2MASS':
                 self.filters[name] = [SpectrumFilter(self, f) for f in ['J_2MASS', 'H_2MASS', 'Ks_2MASS']]
+            elif name == 'UKIDSS':
+                self.filters[name] = [SpectrumFilter(self, f) for f in ['Z_UKIDSS', 'Y_UKIDSS', 'J_UKIDSS', 'H_UKIDSS', 'K_UKIDSS']]
             elif name == 'WISE':
                 self.filters[name] = [SpectrumFilter(self, f) for f in ['W1', 'W2', 'W3', 'W4']]
             elif name == 'GALEX':

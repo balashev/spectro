@@ -1191,7 +1191,7 @@ class pyratio():
                 elif y[2].type == 'u':
                     delta = 0.2
                     ln += -0.5*((1 - smooth_step(y[2].val - z + delta, delta))*2)**2
-                elif y.type == 'l':
+                elif y[2].type == 'l':
                     delta = 0.2
                     ln += -0.5*(smooth_step(y[2].val - z + delta, delta)*2)**2
         return ln
@@ -1433,7 +1433,8 @@ class pyratio():
             axi.set_xlabel(self.pars[par].label)
             axi.legend(loc=4)
 
-    def calc_grid(self, grid_num=50, plot=1, verbose=1, output=None, marginalize=True, limits=0,
+    def calc_grid(self, grid_num=50, plot=1, verbose=1, output=None, marginalize=True,
+                  limits=0, conf_levels=[0.683], levels=100,
                   title='', ax=None, fig=None, alpha=1, color=None, cmap='PuBu', color_point=None,
                   zorder=1):
         """
@@ -1444,6 +1445,8 @@ class pyratio():
             - output       :  name of output file for probability
             - marginalize  :  provide 1d estimates of parameters by marginalization
             - limits       :  show upper of lower limits: 0 for not limits, >0 for lower, <0 for upper
+            - conf_levels  :  confidence levels at chich plot contours
+            - levels       :  number of levels within contour fill
             - title        :  title name for the plot
             - ax           :  axes object where to plot data, of not present make it if plot==1.
             - fig          :  fig object where to plot data, needed for 2dplot with marginalization
@@ -1465,8 +1468,11 @@ class pyratio():
                                color=color, zorder=zorder)
 
         if len(self.vary) == 2:
-            out = self.calc_2d(self.vary, grid_num=grid_num, plot=plot, verbose=verbose, output=output, marginalize=marginalize, limits=limits,
-                               title=title, fig=fig, ax=ax, alpha=alpha, color=color, cmap=cmap, color_point=color_point, zorder=zorder)
+            out = self.calc_2d(self.vary, grid_num=grid_num, plot=plot, verbose=verbose, output=output, marginalize=marginalize,
+                               limits=limits, conf_levels=conf_levels, levels=levels,
+                               color=color, cmap=cmap, color_point=color_point,
+                               title=title, fig=fig, ax=ax, alpha=alpha, zorder=zorder)
+
 
         return out
 
@@ -1534,7 +1540,8 @@ class pyratio():
 
         return out
 
-    def calc_2d(self, vary, grid_num=50, plot=1, verbose=1, marginalize=True, limits=0, output=None,
+    def calc_2d(self, vary, grid_num=50, plot=1, verbose=1, marginalize=True, output=None,
+                limits=0, conf_levels=[0.683], levels=100,
                 title='', fig=None, ax=None, alpha=1, color=None, cmap='PuBu', color_point='gold', zorder=1):
         """
         calculate ranges for two parameters using given populations of levels
@@ -1545,6 +1552,8 @@ class pyratio():
             - verbose      :  print details of calculations
             - marginalize  :  print and plot marginalized estimates
             - limits       :  show upper of lower limits: 0 for not limits, >0 for lower, <0 for upper
+            - conf_levels  :  confidence levels at chich plot contours
+            - levels       :  number of levels within contour fill
             - title        :  title name for the plot
             - fig          :  fig object where to plot data, needed for plot with marginalization
             - ax           :  axes object where to plot data, of not present make it if plot==1.
@@ -1593,13 +1602,13 @@ class pyratio():
 
         d = distr2d(X1, X2, np.exp(Z))
         if marginalize:
-            d.plot(fig=fig, frac=0.2, indent=0.1, limits=None, ls=None,
+            d.plot(fig=fig, frac=0.2, indent=0.1, limits=limits, ls=None,
                    xlabel=self.pars[vary[0]].label, ylabel=self.pars[vary[1]].label,
                    color=color, color_point=color_point, color_marg='dodgerblue', cmap=cmap,
                    alpha=alpha, colorbar=False,
                    font=18, title=None, zorder=zorder)
         else:
-            d.plot_contour(ax=ax, limits=None, ls=None,
+            d.plot_contour(ax=ax, limits=limits, ls=None, conf_levels=conf_levels, levels=levels,
                            xlabel=self.pars[vary[0]].label, ylabel=self.pars[vary[1]].label,
                            color=color, color_point=color_point, cmap=cmap, alpha=alpha, colorbar=False,
                            font=18, title=None, zorder=zorder)
