@@ -836,6 +836,7 @@ class atomicData(OrderedDict):
         self.fromNIST()
         self.readH2(j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
         self.readH2(nu=1, j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        self.readH2(nu=2, j=[0, 1, 2, 3])
         self.readHD()
         self.readCO()
         #self.readHF()

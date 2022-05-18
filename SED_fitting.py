@@ -13,7 +13,7 @@ class photo_filter():
         self.set_zp()
 
     def load(self):
-        self.data = np.genfromtxt(r'C:/science/python/spectro/data/SDSS/' + self.name + '.dat', comments='#', usecols=(0, 1), unpack=True)
+        self.data = np.genfromtxt(r'data/SDSS/' + self.name + '.dat', comments='#', usecols=(0, 1), unpack=True)
         self.inter = interp1d(self.data[0], self.data[1], bounds_error=False, fill_value=0, assume_sorted=True)
         self.l_eff = np.sqrt(np.trapz(self.data[1] * self.data[0], x=self.data[0]) / np.trapz(self.data[1] / self.data[0], x=self.data[0])) * u.AA
 
@@ -95,7 +95,7 @@ class spectrum():
         """
         if kind in ['SMC', 'LMC']:
             et = {'SMC': 2, 'LMC': 6}
-            data = np.genfromtxt('C:/science/python/spectro/sviewer/data/extinction.dat', skip_header=3,
+            data = np.genfromtxt('sviewer/data/extinction.dat', skip_header=3,
                                  usecols=[0, et[kind]], unpack=True)
             inter = interp1d(data[0] * 1e4, data[1], bounds_error=False, fill_value=(7, 0))  # 'extrapolate',)
         self.flux *= np.exp(- 0.92 * Av * inter(self.convert(u.AA).value / (1 + z_ext)))

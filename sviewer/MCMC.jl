@@ -2,6 +2,7 @@ using DelimitedFiles
 using Distributed
 using Random
 @everywhere using SpecialFunctions
+@everywhere using Statistics
 @everywhere include("profiles.jl")
 @everywhere using PyCall
 @everywhere using Combinatorics
@@ -11,7 +12,7 @@ function fitMCMC(spec, ppar, add; sampler="Affine", tieds=Dict(), prior=nothing,
 
     #COUNTERS["num"] = nwalkers
 
-	println("init: ", init)
+	#println("init: ", init)
 
     pars = make_pars(ppar, tieds=tieds)
     priors = make_priors(prior)
@@ -68,9 +69,9 @@ function fitMCMC(spec, ppar, add; sampler="Affine", tieds=Dict(), prior=nothing,
 		# constraints for H2 on increasing b parameter with J level increase
 		if opts["b_increase"] == true
 			for (k, v) in pars
-				if occursin("H2j", k) & occursin("b_", k)
+				if occursin("H2j", k) & occursin("b_", k) & (strip(v.addinfo) == "")
 					for (k1, v1) in pars
-						if occursin(k[1:7], k1) & ~occursin(k, k1)
+						if occursin(k[1:7], k1) & ~occursin(k, k1) & (strip(v1.addinfo) == "")
 							j, j1 = parse(Int64, k[8:end]), parse(Int64, k1[8:end])
 							x = sign(j - j1) * (v.val / v1.val - 1) * 10
 							retval -= (x < 0 ? x : 0) ^ 2
@@ -217,7 +218,7 @@ function check_pars(proposal, pars)
     return all([proposal[i] > p.min && proposal[i] < p.max for (i, p) in enumerate([p for p in pars if p.vary])])
 end
 
-function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thinning::Integer, bounds::Array; a::Number=2.)
+function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thinning::Integer, bounds::Array; a::Number=2., out::Number=1.)
     """
     Modified version of AffineInvariantMCMC by MADS (see copyright information in initial module)
     """
@@ -249,6 +250,13 @@ function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Intege
 				end
 			end
 		end
+		if (out > 0) && (minimum(lastllhoodvals) < 4 * median(lastllhoodvals) - 3 * maximum(lastllhoodvals))
+ 		    imin = findmin(lastllhoodvals)[2]
+		    println(imin, " ", lastllhoodvals[imin], " ", median(lastllhoodvals))
+		    ind = rand(1:length(lastllhoodvals))
+            println(ind)
+            x[imin, :], lastllhoodvals[imin] = x[ind, :], lastllhoodvals[ind]
+        end
 		open("output/mcmc_last.dat", "w") do io
 			writedlm(io, chain[:, :, i], " ")
 		end
@@ -437,16 +445,18 @@ function sampleHMC(llhood::Function, x0::Array, nsteps::Integer)
 	return samples
 end
 
+@everywhere spectrum_comp(spectrum, s, x, comp) = p->spectrum(p, s, x, comp=comp)
 
-function fit_disp(x, samples, spec, ppar, add; tieds=Dict(), nums=100, nthreads=1)
+function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nthreads=1)
 	"""
 	Calculate the dispersion of the fit
 	"""
 	pars = make_pars(ppar, tieds=tieds)
 	inds = hcat(rand(1:size(samples, 1), nums), rand(1:size(samples, 2), nums))
 	pp = map(x->samples[x[1], x[2], :], eachrow(inds))
-	function spectrum(p)
-		i = 1
+
+    function spectrum(p, s, x; comp=0)
+	    i = 1
 		for (k, v) in pars
 			if v.vary == 1
 				pars[k].val = p[i]
@@ -456,19 +466,11 @@ function fit_disp(x, samples, spec, ppar, add; tieds=Dict(), nums=100, nthreads=
 
 		update_pars(pars, spec, add)
 
-		y = Any[]
-		for (i, s) in enumerate(spec)
-			if sum(s.mask) > 0
-				w, f = calc_spectrum(s, pars)
-				inter = LinearInterpolation(w, f, extrapolation_bc=Flat())
-				push!(y, inter(x[i]))
-			end
-		end
-		println("y: ", y)
-		return y
+		w, f = calc_spectrum(s, pars, comp=comp)
+        return LinearInterpolation(w, f, extrapolation_bc=Flat())(x)
 	end
 
-	if 0 == 1
+	if 1 == 1
 		ntheards = 1
 		if nprocs() > 1
 			rmprocs(2:nprocs())
@@ -480,28 +482,21 @@ function fit_disp(x, samples, spec, ppar, add; tieds=Dict(), nums=100, nthreads=
 		println("procs: ", nprocs())
 	end
 
-	ret = pmap(spectrum, pp)
+    fit = Any[]
+    for (i, s) in enumerate(spec)
+        push!(fit, pmap(spectrum_comp(spectrum, s, x[i], 0), pp))
+    end
 
-	if 1 == 0
-		for (i, s) in enumerate(spec)
-			for k in 1:nums
-				push!(d, ret[k][i, :])
-			end
-			#d = hcat([ret[k][i, :] for k in 1:nums])
-			println(i, " ", d)
-			println(size(d))
-			sd = sort(d, dims=(2))
-			println(sd[1, :])
-			println(sd[:, 1])
-		end
-	end
+    fit_comps = Any[]
+    for (i, s) in enumerate(spec)
+        push!(fit_comps, Any[])
+        for k in 1:sys
+            push!(fit_comps[i], pmap(spectrum_comp(spectrum, s, x[i], k), pp))
+        end
+    end
 
 	rmprocs(workers())
 	println(nprocs())
 
-	return ret
-	#for ind in eachrow(inds)
-	#	p = samples[ind[1], ind[2], :]
-	#	println(p)
-	#end
+    return fit, fit_comps
 end

@@ -159,10 +159,11 @@ class distr1d():
     def stats(self, conf=0.683, kind='center', latex=0, name=None):
         if name is not None:
             self.name = name
-        self.dopoint(verbose=(latex<0))
-        self.dointerval(conf=conf, kind=kind, verbose=(latex<0))
+        self.dopoint(verbose=(latex < 0))
+        self.dointerval(conf=conf, kind=kind, verbose=(latex < 0))
         if latex >= 0:
-            print("{name} = {0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.point, self.interval[1] - self.point, self.point - self.interval[0], n=latex, name=self.name))
+            #print("{name} = {0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.point, self.interval[1] - self.point, self.point - self.interval[0], n=latex, name=self.name))
+            return "{name} = {0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.point, self.interval[1] - self.point, self.point - self.interval[0], n=latex, name=self.name)
 
     def pdf(self, x):
         return self.inter(x)
@@ -179,13 +180,13 @@ class distr1d():
         return gen(self, a=self.x[0], b=self.x[-1]).rvs(size=n)
 
     def latex(self, f=2):
-        return "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.point, self.interval[1] - self.point, self.point - self.interval[0], n=f)
+        return r"${0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}$".format(self.point, self.interval[1] - self.point, self.point - self.interval[0], n=f)
 
 class distr2d():
     def __init__(self, x, y, z=None, num=None, xtol=1e-5, debug=False):
         if z is None:
             if num is None:
-                num = int(np.sqrt(len(x)))
+                num = 3 * int(np.sqrt(len(x)))
             self.x = np.linspace(np.min(x), np.max(x), num)
             self.y = np.linspace(np.min(y), np.max(y), num)
             X, Y = np.meshgrid(self.x, self.y)
@@ -421,7 +422,7 @@ class distr2d():
         return ax
 
     def plot(self, fig=None, frac=0.1, indent=0.15, color_marg='dodgerblue',
-             conf_levels=None, xlabel='', ylabel='', limits=None, ls=None,
+             conf_levels=None, xlabel='', ylabel='', limits=None, ls=None, stats=False,
              color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False,
              font=14, title=None, zorder=1):
 
@@ -438,20 +439,26 @@ class distr2d():
         #ax = floating_axes.FloatingSubplot(fig, [1 - frac, indent, frac, 1 - indent - frac], grid_helper=helper)
 
         dy = self.marginalize('x')
-        ax = fig.add_axes([1 - frac, indent, frac, 1 - indent - frac])
+        ax1 = fig.add_axes([1 - frac, indent, frac, 1 - indent - frac])
         #ax.set_position([1 - frac, indent, frac, 1 - indent - frac])
-        ax.set_axis_off()
-        ax.plot(dy.inter(dy.x), dy.x, '-', color=color_marg, lw=1.5)
-        ax.set_ylim(y)
-        ax.set_xlim([0 + ax.get_xlim()[1]/50, ax.get_xlim()[1]])
+        ax1.set_axis_off()
+        ax1.plot(dy.inter(dy.x), dy.x, '-', color=color_marg, lw=1.5)
+        if stats:
+            dy.stats()
+            ax.text(0.95, 0.95, dy.latex(f=3), rotation=90, transform=ax.transAxes, va='top', ha='right')
+        ax1.set_ylim(y)
+        ax1.set_xlim([0 + ax1.get_xlim()[1]/50, ax1.get_xlim()[1]])
 
         dx = self.marginalize('y')
-        ax = fig.add_axes([indent, 1 - frac, 1 - indent - frac, frac])
+        ax2 = fig.add_axes([indent, 1 - frac, 1 - indent - frac, frac])
         #ax.set_position([indent, 1 - frac, 1 - indent - frac, frac])
-        ax.set_axis_off()
-        ax.plot(dx.x, dx.inter(dx.x), '-', color=color_marg, lw=1.5)
-        ax.set_xlim(x)
-        ax.set_ylim([0 + ax.get_ylim()[1]/50, ax.get_ylim()[1]])
+        ax2.set_axis_off()
+        ax2.plot(dx.x, dx.inter(dx.x), '-', color=color_marg, lw=1.5)
+        if stats:
+            dx.stats()
+            ax.text(0.05, 0.95, dx.latex(f=3), transform=ax.transAxes, va='top', ha='left')
+        ax2.set_xlim(x)
+        ax2.set_ylim([0 + ax2.get_ylim()[1]/50, ax2.get_ylim()[1]])
 
         fig.tight_layout()
         return fig

@@ -3200,13 +3200,13 @@ class fitMCMCWidget(QWidget):
         for i, s in enumerate(self.parent.s):
             if s.fit.line.norm.n > 0:
                 fit.append(deepcopy(s.fit.line.norm))
-                fit_disp.append(s.fit.line.norm.y)
-                fit_comp.append([])
+                fit_disp.append([s.fit.line.norm.y])
+                #fit_comp.append([])
                 fit_comp_disp.append([])
                 for k, sys in enumerate(self.parent.fit.sys):
-                    fit_comp[i].append(self.parent.s[i].fit_comp[k].line.norm.x[:])
-                    fit_comp_disp[i].append(s.fit_comp[k].line.norm.y)
-                    print(i, k, self.parent.s[i].fit_comp[k].line.norm.x[0], fit_comp[i][k][-1])
+                    #print(i, k, s.fit_comp[k].line.norm.x[:], s.fit_comp[k].line.norm.y)
+                    #fit_comp[i].append(s.fit_comp[k].line.norm.x[:])
+                    fit_comp_disp[i].append([s.fit_comp[k].line.norm.y])
 
         #for i, s in enumerate(self.parent.s):
         #    for k, sys in enumerate(self.parent.fit.sys):
@@ -3216,19 +3216,18 @@ class fitMCMCWidget(QWidget):
         pars, samples, lnprobs = self.readChain()
         samples[burnin:, :, :]
         num = int(self.parent.options('MCMC_disp_num'))
-        if 0:
+        #print(fit_disp)
+        #print(fit_disp.shape)
+
+        if self.parent.fitType == 'julia':
             self.julia = julia.Julia()
             self.julia.include("MCMC.jl")
-            ret = self.parent.julia.fit_disp([f.x for f in fit], samples[burnin:, :, :], self.parent.julia_spec, self.parent.fit.list(),
-                                       self.parent.julia_add, tieds=self.parent.fit.tieds,
+            fit_disp, fit_disp_comp = self.parent.julia.fit_disp([f.x for f in fit], samples[burnin:, :, :], self.parent.julia_spec, self.parent.fit.list(),
+                                       self.parent.julia_add, sys=len(self.parent.fit.sys), tieds=self.parent.fit.tieds,
                                        nthreads=int(self.parent.options('MCMC_threads')), nums=int(self.parent.options('MCMC_disp_num')))
 
-            fit_disp = np.asarray(ret).transpose()
-            print(fit_disp)
-            print(fit_disp.shape)
         else:
             for i1, i2, k in zip(np.random.randint(burnin, high=samples.shape[0], size=num), np.random.randint(0, high=samples.shape[1], size=num), range(num)):
-                print(k)
                 for p, t in zip(pars, samples[i1, i2, :]):
                     self.parent.fit.setValue(p, t)
                 self.parent.s.prepareFit()
@@ -3237,21 +3236,32 @@ class fitMCMCWidget(QWidget):
 
                 for i, s in enumerate(self.parent.s):
                     if s.fit.line.norm.n > 0:
-                        fit_disp[i] = np.c_[fit_disp[i], s.fit.line.norm.inter(fit[i].x)]
+                        fit_disp[i] = np.r_[fit_disp[i], [s.fit.line.norm.inter(fit[i].x)]]
                         for k, sys in enumerate(self.parent.fit.sys):
-                            fit_comp_disp[i][k] = np.c_[fit_comp_disp[i][k], s.fit_comp[k].line.norm.inter(fit_comp[i][k])]
+                            if s.fit_comp[k].line.n() > 2 and len(fit_comp_disp[i][k]) > 0 and len(fit[i].x) > 0:
+                                fit_comp_disp[i][k] = np.r_[fit_comp_disp[i][k], [s.fit_comp[k].line.norm.inter(fit[i].x)]]
+
+        #print(np.asarray(fit_disp).shape)
+        #print(np.asarray(fit_comp_disp).shape)
+        #print('fit_comp_disp:', fit_comp_disp)
+
+        #print(fit_disp)
 
         for i, s in enumerate(self.parent.s):
             if s.fit.line.norm.n > 0:
-                fit_disp[i] = np.sort(fit_disp[i])
-                self.parent.s[i].fit.disp[0].set(x=fit[i].x, y=fit_disp[i][:, int((1-0.683)/2*num)])
-                self.parent.s[i].fit.disp[1].set(x=fit[i].x, y=fit_disp[i][:, num-int((1-0.683)/2*num)])
+                fit_disp[i] = np.sort(fit_disp[i], axis=0)
+                self.parent.s[i].fit.disp[0].set(x=fit[i].x, y=fit_disp[i][int((1-0.683)/2*num), :])
+                self.parent.s[i].fit.disp[1].set(x=fit[i].x, y=fit_disp[i][num-int((1-0.683)/2*num), :])
                 for k, sys in enumerate(self.parent.fit.sys):
-                    print(i, k, fit_comp[i][k][0], fit_comp[i][k][-1])
-                    fit_comp_disp[i][k] = np.sort(fit_comp_disp[i][k])
-                    self.parent.s[i].fit_comp[k].disp[0].set(x=fit_comp[i][k], y=fit_comp_disp[i][k][:, int((1 - 0.683) / 2 * num)])
-                    self.parent.s[i].fit_comp[k].disp[1].set(x=fit_comp[i][k], y=fit_comp_disp[i][k][:, num - int((1 - 0.683) / 2 * num)])
-
+                    if len(fit_comp_disp[i][k][0]) > 0:
+                        #print(i, k, fit_comp[i][k][0], fit_comp[i][k][-1])
+                        fit_comp_disp[i][k] = np.sort(np.asarray(fit_comp_disp[i][k]), axis=0)
+                        #print(fit_comp_disp[i][k].shape)
+                        self.parent.s[i].fit_comp[k].disp[0].set(x=fit[i].x, y=fit_comp_disp[i][k][int((1 - 0.683) / 2 * num), :])
+                        self.parent.s[i].fit_comp[k].disp[1].set(x=fit[i].x, y=fit_comp_disp[i][k][num - int((1 - 0.683) / 2 * num), :])
+                    else:
+                        self.parent.s[i].fit_comp[k].disp[0].set(x=self.parent.s[i].fit.disp[0].norm.x, y=self.parent.s[i].fit.disp[0].norm.y)
+                        self.parent.s[i].fit_comp[k].disp[1].set(x=self.parent.s[i].fit.disp[1].norm.x, y=self.parent.s[i].fit.disp[1].norm.y)
         print("disp done")
 
     def set_fit_disp_num(self):

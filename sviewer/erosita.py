@@ -106,8 +106,10 @@ class dataPlot(pg.PlotWidget):
                 self.d_status = False
 
             if (event.key() == Qt.Key_S or event.key() == Qt.Key_D) and hasattr(self.parent, 'd'):
-                self.parent.d.plot(frac=0.15)
-                plt.show()
+                if self.parent.showKDE.isChecked():
+                    self.parent.d.plot(frac=0.15, stats=True, xlabel=self.parent.axis_info[self.parent.ero_x_axis][1],
+                                       ylabel=self.parent.axis_info[self.parent.ero_y_axis][1])
+                    plt.show()
 
         if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'SD']):
             self.vb.setMouseMode(self.vb.PanMode)
@@ -192,6 +194,9 @@ class ComboMultipleBox(QToolButton):
             if self.name == 'hosts':
                 if item in self.parent.host_templates:
                     getattr(self, item).setChecked(True)
+            if self.name == 'filters':
+                if item in self.parent.filter_names:
+                    getattr(self, item).setChecked(True)
 
     def currentText(self):
         return ' '.join([s for s in self.list if s.isChecked()])
@@ -204,10 +209,8 @@ class ComboMultipleBox(QToolButton):
             else:
                 self.parent.shown_cols.remove(item)
             l = [self.list.index(o) for o in self.parent.shown_cols]
-            print(self.parent.shown_cols)
             self.parent.shown_cols = [self.list[l[o]] for o in np.argsort(l)]
             self.parent.parent.options('ero_colnames', ' '.join(self.parent.shown_cols))
-            print(self.parent.shown_cols)
             self.parent.ErositaTable.setdata(self.parent.df[self.parent.shown_cols].to_records(index=False))
 
         if self.name == 'extcat':
@@ -219,11 +222,17 @@ class ComboMultipleBox(QToolButton):
             else:
                 self.parent.host_templates.remove(item)
             l = [self.list.index(o) for o in self.parent.host_templates]
-            print(self.parent.host_templates)
             self.parent.host_templates = [self.list[l[o]] for o in np.argsort(l)]
             self.parent.parent.options('ero_hosts', ' '.join(self.parent.host_templates))
-            print(self.parent.host_templates)
 
+        if self.name == 'filters':
+            if getattr(self, item).isChecked():
+                self.parent.filter_names.append(item)
+            else:
+                self.parent.filter_names.remove(item)
+            l = [self.list.index(o) for o in self.parent.filter_names]
+            self.parent.filter_names = [self.list[l[o]] for o in np.argsort(l)]
+            self.parent.parent.options('ero_filters', ' '.join(self.parent.filter_names))
 
 class Filter():
     def __init__(self, parent, name, value=None, flux=None, err=None, system='AB'):
@@ -375,14 +384,15 @@ class ErositaWidget(QWidget):
         self.opts = {'ero_x_axis': str, 'ero_y_axis': str, 'ero_lUV': float, 'ero_tempmin': float, 'ero_tempmax': float,
                      }
         for opt, func in self.opts.items():
-            #print(opt, self.parent.options(opt), func(self.parent.options(opt)))
+            print(opt, self.parent.options(opt), func(self.parent.options(opt)))
             setattr(self, opt, func(self.parent.options(opt)))
 
-        self.axis_list = ['z', 'F_X_int', 'F_X', 'DET_LIKE_0', 'F_UV', 'u-b', 'r-i', 'Av_gal',
+        self.axis_list = ['z', 'F_X_int', 'F_X', 'DET_LIKE_0', 'F_UV', 'u-b', 'r-i', 'FIRST_FLUX', 'Av_gal',
                           'L_X', 'L_UV', 'L_UV_corr', 'L_UV_corr_host_photo',
                           'Av_int', 'Av_int_host', 'Av_int_photo', 'Av_int_host_photo',
                           'chi2_av', 'chi2_av_host', 'chi2_av_photo', 'chi2_av_host_photo',
-                          'Av_host', 'Av_host_photo', 'f_host', 'f_host_photo', 'L_host', 'L_host_photo', 'r_host']
+                          'Av_host', 'Av_host_photo', 'f_host', 'f_host_photo', 'L_host', 'L_host_photo', 'r_host',
+                          'SDSS_photo_scale', 'SDSS_photo_slope', 'SDSS_var']
         self.axis_info = {'z': [lambda x: x, 'z'],
                           'F_X_int': [lambda x: np.log10(x), 'log (F_X_int, erg/s/cm2)'],
                           'F_X': [lambda x: np.log10(x), 'log (F_X, erg/s/cm2/Hz)'],
@@ -394,6 +404,7 @@ class ErositaWidget(QWidget):
                           'L_UV_corr_host_photo': [lambda x: np.log10(x), 'log (L_UV corrected, erg/s/Hz) with host and photometry'],
                           'u-b': [lambda x: x, 'u - b'],
                           'r-i': [lambda x: x, 'r - i'],
+                          'FIRST_FLUX': [lambda x: np.log10(np.abs(x)), 'log (FIRST flux, mJy)'],
                           'Av_gal': [lambda x: x, 'Av (galactic)'],
                           'Av_int': [lambda x: x, 'Av (intrinsic)'],
                           'Av_int_host': [lambda x: x, 'Av (intrinsic) with host'],
@@ -410,6 +421,9 @@ class ErositaWidget(QWidget):
                           'L_host': [lambda x: np.log10(x), 'log (L_host, L_sun)'],
                           'L_host_photo': [lambda x: np.log10(x), 'log (L_host, L_sun) with photometry'],
                           'r_host': [lambda x: x, 'Galaxy fraction (from Rakshit)'],
+                          'SDSS_photo_scale': [lambda x: x, 'Difference between spectrum and photometry in SDSS'],
+                          'SDSS_photo_slope': [lambda x: x, 'Difference in slope between spectrum and photometry in SDSS'],
+                          'SDSS_var': [lambda x: np.log10(x), 'log Variability at 2500A from SDSS'],
                           }
         self.ind = None
         self.corr_status = 0
@@ -419,6 +433,7 @@ class ErositaWidget(QWidget):
         self.template_name_qso = 'composite'
         self.template_name_gal = 0
         self.host_templates = self.parent.options('ero_hosts').split()
+        self.filter_names = self.parent.options('ero_filters').split()
         # self.template_name_gal = "Sb_template_norm" #"Sey2_template_norm"
         # self.host_templates = ['S0', 'Sa', 'Sb', 'Sc', 'Ell2', 'Ell5', 'Ell13']
 
@@ -467,6 +482,10 @@ class ErositaWidget(QWidget):
         self.y_axis.setCurrentText(self.ero_y_axis)
         self.y_axis.currentIndexChanged.connect(partial(self.axisChanged, 'y_axis'))
 
+        self.showKDE = QCheckBox("show KDE")
+        self.showKDE.setChecked(False)
+        self.showKDE.setFixedSize(110, 30)
+
         cols = QLabel('Cols:')
         cols.setFixedSize(40, 30)
 
@@ -477,6 +496,7 @@ class ErositaWidget(QWidget):
         l.addWidget(QLabel('   '))
         l.addWidget(yaxis)
         l.addWidget(self.y_axis)
+        l.addWidget(self.showKDE)
         l.addStretch()
         l.addWidget(cols)
         l.addWidget(self.cols)
@@ -553,11 +573,16 @@ class ErositaWidget(QWidget):
         self.plotExt.setChecked(True)
         self.plotExt.setFixedSize(80, 30)
 
+        self.saveFig = QCheckBox("savefig")
+        self.saveFig.setChecked(False)
+        self.saveFig.setFixedSize(100, 30)
+
         l.addWidget(QLabel('                   '))
         l.addWidget(calcExtGal)
         l.addWidget(calcExt)
         l.addWidget(self.method)
         l.addWidget(self.plotExt)
+        l.addWidget(self.saveFig)
         l.addStretch()
 
         layout.addLayout(l)
@@ -579,10 +604,6 @@ class ErositaWidget(QWidget):
         self.tempmax.setText('{0:6.1f}'.format(self.ero_tempmax))
         self.tempmax.textEdited.connect(self.tempRangeChanged)
 
-        self.addPhoto = QCheckBox("add photometry")
-        self.addPhoto.setChecked(True)
-        self.addPhoto.setFixedSize(140, 30)
-
         self.hostExt = QCheckBox("add host:")
         self.hostExt.setChecked(True)
         self.hostExt.setFixedSize(120, 30)
@@ -598,12 +619,35 @@ class ErositaWidget(QWidget):
         l.addWidget(self.tempmin)
         l.addWidget(QLabel('..'))
         l.addWidget(self.tempmax)
-        l.addWidget(self.addPhoto)
         l.addWidget(self.hostExt)
         l.addWidget(self.hosts)
         l.addStretch()
 
         layout.addLayout(l)
+
+        l = QHBoxLayout()
+
+        self.addPhoto = QCheckBox("add photometry:")
+        self.addPhoto.setChecked(True)
+        self.addPhoto.setFixedSize(160, 30)
+
+        self.filters_used = ComboMultipleBox(self, name='filters')
+        self.filters_used.addItems(['FUV', 'NUV', 'u', 'g', 'r', 'i', 'z', 'Y', 'J', 'H', 'K', 'W1', 'W2', 'W3', 'W4'])
+        self.filters_used.setFixedSize(120, 30)
+        self.filters_used.update()
+
+        compPhoto = QPushButton('Compare photo')
+        compPhoto.setFixedSize(120, 30)
+        compPhoto.clicked.connect(partial(self.compare_photo, ind=None))
+
+        l.addWidget(QLabel('                   '))
+        l.addWidget(self.addPhoto)
+        l.addWidget(self.filters_used)
+        l.addWidget(compPhoto)
+        l.addStretch()
+
+        layout.addLayout(l)
+
 
         layout.addStretch()
         widget.setLayout(layout)
@@ -730,7 +774,7 @@ class ErositaWidget(QWidget):
 
             self.updateData(ind=self.ind)
 
-    def set_filters(self, ind, clear=False):
+    def set_filters(self, ind, clear=False, names=None):
         if clear:
             for k, f in self.filters.items():
                 try:
@@ -741,32 +785,37 @@ class ErositaWidget(QWidget):
         self.filters = {}
         if self.addPhoto.isChecked():
             for k in ['FUV', 'NUV']:
-                if 0:
-                    if not np.isnan(self.df[f'{k}mag'][ind]) and not np.isnan(self.df[f'e_{k}mag'][ind]):
-                        self.filters[k] = Filter(self, k, value=self.df[f'{k}mag'][ind], err=self.df[f'e_{k}mag'][ind])
-                else:
-                    if self.df['GALEX_MATCHED'][ind] and not np.isnan(self.df[f'{k}mag'][ind]) and not np.isnan(self.df[f'e_{k}mag'][ind]):
-                        self.filters[k] = Filter(self, k, value=-2.5 * np.log10(np.exp(1.0)) * np.arcsinh(self.df[f'{k}'][ind] / 0.01) + 28.3,
-                                                 err=-2.5 * np.log10(np.exp(1.0)) * (np.arcsinh(self.df[f'{k}'][ind] / 0.01) - np.arcsinh((self.df[f'{k}'][ind] + 1 / np.sqrt(self.df[f'{k}_IVAR'][ind])) / 0.01)))
-                        print(-2.5 * np.log10(np.exp(1.0)) * np.arcsinh(self.df[f'{k}'][ind] / 0.01) + 28.3)
-            if 0:
-                for i, k in enumerate(['u', 'g', 'r', 'i', 'z']):
-                    self.filters[k] = Filter(self, k, value=self.df[f'PSFMAG{i}'][ind], err=0.1)
+                if (names is None and k in self.filter_names) or (names is not None and k in names):
+                    if 0:
+                        if not np.isnan(self.df[f'{k}mag'][ind]) and not np.isnan(self.df[f'e_{k}mag'][ind]):
+                            self.filters[k] = Filter(self, k, value=self.df[f'{k}mag'][ind], err=self.df[f'e_{k}mag'][ind])
+                    else:
+                        if self.df['GALEX_MATCHED'][ind] and not np.isnan(self.df[f'{k}mag'][ind]) and not np.isnan(self.df[f'e_{k}mag'][ind]):
+                            self.filters[k] = Filter(self, k, value=-2.5 * np.log10(np.exp(1.0)) * np.arcsinh(self.df[f'{k}'][ind] / 0.01) + 28.3,
+                                                     err=-2.5 * np.log10(np.exp(1.0)) * (np.arcsinh(self.df[f'{k}'][ind] / 0.01) - np.arcsinh((self.df[f'{k}'][ind] + 1 / np.sqrt(self.df[f'{k}_IVAR'][ind])) / 0.01)))
+                            print(-2.5 * np.log10(np.exp(1.0)) * np.arcsinh(self.df[f'{k}'][ind] / 0.01) + 28.3)
+
+            for i, k in enumerate(['u', 'g', 'r', 'i', 'z']):
+                if (names is None and k in self.filter_names) or (names is not None and k in names):
+                    self.filters[k] = Filter(self, k, value=self.df[f'PSFMAG{i}'][ind], err=self.df[f'ERR_PSFMAG{i}'][ind])
 
             for k in ['J', 'H', 'K']:
-                if self.df[k + 'RDFLAG'][ind] == 2:
-                    self.filters[k + '_2MASS'] = Filter(self, k + '_2MASS', value=self.df[k + 'MAG'][ind], err=self.df['ERR_' + k + 'MAG'][ind], system='Vega')
+                if (names is None and k in self.filter_names) or (names is not None and k in names):
+                    if self.df[k + 'RDFLAG'][ind] == 2:
+                        self.filters[k + '_2MASS'] = Filter(self, k + '_2MASS', value=self.df[k + 'MAG'][ind], err=self.df['ERR_' + k + 'MAG'][ind], system='Vega')
 
             for k in ['Y', 'J', 'H', 'K']:
-                if self.df['UKIDSS_MATCHED'][ind]:
-                    self.filters[k + '_UKIDSS'] = Filter(self, k + '_UKIDSS', system='AB',
-                                                         value=22.5 - 2.5 * np.log10(self.df[k + 'FLUX'][ind] / 3.631e-32),
-                                                         err=2.5 * np.log10(1 + self.df[k + 'FLUX_ERR'][ind] / self.df[k + 'FLUX'][ind]))
+                if (names is None and k in self.filter_names) or (names is not None and k in names):
+                    if self.df['UKIDSS_MATCHED'][ind]:
+                        self.filters[k + '_UKIDSS'] = Filter(self, k + '_UKIDSS', system='AB',
+                                                             value=22.5 - 2.5 * np.log10(self.df[k + 'FLUX'][ind] / 3.631e-32),
+                                                             err=2.5 * np.log10(1 + self.df[k + 'FLUX_ERR'][ind] / self.df[k + 'FLUX'][ind]))
 
             for k in ['W1', 'W2', 'W3', 'W4']:
-                if not np.isnan(self.df[k + 'MAG'][ind]) and not np.isnan(self.df['ERR_' + k + 'MAG'][ind]):
-                    self.filters[k] = Filter(self, k, system='Vega',
-                                             value=self.df[k + 'MAG'][ind], err=self.df['ERR_' + k + 'MAG'][ind])
+                if (names is None and k in self.filter_names) or k in names:
+                    if not np.isnan(self.df[k + 'MAG'][ind]) and not np.isnan(self.df['ERR_' + k + 'MAG'][ind]):
+                        self.filters[k] = Filter(self, k, system='Vega',
+                                                 value=self.df[k + 'MAG'][ind], err=self.df['ERR_' + k + 'MAG'][ind])
 
     def select_points(self, x1, y1, x2, y2, remove=False, add=False):
         x1, x2, y1, y2 = np.min([x1, x2]), np.max([x1, x2]), np.min([y1, y2]), np.max([y1, y2])
@@ -779,12 +828,18 @@ class ErositaWidget(QWidget):
             self.mask = np.logical_and(self.mask, ~mask)
 
         if np.sum(self.mask) > 20:
-            self.d = distr2d(self.x[self.mask], self.y[self.mask])
-            for axis in ['x', 'y']:
-                print(self.d.marginalize(axis))
-                print(axis, self.d.marginalize(axis).stats(latex=3))
+            if self.showKDE.isChecked():
+                self.d = distr2d(self.x[self.mask], self.y[self.mask])
+                for axis in ['x', 'y']:
+                    d = self.d.marginalize(axis)
+                    print(axis, d.stats(latex=3))
 
         self.updateData()
+
+    def add_mask(self, name=None):
+        if name is not None:
+            self.mask = np.logical_or(self.mask, self.df['SDSS_NAME'] == name)
+            print(np.sum(self.mask))
 
     def extinction(self, x, Av=None):
         """
@@ -910,6 +965,60 @@ class ErositaWidget(QWidget):
         self.save_data()
         self.updateData()
 
+    def compare_photo(self, ind=None):
+
+        for attr in ['SDSS_photo_scale', 'SDSS_photo_slope', 'SDSS_var']:
+            if attr not in self.df.columns:
+                self.df.insert(len(self.df.columns), attr, np.nan)
+
+        if np.sum(self.mask) == 0:
+            self.mask = np.ones(len(self.df['SDSS_NAME']), dtype=bool)
+
+        print('compare photo:', ind)
+
+        if ind is not None:
+            fig, ax = plt.subplots()
+
+        for i, d in self.df.iterrows():
+            if ((ind is None and self.mask[i]) or (ind is not None and i == int(ind))):
+                print(i)
+                spec = self.loadSDSS(d['PLATE'], d['FIBERID'], d['MJD'], Av_gal=d['Av_gal'])
+
+                self.set_filters(i, clear=True, names=['g', 'r', 'i', 'z'])
+
+                x, data, err = [], [], []
+                for f in self.filters.values():
+                    if f.value != 0:
+                        x.append(np.log10(f.filter.l_eff))
+                        data.append(f.value - f.filter.get_value(x=spec[0], y=spec[1], err=spec[2], mask=np.logical_not(spec[3])))
+                        err.append(f.err)
+                        if ind is not None:
+                            ax.errorbar(np.log10(f.filter.l_eff), f.value, yerr=f.err)
+                            ax.scatter(np.log10(f.filter.l_eff), f.filter.get_value(x=spec[0], y=spec[1], err=spec[2],
+                                                                                    mask=np.logical_not(spec[3])))
+
+                if len(x) > 0:
+                    x, data, err = np.asarray(x), np.asarray(data), np.asarray(err)
+                    err[err == 0] = 0.5
+                    print(x, data, err)
+                    ma = np.ma.MaskedArray(data, mask=np.isnan(data))
+                    if ma.shape[0] - np.sum(ma.mask) > 1:
+                        self.df.loc[i, 'SDSS_photo_scale'] = np.ma.average(ma, weights=err)
+                        print(self.df.loc[i, 'SDSS_photo_scale'])
+                        model = linear_model.LinearRegression().fit(x[~ma.mask].reshape((-1, 1)), ma[~ma.mask], sample_weight=err[~ma.mask])
+                        self.df.loc[i, 'SDSS_photo_slope'] = model.coef_[0] / 2.5
+                        if not np.isnan(d['z']):
+                            print(model.predict(np.asarray(np.log10(2500 * (1 + d['z']))).reshape((-1, 1))))
+                            self.df.loc[i, 'SDSS_var'] = 10 ** (model.predict(np.asarray(np.log10(2500 * (1 + d['z']))).reshape((-1, 1))) / 2.5)[0]
+                            print(self.df.loc[i, 'SDSS_var'])
+                            #print(model.intercept_, model.coef_[0], model.score(x.reshape((-1, 1)), data, sample_weight=err))
+
+        if np.sum(self.mask) == len(self.df['SDSS_NAME']):
+            self.mask = np.zeros(len(self.df['SDSS_NAME']), dtype=bool)
+
+        self.save_data()
+        self.updateData()
+
     def calc_Av_gal(self):
         if 'Av_gal' not in self.df.columns:
             self.df.insert(len(self.df.columns), 'Av_gal', np.nan)
@@ -949,12 +1058,19 @@ class ErositaWidget(QWidget):
         if np.sum(self.mask) == 0:
             self.mask = np.ones(len(self.df['SDSS_NAME']), dtype=bool)
 
+        if self.saveFig.isChecked():
+            plot = True
+
         if ind is None:
             fmiss = open("temp/av_missed.dat", "w")
 
         method = self.method.currentText()
 
         print('calc_ext:', ind)
+
+        if ind is not None:
+            self.compare_photo(ind)
+
         for i, d in self.df.iterrows():
             if ((ind is None and self.mask[i]) or (ind is not None and i == int(ind))) and np.isfinite(d['z']):
                 spec = self.loadSDSS(d['PLATE'], d['FIBERID'], d['MJD'], Av_gal=d['Av_gal'])
@@ -1099,6 +1215,14 @@ class ErositaWidget(QWidget):
                             ax.fill_between(spec[0] / (1 + d['z']), ymin, ymax, where=mask, color='tab:green', alpha=0.3, zorder=0)
                         fig.legend(loc=1, fontsize=16, borderaxespad=2)
 
+                        if self.addPhoto.isChecked():
+                            ax.set_ylim(0.2, ax.get_ylim()[1])
+                            ax.set_xscale('log')
+                            ax.set_yscale('log')
+
+                        if self.saveFig.isChecked():
+                            fig.savefig(os.path.dirname(self.parent.ErositaFile) + '/QC/plots/' + self.df['SDSS_NAME'][i] + '.png', bbox_inches='tight', pad_inches=0.1)
+                            plt.close()
                 else:
                     if not self.addPhoto.isChecked():
                         self.df.loc[i, 'Av_int'] = np.nan
@@ -1121,12 +1245,8 @@ class ErositaWidget(QWidget):
 
                     if ind is None:
                         fmiss.write("{0:4d} {1:19s} {2:5d} {3:5d} {4:4d} \n".format(i+1, self.df['SDSS_NAME'][i], self.df['PLATE'][i], self.df['MJD'][i], self.df['FIBERID'][i]))
-        if plot:
-            if self.addPhoto.isChecked():
-                ax.set_xscale('log')
-                ax.set_yscale('log')
 
-            #plt.get_current_fig_manager().full_screen_toggle()
+        if plot and not self.saveFig.isChecked():
             plt.show()
 
         if np.sum(self.mask) == len(self.df['SDSS_NAME']):

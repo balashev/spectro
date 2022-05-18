@@ -251,6 +251,7 @@ function update_pars(pars, spec, add)
         end
         if occursin("disps", pars[k].name)
             spec[parse(Int, split(pars[k].name, "_")[2]) + 1].disps = pars[k].val
+            spec[parse(Int, split(pars[k].name, "_")[2]) + 1].disps = pars[k].val
         end
         if occursin("dispz", pars[k].name)
             spec[parse(Int, split(pars[k].name, "_")[2]) + 1].dispz = pars[k].val
@@ -329,7 +330,7 @@ mutable struct line
     stv::Dict{}
 end
 
-function update_lines(lines, pars; ind=0)
+function update_lines(lines, pars; comp=0)
     mask = Vector{Bool}(undef, 0)
     for line in lines
         if pars["b_" * string(line.sys) * "_" * line.name].addinfo == "consist"
@@ -352,7 +353,7 @@ function update_lines(lines, pars; ind=0)
         if line.stack > -1
             line.stv = Dict([s => pars[s * "_" * string(line.stack)].val for s in ["sts", "stNl", "stNu"]])
         end
-        append!(mask, (ind == 0) || (line.sys == ind-1))
+        append!(mask, (comp == 0) || (line.sys == comp - 1))
     end
     return mask
 end
@@ -582,7 +583,7 @@ function line_profile(line, x; toll=1e-6)
     end
 end
 
-function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
+function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
 
     timeit = 0
     if timeit == 1
@@ -590,7 +591,7 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
         println("start ", spec.resolution)
     end
 
-    line_mask = update_lines(spec.lines, pars, ind=ind)
+    line_mask = update_lines(spec.lines, pars, comp=comp)
 
     x_instr = 1.0 / spec.resolution / 2.355
     x_grid = -1 .* ones(Int8, size(spec.x)[1])
@@ -734,6 +735,10 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
         y = inter(x .+ (x .- spec.dispz) .* spec.disps)
     end
 
+    if size(spec.cont)[1] > 0
+        y .*= correct_continuum(spec.cont, pars, x)
+    end
+
     if spec.resolution != 0
         y = 1 .- y
         y_c = Vector{Float64}(undef, size(y)[1])
@@ -754,11 +759,11 @@ function calc_spectrum(spec, pars; ind=0, regular=-1, regions="fit", out="all")
             println("convolve ", time() - start)
         end
 
-        if size(spec.cont)[1] > 0
-            y_c = (1 .-y_c) .* correct_continuum(spec.cont, pars, x)
-        else
-            y_c = 1 .- y_c
-        end
+        #if size(spec.cont)[1] > 0
+        #    y_c = (1 .-y_c) .* correct_continuum(spec.cont, pars, x)
+        #else
+        y_c = 1 .- y_c
+        #end
 
         if out == "all"
             return x, y_c

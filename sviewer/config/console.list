@@ -1,21 +1,21 @@
-show CIj1
-show CIj2
-Si
-SI
-show Si
-show SI
-show SII
-SII
-logN SiII
-H2j0
-H2j1
-1.108 * 1.08
-1013 * 0.0205
-H2j0
-H2j4
-show Na
-NaI
-MgII
-MgI
-MgIII
-show CIII
+show H2 0 1
+show H2 7 8
+show H2 5 6
+show SiIIj1
+show SiII
+rescale 0.8
+rescale 0.95
+show ZnII
+show CrII
+show MgI
+rescale 0.71
+rescale 0.71
+stats
+stats
+stats
+stats
+stats
+stats
+stats
+stats
+stats

@@ -171,7 +171,7 @@ class Speclist(list):
                         s.calcFit_fast(ind=ind, recalc=recalc, redraw=redraw, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit, timer=timer)
 
                     elif self.parent.fitType == 'julia':
-                        s.calcFit_julia(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
+                        s.calcFit_julia(comp=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
 
                 else:
                     s.set_fit(x=self[self.ind].spec.raw.x[self[self.ind].cont_mask], y=np.ones_like(self[self.ind].spec.raw.x[self[self.ind].cont_mask]))
@@ -195,7 +195,7 @@ class Speclist(list):
                         s.calcFit_fast(ind=sys.ind, recalc=recalc, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit)
 
                     elif self.parent.fitType == 'julia':
-                        s.calcFit_julia(ind=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit, timer=False)
+                        s.calcFit_julia(comp=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit, timer=False)
 
     def reCalcFit(self, ind=-1, exp_ind=-1):
         #self.prepareFit(ind=-1)
@@ -2030,10 +2030,10 @@ class Spectrum():
             if timer:
                 t.time('set_fit')
 
-    def calcFit_julia(self, ind=-1, x=None, recalc=False, redraw=True, timer=True, tau_limit=0.01):
+    def calcFit_julia(self, comp=-1, x=None, recalc=False, redraw=True, timer=True, tau_limit=0.01):
         """
             calculate the absorption profile using Julia interface
-           - ind             : specify the exposure for which fit is calculated
+           - comp            : specify the component for which fit is calculated
            - recalc          : if True recalculate profile in all lines (given in self.fit_lines)
            - redraw          : if True redraw the fit
         :return:
@@ -2044,22 +2044,22 @@ class Spectrum():
 
             # >>> calculate the intrinsic absorption line spectrum
             if 1:
-                x, flux = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=ind + 1)
+                x, flux = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, comp=comp + 1)
             else:
-                flux = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=ind + 1, out="init")
+                flux = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=comp + 1, out="init")
                 x = self.spec.norm.x[self.mask.norm.x]
 
             if timer:
                 t.time('calc fit')
 
             # >>> set fit graphics
-            if ind == -1:
+            if comp == -1:
                 self.set_fit(x=x, y=flux)
                 if redraw:
                     self.set_gfit()
                     self.set_res()
             else:
-                self.set_fit_comp(x=x, y=flux, ind=ind)
+                self.set_fit_comp(x=x, y=flux, ind=comp)
             if timer:
                 t.time('set_fit')
 
@@ -2746,7 +2746,7 @@ class SpectrumFilter():
         self.label.setFont(QFont("SansSerif", 16))
         self.label.setPos(self.data.x[self.ymax_pos], level * self.data.y[self.ymax_pos])
 
-    def get_value(self, x=None, y=None, flux=None, system=None):
+    def get_value(self, x=None, y=None, flux=None, err=None, mask=None, system=None):
         """
         return magnitude in photometric filter. Important that flux should be in erg/s/cm^2/A
         Args:
@@ -2759,19 +2759,25 @@ class SpectrumFilter():
         """
         if system == None:
             system = self.system
+
         try:
             #print(self.name, self.mag_type)
             if self.mag_type == 'Asinh':
                 #m0 = -2.5 / np.log(10) * (np.log(self.b))
                 if x is None or y is None:
                     x, y = self.parent.s[self.parent.s.ind].spec.x(), self.parent.s[self.parent.s.ind].spec.y()
-                mask = np.logical_and(x > self.data.x[0], x < self.data.x[-1])
-                x, y = x[mask], y[mask]
-                flux = np.trapz(y * 1e-17 * x * self.inter(x), x=x) / np.trapz(x * self.inter(x), x=x) * self.l_eff ** 2 / ac.c.to('Angstrom/s').value
-                if self.name in ['u', 'g', 'r', 'i', 'z']:
-                    self.value = - 2.5 / np.log(10) * np.arcsinh(flux / self.flux_0 / 2 / self.b) + self.m0
-                elif self.name in ['NUV', 'FUV']:
-                    self.value = - 2.5 * np.log10(np.exp(1)) * np.arcsinh(flux / self.flux_0 / 1e-9 / 0.01) + self.m0
+                if mask is None and x is not None:
+                    mask = np.ones_like(x)
+                mask = np.logical_and(mask, np.logical_and(x > self.data.x[0], x < self.data.x[-1]))
+                if np.sum(mask) > 10:
+                    x, y = x[mask], y[mask]
+                    flux = np.trapz(y * 1e-17 * x * self.inter(x), x=x) / np.trapz(x * self.inter(x), x=x) * self.l_eff ** 2 / ac.c.to('Angstrom/s').value
+                    if self.name in ['u', 'g', 'r', 'i', 'z']:
+                        self.value = - 2.5 / np.log(10) * np.arcsinh(flux / self.flux_0 / 2 / self.b) + self.m0
+                    elif self.name in ['NUV', 'FUV']:
+                        self.value = - 2.5 * np.log10(np.exp(1)) * np.arcsinh(flux / self.flux_0 / 1e-9 / 0.01) + self.m0
+                else:
+                    self.value = np.nan
 
             elif self.mag_type == 'Pogson':
                 if flux is None:

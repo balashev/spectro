@@ -233,6 +233,7 @@ class QSOlistTable(pg.TableWidget):
         if self.cat is None:
             self.setWindowTitle('QSO list of files')
         self.cellDoubleClicked.connect(self.row_clicked)
+        self.itemSelectionChanged.connect(self.item_selection)
         self.cellPressed.connect(self.editCell)
         self.edit_item = [-1, -1]
         self.previous_item = None
@@ -521,6 +522,17 @@ class QSOlistTable(pg.TableWidget):
                         print('{:>20}\t{:>10}\t{:>10}\t{:>12}\t{:>12}\t{:>5}\t{:>20}\t{:5}'.format(*lst))
                     else:
                         print(line.replace('\n', ''))
+
+    def item_selection(self):
+        if 'Erosita' == self.cat:
+
+            if len(self.selectionModel().selectedRows()) > 1:
+                self.parent.ErositaWidget.mask = np.zeros_like(self.parent.ErositaWidget.x, dtype=bool)
+                for index in sorted(self.selectionModel().selectedRows()):
+                    print(self.cell_value('SDSS_NAME', row=index.row()))
+                    self.parent.ErositaWidget.add_mask(name=self.cell_value('SDSS_NAME', row=index.row()))
+
+                self.parent.ErositaWidget.updateData()
 
     def row_clicked(self, row=None):
 
