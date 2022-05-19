@@ -456,18 +456,22 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nt
 	pp = map(x->samples[x[1], x[2], :], eachrow(inds))
 
     function spectrum(p, s, x; comp=0)
-	    i = 1
-		for (k, v) in pars
-			if v.vary == 1
-				pars[k].val = p[i]
-				i += 1
-			end
-		end
+        i = 1
+        for (k, v) in pars
+            if v.vary == 1
+                pars[k].val = p[i]
+                i += 1
+            end
+        end
 
-		update_pars(pars, spec, add)
+        update_pars(pars, spec, add)
 
-		w, f = calc_spectrum(s, pars, comp=comp)
-        return LinearInterpolation(w, f, extrapolation_bc=Flat())(x)
+        w, f = calc_spectrum(s, pars, comp=comp)
+        if size(f)[1] > 2
+            return LinearInterpolation(w, f, extrapolation_bc=Flat())(x)
+        else
+            return ones(size(x))
+        end
 	end
 
 	if 1 == 1
@@ -491,12 +495,11 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nt
     for (i, s) in enumerate(spec)
         push!(fit_comps, Any[])
         for k in 1:sys
-            push!(fit_comps[i], pmap(spectrum_comp(spectrum, s, x[i], k), pp))
+            push!(fit_comps[i], reduce(vcat, transpose.(pmap(spectrum_comp(spectrum, s, x[i], k), pp))))
         end
     end
 
-	rmprocs(workers())
-	println(nprocs())
+    rmprocs(workers())
 
     return fit, fit_comps
 end

@@ -3222,7 +3222,7 @@ class fitMCMCWidget(QWidget):
         if self.parent.fitType == 'julia':
             self.julia = julia.Julia()
             self.julia.include("MCMC.jl")
-            fit_disp, fit_disp_comp = self.parent.julia.fit_disp([f.x for f in fit], samples[burnin:, :, :], self.parent.julia_spec, self.parent.fit.list(),
+            fit_disp, fit_comp_disp = self.parent.julia.fit_disp([f.x for f in fit], samples[burnin:, :, :], self.parent.julia_spec, self.parent.fit.list(),
                                        self.parent.julia_add, sys=len(self.parent.fit.sys), tieds=self.parent.fit.tieds,
                                        nthreads=int(self.parent.options('MCMC_threads')), nums=int(self.parent.options('MCMC_disp_num')))
 
