@@ -1,21 +1,21 @@
-show H2 0 1
-show H2 7 8
-show H2 5 6
-show SiIIj1
-show SiII
-rescale 0.8
-rescale 0.95
-show ZnII
+stats
+stats
 show CrII
-show MgI
-rescale 0.71
-rescale 0.71
-stats
-stats
-stats
-stats
-stats
-stats
-stats
-stats
-stats
+show FeII*
+hide CO
+show CI
+show H2 0 1
+show H2 2 3 4 5 6
+show CIj1
+high H2j0
+show CII*
+show H2 7 
+logN H2
+high H2j0
+show H2j1v1
+show H2j6
+21.083 - 16.559
+show cII*
+show CII*
+show SiIIj1
+2.725 * 3.66

@@ -1236,7 +1236,10 @@ class atomicData(OrderedDict):
         if isinstance(n, int):
             return s.list(['H2j'+str(i) for i in range(n)])
         elif isinstance(n, (list, tuple)):
-            return s.list(['H2j' + str(i) for i in n])
+            if isinstance(n[0], (int, float)):
+                return s.list(['H2j' + str(i) for i in n])
+            else:
+                return s.list(n)
 
     @classmethod
     def CO(cls, n=7, isotope=''):
@@ -1252,7 +1255,10 @@ class atomicData(OrderedDict):
         if isinstance(n, int):
             return s.list([isotope + 'COj' + str(i) for i in range(n)])
         elif isinstance(n, (list, tuple)):
-            return s.list([isotope + 'COj' + str(i) for i in n])
+            if isinstance(n[0], (int, float)):
+                return s.list([isotope + 'COj' + str(i) for i in n])
+            else:
+                return s.list(n)
 
 def oscill_strength(A=1e9, nu=3e15):
     """

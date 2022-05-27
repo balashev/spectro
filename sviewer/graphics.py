@@ -1245,6 +1245,7 @@ class Spectrum():
         self.parent = parent
         self.filename = name
         self.resolution = resolution
+        self.scaling_factor = 1
         self.date = ''
         self.wavelmin = None
         self.wavelmax = None
@@ -1560,6 +1561,14 @@ class Spectrum():
         self.mask.set(x=np.zeros_like(self.spec.raw.x, dtype=bool))
         self.bad_mask.set(x=np.isnan(self.spec.raw.y))
         self.set_res()
+
+    def rescale(self, scaling_factor):
+        rescale = scaling_factor / self.scaling_factor
+        self.scaling_factor = scaling_factor
+        self.spec.raw.y *= rescale
+        self.spec.raw.err *= rescale
+        self.spec.raw.interpolate()
+        #self.set_res()
 
     def update_fit(self):
         if len(self.fit.line.norm.x) > 0 and self.cont.n > 0 and self.active():

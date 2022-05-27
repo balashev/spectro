@@ -91,13 +91,13 @@ class expTableWidget(TableWidget):
     def update(self):
         dtype = [('filename', np.str_, 100), ('obs. date', np.str_, 30),
                  ('wavelmin', np.float_), ('wavelmax', np.float_),
-                 ('resolution', np.int_)]
-        zero = ('', '', np.nan, np.nan, 0)
+                 ('resolution', np.int_), ('scaling factor', np.float_)]
+        zero = ('', '', np.nan, np.nan, 0, 1)
         data = np.array([zero], dtype=dtype)
-        self.edit_col = [4]
+        self.edit_col = [4, 5]
         for s in self.parent.s:
             print(s.filename, s.date, s.wavelmin, s.wavelmax, s.resolution)
-            data = np.insert(data, len(data), np.array([('  '+s.filename+'  ', '  '+s.date+'  ', s.wavelmin, s.wavelmax, s.resolution)], dtype=dtype), axis=0)
+            data = np.insert(data, len(data), np.array([('  '+s.filename+'  ', '  '+s.date+'  ', s.wavelmin, s.wavelmax, s.resolution, s.scaling_factor)], dtype=dtype), axis=0)
         if len(self.parent.s) > 0:
             data = np.delete(data, (0), axis=0)
         self.setData(data)
@@ -109,7 +109,7 @@ class expTableWidget(TableWidget):
         if self.setWidth is None:
             self.setWidth = 120 + self.verticalHeader().width() + self.autoScrollMargin() * 2.5
             self.setWidth += sum([self.columnWidth(c) for c in range(self.columnCount())])
-        self.resize(self.setWidth, self.rowCount()*40+140)
+        self.resize(self.setWidth, self.rowCount() * 40 + 140)
         if len(self.parent.s) > 0:
             self.selectRow(self.parent.s.ind)
 
@@ -144,6 +144,11 @@ class expTableWidget(TableWidget):
             self.parent.s.calcFitComps()
             self.parent.s.redraw()
 
+        if self.parent.s[self.currentItem().row()].scaling_factor != float(self.cell_value('scaling factor')):
+            self.parent.s[self.currentItem().row()].rescale(float(self.cell_value('scaling factor')))
+            #self.parent.s.calcFitComps()
+            self.parent.s.redraw()
+
     def cell_value(self, columnname):
 
         row = self.currentItem().row()
@@ -152,7 +157,8 @@ class expTableWidget(TableWidget):
         headercount = self.columnCount()
         for x in range(0, headercount, 1):
             headertext = self.horizontalHeaderItem(x).text()
-            if columnname == headertext:
+            print(x, headertext, columnname)
+            if columnname.strip() == headertext.strip():
                 matchcol = x
                 break
 

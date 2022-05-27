@@ -806,56 +806,84 @@ class plotline():
                 elif kind == 'full':
                     self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + ':$\,\,$', ha='right', va='bottom',
                             fontsize=self.parent.font - 4, color=color)
-        print(texts)
         adjust_text(texts, only_move={'text': 'x'})
 
-    def showLineLabels(self, species='H2', levels=[0, 1, 2, 3, 4, 5], pos=0.84, dpos=0.03, color='cornflowerblue', show_ticks=True, kind='full'):
-        if 1:
-            ymin, ymax = self.ax.get_ylim()
-            pos_y, dpos = ymin + pos * (ymax - ymin), dpos * (ymax - ymin)
-            xmin, xmax = self.ax.get_xlim()
+    def showLineLabels(self, levels=['H2j0', 'H2j1'], pos=0.84, dpos=0.1, color='cornflowerblue', show_ticks=True, kind='full', only_marks=True):
+
+        ymin, ymax = self.ax.get_ylim()
+        pos_y = ymin + pos * (ymax - ymin)
+        xmin, xmax = self.ax.get_xlim()
+
+        #print('showLines:', levels)
+        species = levels[0][:levels[0].index('j')]
         if species == 'H2':
             lines = atomicData.H2(levels)
             lines = [l for l in lines if l.l() * (1 + self.parent.z_ref) > xmin and l.l() * (1 + self.parent.z_ref) < xmax]
-            s = set([str(line).split()[1][:str(line).split()[1].index('-')] for line in lines])
+            s = set([line.band + ' {0:d}-{1:d}'.format(line.nu_u, line.nu_l) for line in lines])
+            bands = [[i, int(i[i.index(' ')+1:i.index('-')]), int(i[i.index('-')+1:]),
+                      list(set([line.j_l for line in lines if line.nu_u == int(i[i.index(' ')+1:i.index('-')]) and line.nu_l == int(i[i.index('-')+1:])]))]
+                     for i in s]
+            bs = []
+            for nu in np.sort(list(set([b[2] for b in bands])))[::-1]:
+                b_nu = [b for b in bands if b[2] == nu]
+                bs += [b_nu[i] for i in np.argsort([b[1] for b in b_nu])]
+            bands = bs
+
         if 'CO' in species:
             lines = atomicData.CO(levels, isotope=species[:species.index('CO')])
             lines = [l for l in lines if l.l() * (1 + self.parent.z_ref) > xmin and l.l() * (1 + self.parent.z_ref) < xmax]
             s = set([line.band + ' {0:d}-0'.format(line.nu_u) for line in lines])
-        #print(s)
-        #print(lines)
+            bands = [[i, int(i.split()[1][:i.split()[1].index('-')]), int(i.split()[1][i.split()[1].index('-') + 1:]),
+                      list(set([line.j_l for line in lines if
+                                line.nu_u == int(i.split()[1][:i.split()[1].index('-')]) and
+                                line.nu_l == int(i.split()[1][i.split()[1].index('-') + 1:])]))]
+                     for i in s]
         texts = []
-        for band in s:
+        dpos = dpos / (len(bands) + 1) * (ymax - ymin)
+        ls = '-'
+        for i, b in enumerate(bands):
+            band, levs = b[0], b[3]
             if species == 'H2':
-                if ('L' in band and (int(band.split('-')[0][1:]) % 2 == 0 or (np.max(levels) < 5 and int(band.split('-')[0][1:]) < 10))):
-                    pos_y = pos
-                elif 'W' in band:
-                    pos_y = pos - 2 * dpos - 2 * dpos * (ymax - ymin)
+                if 0:
+                    if ('L' in band and (int(band.split('-')[0][1:]) % 2 == 0 or (np.max(levs) < 5 and int(band.split('-')[0][1:]) < 10))):
+                        pos_y = pos
+                    elif 'W' in band:
+                        pos_y = pos - 2 * dpos - 2 * dpos * (ymax - ymin)
+                    else:
+                        pos_y = pos - dpos - dpos * (ymax - ymin)
                 else:
-                    pos_y = pos - dpos - dpos * (ymax - ymin)
+                    pos_y = pos + i * dpos + i * dpos * (ymax - ymin)
 
             b_lines = [line for line in lines if band.replace(' ', '') in str(line)]
+            #print(b_lines)
             b_lines = [line for line in b_lines if line.l() * (1 + self.parent.z_ref) > xmin and line.l() * (1 + self.parent.z_ref) < xmax]
-            if str(min(levels)) in [str(line).split()[0][str(line).split()[0].index("j")+1:] for line in b_lines]:
-                l = [line.l() for line in b_lines]
-                if show_ticks:
-                    for line in b_lines:
-                        print(line, line.j_l)
-                        if line.j_l in levels:
-                            self.ax.plot([line.l() * (1 + self.parent.z_ref), line.l() * (1 + self.parent.z_ref)],
-                                         [pos_y, pos_y + dpos], lw=1.0, color=color, ls='-')
-                            if kind == 'full':
-                                texts.append(self.ax.text(line.l() * (1 + self.parent.z_ref), pos_y + dpos, str(line.j_l),
-                                                          ha='center', va='bottom', fontsize=self.parent.font - 4, color=color))
+            #print(b_lines)
+            #if str(min(levs)) in [str(line).split()[0][str(line).split()[0].index("j")+1:] for line in b_lines]:
+            l = [line.l() for line in b_lines]
+            if show_ticks:
+                for line in b_lines:
+                    print(line, line.j_l)
+                    if line.j_l in levs:
+                        self.ax.plot([line.l() * (1 + self.parent.z_ref), line.l() * (1 + self.parent.z_ref)],
+                                     [pos_y, pos_y + dpos], lw=1.0, color=color, ls='-')
+                        if kind == 'full' and not only_marks:
+                            texts.append(self.ax.text(line.l() * (1 + self.parent.z_ref), pos_y + dpos, str(line.j_l),
+                                                      ha='center', va='bottom', fontsize=self.parent.font - 4, color=color))
 
-                    self.ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)],
-                                 [pos_y + dpos, pos_y + dpos], lw=1.0, color=color, ls='-')
-                if kind == 'short':
-                    self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0',
-                                              ha='right', va='bottom', fontsize=self.parent.font-4, color=color)
-                elif kind == 'full':
-                    self.ax.text((np.min(l) - (np.max(l) - np.min(l)) / 30) * (1 + self.parent.z_ref), pos_y + dpos, band + ':',
-                                              ha='right', va='bottom', fontsize=self.parent.font - 4, color=color)
+                self.ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)],
+                             [pos_y + dpos, pos_y + dpos], lw=1.0, color=color, ls=ls)
+            if kind == 'short':
+                self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0',
+                                          ha='right', va='bottom', fontsize=self.parent.font-4, color=color)
+            elif kind == 'full':
+                if only_marks:
+                    self.ax.text((np.max(l) + np.min(l)) / 2 * (1 + self.parent.z_ref), pos_y + dpos, band,
+                                 ha='center', va='bottom', fontsize=self.parent.font - 4, color=color)
+                else:
+                    self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + ': ', # (np.min(l) - (np.max(l) - np.min(l)) / 30)
+                                 ha='right', va='bottom', fontsize=self.parent.font - 4, color=color)
+            if ls == '-':
+                ls = '--'
         #print(texts)
         #adjust_text(texts, only_move={'text': 'x'})
 

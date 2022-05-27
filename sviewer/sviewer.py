@@ -1548,7 +1548,7 @@ class showLinesWidget(QWidget):
                     ('title', str), ('show_title', int), ('font_title', int), ('title_x_pos', float), ('title_y_pos', float),
                     ('show_labels', int), ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
                     ('plotfile', str), ('show_cont', int), ('corr_cheb', int),
-                    ('show_H2', str), ('pos_H2', float),
+                    ('show_H2', str), ('only_marks', int), ('pos_H2', float),
                     ('show_cf', int), ('cfs', str), ('show_cf_value', int), ('cf_color', int),
                     ])
 
@@ -1619,7 +1619,7 @@ class showLinesWidget(QWidget):
                  'Line labels:', '', '', 'font', '',
                  '', 'hor.:', '', 'vert.:', '',
                  'Continuum', '', '', '', '',
-                 'H2/CO:', '', '', 'pos:', '',
+                 'H2/CO labels:', '', '', 'pos:', '',
                  'Covering factor:', '', '', '', '',]
 
         positions = [(i, j) for i in range(25) for j in range(5)]
@@ -1639,7 +1639,7 @@ class showLinesWidget(QWidget):
                                     ('x_ticks', [16, 2]), ('xnum', [16, 4]), ('y_ticks', [17, 2]), ('ynum', [17, 4]),
                                     ('title', [18, 2]), ('font_title', [18, 4]), ('title_x_pos', [19, 2]), ('title_y_pos', [19, 4]),
                                     ('font_labels', [20, 4]), ('name_x_pos', [21, 2]), ('name_y_pos', [21, 4]),
-                                    ('show_H2', [23, 2]), ('pos_H2', [23, 4])])
+                                    ('show_H2', [23, 1]), ('pos_H2', [23, 4])])
         self.buttons = {}
         for opt, v in self.opt_but.items():
             self.buttons[opt] = QLineEdit(str(getattr(self, opt)))
@@ -1753,6 +1753,11 @@ class showLinesWidget(QWidget):
         self.corrcheb.clicked[bool].connect(self.setCheb)
         grid.addWidget(self.corrcheb, 22, 2)
 
+        self.onlyLineMarks = QCheckBox('only marks')
+        self.onlyLineMarks.setChecked(self.only_marks)
+        self.onlyLineMarks.clicked[bool].connect(self.onlyMarks)
+        grid.addWidget(self.onlyLineMarks, 23, 2)
+
         self.showcf = QCheckBox('show')
         self.showcf.setChecked(self.show_cf)
         self.showcf.clicked[bool].connect(self.setCf)
@@ -1784,17 +1789,26 @@ class showLinesWidget(QWidget):
         self.showButton = QPushButton("Show")
         self.showButton.setFixedSize(110, 30)
         self.showButton.clicked.connect(partial(self.showPlot, False))
-        expButton = QPushButton("Export")
+        expButton = QPushButton("Export:")
         expButton.setFixedSize(110, 30)
         expButton.clicked.connect(partial(self.showPlot, True))
-        self.file = QLineEdit(self.plotfile)
-        self.file.setFixedSize(350, 30)
-        self.file.textChanged[str].connect(self.setFilename)
 
         l.addWidget(self.showButton)
         l.addWidget(expButton)
+        l.addStretch(1)
+        layout.addLayout(l)
+
+        l = QHBoxLayout()
+        self.file = QLineEdit(self.plotfile)
+        self.file.setFixedSize(450, 30)
+        self.file.textChanged[str].connect(self.setFilename)
+        self.chooseFileButton = QPushButton("Choose")
+        self.chooseFileButton.setFixedSize(80, 30)
+        self.chooseFileButton.clicked.connect(self.chooseFile)
+
         l.addWidget(self.file)
         l.addStretch(1)
+        l.addWidget(self.chooseFileButton)
         layout.addLayout(l)
 
         l = QHBoxLayout()
@@ -1889,6 +1903,9 @@ class showLinesWidget(QWidget):
     def setCheb(self):
         self.corr_cheb = int(self.corrcheb.isChecked())
 
+    def onlyMarks(self):
+        self.only_marks = int(self.onlyLineMarks.isChecked())
+
     def setCf(self):
         self.show_cf = int(self.showcf.isChecked())
 
@@ -1933,6 +1950,10 @@ class showLinesWidget(QWidget):
 
     def onCompLsChoose(self):
         self.comp_ls = self.lscomp.currentText()
+
+    def chooseFile(self):
+        fname = QFileDialog.getOpenFileName(self, 'Export file...', self.parent.plot_set_folder)[0]
+        self.file.setText(fname)
 
     def showPlot(self, savefig=True):
         fig = plt.figure(figsize=(self.width, self.height), dpi=300)
@@ -2156,10 +2177,15 @@ class showLinesWidget(QWidget):
                                         #p.ax.text(p.x_max - (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='right', va='bottom', fontsize=p.font_labels, color=color)
                                         p.ax.text(p.x_min + (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='left', va='bottom', fontsize=p.font_labels, color=color)
 
-                if self.show_H2.strip() != '' :
-                    for sp in ['H2', 'CO', '13CO']:
-                        if any([sp.startswith(sp) for sp in self.parent.fit.list_species()]):
-                            p.showLineLabels(species=sp, levels=[int(s) for s in self.show_H2.split()], pos=self.pos_H2, kind='full')
+                if self.show_H2.strip() != '':
+                    for speci in ['H2', 'CO', '13CO']:
+                        if any([sp.startswith(speci) for sp in self.parent.fit.list_species()]):
+                            if self.show_H2 == 'all':
+                                levels = [sp for sp in self.parent.fit.list_species() if sp.startswith(speci)]
+                            else:
+                                levels = [(speci + "j") * l.isdigit() + l for l in self.show_H2.split()]
+                            print(levels)
+                            p.showLineLabels(levels=levels, pos=self.pos_H2, kind='full', only_marks=self.only_marks)
                     
                 if self.show_cont:
                     print(self.show_cont)
@@ -7288,6 +7314,10 @@ class sviewer(QMainWindow):
                         if 'resolution' in d[i]:
                             self.s[ind].resolution = int(float(d[i].split()[1]))
 
+                        if 'scaling_factor' in d[i]:
+                            if float(d[i].split()[1]) != 1:
+                                self.s[ind].rescale(float(d[i].split()[1]))
+
                         i += 1
 
                         if i > len(d) - 1:
@@ -7412,10 +7442,12 @@ class sviewer(QMainWindow):
                             for x in s.spec.x()[s.bad_mask.x()]:
                                 f.write('{:.5f}\n'.format(x))
 
-                    # >>> save resolution:
+                    # >>> save resolution amd scaling factor:
                     if 'others' in self.save_opt:
                         if s.resolution not in [0, None]:
                             f.write('resolution:   {}\n'.format(s.resolution))
+                        if s.scaling_factor not in [0, None]:
+                            f.write('scaling_factor:   {}\n'.format(s.scaling_factor))
 
                     # >>> save 2d spectrum:
                     if 'others' in self.save_opt:
