@@ -8932,7 +8932,7 @@ class sviewer(QMainWindow):
 
         return text
 
-    def showMetalAbundance(self, component=1, dep_ref='ZnII', HI=a(21,0,0)):
+    def showMetalAbundance(self, species=[], component=1, dep_ref='ZnII', HI=a(21,0,0)):
         """
         Show metal abundances, metallicity and depletions based on the fit
         """
@@ -8941,7 +8941,9 @@ class sviewer(QMainWindow):
         names = set()
         for sys in self.fit.sys:
             for sp in sys.sp.keys():
-                names.add(sp)
+                if sp in species:
+                    names.add(sp)
+
         refs = set(names)
         for sys in self.fit.sys:
             refs = refs & sys.sp.keys()

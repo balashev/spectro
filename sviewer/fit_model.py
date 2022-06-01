@@ -1423,6 +1423,15 @@ class fitResultsWidget(QWidget):
         self.latexTable.setMenu(menu)
         self.latexTable.setFixedSize(100, 30)
         self.latexTable.clicked.connect(self.refresh)
+        hl.addWidget(QLabel('Species:'))
+        self.species = QLineEdit('all')
+        self.species.setFixedSize(600, 30)
+        self.species.returnPressed.connect(self.refresh)
+        hl.addWidget(self.species)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
         self.vert = QCheckBox('vertical')
         self.vert.setChecked(True)
         self.vert.clicked.connect(self.refresh)
@@ -1502,6 +1511,7 @@ class fitResultsWidget(QWidget):
 
         hl = QHBoxLayout()
         restoval = QPushButton('set Values')
+        restoval.setFixedSize(120, 30)
         restoval.clicked.connect(self.restoval)
         hl.addWidget(restoval)
         hl.addStretch(0)
@@ -1545,13 +1555,20 @@ class fitResultsWidget(QWidget):
 
     def latex(self, view=''):
         fit = self.parent.fit
-        if (self.showtotal.isChecked() or self.showme.isChecked() or self.showdep.isChecked()): #and self.res is None:
-            self.res = self.parent.showMetalAbundance(component=0, dep_ref=self.depref, HI=self.HI)
-
+        species = self.species.text().split()
         sps = OrderedDict()
         for sys in fit.sys:
-            for sp in sys.sp.keys():
-                sps[sp] = 1
+            if len(species) == 0 or species[0].strip() in ['all']:
+                for sp in sys.sp.keys():
+                    sps[sp] = 1
+            else:
+                for sp in species:
+                    if sp in sys.sp.keys():
+                        sps[sp] = 1
+
+        if (self.showtotal.isChecked() or self.showme.isChecked() or self.showdep.isChecked()): #and self.res is None:
+            self.res = self.parent.showMetalAbundance(species=sps.keys(), component=0, dep_ref=self.depref, HI=self.HI)
+
         #names = ['par'] + ['comp '+str(i+1) for i in range(len(fit.sys))]
 
         d = ['comp', 'z']
