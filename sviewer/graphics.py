@@ -1923,37 +1923,39 @@ class Spectrum():
                     for sp in sys.sp.keys():
                         lin = self.parent.atomic.list(sp)
                         for l in lin:
-                            l.b = sys.sp[sp].b.val
-                            l.logN = sys.sp[sp].N.val
-                            l.z = sys.z.val
-                            l.recalc = True
-                            l.sys = sys.ind
-                            l.range = tau(l, resolution=self.resolution).getrange(tlim=tlim)
-                            l.cf = -1
-                            if self.parent.fit.cf_fit:
-                                for i in range(self.parent.fit.cf_num):
-                                    cf = getattr(self.parent.fit, 'cf_'+str(i))
-                                    cf_sys = cf.addinfo.split('_')[0]
-                                    if cf_sys == 'all':
-                                        cf_sys = np.arange(len(self.parent.fit.sys))
-                                    else:
-                                        cf_sys = [int(s) for s in cf_sys.split('sys')[1:]]
-                                    cf_exp = cf.addinfo.split('_')[1] if len(cf.addinfo.split('_')) > 1 else 'all'
-                                    if (sys.ind in cf_sys) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l()*(1+l.z) > cf.left and l.l()*(1+l.z) < cf.right:
-                                        l.cf = i
-                            l.stack = -1
-                            if self.parent.fit.stack_num > 0:
-                                for i in range(self.parent.fit.stack_num):
-                                    st = self.parent.fit.getValue('sts_'+str(i), 'addinfo')
-                                    if st.strip() == 'N_{0:d}_{1:s}'.format(l.sys, sp.strip()):
-                                        l.stack = i
+                            if str(l) not in sys.exclude:
+                                l.b = sys.sp[sp].b.val
+                                l.logN = sys.sp[sp].N.val
+                                l.z = sys.z.val
+                                l.recalc = True
+                                l.sys = sys.ind
+                                l.range = tau(l, resolution=self.resolution).getrange(tlim=tlim)
+                                l.cf = -1
+                                if self.parent.fit.cf_fit:
+                                    for i in range(self.parent.fit.cf_num):
+                                        cf = getattr(self.parent.fit, 'cf_'+str(i))
+                                        cf_sys = cf.addinfo.split('_')[0]
+                                        if cf_sys == 'all':
+                                            cf_sys = np.arange(len(self.parent.fit.sys))
+                                        else:
+                                            cf_sys = [int(s) for s in cf_sys.split('sys')[1:]]
+                                        cf_exp = cf.addinfo.split('_')[1] if len(cf.addinfo.split('_')) > 1 else 'all'
+                                        if (sys.ind in cf_sys) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l()*(1+l.z) > cf.left and l.l()*(1+l.z) < cf.right:
+                                            l.cf = i
+                                l.stack = -1
+                                if self.parent.fit.stack_num > 0:
+                                    for i in range(self.parent.fit.stack_num):
+                                        st = self.parent.fit.getValue('sts_'+str(i), 'addinfo')
+                                        if st.strip() == 'N_{0:d}_{1:s}'.format(l.sys, sp.strip()):
+                                            l.stack = i
 
-                            if all:
-                                if l.range[0] < x[-1] and l.range[1] > x[0]:
-                                    self.fit_lines += [l]
-                            else:
-                                if np.sum(np.logical_and(x >= l.range[0], x <= l.range[1])) > 0:
-                                    self.fit_lines += [l]
+                                if all:
+                                    #if l.range[0] < x[-1] and l.range[1] > x[0]:
+                                    if np.sum(l.range) / 2 < x[-1] and np.sum(l.range) / 2 > x[0]:
+                                        self.fit_lines += [l]
+                                else:
+                                    if np.sum(np.logical_and(x >= l.range[0], x <= l.range[1])) > 0:
+                                        self.fit_lines += [l]
         if debug:
             print('findFitLines', self.fit_lines, [l.cf for l in self.fit_lines])
 

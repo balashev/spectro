@@ -7369,6 +7369,16 @@ class sviewer(QMainWindow):
                     i += 1
                     self.fit.addTieds(d[i].strip().split()[0], d[i].strip().split()[1])
 
+            if 'fit_exclude' in d[i]:
+                for k in range(len(self.fit.sys)):
+                    self.fit.sys[k].exclude = []
+                num = int(d[i].split()[1])
+                for k in range(num):
+                    i += 1
+                    print(int(d[i].split()[0]))
+                    self.fit.sys[int(d[i].split()[0])].exclude.append(' '.join(d[i].split()[1:]))
+
+
             #print(d[i])
             #if 'cheb' in d[i]:
             #    self.fit.cont_num = int(d[i].split()[1])
@@ -7487,6 +7497,14 @@ class sviewer(QMainWindow):
                     f.write('fit_tieds: {0:}\n'.format(len(self.fit.tieds.keys())))
                     for k, v in self.fit.tieds.items():
                         f.write(' '.join([k, v]) + '\n')
+
+            if 'fit' in self.save_opt:
+                excl = [' '.join([str(i), line]) for i, sys in enumerate(self.fit.sys) for line in sys.exclude]
+                print(excl)
+                if len(excl) > 0:
+                    f.write('fit_exclude: {0:}\n'.format(len(excl)))
+                    for line in excl:
+                        f.write(line + '\n')
 
             # >>> save cheb parameters:
             #if 'fit' in self.save_opt:

@@ -3,6 +3,7 @@
 from adjustText import adjust_text
 from bisect import bisect_left
 import matplotlib.pyplot as plt
+import matplotlib.transforms as mtransforms
 from matplotlib import patches
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
 from mendeleev import element
@@ -194,8 +195,8 @@ class plot_spec(list):
                              type: list
         """
         for p in self:
-            col = [p1 for p1 in self if abs(p1.rect.left - p.rect.left)<0.01]
-            if all([abs(p1.rect.top-p.rect.bottom)>0.001 for p1 in col]):
+            col = [p1 for p1 in self if abs(p1.rect.left - p.rect.left) < 0.01]
+            if all([abs(p1.rect.top - p.rect.bottom) > 0.001 for p1 in col]):
                 p.xticklabels = 1
 
         for p in self:
@@ -521,6 +522,7 @@ class plotline():
                 self.ax.yaxis.set_label_coords(self.ax.yaxis.label.get_position()[0], self.ylabel_pos)
                 self.ax.yaxis._autolabelpos = True
                 self.ax.yaxis.label.set_transform(tr)
+
         if self.xlabel is not None:
             self.ax.set_xlabel(self.xlabel, fontsize=self.font, labelpad=2)
             if self.xlabel_pos is not None:
@@ -804,8 +806,9 @@ class plotline():
                 if kind == 'short':
                     self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0', ha='left', va='bottom', fontsize=self.parent.font-4, color=color)
                 elif kind == 'full':
-                    self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + ':$\,\,$', ha='right', va='bottom',
+                    self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + r': ', ha='right', va='bottom',
                             fontsize=self.parent.font - 4, color=color)
+
         adjust_text(texts, only_move={'text': 'x'})
 
     def showLineLabels(self, levels=['H2j0', 'H2j1'], pos=0.84, dpos=0.1, color='cornflowerblue', show_ticks=True, kind='full', only_marks=True):
@@ -868,7 +871,7 @@ class plotline():
                                      [pos_y, pos_y + dpos], lw=1.0, color=color, ls='-')
                         if kind == 'full' and not only_marks:
                             texts.append(self.ax.text(line.l() * (1 + self.parent.z_ref), pos_y + dpos, str(line.j_l),
-                                                      ha='center', va='bottom', fontsize=self.parent.font - 4, color=color))
+                                                      ha='center', va='bottom', fontsize=self.parent.font - 4, color=color, usetex=True))
 
                 self.ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)],
                              [pos_y + dpos, pos_y + dpos], lw=1.0, color=color, ls=ls)
@@ -878,10 +881,12 @@ class plotline():
             elif kind == 'full':
                 if only_marks:
                     self.ax.text((np.max(l) + np.min(l)) / 2 * (1 + self.parent.z_ref), pos_y + dpos, band,
-                                 ha='center', va='bottom', fontsize=self.parent.font - 4, color=color)
+                                 ha='center', va='bottom', fontsize=self.parent.font - 4, color=color, usetex=True)
                 else:
-                    self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + ': ', # (np.min(l) - (np.max(l) - np.min(l)) / 30)
-                                 ha='right', va='bottom', fontsize=self.parent.font - 4, color=color)
+                    to = self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + ':', # (np.min(l) - (np.max(l) - np.min(l)) / 30)
+                                 ha='right', va='bottom', fontsize=self.parent.font - 4, color=color, usetex=True)
+                    to._transform = mtransforms.offset_copy(to._transform, fig=self.fig, x=- (0.4 + 0.2 * (np.min([line.j_l for line in b_lines]) > 9)) * to.get_fontsize(), units='points')
+
             if ls == '-':
                 ls = '--'
         #print(texts)

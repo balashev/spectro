@@ -266,10 +266,17 @@ class fitModelWidget(QWidget):
         layout_right = QVBoxLayout()
         layout_right.addWidget(QLabel('add additional tied: '))
         self.tieWindow = QTextEdit()
-        self.tieWindow.setFixedSize(400, 120)
+        self.tieWindow.setFixedSize(400, 100)
         self.tieWindow.textChanged.connect(partial(self.updateTieWindow, init=False))
         self.updateTieWindow(init=True)
         layout_right.addWidget(self.tieWindow)
+        layout_right.addWidget(QLabel('exclude lines: '))
+        self.excludeWindow = QTextEdit()
+        self.excludeWindow.setFixedSize(400, 80)
+        self.excludeWindow.textChanged.connect(partial(self.updateExcludeWindow, init=False))
+        layout_right.addWidget(self.excludeWindow)
+        self.updateExcludeWindow(init=True)
+
         layout_right.addWidget(self.treeWidget)
         #layout_right.addStretch(1)
 
@@ -681,8 +688,22 @@ class fitModelWidget(QWidget):
                         self.parent.fit.addTieds(l[0], l[1])
             self.update()
         else:
-            head = '# tie par1 to par2 by printing: <par1> <par2>'
+            head = '# tie par1 to par2 by: <par1> <par2>'
             self.tieWindow.setText('\n'.join([head] + [' '.join([k, v]) for k, v in self.parent.fit.tieds.items()]))
+
+    def updateExcludeWindow(self, init=False):
+        if init == False:
+            text = self.excludeWindow.toPlainText()
+            for i, sys in enumerate(self.parent.fit.sys):
+                self.parent.fit.sys[i].exclude = []
+            for line in text.split('\n'):
+                if not line.startswith('#'):
+                    l = line.strip().split()
+                    if len(l) == 3 and l[0].isdigit() and int(l[0]) < len(self.parent.fit.sys):
+                        self.parent.fit.sys[int(l[0])].exclude.append(l[1] + ' ' + l[2])
+        else:
+            head = '# exclude line by: <sys_ind> <species> <lambda>'
+            self.excludeWindow.setText('\n'.join([head] + [' '.join([str(i), l]) for i, sys in enumerate(self.parent.fit.sys) for l in sys.exclude]))
 
     def setRange(self):
         x = float(self.rangeValue.text())

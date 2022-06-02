@@ -1092,6 +1092,33 @@ class ErositaWidget(QWidget):
             if ((ind is None) or (ind is not None and i == int(ind))) and np.isfinite(d['z']):
                 self.df.loc[i, 'Av_host' + '_photo' * self.addPhoto.isChecked()]
 
+    def spec_model(self, params, x):
+        return Npne
+
+    def fnc2min(self, params):
+        # print(params)
+        # t = Timer()
+
+        #chi = temp_bbb * self.extinction(self.sm[0] / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm_bbb'] + temp_tor * params.valuesdict()['norm_tor'] + temp_gal * params.valuesdict()[
+        #           'norm_host'] * self.extinction(sm[0] / (1 + d['z']), Av=params.valuesdict()['Av_host']) - sm[1]) / \
+        #      sm[2]
+        # t.time('spec')
+        for f in self.filters.values():
+            if f.x[0] > self.ero_tempmin * (1 + d['z']) and f.x[-1] < self.ero_tempmax * (1 + d['z']) and np.isfinite(
+                    f.value) and np.isfinite(f.err):
+                # print(f.name, f.weight, f.err, f.value, f.filter.get_value(x=f.x, y=self.load_template_qso(x=f.x, z_em=d['z']) * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'] + self.load_template_gal(x=f.x, z_em=d['z']) * params.valuesdict()['norm_gal']), self.load_template_qso(x=f.x, z_em=d['z']) * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'], self.load_template_gal(x=f.x, z_em=d['z']) * params.valuesdict()['norm_gal'])
+                # print(f.name, f.weight, f.err, f.value, f.filter.get_value(x=f.x, y=self.load_template_qso(x=f.x, z_em=d['z']) * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm'] + self.load_template_gal(x=f.x, z_em=d['z']) * params.valuesdict()['norm_gal']))
+                chi = np.append(chi, [f.weight / f.err * (f.value - f.filter.get_value(x=f.x, y=bbb.flux(
+                    f.x / (1 + d['z'])) * self.extinction(f.x / (1 + d['z']), Av=params.valuesdict()['Av']) *
+                                                                                                params.valuesdict()[
+                                                                                                    'norm_bbb'] + tor.flux(
+                    f.x / (1 + d['z'])) * params.valuesdict()['norm_tor'] + gal.flux(f.x / (1 + d['z'])) *
+                                                                                                params.valuesdict()[
+                                                                                                    'norm_host'] * self.extinction(
+                    f.x / (1 + d['z']), Av=params.valuesdict()['Av_host'])))])
+                # t.time(f.name)
+        return chi
+
     def calc_ext(self, ind=None, plot=False, gal=True):
 
         for attr in ['Av_int', 'Av_int_photo', 'Av_int_host', 'Av_int_host_photo', 'f_host', 'f_host_photo',
@@ -1131,6 +1158,12 @@ class ErositaWidget(QWidget):
                             ax.errorbar([f.filter.l_eff / (1 + d['z'])], [f.flux], yerr=[[f.err_flux[0]], [f.err_flux[1]]], marker='s', color=[c / 255 for c in f.filter.color])
 
                     sm = [np.asarray(spec[0][mask], dtype=np.float64), spec[1][mask], spec[2][mask]]
+
+                    self.model = {}
+                    for name in ['bbb', 'host', 'torus']:
+                        pass
+                    self.model['bbb'] = {}
+
                     bbb = sed_template(name='composite', xmin=self.ero_tempmin, xmax=self.ero_tempmax, z=d['z'])
                     tor = sed_template(name='torus', xmin=self.ero_tempmin, xmax=self.ero_tempmax, z=d['z'])
 
@@ -1154,8 +1187,10 @@ class ErositaWidget(QWidget):
                                 #t.time(f.name)
                         return chi
 
+
                     temp_bbb = bbb.flux(sm[0] / (1 + d['z']))
                     temp_tor = tor.flux(sm[0] / (1 + d['z']))
+
                     norm = np.nanmean(sm[1]) / np.nanmean(temp_bbb)
                     # create a set of Parameters
                     params = Parameters()

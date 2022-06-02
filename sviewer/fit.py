@@ -209,6 +209,7 @@ class fitSystem:
         self.sp = OrderedDict()
         self.total = OrderedDict()
         self.pr = None
+        self.exclude = []
 
     def add(self, name):
         if name in 'turb':
