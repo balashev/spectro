@@ -750,7 +750,7 @@ class image():
             self.setLevels(attr=attr)
 
 
-    def getQuantile(self, quantile=0.997, attr='z'):
+    def getQuantile(self, quantile=0.95, attr='z'):
         if getattr(self, attr) is not None:
             x = np.sort(getattr(self, attr).flatten())
             x = x[~np.isnan(x)]

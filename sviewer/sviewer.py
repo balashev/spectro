@@ -907,7 +907,7 @@ class spec2dWidget(pg.PlotWidget):
         bottomaxis.setStyle(tickLength=-15, tickTextOffset=2)
         topaxis = pg.AxisItem(orientation='top')
         #topaxis.setStyle(tickLength=-15, tickTextOffset=2, stopAxisAtTick=(True, True))
-        pg.PlotWidget.__init__(self, axisItems={'bottom': bottomaxis, 'top': topaxis}, background=(29,29,29))
+        pg.PlotWidget.__init__(self, axisItems={'bottom': bottomaxis, 'top': topaxis}, background=(29, 29, 29))
 
         self.initstatus()
 
@@ -922,6 +922,8 @@ class spec2dWidget(pg.PlotWidget):
         self.slits = []
         self.cursorpos = pg.TextItem(anchor=(0, 1), fill=pg.mkBrush(0, 0, 0, 0.5))
         self.vb.addItem(self.cursorpos, ignoreBounds=True)
+        self.levels = pg.TextItem(anchor=(1, 1), fill=pg.mkBrush(0, 0, 0, 0.5))
+        self.vb.addItem(self.levels, ignoreBounds=True)
 
         #self.getAxis('right').setLabel('axis2', color='#0000ff')
 
@@ -1181,13 +1183,16 @@ class spec2dWidget(pg.PlotWidget):
             range = self.vb.getState()['viewRange']
             delta = ((self.mousePoint.x() - self.mousePoint_saved.x()) / (range[0][1] - range[0][0]),
                      (self.mousePoint.y() - self.mousePoint_saved.y()) / (range[1][1] - range[1][0]))
+            #print(delta)
             self.mousePoint_saved = self.mousePoint
             im = self.parent.s[self.parent.s.ind].image2d
             levels = im.getLevels()
             d = self.parent.s[self.parent.s.ind].spec2d.raw.z_quantile[1] - self.parent.s[self.parent.s.ind].spec2d.raw.z_quantile[0]
-            self.parent.s[self.parent.s.ind].spec2d.raw.setLevels(levels[0] + d*delta[0]*2, levels[1] + d*delta[1]/4)
+            self.parent.s[self.parent.s.ind].spec2d.raw.setLevels(levels[0] + d * delta[0] * 2, levels[1] + d*delta[1] / 4)
             im.setLevels(self.parent.s[self.parent.s.ind].spec2d.raw.z_levels)
+            self.levels.setText("levels: {:.4f} {:.4f}".format(levels[0], levels[1]))
 
+        self.levels.setPos(self.vb.mapSceneToView(QPoint(pos.right() - 10, pos.bottom() - 10)))
         if self.t_status:
             self.t_status = 2
 
@@ -5301,11 +5306,12 @@ class ExportDataWidget(QWidget):
             cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1, bounds_error=False)
 
         if self.spectrum.isChecked():
-            np.savetxt(self.filename, np.c_[s.spec.x()[mask] / unit, s.spec.y()[mask] / cheb(s.spec.x()[mask]), s.spec.err()[mask]], **kwargs)
+            np.savetxt(self.filename, np.c_[s.spec.x()[mask] / unit, s.spec.y()[mask] * np.power(cheb(s.spec.x()[mask]), -self.parent.normview), s.spec.err()[mask]], **kwargs)
         if self.cont.isChecked():
-            np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x[cont_mask] / unit, s.cont.y[cont_mask] / cheb(s.cont.x[cont_mask])], **kwargs)
+            np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x[cont_mask] / unit, s.cont.y[cont_mask] * np.power(cheb(s.cont.x[cont_mask]), 1 - 2 * self.parent.normview)], **kwargs)
         if self.fit.isChecked():
-            np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x()[fit_mask] / unit, s.fit.y()[fit_mask] / cheb(s.fit.x()[fit_mask])], **kwargs)
+            np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x()[fit_mask] / unit, s.fit.y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), 1 - 2 * self.parent.normview)], **kwargs)
+
         #if self.fit.isChecked():
         #    np.savetxt('_fit_regions.'.join(self.filename.rsplit('.', 1)), np.c_[s.spec.x()[np.logical_and(mask, fit_mask)] / unit, (s.spec.y() / cheb(s.spec.x()))[np.logical_and(mask, fit_mask)]], **kwargs)
         if self.fit_comps.isChecked():
@@ -7849,7 +7855,7 @@ class sviewer(QMainWindow):
                                     err = h.data * 1e17
                                 elif h.header['EXTNAME'].strip() == 'QUAL':
                                     mask = h.data.astype(bool)
-                            s.spec2d.set(x=x, y=y, z=hdulist[0].data*1e17, err=err, mask=mask)
+                            s.spec2d.set(x=x, y=y, z=hdulist[0].data * 1e17, err=err, mask=mask)
 
                         if 'ORIGFILE' in hdulist[0].header and 'VANDELS' in hdulist[0].header['ORIGFILE']:
                             s.spec2d.set(x=x, y=y[:-1], z=hdulist[0].data[:-1,:])
