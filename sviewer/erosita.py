@@ -1160,12 +1160,16 @@ class ErositaWidget(QWidget):
                     sm = [np.asarray(spec[0][mask], dtype=np.float64), spec[1][mask], spec[2][mask]]
 
                     self.model = {}
+                    self.model['bbb'] = sed_template(name='composite', xmin=self.ero_tempmin, xmax=self.ero_tempmax, z=d['z'])
+                    self.model['tor'] = sed_template(name='torus', xmin=self.ero_tempmin, xmax=self.ero_tempmax, z=d['z'])
+
+                    self.model = {}
                     for name in ['bbb', 'host', 'torus']:
-                        pass
+                        self.model[name] = {}
+                        self.model[name]['spec'] = {}
+
                     self.model['bbb'] = {}
 
-                    bbb = sed_template(name='composite', xmin=self.ero_tempmin, xmax=self.ero_tempmax, z=d['z'])
-                    tor = sed_template(name='torus', xmin=self.ero_tempmin, xmax=self.ero_tempmax, z=d['z'])
 
                     def fcn2min(params):
                         chi = (temp_bbb * self.extinction(sm[0] / (1 + d['z']), Av=params.valuesdict()['Av']) * params.valuesdict()['norm_bbb'] + temp_tor * params.valuesdict()['norm_tor'] - sm[1]) / sm[2]

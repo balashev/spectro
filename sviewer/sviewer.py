@@ -5310,7 +5310,7 @@ class ExportDataWidget(QWidget):
         if self.cont.isChecked():
             np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x[cont_mask] / unit, s.cont.y[cont_mask] * np.power(cheb(s.cont.x[cont_mask]), 1 - 2 * self.parent.normview)], **kwargs)
         if self.fit.isChecked():
-            np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x()[fit_mask] / unit, s.fit.y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), 1 - 2 * self.parent.normview)], **kwargs)
+            np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x()[fit_mask] / unit, s.fit.y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview)], **kwargs)
 
         #if self.fit.isChecked():
         #    np.savetxt('_fit_regions.'.join(self.filename.rsplit('.', 1)), np.c_[s.spec.x()[np.logical_and(mask, fit_mask)] / unit, (s.spec.y() / cheb(s.spec.x()))[np.logical_and(mask, fit_mask)]], **kwargs)
@@ -7416,14 +7416,21 @@ class sviewer(QMainWindow):
             filename += '.spv'
 
         if os.path.isfile(filename):
-            copyfile(filename, os.path.dirname(os.path.realpath(__file__)) + '/temp/savedfile.spv')
+            copyfile(filename, os.path.dirname(os.path.realpath(__file__)) + '/temp/backup.spv')
 
         with open(filename, 'w') as f:
 
             if any([opt in self.save_opt for opt in ['spectrum', 'cont', 'points']]):
                 for s in self.s:
                     if save_name:
-                        f.write('%{}\n'.format(s.filename))
+                        print(os.path.dirname(os.path.realpath(filename)))
+                        print(os.path.dirname(os.path.realpath(s.filename)))
+                        print(os.path.dirname(os.path.realpath(filename)) == os.path.dirname(os.path.realpath(s.filename)))
+                        if os.path.dirname(os.path.realpath(filename)) == os.path.dirname(os.path.realpath(s.filename)):
+                            print(os.path.basename(os.path.realpath(s.filename)))
+                            f.write('%{}\n'.format(os.path.basename(os.path.realpath(s.filename))))
+                        else:
+                            f.write('%{}\n'.format(s.filename))
 
                     # >>> save spectra
                     if 'spectrum' in self.save_opt:
@@ -7571,7 +7578,7 @@ class sviewer(QMainWindow):
             self.normalize()
 
         for line in filelist:
-            filename = line.split()[0]
+            filename = line.strip()
             print(filename)
             s = Spectrum(self, name=filename)
 
@@ -7772,22 +7779,10 @@ class sviewer(QMainWindow):
                     else:
                         s.set_data([data[0], data[1], data[2]])
                 else:
+                    # >>>> other ascii data, e.g. .dat, .txt, etc
                     try:
-                        args = line.split()
-                        #f, header = open(args[0], 'r'), 0
-                        #while f.readline().startswith('#'):
-                        #    header += 1
-                        data = np.genfromtxt(args[0], comments='#', unpack=True)
-                        #print('args', args[0])
-                        #print('data', data)
-                        #data[1] *= scale_factor
-                        #if len(data) > 2:
-                        #    data[2] *= scale_factor
+                        data = np.genfromtxt(filename, comments='#', unpack=True)
                         s.set_data(data)
-
-                        if len(args) == 2:
-                            s.resolution = int(args[1])
-                            print('resolution: ', args[1])
 
                     except Exception as inst:
                         #print(type(inst))    # the exception instance
@@ -8893,7 +8888,10 @@ class sviewer(QMainWindow):
                         m = np.logical_and(data[0] == nu, data[1] == j)
                         x.append(float(data[2][m]))
                         #x.append(self.atomic[sp].energy)
-                        y.append(deepcopy(sys.sp[sp].N.unc).log() - np.log10(self.atomic[sp].statw()))
+                        if sys.sp[sp].N.unc.val != 0:
+                            y.append(deepcopy(sys.sp[sp].N.unc).log()) # - np.log10(self.atomic[sp].statw()))
+                        else:
+                            y.append(a(sys.sp[sp].N.val, 0.2, 0.2, 'l')) # - np.log10(self.atomic[sp].statw()))
                         y[-1].log()
                         y[-1].val = sys.sp[sp].N.val - np.log10(self.atomic[sp].statw())
                 arg = np.argsort(x)
@@ -8941,7 +8939,11 @@ class sviewer(QMainWindow):
                     elif isinstance(E, list):
                         E = np.asarray(E)
                     if ax is not None:
-                        if temp.slope.type == 'm':
+                        if isinstance(temp.slope, (float, int, np.float)):
+                            ax.plot(E / 1.4388 * 1.5, temp.slope * E * 1.5 + temp.zero, '--k', lw=1.5)
+                            text = [E[-1] / 1.4388 * 1.5, temp.slope * E[-1] * 1.5 + temp.zero,
+                                    'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + "{:.1f}".format(temp.temp) + '$\,$K']
+                        elif temp.slope.type == 'm':
                             ax.plot(E / 1.4388 * 1.5, temp.slope.val * E * 1.5 + temp.zero.val, '--k', lw=1.5)
                             text = [E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
                                     'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + temp.latex(f=0, base=0)+'$\,$K']
