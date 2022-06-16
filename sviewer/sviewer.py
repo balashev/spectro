@@ -914,10 +914,15 @@ class residualsWidget(pg.PlotWidget):
                 kde_x = np.linspace(np.min(y) - 1, np.max(y) + 1, int((np.max(y) - np.min(y))/0.1))
                 self.parent.s[self.parent.s.ind].kde_local.setData(x=-kde_x, y=kde.evaluate(kde_x))
 
+    def mouseMoveEvent(self, event):
+        super(residualsWidget, self).mouseMoveEvent(event)
+        self.mousePoint = self.vb.mapSceneToView(event.pos())
+
     def mouseReleaseEvent(self, event):
         super(residualsWidget, self).mouseReleaseEvent(event)
         if event.button() == Qt.RightButton and self.menuEnabled() and self.customMenu:
-            self.raiseContextMenu(event)
+            if self.mousePoint == self.vb.mapSceneToView(event.pos()):
+                self.raiseContextMenu(event)
         #event.accept()
         #pass
 
@@ -938,6 +943,9 @@ class residualsWidget(pg.PlotWidget):
             self.export = QAction("Export...", self.menu)
             self.export.triggered.connect(self.showExportDialog)
             self.exportDialog = None
+            self.structure = QAction("Check structure in residuals", self.menu)
+            self.structure.triggered.connect(self.parent.resAnal)
+            self.menu.addAction(self.structure)
             self.menu.addSeparator()
             self.menu.addAction(self.export)
 
@@ -6656,7 +6664,7 @@ class sviewer(QMainWindow):
         fitCont.setStatusTip('Fit with cont unc')
         fitCont.triggered.connect(self.fitwithCont)
 
-        resAnal = QAction('&Residuals structure analysis', self)
+        resAnal = QAction('&Check structure in residuals', self)
         resAnal.setStatusTip('Analysis of structure in residuals')
         resAnal.triggered.connect(self.resAnal)
 
