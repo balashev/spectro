@@ -915,10 +915,11 @@ class residualsWidget(pg.PlotWidget):
                 self.parent.s[self.parent.s.ind].kde_local.setData(x=-kde_x, y=kde.evaluate(kde_x))
 
     def mouseReleaseEvent(self, event):
+        super(residualsWidget, self).mouseReleaseEvent(event)
         if event.button() == Qt.RightButton and self.menuEnabled() and self.customMenu:
             self.raiseContextMenu(event)
         #event.accept()
-        pass
+        #pass
 
     def raiseContextMenu(self, ev):
         """
@@ -8591,11 +8592,13 @@ class sviewer(QMainWindow):
         res = self.s[self.s.ind].res
         plot = 0
         self.residualsPanel.struct(clear=True)
-        for comp in self.s[self.s.ind].fit_comp:
+        comps = []
+        for ic, comp in enumerate(self.s[self.s.ind].fit_comp):
             fit = comp.line.norm
             inds = [ind for ind in argrelextrema(fit.y, np.less)[0] if fit.y[ind] < 0.95]
             #print(inds)
             indf = np.argwhere(np.abs(np.diff(fit.y < 0.98))).flatten()
+            k = 0
             for ind in inds[:]:
                 xind = [ind + k * np.min(k * (indf - ind)[k * (indf - ind) > 0]) for k in [1, -1]]
                 xmin, xmax = np.min(xind), np.max(xind)
@@ -8631,10 +8634,20 @@ class sviewer(QMainWindow):
                     fft[np.abs(fft) < np.quantile(boot, 0.95, axis=0)] = 0
                     if np.sum(np.abs(fft)) > 0:
                         print(fit.x[ind], 'detected:', np.sum(np.abs(fft)))
+                        k += 1
                         self.residualsPanel.struct(x=res.x[m], y=np.fft.ifft(fft).real)
 
                     if plot:
                         ax.plot(x, np.fft.ifft(fft).real)
+            if k / len(inds) > 0.5:
+                comps.append(ic)
+                print(f'anomaly detected in {ic} component')
+
+        if len(comps) > 0:
+            self.statusBar.setText('stucture in residuals detected in components: ' + ' '.join([str(c) for c in comps]))
+        else:
+            self.statusBar.setText('there is no evident structure in residuals')
+
         if plot:
             plt.show()
 
