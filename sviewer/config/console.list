@@ -1,10 +1,3 @@
-21.083 - 16.559
-show cII*
-show CII*
-show SiIIj1
-2.725 * 3.66
-SII
-show SII
 MgI
 show MgI
 HI
@@ -19,3 +12,10 @@ high H2j4
 high H2j5
 high H2j6
 high H2j5
+show SII
+show PII
+set cont 1
+set cont 1
+set cont 1.0
+cont 1.0
+cont 1.0 all

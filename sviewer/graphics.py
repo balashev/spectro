@@ -1515,6 +1515,7 @@ class Spectrum():
             self.parent.residualsPanel.kde.removeItem(self.kde_line)
             self.parent.residualsPanel.kde.removeItem(self.kde_gauss)
             self.parent.residualsPanel.kde.removeItem(self.kde_local)
+            self.parent.residualsPanel.struct(clear=True)
         except:
             pass
 

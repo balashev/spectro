@@ -111,11 +111,11 @@ class ExcitationTemp():
         if self.species == 'CO':
             self.g = np.array([2*i+1 for i in range(self.num)])
             data = [0, 1, 3, 6, 10]
-            self.E = np.arange(self.num)*(np.arange(self.num)+1)*2.77
+            self.E = np.arange(self.num)*(np.arange(self.num)+1) * 2.77
             print('E', self.E)
 
         if self.species == 'FeII':
-            self.g = np.asarray([9/2, 7/2, 5/2, 3/2, 1/2, 9/2, 7/2, 5/2, 3/2, 7/2, 5/2, 3/2, 1/2])[:num]
+            self.g = np.asarray([9/2, 7/2, 5/2, 3/2, 10.695/2, 9/2, 7/2, 5/2, 3/2, 7/2, 5/2, 3/2, 1/2])[:num]
             self.E = np.asarray([0, 384.7872, 667.6829, 862.6118, 977.0498, 1872.5998, 2430.1369, 2837.9807, 3117.4877, 7955.3186, 8391.9554, 8680.4706, 8846.7837])
             # transform energy from cm^-1 to Kelvins
             self.E = self.E[:self.num] / 0.695

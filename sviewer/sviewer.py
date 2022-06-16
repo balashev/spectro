@@ -33,6 +33,7 @@ from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget,
 from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl, QTimer, pyqtSignal, QObject, QPropertyAnimation
 from PyQt5.QtGui import QDesktopServices, QPainter, QFont, QColor, QIcon
 from scipy.interpolate import interp1d, UnivariateSpline
+from scipy.signal import argrelextrema
 from scipy.special import erf
 from scipy.stats import gaussian_kde
 import sfdmap
@@ -843,7 +844,7 @@ class plotSpectrum(pg.PlotWidget):
 
 class residualsWidget(pg.PlotWidget):
     """
-    class for plotting residual panel tighte with 1d spectrum panel
+    class for plotting residual panel tighten with 1d spectrum panel
     """
     def __init__(self, parent):
         bottomaxis = pg.AxisItem(orientation='bottom')
@@ -856,6 +857,10 @@ class residualsWidget(pg.PlotWidget):
         self.vb.enableAutoRange(y=self.vb.YAxis)
         self.setXLink(self.parent.plot)
         self.addLines()
+        self.customMenu = True
+        self.menu = None
+        self.st = []
+        self.vb.setMenuEnabled(not self.customMenu)
 
         # create new plot for kde and link its y axis
         if 0:
@@ -886,6 +891,18 @@ class residualsWidget(pg.PlotWidget):
             self.addItem(pg.InfiniteLine(l, 0, pen=pg.mkPen(color=color, width=width, style=Qt.DashLine)))
             self.addItem(pg.InfiniteLine(-l, 0, pen=pg.mkPen(color=color, width=width, style=Qt.DashLine)))
 
+    def struct(self, x=None, y=None, clear=False):
+        if clear:
+            for st in self.st:
+                self.removeItem(st[0])
+                self.removeItem(st[1])
+        else:
+            if x is not None and y is not None:
+                self.st.append([pg.PlotCurveItem(x=x, y=y, pen=pg.mkPen(190, 30, 70, 100, width=10)),
+                                pg.LinearRegionItem([x[0], x[-1]], orientation=pg.LinearRegionItem.Vertical, movable=False, brush=pg.mkBrush(190, 30, 70, 20), pen=pg.mkPen(190, 30, 70, 0, width=0))])
+                self.addItem(self.st[-1][0])
+                self.addItem(self.st[-1][-1])
+
     def viewRangeChanged(self, view, range):
         self.sigRangeChanged.emit(self, range)
         if len(self.parent.s) > 0:
@@ -896,6 +913,45 @@ class residualsWidget(pg.PlotWidget):
                 kde = gaussian_kde(y)
                 kde_x = np.linspace(np.min(y) - 1, np.max(y) + 1, int((np.max(y) - np.min(y))/0.1))
                 self.parent.s[self.parent.s.ind].kde_local.setData(x=-kde_x, y=kde.evaluate(kde_x))
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.RightButton and self.menuEnabled() and self.customMenu:
+            self.raiseContextMenu(event)
+        #event.accept()
+        pass
+
+    def raiseContextMenu(self, ev):
+        """
+        Raise the context menu
+        """
+        menu = self.getMenu()
+        menu.popup(ev.screenPos().toPoint())
+
+    def getMenu(self):
+        """
+        Create the menu
+        """
+        if self.menu is None:
+            self.menu = QMenu()
+            self.menu.setStyleSheet(open('config/styles.ini').read())
+            self.export = QAction("Export...", self.menu)
+            self.export.triggered.connect(self.showExportDialog)
+            self.exportDialog = None
+            self.menu.addSeparator()
+            self.menu.addAction(self.export)
+
+        return self.menu
+
+    def showExportDialog(self):
+        if self.exportDialog is None:
+            fname = QFileDialog.getSaveFileName(self, 'Export residuals', self.parent.work_folder)
+
+            s = self.parent.s[self.parent.s.ind]
+            print(np.c_[s.res.x, s.res.y])
+            if fname[0]:
+                np.savetxt(fname[0], np.c_[s.res.x, s.res.y])
+                self.parent.statusBar.setText('Residuals is written to ' + fname[0])
+
 
 class spec2dWidget(pg.PlotWidget):
     """
@@ -6360,16 +6416,16 @@ class sviewer(QMainWindow):
         self.statusBarWidget = QStatusBar()
         self.setStatusBar(self.statusBarWidget)
         self.statusBar = QLabel()
-        self.statusBar.setFixedSize(600, 30)
+        self.statusBar.setFixedSize(1200, 30)
         self.statusBarWidget.addWidget(self.statusBar)
         self.componentBar = QLabel('')
-        self.componentBar.setFixedSize(100, 30)
+        self.componentBar.setFixedSize(150, 30)
         self.statusBarWidget.addWidget(self.componentBar)
         self.chiSquare = QLabel('')
-        self.chiSquare.setFixedSize(200, 30)
+        self.chiSquare.setFixedSize(300, 30)
         self.statusBarWidget.addWidget(self.chiSquare)
         self.MCMCprogress = QLabel('')
-        self.MCMCprogress.setFixedSize(300, 30)
+        self.MCMCprogress.setFixedSize(500, 30)
         self.statusBarWidget.addWidget(self.MCMCprogress)
 
         self.statusBar.setText('Ready')
@@ -6599,6 +6655,10 @@ class sviewer(QMainWindow):
         fitCont.setStatusTip('Fit with cont unc')
         fitCont.triggered.connect(self.fitwithCont)
 
+        resAnal = QAction('&Residuals structure analysis', self)
+        resAnal.setStatusTip('Analysis of structure in residuals')
+        resAnal.triggered.connect(self.resAnal)
+
         stopFit = QAction('&Stop Fit', self)
         stopFit.setStatusTip('Stop fitting process')
         stopFit.triggered.connect(self.stopFit)
@@ -6660,6 +6720,7 @@ class sviewer(QMainWindow):
         fitMenu.addAction(fitMCMC)
         fitMenu.addAction(fitGrid)
         fitMenu.addAction(fitCont)
+        fitMenu.addAction(resAnal)
         fitMenu.addAction(stopFit)
         fitMenu.addAction(tempFit)
         fitMenu.addSeparator()
@@ -8525,6 +8586,57 @@ class sviewer(QMainWindow):
             self.fitResults.show()
         else:
             self.fitResults.refresh()
+
+    def resAnal(self):
+        res = self.s[self.s.ind].res
+        plot = 0
+        self.residualsPanel.struct(clear=True)
+        for comp in self.s[self.s.ind].fit_comp:
+            fit = comp.line.norm
+            inds = [ind for ind in argrelextrema(fit.y, np.less)[0] if fit.y[ind] < 0.95]
+            #print(inds)
+            indf = np.argwhere(np.abs(np.diff(fit.y < 0.98))).flatten()
+            for ind in inds[:]:
+                xind = [ind + k * np.min(k * (indf - ind)[k * (indf - ind) > 0]) for k in [1, -1]]
+                xmin, xmax = np.min(xind), np.max(xind)
+                m = (res.x >= fit.x[xmin]) * (res.x <= fit.x[xmax])
+                #w = np.asarray([fit.y[np.argmin(np.abs(fit.x - x))] for x in res.x[m]])
+                x, y = res.x[m] - fit.x[ind], res.y[m]
+                #r = np.random.randn(len(x))
+                # r = gaussian_filter(r * 1.5, 0.7)
+                if plot:
+                    fig, ax = plt.subplots()
+                    ax.scatter(x, y)
+                    #ax.scatter(x, r, color='0.9')
+                    #ax.scatter(x, gaussian_filter(r, 0.7), color='0.5')
+                    #ax.scatter(x, np.convolve(r, [1, 1, 1], 'same'), color='0.5')
+                    ax.set_title("{:.2f}".format(fit.x[ind]))
+
+                if 1:
+                    fft = np.fft.fft(y)
+                    boot = []
+                    for i in range(1000):
+                        boot.append(np.abs(np.fft.fft(np.random.randn(len(x)))))
+                    boot = np.asarray(boot)
+
+                    if 0:
+                        for i in range(len(fft)):
+                            fig, ax2 = plt.subplots()
+                            ax2.hist(boot[:, i])
+                            ax2.axvline(np.abs(fft)[i], color='tomato', lw=8, alpha=0.5)
+                    #print(np.quantile(boot, 0.95, axis=0))
+
+                    fft[:int(len(fft) * 4 / 5)] = 0
+                    #fft[-2:] = 0
+                    fft[np.abs(fft) < np.quantile(boot, 0.95, axis=0)] = 0
+                    if np.sum(np.abs(fft)) > 0:
+                        print(fit.x[ind], 'detected:', np.sum(np.abs(fft)))
+                        self.residualsPanel.struct(x=res.x[m], y=np.fft.ifft(fft).real)
+
+                    if plot:
+                        ax.plot(x, np.fft.ifft(fft).real)
+        if plot:
+            plt.show()
 
     def aod(self):
         self.aodview = 1 - self.aodview
