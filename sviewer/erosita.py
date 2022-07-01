@@ -1421,6 +1421,16 @@ class ErositaWidget(QWidget):
             res[p] = a(d.point, d.interval[1] - d.point, d.point - d.interval[0])
             f = np.asarray([res[p].plus, res[p].minus])
             f = int(np.round(np.abs(np.log10(np.min(f[np.nonzero(f)])))) + 1)
+            print(d.interval[0], x[1], d.interval[1], x[-2])
+            if d.interval[0] <= x[1] and d.interval[1] < x[-2]:
+                d.dointerval(conf=0.95)
+                print(d.dointerval(conf=0.95), 'u')
+                res[p] = a(d.point, d.interval[1] - d.point, np.inf, t='u')
+            elif d.interval[1] >= x[-2] and d.interval[0] > x[1]:
+                d.dointerval(conf=0.95)
+                print(d.dointerval(conf=0.95), 'l')
+                res[p] = a(d.point, np.inf, d.point - d.interval[0], t='l')
+
             print(p, res[p].latex(f=f))
             vert, hor = k // n_hor, k % n_hor
             k += 1
@@ -1652,11 +1662,17 @@ class ErositaWidget(QWidget):
                             res = a(d1.point, d1.interval[1] - d1.point, d1.point - d1.interval[0])
                             f = np.asarray([res.plus, res.minus])
                             f = int(np.round(np.abs(np.log10(np.min(f[np.nonzero(f)])))) + 1)
+                            if d1.interval[0] <= x[1] and d1.interval[1] < x[-2]:
+                                d1.dointerval(conf=0.95)
+                                res = a(d1.interval[1], t='u')
+                            elif d1.interval[1] >= x[-2] and d1.interval[0] > x[1]:
+                                d1.dointerval(conf=0.95)
+                                res = a(d1.interval[0], t='l')
                             print(p, res.latex(f=f))
                             d1.plot(conf=0.683, ax=ax2, ylabel='')
                             ax2.yaxis.set_ticklabels([])
                             ax2.yaxis.set_ticks([])
-                            ax2.text(.05, .9, str(p).replace('_', ' '), ha='left', va='top', transform=ax2.transAxes)
+                            ax2.text(.05, .9, 'log Lhost', ha='left', va='top', transform=ax2.transAxes)
                             ax2.text(.95, .9, res.latex(f=f), ha='right', va='top', transform=ax2.transAxes)
 
                         # >>> plot results:

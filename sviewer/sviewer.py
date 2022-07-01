@@ -2177,7 +2177,8 @@ class showLinesWidget(QWidget):
             self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw,
                                    ls=self.comp_ls, ls_total=self.fit_ls, color_total=self.fit_color.to_bytes(4, byteorder='big'),
                                    color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')],
-                                   disp_alpha=self.disp_alpha, res_style=self.res_style)
+                                   disp_alpha=self.disp_alpha, res_style=self.res_style, res_color=self.res_color.to_bytes(4, byteorder='big')
+                                   )
             if len(self.parent.fit.sys) > 0:
                 if self.buttons['z_ref'].text().strip() != '':
                     self.ps.z_ref = float(self.buttons['z_ref'].text())

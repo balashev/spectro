@@ -139,7 +139,7 @@ class plot_spec(list):
         self.comps = np.array(args)
                 
     def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, ls_total='solid',
-                       disp_alpha=0.7, res_style='scatter', res_color='tomato'):
+                       disp_alpha=0.7, res_style='scatter', res_color=None):
 
         if color_total is not None:
             if np.max(list(color_total)) > 1:
@@ -844,9 +844,9 @@ class plotline():
                      for i in s]
         texts = []
         dpos = dpos / (len(bands) + 1) * (ymax - ymin)
-        ls = '-'
         for i, b in enumerate(bands):
             band, levs = b[0], b[3]
+            ls = '--' if b[2] != bands[0][2] else '-'
             if species == 'H2':
                 if 0:
                     if ('L' in band and (int(band.split('-')[0][1:]) % 2 == 0 or (np.max(levs) < 5 and int(band.split('-')[0][1:]) < 10))):
@@ -888,8 +888,7 @@ class plotline():
                                  ha='right', va='bottom', fontsize=self.parent.font - 4, color=color, usetex=True)
                     to._transform = mtransforms.offset_copy(to._transform, fig=self.fig, x=- (0.4 + 0.2 * (np.min([line.j_l for line in b_lines]) > 9)) * to.get_fontsize(), units='points')
 
-            if ls == '-':
-                ls = '--'
+
         #print(texts)
         #adjust_text(texts, only_move={'text': 'x'})
 

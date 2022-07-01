@@ -45,7 +45,7 @@ class distr1d():
 
     def normalize(self):
         inter = interpolate.interp1d(self.x, self.y)
-        norm = integrate.quad(inter, self.x[0], self.x[-1])
+        norm = integrate.quad(inter, self.x[0], self.x[-1], epsrel=1e-4)
         self.y = self.y / norm[0]
         self.ymax = np.max(self.y)
 
@@ -105,15 +105,15 @@ class distr1d():
 
         return self.xmin, self.xmax
 
-    def func_twoside(self, level, conf):
+    def func_twoside(self, level, conf, epsrel=1e-4):
         xmin, xmax = self.minmax(level)
-        return integrate.quad(self.inter, xmin, xmax)[0] - conf
+        return integrate.quad(self.inter, xmin, xmax, epsrel=epsrel)[0] - conf
 
-    def func_oneside(self, x, conf, kind='left'):
+    def func_oneside(self, x, conf, kind='left', epsrel=1e-4):
         if kind == 'right':
-            return integrate.quad(self.inter, x, self.x[-1])[0] - conf
+            return integrate.quad(self.inter, x, self.x[-1], epsrel=epsrel)[0] - conf
         elif kind == 'left':
-            return integrate.quad(self.inter, self.x[0], x)[0] - conf
+            return integrate.quad(self.inter, self.x[0], x, epsrel=epsrel)[0] - conf
 
     def dopoint(self, verbose=True):
         """
