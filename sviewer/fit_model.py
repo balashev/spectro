@@ -1578,14 +1578,13 @@ class fitResultsWidget(QWidget):
         fit = self.parent.fit
         species = self.species.text().split()
         sps = OrderedDict()
-        for sys in fit.sys:
-            if len(species) == 0 or species[0].strip() in ['all']:
-                for sp in sys.sp.keys():
+        if len(species) == 0 or species[0].strip() in ['all']:
+            for sp in set([t for s in [sys.sp.keys() for sys in fit.sys] for t in s]):
+                sps[sp] = 1
+        else:
+            for sp in species:
+                if sp in set([t for s in [sys.sp.keys() for sys in fit.sys] for t in s]):
                     sps[sp] = 1
-            else:
-                for sp in species:
-                    if sp in sys.sp.keys():
-                        sps[sp] = 1
 
         if (self.showtotal.isChecked() or self.showme.isChecked() or self.showdep.isChecked()): #and self.res is None:
             self.res = self.parent.showMetalAbundance(species=sps.keys(), component=0, dep_ref=self.depref, HI=self.HI)
@@ -1602,7 +1601,7 @@ class fitResultsWidget(QWidget):
             d += [r'$\log T [\rm cm^{-3}]$']
             d += [r'$\log N_{\rm tot}$']
         d += list([r'$\log N$(' + s + ')' for s in sps.keys()])
-        if self.showtotal.isChecked() and any([all([el in sp for sp in sys.sp.keys()]) for el in ['H2', 'CO', 'HD', 'CI']]):
+        if self.showtotal.isChecked() and any([any([el in sp for sys in fit.sys for sp in sys.sp.keys()]) for el in ['H2', 'CO', 'HD', 'CI']]):
             d += [r'$\log N_{\rm tot}$']
         if self.showratios.isChecked():
             d += [r'$\log N$({0:s})/$N$({1:s})'.format(s.split('/')[0], s.split('/')[1]) for s in self.ratios.text().split()]
@@ -1655,8 +1654,11 @@ class fitResultsWidget(QWidget):
             if self.showratios.isChecked():
                 for s in self.ratios.text().split():
                     sp = s.split('/')
-                    print(sys.sp[sp[0]].N.unc / sys.sp[sp[1]].N.unc)
-                    d.append((sys.sp[sp[0]].N.unc / sys.sp[sp[1]].N.unc).latex(f=2))
+                    if sp[0] in sys.sp.keys() and sp[1] in sys.sp.keys():
+                        print(sys.sp[sp[0]].N.unc / sys.sp[sp[1]].N.unc)
+                        d.append((sys.sp[sp[0]].N.unc / sys.sp[sp[1]].N.unc).latex(f=2))
+                    else:
+                        d += ['']
 
             if self.showLFR.isChecked() and fit.cf_fit:
                 for i in range(fit.cf_num):

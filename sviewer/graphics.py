@@ -26,6 +26,7 @@ from PyQt5.QtGui import QFont, QColor, QBrush
 from PyQt5.QtWidgets import QApplication
 import re
 from scipy.interpolate import interp1d, interp2d, splrep, splev
+from scipy.integrate import cumtrapz
 from scipy.optimize import curve_fit, least_squares
 from scipy.signal import savgol_filter, lombscargle, medfilt
 from scipy.stats import gaussian_kde
@@ -2743,6 +2744,9 @@ class SpectrumFilter():
         self.ymax_pos = np.argmax(self.data.y)
         self.inter = interp1d(self.data.x, self.data.y, bounds_error=False, fill_value=0, assume_sorted=True)
         self.l_eff = np.sqrt(np.trapz(self.inter(self.data.x) * self.data.x, x=self.data.x) / np.trapz(self.inter(self.data.x) / self.data.x, x=self.data.x))
+        z = cumtrapz(self.data.y[:], self.data.x)
+        self.range = [self.data.x[np.argmin(np.abs(z - np.quantile(z, 0.05)))], self.data.x[np.argmin(np.abs(z - np.quantile(z, 0.95)))]]
+
         #print(self.name, self.l_eff)
 
     def update(self, level):

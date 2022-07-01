@@ -1612,7 +1612,7 @@ class showLinesWidget(QWidget):
                     ('show_comps', int), ('comp_lw', float), ('comp_ls', str),
                     ('z_ref', float), ('sys_ind', int),
                     ('show_disp', int), ('disp_alpha', float), ('res_style', str),
-                    ('comp_colors', str),
+                    ('res_color', int), ('comp_colors', str),
                     ('font', int), ('labels_corr', int), ('xlabel', str), ('ylabel', str),
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
                     ('title', str), ('show_title', int), ('font_title', int), ('title_x_pos', float), ('title_y_pos', float),
@@ -1782,10 +1782,18 @@ class showLinesWidget(QWidget):
         self.resid.clicked[bool].connect(self.setResidual)
         grid.addWidget(self.resid, 12, 1)
 
+        self.rescolor = pg.ColorButton()
+        # self.fitcolor = QColorDialog()
+        self.rescolor.setFixedSize(30, 30)
+        self.rescolor.setColor(color=self.res_color.to_bytes(4, byteorder='big'))
+        self.rescolor.sigColorChanged.connect(partial(self.setColor, comp='res'))
+        self.rescolor.setStyleSheet(open('config/styles.ini').read())
+        grid.addWidget(self.rescolor, 12, 2)
+
         self.gray = QCheckBox('gray')
         self.gray.setChecked(self.gray_out)
         self.gray.clicked[bool].connect(self.setGray)
-        grid.addWidget(self.gray, 12, 2)
+        grid.addWidget(self.gray, 11, 4)
 
         self.showdisp = QCheckBox('show disp')
         self.showdisp.setChecked(self.show_disp)
@@ -1942,6 +1950,8 @@ class showLinesWidget(QWidget):
             self.fit_color = int.from_bytes(color.color(mode="byte"), byteorder='big')
         if comp == 'cf':
             self.cf_color = int.from_bytes(color.color(mode="byte"), byteorder='big')
+        if comp == 'res':
+            self.res_color = int.from_bytes(color.color(mode="byte"), byteorder='big')
 
     def setErr(self):
         self.show_err = int(self.showerr.isChecked())
@@ -2048,7 +2058,8 @@ class showLinesWidget(QWidget):
             self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw,
                                    ls=self.comp_ls, ls_total=self.fit_ls, color_total=self.fit_color.to_bytes(4, byteorder='big'),
                                    color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')],
-                                   disp_alpha=self.disp_alpha, res_style=self.res_style)
+                                   disp_alpha=self.disp_alpha, res_style=self.res_style, res_color=self.res_color.to_bytes(4, byteorder='big')
+                                   )
             if len(self.parent.fit.sys) > 0:
                 if self.buttons['z_ref'].text().strip() != '':
                     self.ps.z_ref = float(self.buttons['z_ref'].text())
@@ -3106,19 +3117,20 @@ class fitMCMCWidget(QWidget):
                     for ratio in ratios:
                         inds = [np.where([str(s) == 'N_{0:d}_{1:s}'.format(i, r) for s in pars])[0] for r in ratio]
                         print(inds)
-                        d = distr1d(samples[burnin:, :, inds[0]].flatten() - samples[burnin:, :, inds[1]].flatten())
-                        d.dopoint()
-                        d.dointerval()
-                        res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0], 'log')
-                        f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
-                        self.results.setText(self.results.toPlainText() + str('{0:s}_{1:s}_{2:d}'.format(ratio[0], ratio[1], i)) + ': ' + res.latex(f=f) + '\n')
-                        # vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
-                        vert, hor = k // n_hor, k % n_hor
-                        k += 1
-                        d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
-                        ax[vert, hor].yaxis.set_ticklabels([])
-                        ax[vert, hor].yaxis.set_ticks([])
-                        ax[vert, hor].text(.1, .9, str('{0:s}/{1:s} {2:d}'.format(ratio[0], ratio[1], i)), ha='left', va='top', transform=ax[vert, hor].transAxes)
+                        if len(inds[0]) > 0 and len(inds[1]) > 0:
+                            d = distr1d(samples[burnin:, :, inds[0]].flatten() - samples[burnin:, :, inds[1]].flatten())
+                            d.dopoint()
+                            d.dointerval()
+                            res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0], 'log')
+                            f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
+                            self.results.setText(self.results.toPlainText() + str('{0:s}_{1:s}_{2:d}'.format(ratio[0], ratio[1], i)) + ': ' + res.latex(f=f) + '\n')
+                            # vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
+                            vert, hor = k // n_hor, k % n_hor
+                            k += 1
+                            d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
+                            ax[vert, hor].yaxis.set_ticklabels([])
+                            ax[vert, hor].yaxis.set_ticks([])
+                            ax[vert, hor].text(.1, .9, str('{0:s}/{1:s} {2:d}'.format(ratio[0], ratio[1], i)), ha='left', va='top', transform=ax[vert, hor].transAxes)
         else:
             values = []
             for k in range(burnin, samples.shape[0]):
@@ -8606,24 +8618,25 @@ class sviewer(QMainWindow):
             inds = [ind for ind in argrelextrema(fit.y, np.less)[0] if fit.y[ind] < 0.95]
             #print(inds)
             indf = np.argwhere(np.abs(np.diff(fit.y < 0.98))).flatten()
-            k = 0
+            k, lines = 0, 0
             for ind in inds[:]:
                 xind = [ind + k * np.min(k * (indf - ind)[k * (indf - ind) > 0]) for k in [1, -1]]
                 xmin, xmax = np.min(xind), np.max(xind)
                 m = (res.x >= fit.x[xmin]) * (res.x <= fit.x[xmax])
                 #w = np.asarray([fit.y[np.argmin(np.abs(fit.x - x))] for x in res.x[m]])
                 x, y = res.x[m] - fit.x[ind], res.y[m]
-                #r = np.random.randn(len(x))
-                # r = gaussian_filter(r * 1.5, 0.7)
-                if plot:
-                    fig, ax = plt.subplots()
-                    ax.scatter(x, y)
-                    #ax.scatter(x, r, color='0.9')
-                    #ax.scatter(x, gaussian_filter(r, 0.7), color='0.5')
-                    #ax.scatter(x, np.convolve(r, [1, 1, 1], 'same'), color='0.5')
-                    ax.set_title("{:.2f}".format(fit.x[ind]))
+                if len(y) > 6:
+                    lines += 1
+                    #r = np.random.randn(len(x))
+                    # r = gaussian_filter(r * 1.5, 0.7)
+                    if plot:
+                        fig, ax = plt.subplots()
+                        ax.scatter(x, y)
+                        #ax.scatter(x, r, color='0.9')
+                        #ax.scatter(x, gaussian_filter(r, 0.7), color='0.5')
+                        #ax.scatter(x, np.convolve(r, [1, 1, 1], 'same'), color='0.5')
+                        ax.set_title("{:.2f}".format(fit.x[ind]))
 
-                if 1:
                     fft = np.fft.fft(y)
                     boot = []
                     for i in range(1000):
@@ -8639,7 +8652,7 @@ class sviewer(QMainWindow):
 
                     fft[:int(len(fft) * 4 / 5)] = 0
                     #fft[-2:] = 0
-                    fft[np.abs(fft) < np.quantile(boot, 0.95, axis=0)] = 0
+                    fft[np.abs(fft) < np.quantile(boot, 0.99, axis=0)] = 0
                     if np.sum(np.abs(fft)) > 0:
                         print(fit.x[ind], 'detected:', np.sum(np.abs(fft)))
                         k += 1
@@ -8647,7 +8660,8 @@ class sviewer(QMainWindow):
 
                     if plot:
                         ax.plot(x, np.fft.ifft(fft).real)
-            if k / len(inds) > 0.5:
+
+            if k / len(lines) > 0.5:
                 comps.append(ic)
                 print(f'anomaly detected in {ic} component')
 

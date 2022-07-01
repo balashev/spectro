@@ -78,6 +78,7 @@ class plot_spec(list):
         self.error_cap = error_cap
         self.gray_out = gray_out
         self.order = 'v'
+        self.color_res = "tomato"
 
         if isinstance(arg, int):
             for i in range(arg):
@@ -117,10 +118,10 @@ class plot_spec(list):
             panel_h = (r.height - r.h_indent - r.row_offset * (r.n_rows - 1)) / r.n_rows
             panel_w = (r.width - r.v_indent - r.col_offset * (r.n_cols - 1)) / r.n_cols
             for i in range(r.n_rows * r.n_cols):
-                if r.order is 'v':
+                if r.order == 'v':
                     col = i // r.n_rows
                     row = i % r.n_rows
-                if r.order is 'h':
+                if r.order == 'h':
                     col = i % r.n_cols
                     row = i // r.n_cols
                 rects.append(rectangle(left + (panel_w + r.col_offset) * col, top - (panel_h + r.row_offset) * row, panel_w, panel_h))
@@ -138,7 +139,7 @@ class plot_spec(list):
         self.comps = np.array(args)
                 
     def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, ls_total='solid',
-                       disp_alpha=0.7, res_style='scatter'):
+                       disp_alpha=0.7, res_style='scatter', res_color='tomato'):
 
         if color_total is not None:
             if np.max(list(color_total)) > 1:
@@ -180,6 +181,11 @@ class plot_spec(list):
         self.ls_total = ls_total
         self.disp_alpha = disp_alpha
         self.res_style = res_style
+        print(res_color)
+        if res_color is not None:
+            if np.max(list(res_color)) > 1:
+                res_color = tuple(c / 255 for c in res_color)
+            self.color_res = res_color
 
     def set_limits(self, x_min, x_max, y_min, y_max):
         for p in self:
@@ -538,7 +544,7 @@ class plotline():
                 v = (self.parent.comps[k] - self.parent.z_ref) * 299794.26 / (1 + self.parent.z_ref)
                 self.ax.plot([v, v], [self.y_min, self.y_max], color=self.parent.color[k], linestyle=':', lw=1.0) #self.parent.lw[k])
                 if self.parent.comp_names is not None:
-                    self.ax.text(v, null_res-1.5*delt_res, self.parent.comp_names[k], fontsize=self.font_labels-2,
+                    self.ax.text(v, null_res - 1.5 * delt_res, self.parent.comp_names[k], fontsize=self.font_labels - 2,
                     color=self.parent.color[k], backgroundcolor='w', clip_on=True, ha='center', va='top', zorder=21)
                 if 0 and 'HI' in self.name:
                     ax.plot([v-81.6, v-81.6], [self.y_min, self.y_max], color=self.parent.color[k], linestyle=':', lw=self.parent.lw[k])
@@ -694,7 +700,6 @@ class plotline():
             self.ax.plot(self.fit_disp[0].x, self.fit_disp[1].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=10)
 
     def plot_residuals(self):
-        color_res = (1, 0.6, 0.6)
         color_linres = 'lightseagreen'  # 'mediumpurple' #col.tableau20[5]
         null_res = self.y_max + (self.y_max - self.y_min) * 0.10
         delt_res = (self.y_max - self.y_min) * 0.08
@@ -709,39 +714,35 @@ class plotline():
                 color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
         self.ax.text(x_pos, null_res - delt_res, r'$-$' + str(self.sig) + '$\sigma$', fontsize=self.font - 2,
                 color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
-        # print(self.fit.x, self.fit.y)
-        try:
-            if sum(self.points) > 0:
-                k = (self.points != 1)
-                size = 10
-                if self.fit_disp is None:
-                    fit = interpolate.interp1d(self.fit.x, self.fit.y, bounds_error=False, fill_value=1)
-                    y = np.ma.masked_where(k, (
-                                (self.spec.y - fit(self.spec.x)) / self.spec.err) / self.sig * delt_res + null_res)
-                    if self.parent.res_style == 'scatter':
-                        self.ax.scatter(self.spec.x, y, color=color_res, s=size)
-                    if self.parent.res_style == 'step':
-                        self.ax.step(self.spec.x, y, where='mid', color=color_res, ls=self.parent.ls_total,
-                                lw=self.parent.lw_total)
-                    # ax.step(self.spec.x[k], ((self.spec.y[k] - fit_0(self.spec.x[k])) / self.spec.err[k]) / self.sig * delt_res + null_res, lw=1, where='mid', color=color_res)
-                else:
-                    fit_0 = interpolate.interp1d(self.fit_disp[0].x, self.fit_disp[0].y, bounds_error=False,
-                                                 fill_value=1)
-                    fit_1 = interpolate.interp1d(self.fit_disp[0].x, self.fit_disp[1].y, bounds_error=False,
-                                                 fill_value=1)
-                    if self.parent.res_style == 'scatter':
-                        y = np.ma.masked_where(k, ((self.spec.y - (fit_0(self.spec.x) + fit_1(
-                            self.spec.x)) / 2) / self.spec.err) / self.sig * delt_res + null_res)
-                        self.ax.scatter(self.spec.x, y, color=color_res, s=size)
-                    elif self.parent.res_style == 'step':
-                        y0 = np.ma.masked_where(k, ((self.spec.y - fit_0(
-                            self.spec.x)) / self.spec.err) / self.sig * delt_res + null_res)
-                        y1 = np.ma.masked_where(k, ((self.spec.y - fit_1(
-                            self.spec.x)) / self.spec.err) / self.sig * delt_res + null_res)
-                        self.ax.fill_between(self.spec.x, y0, y1, step='mid', facecolor=color_res, ls=self.parent.ls_total,
-                                        lw=self.parent.lw_total, alpha=0.9, edgecolor=color_res)
-        except:
-            pass
+        if sum(self.points) > 0:
+            k = (self.points != 1)
+            size = 10
+            if self.fit_disp is None:
+                fit = interpolate.interp1d(self.fit.x, self.fit.y, bounds_error=False, fill_value=1)
+                y = np.ma.masked_where(k, (
+                            (self.spec.y - fit(self.spec.x)) / self.spec.err) / self.sig * delt_res + null_res)
+                if self.parent.res_style == 'scatter':
+                    self.ax.scatter(self.spec.x, y, color=self.parent.color_res, s=size)
+                if self.parent.res_style == 'step':
+                    self.ax.step(self.spec.x, y, where='mid', color=self.parent.color_res, ls=self.parent.ls_total,
+                            lw=self.parent.lw_total)
+                # ax.step(self.spec.x[k], ((self.spec.y[k] - fit_0(self.spec.x[k])) / self.spec.err[k]) / self.sig * delt_res + null_res, lw=1, where='mid', color=color_res)
+            else:
+                fit_0 = interpolate.interp1d(self.fit_disp[0].x, self.fit_disp[0].y, bounds_error=False,
+                                             fill_value=1)
+                fit_1 = interpolate.interp1d(self.fit_disp[0].x, self.fit_disp[1].y, bounds_error=False,
+                                             fill_value=1)
+                if self.parent.res_style == 'scatter':
+                    y = np.ma.masked_where(k, ((self.spec.y - (fit_0(self.spec.x) + fit_1(
+                        self.spec.x)) / 2) / self.spec.err) / self.sig * delt_res + null_res)
+                    self.ax.scatter(self.spec.x, y, color=self.parent.color_res, s=size)
+                elif self.parent.res_style == 'step':
+                    y0 = np.ma.masked_where(k, ((self.spec.y - fit_0(
+                        self.spec.x)) / self.spec.err) / self.sig * delt_res + null_res)
+                    y1 = np.ma.masked_where(k, ((self.spec.y - fit_1(
+                        self.spec.x)) / self.spec.err) / self.sig * delt_res + null_res)
+                    self.ax.fill_between(self.spec.x, y0, y1, step='mid', facecolor=self.parent.color_res, ls=self.parent.ls_total,
+                                    lw=self.parent.lw_total, alpha=0.9, edgecolor=self.parent.color_res)
 
 
     def correct_cont(self):
