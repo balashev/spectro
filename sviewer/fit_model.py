@@ -511,9 +511,10 @@ class fitModelWidget(QWidget):
             self.parent.fit.getValue(name, 'addinfo')
         elif 'region' in name:
             self.parent.fit.cont[int(name.split('_')[1])].exp = int(getattr(self, name + '_applied_exp').currentText().split('_')[1])
-            for i in range(self.parent.fit.cont[int(name.split('_')[1])].num):
-                info = self.parent.fit.getValue('cont_' + name.split('_')[1] + '_' + str(i), 'addinfo')
-                self.parent.fit.setValue('cont_' + name.split('_')[1] + '_' + str(i), info.split('_')[0] + '_' + sp1, 'addinfo')
+            self.parent.fit.cont[int(name.split('_')[1])].update()
+            #for i in range(self.parent.fit.cont[int(name.split('_')[1])].num):
+            #    info = self.parent.fit.getValue('cont_' + name.split('_')[1] + '_' + str(i), 'addinfo')
+            #    self.parent.fit.setValue('cont_' + name.split('_')[1] + '_' + str(i), info.split('_')[0] + '_' + sp1, 'addinfo')
         elif 'sts' in name:
             self.parent.fit.setValue(name, sp1, 'addinfo')
             self.parent.fit.setValue(sp1, 0, 'vary')

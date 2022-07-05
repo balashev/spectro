@@ -6436,19 +6436,19 @@ class sviewer(QMainWindow):
         
         # >>> create status bar
         self.statusBarWidget = QStatusBar()
+        splitter = QSplitter(Qt.Horizontal)
         self.setStatusBar(self.statusBarWidget)
         self.statusBar = QLabel()
-        self.statusBar.setFixedSize(1200, 30)
-        self.statusBarWidget.addWidget(self.statusBar)
+        splitter.addWidget(self.statusBar)
         self.componentBar = QLabel('')
-        self.componentBar.setFixedSize(150, 30)
-        self.statusBarWidget.addWidget(self.componentBar)
+        splitter.addWidget(self.componentBar)
         self.chiSquare = QLabel('')
-        self.chiSquare.setFixedSize(300, 30)
-        self.statusBarWidget.addWidget(self.chiSquare)
+        splitter.addWidget(self.chiSquare)
         self.MCMCprogress = QLabel('')
-        self.MCMCprogress.setFixedSize(500, 30)
-        self.statusBarWidget.addWidget(self.MCMCprogress)
+        splitter.addWidget(self.MCMCprogress)
+        splitter.setSizes([1500, 200, 300, 500])
+        splitter.setStyleSheet(open('config/styles.ini').read() + "QSplitter::handle:horizontal {height: 1px; background: rgb(49,49,49);}")
+        self.statusBarWidget.addWidget(splitter)
 
         self.statusBar.setText('Ready')
 
