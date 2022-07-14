@@ -424,7 +424,7 @@ class Console(QTextEdit):
                 self.parent.s.redraw()
 
         if args[0] == 'cont':
-            mask = np.ones_like(s.spec.raw.x, dtype=bool)
+            mask = np.ones_like(self.parent.s[self.parent.s.ind].spec.raw.x, dtype=bool)
             self.parent.s[self.parent.s.ind].set_spline([self.parent.s[self.parent.s.ind].spec.raw.x[mask][0], self.parent.s[self.parent.s.ind].spec.raw.x[mask][-1]], [float(args[1]), float(args[1])])
 
         elif args[0] == 'divide':
