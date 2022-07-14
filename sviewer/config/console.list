@@ -1,21 +1,21 @@
-show MgI
-HI
-HI
-show SII
-y 0 1
-high H2j5
-show H2 6
-H2j6
-show H2 7
-high H2j4
-high H2j5
-high H2j6
-high H2j5
-show SII
-show PII
-set cont 1
 set cont 1
 set cont 1.0
 cont 1.0
 cont 1.0 all
 show H2j7
+H2j3
+high H2j2
+high H2j0
+high H2j2
+stats
+set cont 1
+set cont 1 1
+set cont 0 1
+cont 1
+set cont 1
+set cont 1
+set cont 1
+set cont 1
+set cont 1
+set cont 1 region
+set cont 1

@@ -39,13 +39,13 @@ The list of avaliable commands:
     * **spline** or **cont**: rescale B-continuum.
 
 * **shift <arg> <float>**: shift spectrum by <float>, l = l + <float>. If <arg>=v than the shift is in velocity space, i.e. l = l * (1 + <float>/c).
-* **set <arg1> <arg2> <float>**: set flux/unc/cont (set by <arg1>) to be equal <float> value. <arg2> can be:
+* **set <arg1> <arg2> <float>**: set flux or uncertainties or continuum to be equal <float> value. <arg1> should be set **flux** or **unc** or **cont**. <arg2> can be:
+    
+    * **<not specified>**: apply for a whole range of the current exposure.
+    * **screen** or **window** or **view** or **disp**: apply only within window range of the current exposure.
+    * **region** or **regions** or **reg**: apply only for the regions.
 
-    * **all**: apply for a whole range.
-    * **screen** or **window** or **view** or **disp**: apply only within window range.
-    * **region** or **regions** or **reg**: apply only for a region.
-
-* **cont <float>**: set continuum to be <float>.
+* **cont <float>**: set continuum to be <float> for the whole range
 * **divide <spec1> <spec2>**: divide <spec1> on <spec2>.
 * **substract <spec1> <spec2>**: substract <spec2> from <spec1>.
 * **apply <arg>**: apply transormation of x-axis. <arg> can be:

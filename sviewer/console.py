@@ -388,10 +388,10 @@ class Console(QTextEdit):
 
             if len(np.where([isfloat(arg) for arg in args])[0]) == 1:
                 argind = np.where([isfloat(arg) for arg in args])[0][0]
-                print(argind, args[argind])
+                print(argind, float(args[argind]))
 
                 for ind, s in enumerate(self.parent.s):
-                    if (ind == self.parent.s.ind) or ('all' in args):
+                    if (ind == self.parent.s.ind) :
                         if any([x in args for x in ['region', 'regions', 'reg']]):
                             mask = np.ones_like(s.spec.raw.x)
                             for r in self.parent.plot.regions:
@@ -399,14 +399,12 @@ class Console(QTextEdit):
                                 if not self.parent.normview:
                                     mask *= (xmin > s.spec.raw.x) + (s.spec.raw.x > xmax)
                             mask = np.logical_not(mask)
-                        elif any([x in args for x in ['screen', 'window', 'disp', 'view']]):
+                        elif any([x in args for x in ['screen', 'window', 'disp', 'display', 'view']]):
                             mask = np.logical_and(s.spec.raw.x > self.parent.plot.vb.viewRange()[0][0],
                                                   s.spec.raw.x < self.parent.plot.vb.viewRange()[0][1])
                         else:
-                            mask = np.ones_like(s.spec.raw.x)
+                            mask = np.ones_like(s.spec.raw.x, dtype=bool)
 
-                        print(np.sum(mask), mask)
-                        print('err' in args, 'cont' in args)
                         if 'err' in args:
                             if len(s.spec.raw.err) == 0:
                                 self.parent.s[ind].spec.raw.err = np.ones_like(s.spec.raw.x) * float(args[argind])
@@ -426,6 +424,7 @@ class Console(QTextEdit):
                 self.parent.s.redraw()
 
         if args[0] == 'cont':
+            mask = np.ones_like(s.spec.raw.x, dtype=bool)
             self.parent.s[self.parent.s.ind].set_spline([self.parent.s[self.parent.s.ind].spec.raw.x[mask][0], self.parent.s[self.parent.s.ind].spec.raw.x[mask][-1]], [float(args[1]), float(args[1])])
 
         elif args[0] == 'divide':
