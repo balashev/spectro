@@ -1962,3 +1962,4 @@ class ErositaWidget(QWidget):
     def closeEvent(self, event):
         super(ErositaWidget, self).closeEvent(event)
         self.parent.ErositaWidget = None
+

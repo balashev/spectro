@@ -558,14 +558,16 @@ end
 
 function correct_continuum(conts, pars, x)
     c = ones(size(x))
-    for cont in conts
-         m = (x .> cont.left) .& (x .< cont.right)
-         cheb = ChebyshevT([pars[name].val for name in cont.c])
-         c[m] = cheb.((x[m] .- cont.left) .* 2 ./ (cont.right - cont.left) .- 1)
-         #if any([occursin("hcont", p.first) for p in pars])
-         #   c[m] *= (1 + parse(Float64, split(pars[cont.c[1]].addinfo, "_")[4]) * randn(1)[1] * pars["hcont"].val)
-         #   #println(parse(Float64, split(pars[cont.c[1]].addinfo, "_")[4]), " ", randn(1)[1], " ", pars["hcont"].val)
-         #end
+    if size(conts)[1] > 0
+        for cont in conts
+             m = (x .> cont.left) .& (x .< cont.right)
+             cheb = ChebyshevT([pars[name].val for name in cont.c])
+             c[m] = cheb.((x[m] .- cont.left) .* 2 ./ (cont.right - cont.left) .- 1)
+             #if any([occursin("hcont", p.first) for p in pars])
+             #   c[m] *= (1 + parse(Float64, split(pars[cont.c[1]].addinfo, "_")[4]) * randn(1)[1] * pars["hcont"].val)
+             #   #println(parse(Float64, split(pars[cont.c[1]].addinfo, "_")[4]), " ", randn(1)[1], " ", pars["hcont"].val)
+             #end
+        end
     end
     return c
 end

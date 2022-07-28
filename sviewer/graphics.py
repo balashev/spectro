@@ -692,17 +692,22 @@ class fitline():
         self.parent = parent
         self.line = specline(parent)
         self.disp = [specline(parent), specline(parent)]
+        self.disp_corr = [specline(parent), specline(parent)]
         self.g_disp = [None]*3
 
     def interpolate(self):
         self.line.current().interpolate()
         self.disp[0].current().interpolate()
         self.disp[1].current().interpolate()
+        self.disp_corr[0].current().interpolate()
+        self.disp_corr[1].current().interpolate()
 
     def normalize(self, *args, **kwargs):
         self.line.normalize(*args, **kwargs)
         self.disp[0].normalize(*args, **kwargs)
         self.disp[1].normalize(*args, **kwargs)
+        self.disp_corr[0].normalize(*args, **kwargs)
+        self.disp_corr[1].normalize(*args, **kwargs)
 
     def n(self):
         return self.line.n()
@@ -1267,7 +1272,7 @@ class Spectrum():
         self.rebin = None
         self.fit = fitline(self)
         self.fit_comp = []
-        self.cheb = specline(self)
+        self.cheb = fitline(self)
         self.res = gline()
         self.kde = gline()
         self.parent.plot.specname.setText(self.filename)
@@ -1599,16 +1604,25 @@ class Spectrum():
                 self.parent.vb.addItem(self.fit.g_disp[i])
             self.fit.g_disp[2] = pg.FillBetweenItem(self.fit.g_disp[0], self.fit.g_disp[1], brush=pg.mkBrush(tuple(list(self.fit_disp_pen.color().getRgb()[:3]) + [200])))
             self.parent.vb.addItem(self.fit.g_disp[2])
+            if self.parent.fit.cont_fit:
+                for i in [0, 1]:
+                    self.cheb.g_disp[i] = pg.PlotCurveItem(x=self.cheb.disp[i].norm.x, y=self.cheb.disp[i].norm.y, pen=self.cont_pen)
+                    self.parent.vb.addItem(self.cheb.g_disp[i])
+                self.cheb.g_disp[2] = pg.FillBetweenItem(self.cheb.g_disp[0], self.cheb.g_disp[1], brush=pg.mkBrush(tuple(list(self.cont_pen.color().getRgb()[:3]) + [200])))
+                self.parent.vb.addItem(self.cheb.g_disp[2])
             for k in range(len(self.fit_comp)):
                 for i in [0, 1]:
                     self.fit_comp[k].g_disp[i] = pg.PlotCurveItem(x=self.fit_comp[k].disp[i].norm.x, y=self.fit_comp[k].disp[i].norm.y, pen=pg.mkPen(tuple(list(self.g_fit_comp[k].opts['pen'].color().getRgb()[:3]) + [100])))
                     self.parent.vb.addItem(self.fit_comp[k].g_disp[i])
                 self.fit_comp[k].g_disp[2] = pg.FillBetweenItem(self.fit_comp[k].g_disp[0], self.fit_comp[k].g_disp[1], brush=pg.mkBrush(tuple(list(self.g_fit_comp[k].opts['pen'].color().getRgb()[:3]) + [50])))
                 self.parent.vb.addItem(self.fit_comp[k].g_disp[2])
+
         else:
             try:
                 for i in [0, 1, 2]:
                     self.parent.vb.removeItem(self.fit.g_disp[i])
+                    if self.parent.fit.cont_fit:
+                        self.parent.vb.removeItem(self.cheb.g_disp[i])
                     for k in range(len(self.fit_comp)):
                         self.parent.vb.removeItem(self.fit_comp[k].g_disp[i])
             except:
@@ -1664,10 +1678,10 @@ class Spectrum():
     def set_cheb(self, x=None, y=None):
         if self.active() and self.cont_mask is not None:
             if x is None and y is None:
-                self.cheb.norm.set_data(x=self.spec.raw.x[self.cont_mask], y=self.correctContinuum(self.spec.raw.x[self.cont_mask]))
-                self.cheb.normalize(norm=False, cont_mask=False)
+                self.cheb.line.norm.set_data(x=self.spec.raw.x[self.cont_mask], y=self.correctContinuum(self.spec.raw.x[self.cont_mask]))
+                self.cheb.line.normalize(norm=False, cont_mask=False)
             else:
-                self.cheb.set(x=x, y=y)
+                self.cheb.line.set(x=x, y=y)
             self.g_cheb.setData(x=self.cheb.x(), y=self.cheb.y())
 
     def set_res(self):

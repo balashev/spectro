@@ -2209,16 +2209,19 @@ class showLinesWidget(QWidget):
                 s = self.parent.s[ind]
 
                 if self.corr_cheb and self.parent.fit.cont_fit:
-                    cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
+                    if not self.show_disp:
+                        cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
+                    else:
+                        cheb = interp1d(s.cheb.disp[0].norm.x, (s.cheb.disp[0].norm.y + s.cheb.disp[1].norm.y) / 2, fill_value='extrapolate')
                 else:
                     cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1, bounds_error=False)
 
                 if s.fit.n() > 0:
-                    fit = np.array([s.fit.x(), s.fit.y()/cheb(s.fit.x())])
+                    fit = np.array([s.fit.x(), s.fit.y() / cheb(s.fit.x())])
                     if self.show_comps:
                         fit_comp = []
                         for c in s.fit_comp:
-                            fit_comp.append(np.array([c.x(), c.y()/cheb(c.x())]))
+                            fit_comp.append(np.array([c.x(), c.y() / cheb(c.x())]))
                     else:
                         fit_comp = None
                 else:
@@ -2226,14 +2229,20 @@ class showLinesWidget(QWidget):
                     fit_comp = None
 
                 if self.show_disp and len(s.fit.disp[0].norm.x) > 0:
-                    fit_disp = [[s.fit.disp[0].norm.x, s.fit.disp[0].norm.y], [s.fit.disp[1].norm.x, s.fit.disp[1].norm.y]]
                     fit_comp_disp = []
+                    fit_disp = [[s.fit.disp[0].norm.x, s.fit.disp[0].norm.y / cheb(s.fit.disp[0].norm.x)], [s.fit.disp[1].norm.x, s.fit.disp[1].norm.y / cheb(s.fit.disp[1].norm.x)]]
                     for comp in s.fit_comp:
-                        fit_comp_disp.append([[comp.disp[0].norm.x, comp.disp[0].norm.y], [comp.disp[1].norm.x, comp.disp[1].norm.y]])
+                        fit_comp_disp.append([[comp.disp[0].norm.x, comp.disp[0].norm.y / cheb(comp.disp[0].norm.x)], [comp.disp[1].norm.x, comp.disp[1].norm.y / cheb(comp.disp[1].norm.x)]])
+                    #else:
+                    #    fit_disp = [[s.fit.disp_corr[0].norm.x, s.fit.disp_corr[0].norm.y], [s.fit.disp_corr[1].norm.x, s.fit.disp_corr[1].norm.y]]
+                    #    for comp in s.fit_comp:
+                    #        fit_comp_disp.append([[comp.disp_corr[0].norm.x, comp.disp_corr[0].norm.y], [comp.disp_corr[1].norm.x, comp.disp_corr[1].norm.y]])
+
+
                 else:
                     fit_disp, fit_comp_disp = None, None
 
-                p.loaddata(d=np.array([s.spec.x(), s.spec.y()/cheb(s.spec.x()), s.spec.err()/cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp)
+                p.loaddata(d=np.array([s.spec.x(), s.spec.y() / cheb(s.spec.x()), s.spec.err() / cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp)
                 p.show_comps = self.show_comps
                 if self.show_labels:
                     p.name_pos = [self.name_x_pos, self.name_y_pos]
@@ -2270,8 +2279,16 @@ class showLinesWidget(QWidget):
                             p.showLineLabels(levels=levels, pos=self.pos_H2, kind='full', only_marks=self.only_marks)
                     
                 if self.show_cont:
-                    print(self.show_cont)
-                    p.ax.plot(s.cheb.x(), s.cheb.y(), '--k', lw=1)
+                    if not self.show_disp:
+                        p.ax.plot(s.cheb.x(), np.power(s.cheb.y(), 1 - self.corr_cheb), '--k', lw=1)
+                    else:
+                        if p.vel_scale:
+                            x = (s.cheb.disp[0].norm.x / p.wavelength / (1 + p.parent.z_ref) - 1) * 299794.26
+                        else:
+                            x = s.cheb.disp[0].norm.x
+                        p.ax.fill_between(x, s.cheb.disp[0].norm.y / cheb(x), s.cheb.disp[1].norm.y / cheb(x), fc='k', alpha=p.parent.disp_alpha, zorder=11)
+                        p.ax.plot(x, s.cheb.disp[0].norm.y / cheb(x), '--k', lw=1, zorder=10)
+                        p.ax.plot(x, s.cheb.disp[1].norm.y / cheb(x), '--k', lw=1, zorder=10)
                     if 0:
                         self.showContCorr(ax=ax)
 
@@ -3331,9 +3348,9 @@ class fitMCMCWidget(QWidget):
         if self.parent.fitType == 'julia':
             self.julia = julia.Julia()
             self.julia.include("MCMC.jl")
-            fit_disp, fit_comp_disp = self.parent.julia.fit_disp([f.x for f in fit], samples[burnin:, :, :], self.parent.julia_spec, self.parent.fit.list(),
-                                       self.parent.julia_add, sys=len(self.parent.fit.sys), tieds=self.parent.fit.tieds,
-                                       nthreads=int(self.parent.options('MCMC_threads')), nums=int(self.parent.options('MCMC_disp_num')))
+            fit_disp, fit_comp_disp, cheb_disp = self.parent.julia.fit_disp([f.x for f in fit], samples[burnin:, :, :], self.parent.julia_spec, self.parent.fit.list(),
+                                                 self.parent.julia_add, sys=len(self.parent.fit.sys), tieds=self.parent.fit.tieds,
+                                                 nthreads=int(self.parent.options('MCMC_threads')), nums=int(self.parent.options('MCMC_disp_num')))
 
         else:
             for i1, i2, k in zip(np.random.randint(burnin, high=samples.shape[0], size=num), np.random.randint(0, high=samples.shape[1], size=num), range(num)):
@@ -3351,26 +3368,42 @@ class fitMCMCWidget(QWidget):
                                 fit_comp_disp[i][k] = np.r_[fit_comp_disp[i][k], [s.fit_comp[k].line.norm.inter(fit[i].x)]]
 
         #print(np.asarray(fit_disp).shape)
+        #print(np.asarray(cheb_disp).shape)
         #print(np.asarray(fit_comp_disp).shape)
         #print('fit_comp_disp:', fit_comp_disp)
 
-        #print(fit_disp)
+        #print(fit_cheb)
 
         for i, s in enumerate(self.parent.s):
             if s.fit.line.norm.n > 0:
                 fit_disp[i] = np.sort(fit_disp[i], axis=0)
                 self.parent.s[i].fit.disp[0].set(x=fit[i].x, y=fit_disp[i][int((1-0.683)/2*num), :])
                 self.parent.s[i].fit.disp[1].set(x=fit[i].x, y=fit_disp[i][num-int((1-0.683)/2*num), :])
+                if self.parent.fit.cont_fit:
+                #    fit_disp[i] = np.sort(np.divide(fit_disp[i], cheb_disp[i]), axis=0)
+                #    self.parent.s[i].fit.disp_corr[0].set(x=fit[i].x, y=fit_disp[i][int((1 - 0.683) / 2 * num), :])
+                #    self.parent.s[i].fit.disp_corr[1].set(x=fit[i].x, y=fit_disp[i][num - int((1 - 0.683) / 2 * num), :])
+                    cheb_disp[i] = np.sort(cheb_disp[i], axis=0)
+                    self.parent.s[i].cheb.disp[0].set(x=fit[i].x, y=cheb_disp[i][int((1 - 0.683) / 2 * num), :])
+                    self.parent.s[i].cheb.disp[1].set(x=fit[i].x, y=cheb_disp[i][num - int((1 - 0.683) / 2 * num), :])
+
                 for k, sys in enumerate(self.parent.fit.sys):
                     if len(fit_comp_disp[i][k][0]) > 0:
-                        #print(i, k, fit_comp[i][k][0], fit_comp[i][k][-1])
                         fit_comp_disp[i][k] = np.sort(np.asarray(fit_comp_disp[i][k]), axis=0)
-                        #print(fit_comp_disp[i][k].shape)
                         self.parent.s[i].fit_comp[k].disp[0].set(x=fit[i].x, y=fit_comp_disp[i][k][int((1 - 0.683) / 2 * num), :])
                         self.parent.s[i].fit_comp[k].disp[1].set(x=fit[i].x, y=fit_comp_disp[i][k][num - int((1 - 0.683) / 2 * num), :])
                     else:
                         self.parent.s[i].fit_comp[k].disp[0].set(x=self.parent.s[i].fit.disp[0].norm.x, y=self.parent.s[i].fit.disp[0].norm.y)
                         self.parent.s[i].fit_comp[k].disp[1].set(x=self.parent.s[i].fit.disp[1].norm.x, y=self.parent.s[i].fit.disp[1].norm.y)
+                    #if self.parent.fit.cont_fit:
+                    #    if len(fit_comp_disp[i][k][0]) > 0:
+                    #        fit_comp_disp[i][k] = np.sort(np.divide(np.asarray(fit_comp_disp[i][k]), cheb_disp[i]), axis=0)
+                    #        self.parent.s[i].fit_comp[k].disp_corr[0].set(x=fit[i].x, y=fit_comp_disp[i][k][int((1 - 0.683) / 2 * num), :])
+                    #        self.parent.s[i].fit_comp[k].disp_corr[1].set(x=fit[i].x, y=fit_comp_disp[i][k][num - int((1 - 0.683) / 2 * num), :])
+                    #    else:
+                    #        self.parent.s[i].fit_comp[k].disp_corr[0].set(x=self.parent.s[i].fit.disp_corr[0].norm.x, y=self.parent.s[i].fit.disp_corr[0].norm.y)
+                    #        self.parent.s[i].fit_comp[k].disp_corr[1].set(x=self.parent.s[i].fit.disp_corr[1].norm.x, y=self.parent.s[i].fit.disp_corr[1].norm.y)
+
         print("disp done")
 
     def set_fit_disp_num(self):

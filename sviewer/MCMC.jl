@@ -445,7 +445,8 @@ function sampleHMC(llhood::Function, x0::Array, nsteps::Integer)
 	return samples
 end
 
-@everywhere spectrum_comp(spectrum, s, x, comp) = p->spectrum(p, s, x, comp=comp)
+@everywhere spectrum_comp(spectrum, s, x; comp=0) = p->spectrum(p, s, x, comp=comp)
+@everywhere spectrum_cheb(spectrum, s, x) = p->spectrum(p, s, x, cheb=1)
 
 function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nthreads=1)
 	"""
@@ -453,9 +454,9 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nt
 	"""
 	pars = make_pars(ppar, tieds=tieds)
 	inds = hcat(rand(1:size(samples, 1), nums), rand(1:size(samples, 2), nums))
-	pp = map(x->samples[x[1], x[2], :], eachrow(inds))
+	pp = map(i->samples[i[1], i[2], :], eachrow(inds))
 
-    function spectrum(p, s, x; comp=0)
+    function spectrum(p, s, x; comp=0, cheb=0)
         i = 1
         for (k, v) in pars
             if v.vary == 1
@@ -466,7 +467,11 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nt
 
         update_pars(pars, spec, add)
 
-        w, f = calc_spectrum(s, pars, comp=comp)
+        if cheb == 0
+            w, f = calc_spectrum(s, pars, comp=comp)
+        else
+            w, f = x, correct_continuum(s.cont, pars, x)
+        end
         if size(f)[1] > 2
             return LinearInterpolation(w, f, extrapolation_bc=Flat())(x)
         else
@@ -487,19 +492,21 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nt
 	end
 
     fit = Any[]
+    cheb = Any[]
     for (i, s) in enumerate(spec)
-        push!(fit, pmap(spectrum_comp(spectrum, s, x[i], 0), pp))
+        push!(fit, pmap(spectrum_comp(spectrum, s, x[i], comp=0), pp))
+        push!(cheb, pmap(spectrum_cheb(spectrum, s, x[i]), pp))
     end
 
     fit_comps = Any[]
     for (i, s) in enumerate(spec)
         push!(fit_comps, Any[])
         for k in 1:sys
-            push!(fit_comps[i], reduce(vcat, transpose.(pmap(spectrum_comp(spectrum, s, x[i], k), pp))))
+            push!(fit_comps[i], reduce(vcat, transpose.(pmap(spectrum_comp(spectrum, s, x[i], comp=k), pp))))
         end
     end
 
     rmprocs(workers())
 
-    return fit, fit_comps
+    return fit, fit_comps, cheb
 end

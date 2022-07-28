@@ -1,11 +1,7 @@
 import matplotlib.cm as cm
 from matplotlib.colors import ListedColormap, LogNorm
 import matplotlib.pyplot as plt
-from matplotlib.transforms import Affine2D
-import mpl_toolkits.axisartist.floating_axes as floating_axes
 import numpy as np
-#from pyqtgraph.Qt import QtGui
-import pyqtgraph.opengl as gl
 from scipy import interpolate, integrate, optimize
 from scipy.stats import gaussian_kde, rv_continuous, norm
 
@@ -66,7 +62,7 @@ class distr1d():
         ax.plot(x, self.inter(x), '-', color=color, lw=1.5)
         if conf is not None:
             self.dointerval(conf=conf, kind=kind)
-            print('interval plot', self.interval)
+            #print('interval plot', self.interval)
             mask = np.logical_and(x >= self.interval[0], x <= self.interval[1])
             ax.fill_between(x[mask], self.inter(x)[mask], facecolor=color, alpha=alpha, interpolate=True)
 
@@ -115,7 +111,7 @@ class distr1d():
         elif kind == 'left':
             return integrate.quad(self.inter, self.x[0], x, epsrel=epsrel)[0] - conf
 
-    def dopoint(self, verbose=True):
+    def dopoint(self, verbose=False):
         """
         Point estimate of distribution
         :return:
@@ -152,6 +148,7 @@ class distr1d():
                 self.interval = [self.x[0], res[0]]
 
         if self.debug or verbose:
+            print('interval:', self.interval[0], self.interval[1])
             print('interval:', self.interval[0], self.interval[1])
         return self.interval, res[0]
 
@@ -329,6 +326,9 @@ class distr2d():
         return self.interval[0], self.interval[1], res[0]
 
     def plot_3d(self, conf_levels=None):
+        from pyqtgraph.Qt import QtGui
+        import pyqtgraph.opengl as gl
+
         app = QtGui.QApplication([])
         w = gl.GLViewWidget()
         w.show()
@@ -435,8 +435,6 @@ class distr2d():
                      font=font, title=title, zorder=zorder)
 
         x, y = ax.get_xlim(), ax.get_ylim()
-        #helper = floating_axes.GridHelperCurveLinear(Affine2D().rotate_deg(-90), extremes=(0, 4, 0, 4))
-        #ax = floating_axes.FloatingSubplot(fig, [1 - frac, indent, frac, 1 - indent - frac], grid_helper=helper)
 
         dy = self.marginalize('x')
         ax1 = fig.add_axes([1 - frac, indent, frac, 1 - indent - frac])
