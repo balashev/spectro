@@ -1,5 +1,21 @@
-cont 1
-cont 1
-cont 1
-show HD
+high H2j3
+show CI
+show CO
+hide H2
+show CIIj1
 show SiII
+high SiII
+show SiII
+SiII
+show FeIIj1
+show FeIIj2
+show FeIIj3
+show SII
+show H2 0 1
+show SiIIj1
+show H2j6
+show H2j4
+show H2j5
+show H2j6
+x 3000 5000
+logN H2

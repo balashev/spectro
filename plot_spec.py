@@ -844,7 +844,10 @@ class plotline():
                      for i in s]
         texts = []
         dpos = dpos / (len(bands) + 1) * (ymax - ymin)
+        print(bands)
+
         for i, b in enumerate(bands):
+
             band, levs = b[0], b[3]
             ls = '--' if b[2] != bands[0][2] else '-'
             if species == 'H2':

@@ -149,6 +149,8 @@ class a:
         
         if 't' in kwargs.keys():
             self.type = kwargs['t']
+        if 'type' in kwargs.keys():
+            self.type = kwargs['type']
 
         if any(x in args for x in ['d', 'dec']):
             self.repr = 'dec'
@@ -191,7 +193,7 @@ class a:
                 f        : format - number of numbers after floating point
                 base     : base for dec values                
         """
-        if np.isfinite(self.plus) and np.isfinite(self.minus):
+        if np.isfinite(self.plus) and np.isfinite(self.minus) and self.type == 'm':
             if self.repr == 'log':
                 #print(self.val, self.plus, self.minus, f)
                 s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.val, self.plus, self.minus, n=f)
@@ -203,9 +205,10 @@ class a:
                 else:
                     s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}} \\times 10^{{{b}}}".format(self.val/10**base, self.plus/10**base, self.minus/10**base, b=base, n=f)
         else:
-            if not np.isfinite(self.plus) and np.isfinite(self.minus):
+            print(self.type)
+            if (not np.isfinite(self.plus) and np.isfinite(self.minus)) or self.type == 'l':
                 pre, val = '>', self.val - self.minus
-            else:
+            elif (np.isfinite(self.plus) and not np.isfinite(self.minus)) or self.type == 'u':
                 pre, val = '<', self.val + self.plus
             if self.repr == 'log':
                 #print(self.val, self.plus, self.minus, f)
@@ -534,8 +537,9 @@ if __name__ == '__main__':
 
     #print(a(2,4,4, 'd').log())
 
-    if 1:
+    if 0:
         x = a("$11.37\pm0.03", 'l')
+
         x = a(13.78, 0.30, 0.30, 'l')
         y = a("$14.90\pm0.15", 'l')
         y = a(13.85, 0.20, 0.20, 'l')
@@ -548,6 +552,8 @@ if __name__ == '__main__':
         plt.show()
         print(z.log())
         print(z.dec())
+    if 1:
+        x = a(10, t='u')
     if 0:
         x = a("1.06^{+0.44}_{-0.10}")
         print(x.dec())
