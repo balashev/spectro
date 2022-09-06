@@ -5422,7 +5422,8 @@ class ExportDataWidget(QWidget):
             np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x[cont_mask] / unit, s.cont.y[cont_mask] * np.power(cheb(s.cont.x[cont_mask]), 1 - 2 * self.parent.normview)], **kwargs)
         if self.fit.isChecked():
             np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x()[fit_mask] / unit, s.fit.y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview)], **kwargs)
-
+            if len(s.fit.disp[0].norm.x > 0):
+                np.savetxt('_fit_disp.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.disp[0].norm.x[fit_mask] / unit, s.fit.disp[0].norm.y[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview), s.fit.disp[1].norm.y[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview)], **kwargs)
         #if self.fit.isChecked():
         #    np.savetxt('_fit_regions.'.join(self.filename.rsplit('.', 1)), np.c_[s.spec.x()[np.logical_and(mask, fit_mask)] / unit, (s.spec.y() / cheb(s.spec.x()))[np.logical_and(mask, fit_mask)]], **kwargs)
         if self.fit_comps.isChecked():
@@ -5432,7 +5433,12 @@ class ExportDataWidget(QWidget):
                 else:
                     fit_mask = np.ones_like(c.x(), dtype=bool)
                 np.savetxt(f'_fit_comps_{i}.'.join(self.filename.rsplit('.', 1)), np.c_[c.x()[fit_mask] / unit, c.y()[fit_mask] / cheb(c.x()[fit_mask])], **kwargs)
-
+                if len(c.disp[0].norm.x > 0):
+                    if self.range == 'window':
+                        fit_mask = (c.disp[0].norm.x > self.parent.plot.vb.getState()['viewRange'][0][0]) * (c.disp[0].norm.x < self.parent.plot.vb.getState()['viewRange'][0][-1])
+                    else:
+                        fit_mask = np.ones_like(c.disp[0].norm.x, dtype=bool)
+                    np.savetxt(f'_fit_comps_{i}_disp.'.join(self.filename.rsplit('.', 1)), np.c_[c.disp[0].norm.x[fit_mask] / unit, c.disp[0].norm.y[fit_mask] * np.power(cheb(c.disp[0].norm.x[fit_mask]), -self.parent.normview), c.disp[1].norm.y[fit_mask] * np.power(cheb(c.disp[0].norm.x[fit_mask]), -self.parent.normview)], **kwargs)
             #print([[len(c.x()), len(c.y())] for c in s.fit_comp])
             #print([c.y()[fit_mask] / cheb(s.fit.x()[fit_mask]) for c in s.fit_comp])
             #np.savetxt('_fit_comps.'.join(self.filename.rsplit('.', 1)), np.column_stack([s.fit.x()[fit_mask] / unit] + [c.y()[fit_mask] / cheb(s.fit.x()[fit_mask]) for c in s.fit_comp]), **kwargs)
