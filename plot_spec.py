@@ -8,6 +8,7 @@ from matplotlib import patches
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
 from mendeleev import element
 import numpy as np
+import os
 from pathlib import Path
 from scipy import interpolate
 import sys
@@ -142,8 +143,9 @@ class plot_spec(list):
                        disp_alpha=0.7, res_style='scatter', res_color=None):
 
         if color_total is not None:
-            if np.max(list(color_total)) > 1:
-                color_total = tuple(c / 255 for c in color_total)
+            if not isinstance(color_total, str):
+                if np.max(list(color_total)) > 1:
+                    color_total = tuple(c / 255 for c in color_total)
             self.color_total = color_total
 
         num = len(self.comps+1)
@@ -159,8 +161,9 @@ class plot_spec(list):
                     color[i] = color_add[i]
         else:
             for i, c in enumerate(color):
-                if np.max(list(c)) > 1:
-                    color[i] = tuple(ci / 255 for ci in c)
+                if not isinstance(c, str):
+                    if np.max(list(c)) > 1:
+                        color[i] = tuple(ci / 255 for ci in c)
         self.color = color[:]
 
         #d = {'solid': '-', 'dashed': '--', 'dotted': ':', 'dashdot': '-:'}
@@ -181,10 +184,10 @@ class plot_spec(list):
         self.ls_total = ls_total
         self.disp_alpha = disp_alpha
         self.res_style = res_style
-        print(res_color)
         if res_color is not None:
-            if np.max(list(res_color)) > 1:
-                res_color = tuple(c / 255 for c in res_color)
+            if not isinstance(res_color, str):
+                if np.max(list(res_color)) > 1:
+                    res_color = tuple(c / 255 for c in res_color)
             self.color_res = res_color
 
     def set_limits(self, x_min, x_max, y_min, y_max):
@@ -292,8 +295,9 @@ class plot_spec(list):
             p.y_locator = MultipleLocator(y_tick)
 
 class data():
-    def __init__(self):
-        pass
+    def __init__(self, x=None, y=None):
+        self.x = x
+        self.y = y
 
     def mask(self, xmin, xmax):
         imin = max(0, bisect_left(self.x, xmin)-1)
@@ -364,13 +368,31 @@ class plotline():
         self.show_comps = self.parent.show_comps
         self.sig = 2
 
-    def loaddata(self, d=None, f=None, fit_comp=None, fit_disp=None, fit_comp_disp=None, verbose=False):
+    def loaddata(self, d=None, f=None, fit_comp=None, fit_disp=None, fit_comp_disp=None, filename=None, verbose=False):
+
+        if filename is not None:
+            self.filename = [filename]
 
         if self.filename is not None:
             print('filename:', self.filename)
+            dir = os.path.dirname(self.filename[0])
             d = np.genfromtxt(self.filename[0], skip_header=2, unpack=True)
             if Path(self.filename[0].replace('.dat', '_fit.dat')).exists():
                 f = np.genfromtxt(self.filename[0].replace('.dat', '_fit.dat'), skip_header=2, unpack=True)
+            if Path(self.filename[0].replace('.dat', '_fit_disp.dat')).exists():
+                fit_disp = np.genfromtxt(self.filename[0].replace('.dat', '_fit_disp.dat'), skip_header=2, unpack=True)
+
+            fit_comp, fit_comp_disp, comp_index, comp_disp_index = [], [], [], []
+            for file in os.listdir(os.fsencode(dir)):
+                filename = os.fsdecode(file)
+                if 'fit_comps_' in filename and '_disp' not in filename:
+                    fit_comp.append(np.genfromtxt(dir + '/' + filename, skip_header=2, unpack=True))
+                    comp_index.append(int(filename.partition('fit_comps_')[-1].replace('.dat', '')))
+                if 'fit_comps_' in filename and '_disp' in filename:
+                    fit_comp_disp.append(np.genfromtxt(dir + '/' + filename, skip_header=2, unpack=True))
+                    comp_disp_index.append(int(filename.partition('fit_comps_')[-1].replace('_disp.dat', '')))
+            fit_comp = [fit_comp[comp_index[i]] for i in np.argsort(comp_index)]
+            fit_comp_disp = [fit_comp_disp[comp_index[i]] for i in np.argsort(comp_index)]
 
         if d is not None:
             self.spec = data()
@@ -388,26 +410,19 @@ class plotline():
         if fit_comp is not None:
             self.fit_comp = []
             for c in fit_comp:
-                fit = data()
-                fit.x, fit.y = c[0], c[1]
+                fit = data(x=c[0], y=c[1])
                 self.fit_comp.append(fit)
             self.num_comp = len(self.fit_comp)
 
         if fit_disp is not None:
-            self.fit_disp = [data(), data()]
-            for i, d in enumerate(fit_disp):
-                self.fit_disp[i].x = d[0]
-                self.fit_disp[i].y = d[1]
+            self.fit_disp = [data(x=fit_disp[0], y=fit_disp[1]), data(x=fit_disp[0], y=fit_disp[2])]
         else:
             self.fit_disp = None
 
         if fit_comp_disp is not None:
-            self.fit_comp_disp = ['']*len(fit_comp_disp)
+            self.fit_comp_disp = [''] * len(fit_comp_disp)
             for k in range(len(fit_comp_disp)):
-                self.fit_comp_disp[k] = [data(), data()]
-                for i, d in enumerate(fit_comp_disp[k]):
-                    self.fit_comp_disp[k][i].x = d[0]
-                    self.fit_comp_disp[k][i].y = d[1]
+                self.fit_comp_disp[k] = [data(x=fit_comp_disp[k][0], y=fit_comp_disp[k][1]), data(x=fit_comp_disp[k][0], y=fit_comp_disp[k][2])]
         else:
             self.fit_comp_disp = None
 
@@ -415,7 +430,6 @@ class plotline():
             self.fit = None
             self.show_fit = False
             self.num_comp = 0
-
 
         if verbose:
             print(self.spec.x, self.spec.y)

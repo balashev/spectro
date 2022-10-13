@@ -11,6 +11,8 @@ class distr1d():
 
     Example of usage:
     d = distr1d(x, y), where x and y array specified distribution
+    or
+    d = distr1d(x), where x is a sample, for which the kde will be constructed
 
     Make point estimate:
     d.dopoint()
@@ -82,11 +84,11 @@ class distr1d():
         if level > 0 and level < self.ymax:
             if 1:
                 try:
-                    self.xmin = optimize.bisect(self.level, self.x[0], self.x[ind], args=(level))
+                    self.xmin = optimize.bisect(self.level, self.x[0], self.x[ind], args=(level), xtol=(self.x[ind] - self.x[0]) / 1e6, rtol=1e-15)
                 except ValueError:
                     self.xmin = self.x[0]
                 try:
-                    self.xmax = optimize.bisect(self.level, self.x[ind], self.x[-1], args=(level))
+                    self.xmax = optimize.bisect(self.level, self.x[ind], self.x[-1], args=(level), xtol=(self.x[-1] - self.x[ind]) / 1e6, rtol=1e-15)
                 except ValueError:
                     self.xmax = self.x[-1]
             else:
@@ -137,8 +139,7 @@ class distr1d():
         nd = norm()
         self.dopoint(verbose=False)
         if kind == 'center':
-            n = self.ymax / (nd.pdf(0) / (nd.pdf(nd.interval(conf)[0]) / 2))
-            res = optimize.fsolve(self.func_twoside, n, args=(conf), xtol=self.xtol, full_output=self.debug)
+            res = optimize.fsolve(self.func_twoside, self.ymax / (nd.pdf(0) / (nd.pdf(nd.interval(conf)[0]) / 2)), args=(conf), xtol=self.xtol, full_output=self.debug)
             self.interval = self.minmax(res[0])
         else:
             res = optimize.fsolve(self.func_oneside, self.point, args=(conf, kind), xtol=self.xtol, full_output=self.debug)
@@ -153,14 +154,18 @@ class distr1d():
         return self.interval, res[0]
 
 
-    def stats(self, conf=0.683, kind='center', latex=0, name=None):
+    def stats(self, conf=0.683, kind='center', latex=0, dec=0, name=None):
         if name is not None:
             self.name = name
         self.dopoint(verbose=(latex < 0))
         self.dointerval(conf=conf, kind=kind, verbose=(latex < 0))
         if latex >= 0:
             #print("{name} = {0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.point, self.interval[1] - self.point, self.point - self.interval[0], n=latex, name=self.name))
-            return "{name} = {0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.point, self.interval[1] - self.point, self.point - self.interval[0], n=latex, name=self.name)
+            res = "{name} = ${0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}$".format(self.point / 10 ** dec, (self.interval[1] - self.point ) / 10 ** dec, (self.point - self.interval[0]) / 10 ** dec, n=latex, name=self.name)
+            if dec != 0:
+                res = res[:res.index('$')+1] + '(' + res[res.index('$')+1:-1] + r')\times 10^{{{:2d}}}$'.format(dec)
+
+            return res
 
     def pdf(self, x):
         return self.inter(x)
@@ -533,7 +538,7 @@ def powerlaw(a, b, g, size=1):
 
 if __name__ == '__main__':
 
-    if 1:
+    if 0:
         x = np.linspace(1, 10, 40)
         y = np.linspace(0, 3, 40)
         x, y = np.meshgrid(x, y)
@@ -544,4 +549,13 @@ if __name__ == '__main__':
         d.plot(frac=0.15)
         d1 = d.marginalize('x')
         d1.stats(latex=3)
+        plt.show()
+
+    if 1:
+        x = np.random.lognormal(sigma=0.6, size=10000)
+        d = distr1d(x * 1e-20)
+        d.dointerval(conf=0.683)
+        print(d.interval)
+        print(d.stats(latex=2, dec=-20))
+        d.plot(conf=0.683)
         plt.show()

@@ -2899,7 +2899,7 @@ class CompositeSpectrum():
 
     def setData(self):
         if self.type == 'QSO':
-            self.qso_names = ['X-shooter', 'SDSS', 'HST', 'power']
+            self.qso_names = ['X-shooter', 'SDSS', 'HST', 'power', 'power+FeII']
             if self.parent.compositeQSO_status == 1:
                 self.spec = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
                 self.spec = self.spec[:, np.logical_or(self.spec[1] != 0, self.spec[1] != 0)]
@@ -2921,6 +2921,17 @@ class CompositeSpectrum():
                 self.spec = np.ones((2, 1000))
                 self.spec[0] = np.linspace(500, 25000, self.spec.shape[1])
                 self.spec[1] = np.power(self.spec[0] / 2500, -1.9)
+            elif self.parent.compositeQSO_status == 9:
+                self.spec = np.ones((2, 25000))
+                self.spec[0] = np.linspace(500, 25000, self.spec.shape[1])
+                self.spec[1] = np.power(self.spec[0] / 2500, -1.7)
+                if 0:
+                    fe_opt = np.genfromtxt("data/Models/fe_optical.txt", comments='#', unpack=True)
+                    fe_opt = interp1d(10 ** fe_opt[0], convolveflux(10 ** fe_opt[0], fe_opt[1] * 5e13, res=100, vel=False, kind='gauss'), bounds_error=False, fill_value=0)
+                    fe_uv = np.genfromtxt("data/Models/fe_uv.txt", comments='#', unpack=True)
+                    fe_uv = interp1d(10 ** fe_uv[0], convolveflux(10 ** fe_uv[0], fe_uv[1] * 5e13, res=100, vel=False, kind='gauss'), bounds_error=False, fill_value=0)
+                    print(self.spec[0][2000], self.spec[1][2000], fe_uv(self.spec[0][2000]), fe_opt(self.spec[0][2000]))
+                    self.spec[1] += fe_uv(self.spec[0]) + fe_opt(self.spec[0])
             self.parent.statusBar.setText(f'QSO template {self.qso_names[self.parent.compositeQSO_status // 2]} is loaded' )
         elif self.type == 'Galaxy':
             #print('gal_status: ', self.parent.compositeGal_status)
@@ -2956,7 +2967,7 @@ class CompositeSpectrum():
     def remove(self):
         if self.type == 'QSO':
             self.parent.compositeQSO_status += 1
-            if self.parent.compositeQSO_status == 8:
+            if self.parent.compositeQSO_status == 10:
                 self.parent.compositeQSO_status = 0
         if self.type == 'Galaxy':
             self.parent.compositeGal_status += 1

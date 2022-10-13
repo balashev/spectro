@@ -1156,6 +1156,27 @@ class atomicData(OrderedDict):
         else:
             return linelist
 
+    def HI_list(self, lines=True):
+        linelist = ['HI 1215',
+                    'HI 1025',
+                    'HI 972',
+                    'HI 949',
+                    'HI 937',
+                    'HI 930',
+                    'HI 926',
+                    'HI 923',
+                    'HI 920',
+                    #'HI 919',
+                    #'HI 918',
+                    #'HI 917',
+                    #'HI 916',
+                    #'HI 915',
+                  ]
+        if lines:
+            return self.list(linelist=linelist)
+        else:
+            return linelist
+
     def EmissionSF_list(self, lines=True):
         linelist = ['HI 6564',
                     'HI 4862',

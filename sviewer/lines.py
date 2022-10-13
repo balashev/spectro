@@ -486,6 +486,9 @@ class Doublet():
         if lines is None and self.name in self.doublet.keys():
             self.regular = True
             self.l = self.doublet[self.name]
+        elif self.name == 'Ly':
+            self.regular = True
+            self.l = [l.l() for l in HIlist.HIset(n=10)]
         else:
             self.regular = False
             if lines is None:

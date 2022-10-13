@@ -320,8 +320,10 @@ class Filter():
         x = np.exp(np.linspace(np.log(self.x[0]), np.log(self.x[-1]), num))
         if 'W' in self.name:
             self.weight = 1
+        elif self.name in ['FUV', 'NUV']:
+            self.weight = 20
         else:
-            self.weight = 1 #np.sqrt(np.sum(self.filter.inter(x)) / np.max(self.filter.data.y))
+            self.weight = 5 #np.sqrt(np.sum(self.filter.inter(x)) / np.max(self.filter.data.y))
         #self.weight = 1
         #print('weight:', self.name, self.weight)
 
@@ -406,6 +408,9 @@ class sed_template():
             elif self.name in ['torus']:
                 self.x, self.y = np.genfromtxt(self.parent.path + r'/data/SDSS/torus.dat', unpack=True)
                 self.x, self.y = ac.c.cgs.value / 10 ** self.x[::-1] * 1e8, self.y[::-1]
+
+            elif self.name == 'Fe':
+                self.x, self.y = np.genfromtxt(self.parent.path + r'/data/Models/Fe.dat', unpack=True)
         else:
             self.x, self.y = x, y
 
@@ -469,6 +474,10 @@ class sed():
                         self.models.append(sed_template(self, 'gal', x=l.value, y=SED[k, i, :].value * 1e5))
             self.n_tau = self.tau.shape[0]
             self.n_tg = self.tg.shape[0]
+
+        elif self.name == 'Fe':
+            self.models.append(sed_template(self, 'Fe'))
+            self.values = [0]
 
         self.n = len(self.values)
         if self.n > 1:
@@ -553,14 +562,13 @@ class QSOSEDfit():
             self.sm = [np.asarray(self.spec[0][self.mask], dtype=np.float64), self.spec[1][self.mask], self.spec[2][self.mask]]
 
             self.models = {}
-            for name in ['bbb', 'tor', 'host', 'gal']:
+            for name in ['bbb', 'tor', 'host', 'gal', 'Fe']:
                 self.models[name] = sed(name=name, xmin=self.wavemin, xmax=self.wavemax, z=self.df.loc[ind, 'z'])
                 self.models[name].set_data('spec', self.sm[0])
                 for k, f in self.filters.items():
                     if self.filters[k].fit:
                         self.models[name].set_data(k, f.x)
                 self.models[name].set_data('spec_full', self.spec[0])
-
             return True
 
     def set_filters(self, ind, names=None):
@@ -678,7 +686,8 @@ class QSOSEDfit():
         Returns: extinction
         """
         Rv = 2.71 if 'Rv' not in params.keys() else params.valuesdict()['Rv']
-        c3 = 0.389 if 'c3' not in params.keys() else params.valuesdict()['c3']
+        #c3 = 0.389 if 'c3' not in params.keys() else params.valuesdict()['c3']
+        c3 = 0.389 if 'c3' not in params.keys() else params.valuesdict()['Abump'] * 2 * 0.922 / params.valuesdict()['EBV'] / np.pi
         #s = time.time()
         #self.extinction_Pervot(wave, params, z_ext=z_ext)
         #print('t_Pervot:', time.time() - s)
@@ -686,7 +695,7 @@ class QSOSEDfit():
         #10 ** (-0.4 * self.ext_fm07(wave * (1 + z_ext), Av=params.valuesdict()['Av'], Rv=Rv, c1=-4.959, c2=2.264, c3=0.389, c4=0.319, c5=6.097, x0=4.592, gamma=0.922))
         #print('t_FM07:', time.time() - s)
         #return self.extinction_Pervot(wave, params, z_ext=z_ext)
-        return 10 ** (-0.4 * self.ext_fm07(wave * (1 + z_ext), Av=params.valuesdict()['Av'], Rv=Rv, c1=-4.959, c2=2.264, c3=c3, c4=0.319, c5=6.097, x0=4.592, gamma=0.922))
+        return 10 ** (-0.4 * self.ext_fm07(wave * (1 + z_ext), Av=params.valuesdict()['EBV'] * Rv, Rv=Rv, c1=-4.959, c2=2.264, c3=c3, c4=0.319, c5=6.097, x0=4.592, gamma=0.922))
 
     def loadSDSS(self, plate, fiber, mjd, Av_gal=np.nan):
         filename = os.path.dirname(self.catalog) + '/spectra/spec-{0:04d}-{2:05d}-{1:04d}.fits'.format(int(plate), int(fiber), int(mjd))
@@ -723,11 +732,16 @@ class QSOSEDfit():
             alpha *= (x / (1 + self.d['z']) / 2500) ** params['bbb_slope'].value
         model = np.zeros_like(self.models['bbb'].data[dtype][0])
         if mtype in ['total', 'bbb']:
-            model = self.models['bbb'].data[dtype][0] * alpha * params['bbb_norm'].value * self.extinction(x / (1 + self.d['z']), params)
+            model += self.models['bbb'].data[dtype][0] * alpha * params['bbb_norm'].value
+        if mtype in ['total', 'Fe']:
+            model += self.models['Fe'].data[dtype][0] * params['Fe_norm'].value
+        if mtype in ['total', 'bbb', 'Fe']:
+            model *= self.extinction(x / (1 + self.d['z']), params)
         if mtype in ['total', 'tor'] and params['tor_type'].value > -1:
             model += self.models['tor'].data[dtype][self.models['tor'].get_model_ind(params)] * params['tor_norm'].value
         if mtype in ['total', 'gal'] and params['host_tau'].value > -1 and params['host_tg'].value > -1:
             model += self.models['gal'].data[dtype][self.models['gal'].get_model_ind(params)] * params['host_norm'].value * self.extinction_MW(x / (1 + self.d['z']), Av=params['host_Av'].value)
+
         #if params.valuesdict()['host_type'] > -1:
         #    model += self.models['host'].data[kind][params.valuesdict()['host_type']] * params.valuesdict()['host_norm'] * self.extinction(x / (1 + d['z']), Av=params.valuesdict()['host_Av'])
         return model
@@ -815,7 +829,7 @@ class QSOSEDfit():
             if p.value <= p.min or p.value >= p.max:
                 return -np.inf
             if p.name == 'bbb_slope':
-                prior -= .5 * ((p.value - 0) / 0.05) ** 2
+                prior -= .5 * ((p.value - 0) / 0.3) ** 2
             if p.name == 'host_tau':
                 prior -= (p.value - p.min) ** 2
             if p.name == 'host_tg':
@@ -823,9 +837,11 @@ class QSOSEDfit():
             if p.name == 'host_Av':
                 prior -= (p.value - p.min) ** 2
             if p.name == 'Rv':
-                prior -= .5 * ((p.value - 2.71) / 0.2) ** 2
+                prior -= .5 * ((p.value - 2.71) / 1.0) ** 2
             if 'alpha' in p.name:
                 prior -= .5 * (p.value / params['sigma'].value) ** 2 + np.log(params['sigma'].value)
+            if 'slope' in p.name:
+                prior -= .5 * (p.value / 0.3) ** 2
             if p.name == 'sigma':
                 prior -= .5 * ((p.value - 0.2) / 0.05) ** 2
 
@@ -864,7 +880,7 @@ class QSOSEDfit():
             params = lmfit.Parameters()
             params.add('bbb_norm', value=norm_bbb, min=0, max=1e10)
             params.add('bbb_slope', value=0, min=-2, max=2)
-            params.add('Av', value=0.0, min=0.0, max=10)
+            params.add('EBV', value=0.0, min=0.0, max=10)
             params.add('tor_type', value=10, vary=True, min=0, max=self.models['tor'].n - 1)
             params.add('tor_norm', value=norm_bbb / np.max(self.models['bbb'].data['spec'][0]) * np.max(self.models['tor'].data['spec'][params.valuesdict()['tor_type']]), min=0, max=1e10)
             params.add('host_tau', value=0.3, vary=True, min=self.models['gal'].tau[0].value, max=3)
@@ -877,14 +893,14 @@ class QSOSEDfit():
             params['host_norm'].value = params['bbb_norm'].value / 1000
 
         #print(self.extinction(2500, Av=params['Av'].value), np.log(self.extinction(1000, Av=params['Av'].value) / self.extinction(2500, Av=params['Av'].value)) / np.log(0.4))
-        if params['Av'].value < 0:
+        if params['EBV'].value < 0:
             params['bbb_norm'].value *= self.extinction(2500, params)
             params['bbb_slope'].value = np.log(self.extinction(1000, params) / self.extinction(2500, params)) / np.log(0.4)
-        params['Av'].value = 0.02
-        params['Av'].min = 0
+            params['EBV'].value = 0.01
+
 
         cov_range = {'bbb_norm': [params['bbb_norm'].value / 30, params['bbb_norm'].value / 2], 'bbb_slope': [0.1, 0.1],
-                     'Av': [0.01, 0.3], 'Rv': [0.2, 0.2], # 'c3': [0.05, 0.3],
+                     'EBV': [0.01, 0.3], 'Rv': [0.2, 0.2], # 'c3': [0.05, 0.3],
                      'tor_type': [1, 5], 'tor_norm': [params['tor_norm'].value / 30, params['tor_norm'].value / 2],
                      'host_tau': [0.05, 0.5], 'host_tg': [0.1, 1],
                      'host_norm': [params['host_norm'].value / 30, params['host_norm'].value / 2], 'host_Av': [0.01, 0.3]
@@ -901,9 +917,13 @@ class QSOSEDfit():
                 if params[k].vary == True:
                     cov[k] = max([cov_range[k][0], min([cov_range[k][1], params[k].stderr])])
 
-        if 'c3' in params.keys():
-            params['c3'].vary = True
-            cov['c3'] = 0.2
+        if 'Fe_norm' in params.keys():
+            params['Fe_norm'].vary = True
+            cov['Fe_norm'] = 0.2 #cov['bbb_norm'] / 3
+
+        if 'Abump' in params.keys():
+            params['Abump'].vary = True
+            cov['Abump'] = 0.2
 
         #print(cov)
         #params.add('host_L', value=0, min=0, max=100, vary=False)
@@ -952,16 +972,18 @@ class QSOSEDfit():
         else:
             self.params = params
             if method == 'emcee':
-                sampler = emcee.EnsembleSampler(nwalkers, ndims, self.fcn2min_mcmc)
+                sampler = emcee.EnsembleSampler(nwalkers, ndims, self.fcn2min_mcmc, moves=[(emcee.moves.DESnookerMove(), 0.5), (emcee.moves.StretchMove(), 0.5)])
 
-                # We'll track how the average autocorrelation time estimate changes
-                autocorr = np.empty(self.mcmc_steps)
+                subiters = 3
+                for i in range(subiters):
+                    # We'll track how the average autocorrelation time estimate changes
+                    autocorr = np.empty(self.mcmc_steps)
 
-                # This will be useful to testing convergence
-                index, old_tau = 0, np.inf
-                
-                try:
-                    for sm in sampler.sample(pos, iterations=self.mcmc_steps, progress=(self.verbose == 1)):
+                    # This will be useful to testing convergence
+                    index, old_tau = 0, np.inf
+
+                    iterations = self.mcmc_steps // 10 if i < subiters - 1 else self.mcmc_steps
+                    for sm in sampler.sample(pos, iterations=iterations, progress=(self.verbose == 1)):
                         # Only check convergence every <n> steps
                         if sampler.iteration % self.corr:
                             continue
@@ -982,11 +1004,23 @@ class QSOSEDfit():
                             break
                         old_tau = tau
 
-                    thinning = int(0.5 * np.nanmax([2, np.nanmin(sampler.get_autocorr_time(tol=0))]))
-                    flat_sample = sampler.get_chain(discard=sampler.iteration // 2, thin=thinning, flat=True)
-                    ln_max = -np.max(sampler.get_log_prob(discard=sampler.iteration // 2, thin=thinning, flat=True))
-                except:
-                    print("Problem with ", self.ind, self.d['SDSS_NAME'])
+                    if i < subiters - 1:
+                        lnL = sampler.get_last_sample().log_prob
+                        pos = sampler.get_last_sample().coords
+                        inds = np.argwhere(lnL < np.median(lnL) + 1.0 * (np.median(lnL) - np.max(lnL)))
+                        print(np.median(lnL) + 1.0 * (np.median(lnL) - np.max(lnL)), inds)
+                        if len(inds) > 0:
+                            mask = np.ones(lnL.shape, dtype=np.bool)
+                            mask[inds] = False
+                            mpos = np.median(pos[mask], axis=0)
+                            for ind in inds[0]:
+                                pos[ind, :] = mpos + (mpos - pos[mask, :][np.random.randint(np.sum(mask))]) / (1.5 + 0.5 * np.random.random())
+
+                thinning = int(0.5 * np.nanmax([2, np.nanmin(sampler.get_autocorr_time(tol=0))]))
+                flat_sample = sampler.get_chain(discard=sampler.iteration // 2, thin=thinning, flat=True)
+                ln_max = -np.max(sampler.get_log_prob(discard=sampler.iteration // 2, thin=thinning, flat=True))
+                #except:
+                #    print("Problem with ", self.ind, self.d['SDSS_NAME'])
 
             elif method == 'zeus':
                 sampler = zeus.EnsembleSampler(nwalkers, ndims, self.fcn2min_mcmc)
@@ -1052,7 +1086,7 @@ class QSOSEDfit():
             # >>> statistical determination:
             print("calc stats for ", self.ind)
             if stat:
-                k = int(len(pars)) + 2 #samples.shape[1]
+                k = int(len(pars)) + 4 #samples.shape[1]
                 n_hor = int(k ** 0.5)
                 n_hor = np.max([n_hor, 2])
                 n_vert = k // n_hor + 1 if k % n_hor > 0 else k // n_hor
@@ -1061,48 +1095,54 @@ class QSOSEDfit():
                 fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
                 k = 0
                 res = {}
-                for i, p in enumerate(pars + ['M_UV', 'L_host', 'EBV']):
-                    if p not in ['M_UV', 'L_host', 'EBV']:
+                for i, p in enumerate(pars + ['M_UV', 'L_host', 'Av', 'L_UV_corr']):
+                    if p not in ['M_UV', 'L_host', 'Av', 'L_UV_corr']:
                         d = distr1d(flat_sample[:, i].flatten())
                     else:
                         s = []
-                        for l in np.random.randint(flat_sample.shape[1], size=2000):
+                        for l in range(flat_sample.shape[0]):
                             for j, p1 in enumerate(params.keys()):
                                 params[p1].value = flat_sample[l, j]
                             if p == 'L_host':
                                 s.append(np.log10(self.calc_host_lum(params, wave='bol')))
                             elif p == 'M_UV':
                                 s.append(-2.5 * np.log10(self.calc_host_lum(params, wave=1700) * 9.64e-13) + 51.6)
-                            elif p == 'EBV':
-                                s.append(params['Av'].value / params['Rv'].value)
-                        d = distr1d(np.asarray(s)[np.isfinite(s)])
-                    d.dopoint()
-                    d.dointerval()
-                    res[p] = a(d.point, d.interval[1] - d.point, d.point - d.interval[0])
-                    f = np.asarray([res[p].plus, res[p].minus])
-                    f = int(np.round(np.abs(np.log10(np.min(f[np.nonzero(f)])))) + 1)
-                    #print(d.interval[0], x[1], d.interval[1], x[-2])
-                    d.dointerval(conf=0.95)
-                    if p not in ['lnL', 'M_UV', 'L_host', 'EBV']:
-                        if d.interval[0] <= (d.x[1] + params[p].min) / 2 and d.interval[1] < (d.x[-2] + params[p].max) / 2:
-                            res[p] = a(d.interval[1], t='u')
-                        elif d.interval[1] >= (d.x[-2] + params[p].max) / 2 and d.interval[0] > (d.x[1] + params[p].min) / 2:
-                            res[p] = a(d.interval[0], t='l')
-                    else:
-                        if d.interval[0] <= d.x[2] and d.interval[1] < d.x[-3]:
-                            res[p] = a(d.interval[1], t='u')
-                        elif d.interval[1] >= d.x[-3] and d.interval[0] > d.x[2]:
-                            res[p] = a(d.interval[0], t='l')
+                            elif p == 'Av':
+                                s.append(params['EBV'].value * params['Rv'].value)
+                            elif p == 'L_UV_corr':
+                                s.append(np.log10((self.d['L_UV'] + np.random.randn() * self.d['L_UV_err']) / self.extinction(2500, params)))
+                        if np.sum(np.isfinite(s)) > 0:
+                            d = distr1d(np.asarray(s)[np.isfinite(s)])
+                        else:
+                            d = None
+                    if d is not None:
+                        d.dopoint()
+                        d.dointerval()
+                        res[p] = a(d.point, d.interval[1] - d.point, d.point - d.interval[0])
+                        f = np.asarray([res[p].plus, res[p].minus])
+                        f = int(np.round(np.abs(np.log10(np.min(f[np.nonzero(f)])))) + 1)
+                        #print(d.interval[0], x[1], d.interval[1], x[-2])
+                        d.dointerval(conf=0.95)
+                        if p not in ['lnL', 'M_UV', 'L_host', 'Av', 'L_UV_corr']:
+                            if d.interval[0] <= (d.x[1] + params[p].min) / 2 and d.interval[1] < (d.x[-2] + params[p].max) / 2:
+                                res[p] = a(d.interval[1], t='u')
+                            elif d.interval[1] >= (d.x[-2] + params[p].max) / 2 and d.interval[0] > (d.x[1] + params[p].min) / 2:
+                                res[p] = a(d.interval[0], t='l')
+                        else:
+                            if d.interval[0] <= d.x[2] and d.interval[1] < d.x[-3]:
+                                res[p] = a(d.interval[1], t='u')
+                            elif d.interval[1] >= d.x[-3] and d.interval[0] > d.x[2]:
+                                res[p] = a(d.interval[0], t='l')
 
-                    #print(p, res[p].latex(f=f))
-                    vert, hor = k // n_hor, k % n_hor
-                    k += 1
-                    d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
-                    ax[vert, hor].yaxis.set_ticklabels([])
-                    ax[vert, hor].yaxis.set_ticks([])
-                    ax[vert, hor].text(.05, .9, str(p).replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
-                    ax[vert, hor].text(.95, .9, res[p].latex(f=f), ha='right', va='top', transform=ax[vert, hor].transAxes)
-                    #ax[vert, hor].set_title(pars[i].replace('_', ' '))
+                        #print(p, res[p].latex(f=f))
+                        vert, hor = k // n_hor, k % n_hor
+                        k += 1
+                        d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
+                        ax[vert, hor].yaxis.set_ticklabels([])
+                        ax[vert, hor].yaxis.set_ticks([])
+                        ax[vert, hor].text(.05, .9, str(p).replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
+                        ax[vert, hor].text(.95, .9, res[p].latex(f=f), ha='right', va='top', transform=ax[vert, hor].transAxes)
+                        #ax[vert, hor].set_title(pars[i].replace('_', ' '))
 
                 if self.save:
                     fig.savefig(os.path.dirname(self.catalog) + '/QC/plots/' + self.d['SDSS_NAME'] + '_post.png', bbox_inches='tight', pad_inches=0.1)
@@ -1124,10 +1164,11 @@ class QSOSEDfit():
             params = lmfit.Parameters()
             params.add('bbb_norm', value=norm_bbb, min=0, max=1e10)
             params.add('bbb_slope', value=0, min=-2, max=2, vary=False)
-            params.add('Av', value=0.0, min=-10, max=10)
-            params.add('Rv', value=2.74, min=1.0, max=6.0, vary=False)
+            params.add('Fe_norm', value=0, min=-100, max=100, vary=False)
+            params.add('EBV', value=0.02, min=0.0, max=10)
+            params.add('Rv', value=2.74, min=0.5, max=6.0, vary=False)
             if self.d['z'] > 0.70:
-                params.add('c3', value=0.389, min=0.0, max=100.0, vary=False)
+                params.add('Abump', value=0.01, min=0.0, max=100.0, vary=False)
             params.add('tor_type', value=10, vary=False, min=0, max=self.models['tor'].n - 1)
             params.add('tor_norm', value=norm_bbb / np.max(self.models['bbb'].data['spec'][0]) * np.max(self.models['tor'].data['spec'][params.valuesdict()['tor_type']]), min=0, max=1e10)
             if 0:
@@ -1233,7 +1274,7 @@ class QSOSEDfit():
             # >>> plot results:
             if self.plot and res is not None:
                 print("plot spectrum of ", self.ind)
-                inds = np.random.randint(flat_sample.shape[1], size=100)
+                inds = np.random.randint(flat_sample.shape[0], size=200)
 
                 total, bbb, tor, host = [], [], [], []
                 s = {}
@@ -1271,7 +1312,7 @@ class QSOSEDfit():
 
                 self.fig.axes[0].fill_between(self.spec[0] / (1 + self.d['z']), *np.quantile(np.asarray(s['total']), [0.05, 0.95], axis=0), lw=1, color='tab:red', zorder=3, label='total', alpha=0.5)
 
-                title = "id={0:4d} {1:19s} ({2:5d} {3:5d} {4:4d}) z={5:5.3f} Av={6:4.2f} chi2={7:4.2f}".format(ind, self.df.loc[ind, 'SDSS_NAME'], self.df.loc[ind, 'PLATE'], self.df.loc[ind, 'MJD'], self.df.loc[ind, 'FIBERID'], self.df.loc[ind, 'z'], params['Av'].value, chi2_min)
+                title = "id={0:4d} {1:19s} ({2:5d} {3:5d} {4:4d}) z={5:5.3f} slope={6:4.2f} EBV={7:4.2f} chi2={8:4.2f}".format(ind, self.df.loc[ind, 'SDSS_NAME'], self.df.loc[ind, 'PLATE'], self.df.loc[ind, 'MJD'], self.df.loc[ind, 'FIBERID'], self.df.loc[ind, 'z'], params['bbb_slope'].value, params['EBV'].value, chi2_min)
                 if 0 and self.hostExt:
                     # title += " fgal={1:4.2f} {0:s}".format(self.models['host'].values[host_min], self.df['f_host' + '_photo' * self.addPhoto.isChecked()][i])
                     title += " fgal={2:4.2f} tau={0:4.2f} tg={1:4.2f}".format(self.models['gal'].values[host_min][0], self.models['gal'].values[host_min][1], self.df['f_host' + '_photo' * self.addPhoto][i])
@@ -1395,7 +1436,7 @@ class QSOSEDfit():
             # only strong ones
             windows = [[1295, 1320], [1330, 1360], [1375, 1430], [1500, 1600], [1625, 1700], [1740, 1760],
                        [1840, 1960], [2050, 2120], [2250, 2400], #[2250, 2650], #[2710, 2890],
-                       [2760, 2860], #[2940, 2990], [3280, 3330],
+                       [2630, 2930], #[2940, 2990], [3280, 3330],
                        [3820, 3920], #[4200, 4680],
                        [4920, 5080], #[4780, 5080],
                        [5130, 5400], [5500, 5620], [5780, 6020],
@@ -1466,7 +1507,7 @@ class jsoncat():
 def run_model(ind):
     print(ind)
 
-    qso = QSOSEDfit(catalog=path + '/match2_DR14Q_add.csv', plot=1, mcmc_steps=100, anneal_steps=30, save=1, corr=30, verbose=1)
+    qso = QSOSEDfit(catalog=path + '/match2_DR14Q_add.csv', plot=1, mcmc_steps=1000, anneal_steps=100, save=0, corr=30, verbose=1)
     if qso.prepare(ind):
         res = qso.fit(ind, method='emcee')
     else:
@@ -1487,7 +1528,7 @@ if __name__ == "__main__":
         i1, i2 = 1, 1
 
     if 1:
-        res = run_model(11)
+        res = run_model(1)
         print(res)
     else:
         #pars = ['bbb_norm', 'Av', 'tor_type', 'tor_norm', 'host_tau', 'host_tg', 'host_norm', 'host_Av', 'sigma', 'alpha_GALEX', 'alpha_SDSS', 'alpha_2MASS', 'alpha_UKIDSS']

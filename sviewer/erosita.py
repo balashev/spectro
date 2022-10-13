@@ -276,14 +276,14 @@ class ErositaWidget(QWidget):
             setattr(self, opt, func(self.parent.options(opt)))
 
         self.axis_list = ['z', 'F_X_int', 'F_X', 'DET_LIKE_0', 'F_UV', 'u-b', 'r-i', 'FIRST_FLUX', 'R', 'Av_gal',
-                          'L_X', 'L_UV', #'L_UV_corr', 'L_UV_corr_host_photo',
-                          'bbb_slope', 'Av_int', 'Rv', 'c3', 'EBV',
+                          'L_X', 'L_UV', 'L_UV_corr', #'L_UV_corr_host_photo',
+                          'bbb_slope', 'Av_int', 'Rv', 'Abump', 'EBV', 'FeII',
                           # 'Av_int_host', 'Av_int_photo', 'Av_int_host_photo',
                           #'chi2_av', 'chi2_av_host', 'chi2_av_photo', 'chi2_av_host_photo',
                           'Av_host', #'Av_host_photo',
                           'r_host', 'host_tg', 'host_tau', #'f_host', 'f_host_photo',
                           'L_host', #'L_host_photo',
-                          'SDSS_photo_scale', 'SDSS_photo_slope', 'SDSS_var', 'alpha_SDSS', 'slope_SDSS']
+                          'SDSS_photo_scale', 'SDSS_photo_slope', 'SDSS_var', 'alpha_SDSS', 'slope_SDSS', 'lnL']
         self.axis_info = {'z': [lambda x: x, 'z'],
                           'F_X_int': [lambda x: np.log10(x), 'log (F X int, erg/s/cm2)'],
                           'F_X': [lambda x: np.log10(x), 'log (F X, erg/s/cm2/Hz)'],
@@ -291,7 +291,7 @@ class ErositaWidget(QWidget):
                           'F_UV': [lambda x: np.log10(x), 'log (F UV, erg/s/cm2/Hz)'],
                           'L_X': [lambda x: np.log10(x), 'log (L X, erg/s/Hz)'],
                           'L_UV': [lambda x: np.log10(x), 'log (L UV, erg/s/Hz)'],
-                          'L_UV_corr': [lambda x: np.log10(x), 'log (L UV corrected, erg/s/Hz)'],
+                          'L_UV_corr': [lambda x: x, 'log (L UV corrected, erg/s/Hz)'],
                           'L_UV_corr_host_photo': [lambda x: np.log10(x), 'log (L UV corrected, erg/s/Hz) with host and photometry'],
                           'u-b': [lambda x: x, 'u - b'],
                           'r-i': [lambda x: x, 'r - i'],
@@ -299,13 +299,15 @@ class ErositaWidget(QWidget):
                           'R': [lambda x: np.log10(x), 'log R'],
                           'Av_gal': [lambda x: x, 'Av (galactic)'],
                           'bbb_slope': [lambda x: x, 'Slope correction (for big blue bump)'],
+                          'FeII': [lambda x: x, 'Strength of the FeII template, a.u.'],
                           'Av_int': [lambda x: x, 'Av (intrinsic)'],
                           'Rv': [lambda x: x, 'Rv (intrinsic)'],
-                          'c3': [lambda x: np.log10(x), '2175 bump strength'],
+                          'Abump': [lambda x: np.log10(x), '2175 bump strength'],
                           'EBV': [lambda x: x, 'E(B-V) (intrinsic)'],
                           'Av_int_host': [lambda x: x, 'Av (intrinsic) with host'],
                           'Av_int_photo': [lambda x: x, 'Av (intrinsic) with photometry'],
                           'Av_int_host_photo': [lambda x: x, 'Av (intrinsic) with host and photometry'],
+                          'lnL': [lambda x: x, 'lnL ~ fit quality'],
                           'chi2_av': [lambda x: np.log10(x), 'log chi^2 extinction fit'],
                           'chi2_av_host': [lambda x: np.log10(x), 'log chi^2 extinction fit with host'],
                           'chi2_av_photo': [lambda x: np.log10(x), 'log chi^2 extinction fit with photometry'],
@@ -866,20 +868,21 @@ class ErositaWidget(QWidget):
             self.df.loc[mask, name] = 4 * np.pi * dl[mask] ** 2 * self.df[name.replace('L', 'F')][mask] #/ (1 + self.df['z'][mask])
             self.df.loc[mask, name + '_err'] = 4 * np.pi * dl[mask] ** 2 * self.df[name.replace('L', 'F') + '_err'][mask]
 
-        for attr in ['']: # ['', '_host_photo']:
-            if 'Av_int' + attr in self.df.columns:
-                if 'L_UV_corr' not in self.df.columns:
-                    self.df.insert(len(self.df.columns), 'L_UV_corr', np.nan)
-                    self.df.insert(len(self.df.columns), 'L_UV_corr_err', np.nan)
-                self.df['L_UV_corr'] = np.nan
+        if 0:
+            for attr in ['']: # ['', '_host_photo']:
+                if 'Av_int' + attr in self.df.columns:
+                    if 'L_UV_corr' not in self.df.columns:
+                        self.df.insert(len(self.df.columns), 'L_UV_corr', np.nan)
+                        self.df.insert(len(self.df.columns), 'L_UV_corr_err', np.nan)
+                    self.df['L_UV_corr'] = np.nan
 
-                for i, d in self.df.iterrows():
-                    if mask[i] and np.isfinite(d['Av_int' + attr]):
-                        #print(i, dl[i].value)
-                        #print(self.df.loc[i, 'L_UV_corr' + attr])
-                        self.df.loc[i, 'L_UV_corr' + attr] = 4 * np.pi * dl[i].value ** 2 * d[name.replace('L', 'F')] / (1 + d['z']) / self.extinction(float(self.lambdaUV.text()), Av=d['Av_int' + attr])
-                    else:
-                        print(i)
+                    for i, d in self.df.iterrows():
+                        if mask[i] and np.isfinite(d['Av_int' + attr]):
+                            #print(i, dl[i].value)
+                            #print(self.df.loc[i, 'L_UV_corr' + attr])
+                            self.df.loc[i, 'L_UV_corr' + attr] = 4 * np.pi * dl[i].value ** 2 * d[name.replace('L', 'F')] / (1 + d['z']) / self.extinction(float(self.lambdaUV.text()), Av=d['Av_int' + attr])
+                        else:
+                            print(i)
 
         self.save_data()
         self.updateData()
@@ -909,7 +912,7 @@ class ErositaWidget(QWidget):
                 for f in self.filters.values():
                     if f.value != 0:
                         x.append(np.log10(f.filter.l_eff))
-                        data.append(f.value - f.filter.get_value(x=spec[0], y=spec[1], err=spec[2], mask=np.logical_not(spec[3])))
+                        data.append(f.filter.get_value(x=spec[0], y=spec[1], err=spec[2], mask=np.logical_not(spec[3])) - f.value)
                         err.append(f.err)
                         if ind is not None:
                             ax.errorbar(np.log10(f.filter.l_eff), f.value, yerr=f.err)

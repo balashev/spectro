@@ -1,21 +1,21 @@
-high H2j3
-show CI
-show CO
-hide H2
-show CIIj1
-show SiII
-high SiII
-show SiII
-SiII
-show FeIIj1
-show FeIIj2
-show FeIIj3
-show SII
+show FeIIj5
+show FeIIj9
+show FeIIj10
+HeI*
+high FeIIj9
+high FeIIj10
+high FeIIj5
+high FeIIj6
+high FeIIj7
+show FeIIj6
+show FeIIj7
+show CII*
+high FeIIj9
+high FeIIj11
+show FeIIj11
+show FeIIj12
+show FeIIj9
+FeIIj9
 show H2 0 1
-show SiIIj1
-show H2j6
-show H2j4
-show H2j5
-show H2j6
-x 3000 5000
-logN H2
+show NV
+show CI

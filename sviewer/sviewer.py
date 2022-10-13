@@ -507,11 +507,16 @@ class plotSpectrum(pg.PlotWidget):
         if event.isAccepted():
             super(plotSpectrum, self).keyReleaseEvent(event)
 
+    def mouseClickEvent(self, event):
+        if event.button() == Qt.RightButton and self.menuEnabled():
+            event.accept()
+            self.raiseContextMenu(event)
 
-    def mouseClickEvent(self, ev):
-        if ev.button() == Qt.RightButton and self.menuEnabled():
-            ev.accept()
-            self.raiseContextMenu(ev)
+    def mouseDoubleClickEvent(self, event):
+        super(plotSpectrum, self).mouseDoubleClickEvent(event)
+        if self.l_status:
+            self.doublets.append(Doublet(self, name='Ly', z=self.mousePoint.x() / 1215.6701 - 1))
+            self.doublets.update()
 
     def mousePressEvent(self, event):
         super(plotSpectrum, self).mousePressEvent(event)
@@ -2100,10 +2105,10 @@ class showLinesWidget(QWidget):
                     fit = None
                     fit_comp = None
                 if self.show_disp and len(s.fit.disp[0].norm.x) > 0:
-                    fit_disp = [[s.fit.disp[0].norm.x, s.fit.disp[0].norm.y], [s.fit.disp[1].norm.x, s.fit.disp[1].norm.y]]
+                    fit_disp = [[s.fit.disp[0].norm.x, s.fit.disp[0].norm.y, s.fit.disp[1].norm.y]]
                     fit_comp_disp = []
                     for comp in s.fit_comp:
-                        fit_comp_disp.append([[comp.disp[0].norm.x, comp.disp[0].norm.y], [comp.disp[1].norm.x, comp.disp[1].norm.y]])
+                        fit_comp_disp.append([[comp.disp[0].norm.x, comp.disp[0].norm.y, comp.disp[1].norm.y]])
                 else:
                     fit_disp, fit_comp_disp = None, None
 
@@ -2230,9 +2235,9 @@ class showLinesWidget(QWidget):
 
                 if self.show_disp and len(s.fit.disp[0].norm.x) > 0:
                     fit_comp_disp = []
-                    fit_disp = [[s.fit.disp[0].norm.x, s.fit.disp[0].norm.y / cheb(s.fit.disp[0].norm.x)], [s.fit.disp[1].norm.x, s.fit.disp[1].norm.y / cheb(s.fit.disp[1].norm.x)]]
+                    fit_disp = [[s.fit.disp[0].norm.x, s.fit.disp[0].norm.y / cheb(s.fit.disp[0].norm.x), s.fit.disp[1].norm.y / cheb(s.fit.disp[1].norm.x)]]
                     for comp in s.fit_comp:
-                        fit_comp_disp.append([[comp.disp[0].norm.x, comp.disp[0].norm.y / cheb(comp.disp[0].norm.x)], [comp.disp[1].norm.x, comp.disp[1].norm.y / cheb(comp.disp[1].norm.x)]])
+                        fit_comp_disp.append([[comp.disp[0].norm.x, comp.disp[0].norm.y / cheb(comp.disp[0].norm.x), comp.disp[1].norm.y / cheb(comp.disp[1].norm.x)]])
                     #else:
                     #    fit_disp = [[s.fit.disp_corr[0].norm.x, s.fit.disp_corr[0].norm.y], [s.fit.disp_corr[1].norm.x, s.fit.disp_corr[1].norm.y]]
                     #    for comp in s.fit_comp:
