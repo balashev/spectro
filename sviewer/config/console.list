@@ -1,8 +1,3 @@
-show FeIIj5
-show FeIIj9
-show FeIIj10
-HeI*
-high FeIIj9
 high FeIIj10
 high FeIIj5
 high FeIIj6
@@ -18,4 +13,9 @@ show FeIIj9
 FeIIj9
 show H2 0 1
 show NV
+show CI
+show H2j5
+show HDj0
+show H2j2
+x 4195 4202
 show CI

@@ -19,7 +19,8 @@ from functools import partial
 import os
 import pandas as pd
 import pickle
-from PyQt5.QtCore import Qt, QPoint
+from PyQt5.QtCore import Qt, QPoint, QUrl
+from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QMenu, QToolButton,
                              QLabel, QCheckBox, QFrame, QTextEdit, QSplitter, QComboBox, QAction, QSizePolicy)
 from scipy.interpolate import interp1d
@@ -262,7 +263,7 @@ class ErositaWidget(QWidget):
         self.loadTable(recalc=True)
         self.updateData()
         self.QSOSEDfit = QSOSEDfit(catalog=self.parent.ErositaFile, plot=self.plotExt.isChecked(),
-                                   save=self.saveFig.isChecked(), mcmc_steps=300, anneal_steps=100, corr=30, verbose=1)
+                                   save=self.saveFig.isChecked(), mcmc_steps=1000, anneal_steps=100, corr=30, verbose=1)
 
         self.show()
         #self.addSDSSQSO()
@@ -275,7 +276,7 @@ class ErositaWidget(QWidget):
             print(opt, self.parent.options(opt), func(self.parent.options(opt)))
             setattr(self, opt, func(self.parent.options(opt)))
 
-        self.axis_list = ['z', 'F_X_int', 'F_X', 'DET_LIKE_0', 'F_UV', 'u-b', 'r-i', 'FIRST_FLUX', 'R', 'Av_gal',
+        self.axis_list = ['z', 'DEC', 'RA', 'F_X_int', 'F_X', 'DET_LIKE_0', 'F_UV', 'u-b', 'r-i', 'FIRST_FLUX', 'R', 'Av_gal',
                           'L_X', 'L_UV', 'L_UV_corr', #'L_UV_corr_host_photo',
                           'bbb_slope', 'Av_int', 'Rv', 'Abump', 'EBV', 'FeII',
                           # 'Av_int_host', 'Av_int_photo', 'Av_int_host_photo',
@@ -283,8 +284,12 @@ class ErositaWidget(QWidget):
                           'Av_host', #'Av_host_photo',
                           'r_host', 'host_tg', 'host_tau', #'f_host', 'f_host_photo',
                           'L_host', #'L_host_photo',
-                          'SDSS_photo_scale', 'SDSS_photo_slope', 'SDSS_var', 'alpha_SDSS', 'slope_SDSS', 'lnL']
+                          'SDSS_photo_scale', 'SDSS_photo_slope', 'SDSS_var', 'alpha_SDSS', 'slope_SDSS', 'lnL',
+                          'F_OIII', 'FWHM_OIII',
+                          ]
         self.axis_info = {'z': [lambda x: x, 'z'],
+                          'DEC': [lambda x: x, 'DEC'],
+                          'RA': [lambda x: x, 'RA'],
                           'F_X_int': [lambda x: np.log10(x), 'log (F X int, erg/s/cm2)'],
                           'F_X': [lambda x: np.log10(x), 'log (F X, erg/s/cm2/Hz)'],
                           'DEL_LIKE_0': [lambda x: np.log10(x), 'log (X-ray detection lnL)'],
@@ -326,6 +331,8 @@ class ErositaWidget(QWidget):
                           'SDSS_var': [lambda x: np.log10(x), 'log Variability at 2500A from SDSS'],
                           'alpha_SDSS': [lambda x: x, 'Scale for SDSS photometry'],
                           'slope_SDSS': [lambda x: x, 'Slope for SDSS photometry'],
+                          'F_OIII': [lambda x: np.log10(x), 'log F(OIII), in 1e14 erg/s/cm^2'],
+                          'FWHM_OIII': [lambda x: x, 'FWHM OIII, km/s'],
                           }
         self.df = None
         self.ind = None
@@ -483,7 +490,7 @@ class ErositaWidget(QWidget):
 
         calcExt = QPushButton('Calc Ext:')
         calcExt.setFixedSize(80, 30)
-        calcExt.clicked.connect(partial(self.calc_ext, ind=None, gal=None))
+        calcExt.clicked.connect(self.calc_ext)
 
         self.method = QComboBox(self)
         self.method.addItems(['leastsq', 'least_squares', 'nelder', 'annealing', 'emcee'])
@@ -567,10 +574,15 @@ class ErositaWidget(QWidget):
         compPhoto.setFixedSize(120, 30)
         compPhoto.clicked.connect(partial(self.compare_photo, ind=None))
 
+        lineEmission = QPushButton('Line emission')
+        lineEmission.setFixedSize(120, 30)
+        lineEmission.clicked.connect(partial(self.calc_line_emission, ind=None))
+
         l.addWidget(QLabel('                   '))
         l.addWidget(self.addPhoto)
         l.addWidget(self.filters_used)
         l.addWidget(compPhoto)
+        l.addWidget(lineEmission)
         l.addStretch()
 
         layout.addLayout(l)
@@ -680,10 +692,10 @@ class ErositaWidget(QWidget):
 
     def index(self, x=None, y=None, name=None, ind=None, ext=True):
 
+        print(x, y)
         if ind is None:
             if x is not None and y is not None:
-                ind = np.argmin((x - self.x) ** 2 +
-                                (y - self.y) ** 2)
+                ind = np.argmin((x - self.x) ** 2 + (y - self.y) ** 2)
             elif name is not None:
                 ind = np.where(self.df['SDSS_NAME'] == name)[0][0]
 
@@ -701,6 +713,7 @@ class ErositaWidget(QWidget):
             self.set_filters(ind, clear=True)
             if x is None and self.plotExt.isChecked():
                 self.plot_sed(self.ind)
+                #self.calc_line_emission(ind=self.ind, line='OIII', plot=1)
                 #self.calc_ext(self.ind)
 
             #for k, f in self.filters.items():
@@ -957,7 +970,7 @@ class ErositaWidget(QWidget):
 
     def calc_host_luminosity(self, ind=None, norm=None):
         """
-        Calculate the lumonicity of the host galaxy
+        Calculate the luminosity of the host galaxy
         Args:
             ind: index of the QSO, if None, than run for all
 
@@ -970,6 +983,72 @@ class ErositaWidget(QWidget):
             if ((ind is None) or (ind is not None and i == int(ind))) and np.isfinite(d['z']):
                 self.df.loc[i, 'Av_host' + '_photo' * self.addPhoto.isChecked()]
 
+    def calc_line_emission(self, ind=None, line='OIII', plot=0):
+        """
+        Estimate the line flux emission in specified emission line
+        Args:
+            ind: index of the QSO, if None, than run for all
+            line: name of the line
+        Returns:
+        """
+        k = 0
+
+        name = 'F_{0:s}'.format(line)
+        if name not in self.df.columns:
+            self.df.insert(len(self.df.columns), name, np.nan)
+            self.df.insert(len(self.df.columns), name + '_err', np.nan)
+            self.df.insert(len(self.df.columns), name.replace('F', 'FWHM'), np.nan)
+            self.df.insert(len(self.df.columns), name.replace('F', 'FWHM') + '_err', np.nan)
+
+        if ind == None:
+            self.df[name], self.df[name + '_err'], self.df[name.replace('F', 'FWHM')], self.df[name.replace('F', 'FWHM') + '_err'] = np.nan, np.nan, np.nan, np.nan
+
+        l = 5008.23
+        for i, d in self.df.iterrows():
+            if (ind == None or i == ind) and np.isfinite(d['z']) and d['z'] < 10000 / l - 1:
+                print(i)
+                spec = self.loadSDSS(d['PLATE'], d['FIBERID'], d['MJD'], Av_gal=d['Av_gal'])
+                if spec is not None and d['z'] < (spec[0][-1] / l) * (1 - 2/300) - 1:
+                    mask = (spec[0] > l * (1 + d['z']) * (1 - 2.5/300)) * (spec[0] < l * (1 + d['z']) * (1 + 6/300)) * (spec[3] == 0)
+                    maskline = (spec[0] > l * (1 + d['z']) * (1 - 0.2/300)) * (spec[0] < l * (1 + d['z']) * (1 + 0.2/300)) * (spec[3] == 0)
+                    if np.sum(mask) > 10 and np.sum(maskline) > 4 and not np.isnan(np.mean(spec[1][mask])) and not np.mean(spec[2][mask]) == 0:
+                        x, y, err = spec[0][mask] / l / (1 + d['z']) - 1, spec[1][mask], spec[2][mask]
+                        def gaussian(x, amp, cen, wid, zero, slope):
+                            """1-d gaussian: gaussian(x, amp, cen, wid)"""
+                            d = wid / 3e5
+                            if slope > 3:
+                                slope = 3
+                            return amp / (np.sqrt(2 * np.pi) * d) * np.exp(-(x - cen) ** 2 / (2 * d ** 2)) + zero + slope * (x - np.mean(x)) / (np.max(x) - np.min(x))
+
+                        gmodel = lmfit.Model(gaussian)
+                        result = gmodel.fit(y, x=x, amp=(np.max(y) - np.min(y)) * (np.sqrt(2 * np.pi) * 200 / 3e5), cen=0, wid=300, zero=np.min(y), slope=0)
+                        print(result.params['amp'], result.params['wid'], result.params['slope'])
+                        if result.params['amp'].stderr is not None and result.params['wid'].stderr is not None:
+                            self.df.loc[i, name] = round(result.params['amp'].value * l * (1 + d['z']), 3)
+                            self.df.loc[i, name + '_err'] = round(result.params['amp'].stderr * l * (1 + d['z']), 3)
+                            self.df.loc[i, name.replace('F', 'FWHM')] = round(result.params['wid'].value * 2.355, 3)
+                            self.df.loc[i, name.replace('F', 'FWHM') + '_err'] = round(result.params['wid'].stderr * 2.355, 3)
+
+                        if plot:
+                            fig, ax = plt.subplots()
+                            x = x * 3e5
+                            x = spec[0][mask]
+                            ax.plot(x, y, 'o')
+                            ax.plot(x, result.init_fit, '--', label='initial fit')
+                            ax.plot(x, result.best_fit, '-', label='best fit')
+                            ax.plot(x, result.params['zero'] + result.params['slope'] * (x - np.mean(x)) / (np.max(x) - np.min(x)), '-', label='continuum')
+                            ax.legend()
+
+        if ind != None:
+            print(self.df.loc[ind, 'RA'], self.df.loc[ind, 'DEC'])
+            url = QUrl("https://www.legacysurvey.org/viewer?ra={0:f}&dec={1:f}&layer=ls-dr9&zoom=16".format(self.df.loc[ind, 'RA'], self.df.loc[ind, 'DEC']))
+            QDesktopServices.openUrl(url)
+
+        if plot:
+            plt.show()
+        else:
+            self.updateData()
+        self.save_data()
 
     def plot_sed(self, ind=None):
         for attr in ['_mcmc', '_post', '_spec']:
@@ -977,10 +1056,11 @@ class ErositaWidget(QWidget):
                 print(os.path.dirname(self.parent.ErositaFile) + '/QC/plots/' + self.df['SDSS_NAME'][ind] + attr + '.png')
                 os.startfile(os.path.dirname(self.parent.ErositaFile) + '/QC/plots/' + self.df['SDSS_NAME'][ind] + attr + '.png')
 
-    def calc_ext(self, ind=None):
+    def calc_ext(self):
         self.QSOSEDfit.plot, self.QSOSEDfit.save = self.plotExt.isChecked(), self.saveFig.isChecked()
-        if self.QSOSEDfit.prepare(ind):
-            res = self.QSOSEDfit.fit(ind, method='emcee')
+        self.QSOSEDfit.mcmc_steps, self.QSOSEDfit.anneal_steps = int(self.numSteps.text()), int(int(self.numSteps.text()) / 10)
+        if self.QSOSEDfit.prepare(self.ind):
+            res = self.QSOSEDfit.fit(self.ind, method='emcee')
             print(res)
         plt.show()
 

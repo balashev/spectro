@@ -698,10 +698,10 @@ class plotSpectrum(pg.PlotWidget):
                             spline = UnivariateSpline(vx.value, y - np.max(y) / 2, s=0)
                             if len(spline.roots()) == 2:
                                 r1, r2 = spline.roots()
-                                text += ', FWHM={:0.1f}'.format(np.abs(r1-r2))
+                                text += ', FWHM={:0.1f}'.format(np.abs(r1 - r2))
                             Sv = np.trapz(y, x=vx) * (1e-17 * u.erg / u.cm ** 2 / u.s / u.AA).to(u.Jy, equivalencies=u.spectral_density(self.parent.abs.reference.line.l() * (1 + self.parent.z_abs) * u.AA))
                             Lnu = 1.04e-3 * Sv.value * (self.parent.abs.reference.line.l() * u.AA).to(u.GHz, equivalencies=u.spectral()).value / (1 + self.parent.z_abs) * Planck15.luminosity_distance(self.parent.z_abs).to('Mpc').value ** 2
-                            text += r', L={:0.1f} L_sun'.format(np.log10(Lnu))
+                            text += r', log L={:0.1f}'.format(np.log10(Lnu) + 33.58)
 
                     self.w_label = pg.TextItem(text, anchor=(0, 1), color=(44, 160, 44))
                     self.w_label.setFont(QFont("SansSerif", 14))
@@ -713,7 +713,7 @@ class plotSpectrum(pg.PlotWidget):
                     err_w = np.sqrt(np.sum((s.spec.err()[mask] * np.diff(x)[::2]) ** 2))
                     self.w_region = pg.FillBetweenItem(curve1, pg.PlotCurveItem(x=x, y=np.zeros_like(x), pen=pg.mkPen()), brush=pg.mkBrush(44, 160, 44, 150))
                     self.vb.addItem(self.w_region)
-                    text = 'w = {0:0.5f}+/-{1:0.5f}'.format(w, err_w)
+                    text = 'flux = {0:0.5f}+/-{1:0.5f}'.format(w, err_w)
                     self.w_label = pg.TextItem(text, anchor=(0, 1), color=(44, 160, 44))
                     self.w_label.setFont(QFont("SansSerif", 14))
                     self.parent.console.set(text)
@@ -2105,10 +2105,10 @@ class showLinesWidget(QWidget):
                     fit = None
                     fit_comp = None
                 if self.show_disp and len(s.fit.disp[0].norm.x) > 0:
-                    fit_disp = [[s.fit.disp[0].norm.x, s.fit.disp[0].norm.y, s.fit.disp[1].norm.y]]
+                    fit_disp = [s.fit.disp[0].norm.x, s.fit.disp[0].norm.y, s.fit.disp[1].norm.y]
                     fit_comp_disp = []
                     for comp in s.fit_comp:
-                        fit_comp_disp.append([[comp.disp[0].norm.x, comp.disp[0].norm.y, comp.disp[1].norm.y]])
+                        fit_comp_disp.append([comp.disp[0].norm.x, comp.disp[0].norm.y, comp.disp[1].norm.y])
                 else:
                     fit_disp, fit_comp_disp = None, None
 
@@ -2235,9 +2235,9 @@ class showLinesWidget(QWidget):
 
                 if self.show_disp and len(s.fit.disp[0].norm.x) > 0:
                     fit_comp_disp = []
-                    fit_disp = [[s.fit.disp[0].norm.x, s.fit.disp[0].norm.y / cheb(s.fit.disp[0].norm.x), s.fit.disp[1].norm.y / cheb(s.fit.disp[1].norm.x)]]
+                    fit_disp = [s.fit.disp[0].norm.x, s.fit.disp[0].norm.y / cheb(s.fit.disp[0].norm.x), s.fit.disp[1].norm.y / cheb(s.fit.disp[1].norm.x)]
                     for comp in s.fit_comp:
-                        fit_comp_disp.append([[comp.disp[0].norm.x, comp.disp[0].norm.y / cheb(comp.disp[0].norm.x), comp.disp[1].norm.y / cheb(comp.disp[1].norm.x)]])
+                        fit_comp_disp.append([comp.disp[0].norm.x, comp.disp[0].norm.y / cheb(comp.disp[0].norm.x), comp.disp[1].norm.y / cheb(comp.disp[1].norm.x)])
                     #else:
                     #    fit_disp = [[s.fit.disp_corr[0].norm.x, s.fit.disp_corr[0].norm.y], [s.fit.disp_corr[1].norm.x, s.fit.disp_corr[1].norm.y]]
                     #    for comp in s.fit_comp:
@@ -7824,14 +7824,20 @@ class sviewer(QMainWindow):
                         if 'SDSS' in hdulist[0].header['TELESCOP']:
                             data = hdulist[1].data
                             DR9 = 0
-                            if DR9:
-                                res_st = int((data.field('LOGLAM')[0] - self.LeeResid[0][0])*10000)
+                            print(hdulist[0].header['VERSUTIL'])
+                            if hdulist[0].header['VERSUTIL'].strip() == 'v5_3_0':
+                                l = 10 ** (hdulist[0].header['COEFF0'] + hdulist[0].header['COEFF1'] * np.arange(hdulist[0].header['NAXIS1']))
+                                fl = hdulist[0].data[0]
+                                cont = hdulist[0].data[1]
+                                sig = hdulist[0].data[2]
+                            elif DR9:
+                                res_st = int((data.field('LOGLAM')[0] - self.LeeResid[0][0]) * 10000)
                                 print('SDSS:', res_st)
                                 #mask = data.field('MASK_COMB')[i_min:i_max]
-                                l = 10**data.field('LOGLAM')
+                                l = 10 ** data.field('LOGLAM')
                                 fl = data.field('FLUX')
                                 cont = (data.field('CONT') * self.LeeResid[1][res_st:res_st+len(l)]) #/ data.field('DLA_CORR')
-                                sig = (data.field('IVAR'))**(-0.5) / data.field('NOISE_CORR')
+                                sig = (data.field('IVAR')) ** (-0.5) / data.field('NOISE_CORR')
                             else:
                                 l = 10**data.field('loglam')
                                 fl = data.field('flux')
