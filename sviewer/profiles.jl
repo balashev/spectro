@@ -153,22 +153,29 @@ mutable struct par
     ref
 end
 
-function make_pars(p_pars; tieds=Dict(), z_ref=nothing)
+function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
+    #println(p_pars)
     pars = OrderedDict{String, par}()
-    for p in p_pars
-        if occursin("z_", p.__str__()) * (z_ref == true)
-            pars[p.__str__()] = par(p.__str__(), 0.0, z_to_v(z=p.min, z_ref=p.val), z_to_v(z=p.max, z_ref=p.val), p.step, p.fit * p.vary, p.addinfo, "", p.val)
-        else
-            pars[p.__str__()] = par(p.__str__(), p.val, p.min, p.max, p.step, p.fit * p.vary, p.addinfo, "", nothing)
+    if parnames != nothing
+        for p in parnames
+            pars[p] = p_pars[p]
         end
-        if occursin("cf", p.__str__())
-            pars[p.__str__()].min, pars[p.__str__()].max = 0, 1
-        end
+    else
+        for p in p_pars
+            if occursin("z_", p.__str__()) * (z_ref == true)
+                pars[p.__str__()] = par(p.__str__(), 0.0, z_to_v(z=p.min, z_ref=p.val), z_to_v(z=p.max, z_ref=p.val), p.step, p.fit * p.vary, p.addinfo, "", p.val)
+            else
+                pars[p.__str__()] = par(p.__str__(), p.val, p.min, p.max, p.step, p.fit * p.vary, p.addinfo, "", nothing)
+            end
+            if occursin("cf", p.__str__())
+                pars[p.__str__()].min, pars[p.__str__()].max = 0, 1
+            end
 
-    end
-    for (k, v) in tieds
-        pars[k].vary = false
-        pars[k].tied = v
+        end
+        for (k, v) in tieds
+            pars[k].vary = false
+            pars[k].tied = v
+        end
     end
     return pars
 end

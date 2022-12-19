@@ -1,6 +1,7 @@
 import astropy.constants as ac
 from astropy.cosmology import Planck15 #, FlatLambdaCDM, LambdaCDM
 from astropy.io import fits
+import astropy.units as u
 from bisect import bisect
 from collections import OrderedDict
 import corner
@@ -412,6 +413,8 @@ class sed_template():
 
             elif self.name == 'Fe':
                 self.x, self.y = np.genfromtxt(self.parent.path + r'/data/Models/Fe.dat', unpack=True)
+                self.norm = np.mean(self.y[(self.x > 2490) & (self.x < 2510)])
+                print('norm:', self.norm)
         else:
             self.x, self.y = x, y
 
@@ -769,17 +772,10 @@ class QSOSEDfit():
         return lum
 
     def fcn2min(self, params):
-        # t = Timer()
         chi = (self.model(params, self.sm[0], 'spec') - self.sm[1]) / self.sm[2]
-        # if ~np.isfinite(np.sum(chi)):
-        #    print('spec', self.sm[0](~np.isfinite(chi)), self.sm[1](~np.isfinite(chi)), self.sm[2](~np.isfinite(chi)))
-        # t.time('spec')
         for k, f in self.filters.items():
-            if self.filters[k].fit:
+            if self.filters[k].fit and any([s in k for s in ['UKIDSS', 'W', '2MASS']]):
                 chi = np.append(chi, [f.weight / f.err * (f.value - f.get_value(x=f.x, y=self.model(params, f.x, k)))])
-                # if ~np.isfinite([f.weight / f.err * (f.value - f.get_value(x=f.x, y=self.model(params, f.x, k)))]):
-                #    print(k, f.weight, f.err, f.value, f.get_value(x=f.x, y=self.model(params, f.x, k)))
-                # t.time(f.name)
         return chi
 
     def fcn2min_mcmc(self, params):
@@ -795,7 +791,7 @@ class QSOSEDfit():
 
     def anneal_priors(self, params):
         #print(self.lum_prior(params), self.agn_host_prior(params), params)
-        return 100 * self.lum_prior(params, kind='anneal') + 10 * self.agn_host_prior(params)
+        return 100 * self.lum_prior(params, kind='anneal') + 50 * self.agn_host_prior(params)
 
     def agn_host_prior(self, params):
         host = self.models['gal'].models[self.models['gal'].get_model_ind(params)].flux(1400) * params.valuesdict()['host_norm'] * self.extinction_MW(1400, Av=params.valuesdict()['host_Av'])
@@ -844,9 +840,10 @@ class QSOSEDfit():
             if p.name == 'host_Av':
                 prior -= (p.value - p.min) ** 2
             if p.name == 'Rv':
-                prior -= .5 * ((p.value - 2.71) / 1.0) ** 2
+                prior -= .5 * ((p.value - 2.71) / 0.2) ** 2
             if p.name == 'EBV':
-                prior -= .5 * ((p.value - 0) / 0.05) ** 2
+                #prior -= .5 * ((p.value - 0) / 0.05) ** 2
+                prior -= 1.5 * np.log10(p.value) + ((p.value - 0) / 0.05) ** 2
             if 'alpha' in p.name:
                 prior -= .5 * (p.value / params['sigma'].value) ** 2 + np.log(params['sigma'].value)
             if 'slope' in p.name:
@@ -857,19 +854,29 @@ class QSOSEDfit():
             #print(p.name, prior)
         return prior
 
-    def ln_like(self, params):
+    def ln_like(self, params, plot=0):
         # print(params)
         # t = Timer()
         chi = (self.model_emcee(params, self.sm[0], 'spec') - self.sm[1]) / self.sm[2]
+        if plot:
+            fig, ax = plt.subplots()
+            ax.plot(self.sm[0], chi)
+            fig, ax = plt.subplots()
         #if np.sum(np.isnan(chi)):
         #    print(self.sm[0][np.isnan(chi)])
         # t.time('spec')
         for k, f in self.filters.items():
             if self.filters[k].fit:
                 chi = np.append(chi, [f.weight / f.err * (f.value - f.get_value(x=f.x, y=self.model_emcee(params, f.x, k)))])
+                if plot:
+                    print(k, [f.weight / f.err * (f.value - f.get_value(x=f.x, y=self.model_emcee(params, f.x, k)))])
+                    ax.plot(np.mean(f.x), [f.weight / f.err * (f.value - f.get_value(x=f.x, y=self.model_emcee(params, f.x, k)))])
                 #if np.isnan(chi[-1]):
                 #    print(k)
                 # t.time(f.name)
+        if plot:
+            plt.show()
+
         return chi
 
     def set_params(self, x):
@@ -911,10 +918,9 @@ class QSOSEDfit():
             params['bbb_slope'].value = np.log(self.extinction(1000, params) / self.extinction(2500, params)) / np.log(0.4)
             params['EBV'].value = 0.01
 
-
         cov_range = {'bbb_norm': [params['bbb_norm'].value / 30, params['bbb_norm'].value / 2], 'bbb_slope': [0.1, 0.1],
                      'EBV': [0.01, 0.3], 'Rv': [0.2, 0.2], # 'c3': [0.05, 0.3],
-                     'tor_type': [1, 5], 'tor_norm': [params['tor_norm'].value / 30, params['tor_norm'].value / 2],
+                     'tor_type': [1, 5], 'tor_norm': [params['tor_norm'].value / 10, params['tor_norm'].value / 2],
                      'host_tau': [0.05, 0.5], 'host_tg': [0.1, 1],
                      'host_norm': [params['host_norm'].value / 30, params['host_norm'].value / 2], 'host_Av': [0.01, 0.3]
                      }
@@ -1041,8 +1047,10 @@ class QSOSEDfit():
                 
 
                 thinning = int(0.5 * np.nanmax([2, np.nanmin(sampler.get_autocorr_time(tol=0))]))
+                #print(thinning)
                 flat_sample = sampler.get_chain(discard=sampler.iteration // 2, thin=thinning, flat=True)
                 ln_max = -np.max(sampler.get_log_prob(discard=sampler.iteration // 2, thin=thinning, flat=True))
+                #print(flat_sample)
                 #except:
                 #    print("Problem with ", self.ind, self.d['SDSS_NAME'])
 
@@ -1085,7 +1093,7 @@ class QSOSEDfit():
 
         #print(sampler.get_log_prob(discard=sampler.iteration // 2, thin=thinning, flat=True))
         pars, flat_sample = list(params.valuesdict().keys()) + ['lnL'], np.append(flat_sample, sampler.get_log_prob(discard=sampler.iteration // 2, thin=thinning, flat=True)[:, np.newaxis], axis=1)
-        flat_sample = flat_sample[np.isfinite(flat_sample[:, -1]) * (flat_sample[:, -1] > -1e5), :]
+        flat_sample = flat_sample[np.isfinite(flat_sample[:, -1]), :]
         #print(pars)
         #print(flat_sample.shape)
         #print(flat_sample)
@@ -1110,7 +1118,7 @@ class QSOSEDfit():
             # >>> statistical determination:
             print("calc stats for ", self.ind)
             if stat:
-                k = int(len(pars)) + 4 #samples.shape[1]
+                k = int(len(pars)) + 5 #samples.shape[1]
                 n_hor = int(k ** 0.5)
                 n_hor = np.max([n_hor, 2])
                 n_vert = k // n_hor + 1 if k % n_hor > 0 else k // n_hor
@@ -1119,8 +1127,8 @@ class QSOSEDfit():
                 fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
                 k = 0
                 res = {}
-                for i, p in enumerate(pars + ['M_UV', 'L_host', 'Av', 'L_UV_corr']):
-                    if p not in ['M_UV', 'L_host', 'Av', 'L_UV_corr']:
+                for i, p in enumerate(pars + ['M_UV', 'L_host', 'Av', 'L_UV_ext', 'L_UV_corr']):
+                    if p not in ['M_UV', 'L_host', 'Av', 'L_UV_ext', 'L_UV_corr']:
                         d = distr1d(flat_sample[:, i].flatten())
                     else:
                         s = []
@@ -1133,8 +1141,13 @@ class QSOSEDfit():
                                 s.append(-2.5 * np.log10(self.calc_host_lum(params, wave=1700) * 9.64e-13) + 51.6)
                             elif p == 'Av':
                                 s.append(params['EBV'].value * params['Rv'].value)
-                            elif p == 'L_UV_corr':
+                            elif p == 'L_UV_ext':
+                                #print('L_UV_ext', self.d['L_UV'], self.d['L_UV_err'], self.extinction(2500, params), np.log10((self.d['L_UV'] + np.random.randn() * self.d['L_UV_err']) / self.extinction(2500, params)))
                                 s.append(np.log10((self.d['L_UV'] + np.random.randn() * self.d['L_UV_err']) / self.extinction(2500, params)))
+                            elif p == 'L_UV_corr':
+                                sind = np.argmin(np.abs(self.sm[0] - 2500 * (1 + self.d['z'])))
+                                scaling = (1e-17 * u.erg / u.cm ** 2 / u.AA / u.s).to(u.erg / u.cm ** 2 / u.s / u.Hz, equivalencies=u.spectral_density(2500 * u.AA * (1 + self.d['z']))).value
+                                s.append(np.log10(self.models['bbb'].data['spec'][0][sind] * params['bbb_norm'].value * 0.85 * scaling * 4 * np.pi * Planck15.luminosity_distance(self.d['z']).to('cm').value ** 2 / (1 + self.d['z'])))
                         if np.sum(np.isfinite(s)) > 0:
                             d = distr1d(np.asarray(s)[np.isfinite(s)])
                         else:
@@ -1147,12 +1160,12 @@ class QSOSEDfit():
                         f = int(np.round(np.abs(np.log10(np.min(f[np.nonzero(f)])))) + 1)
                         #print(d.interval[0], x[1], d.interval[1], x[-2])
                         d.dointerval(conf=0.95)
-                        if p not in ['lnL', 'M_UV', 'L_host', 'Av', 'L_UV_corr']:
+                        if p not in ['lnL', 'M_UV', 'L_host', 'Av', 'L_UV_ext', 'L_UV_corr']:
                             if d.interval[0] <= (d.x[1] + params[p].min) / 2 and d.interval[1] < (d.x[-2] + params[p].max) / 2:
                                 res[p] = a(d.interval[1], t='u')
                             elif d.interval[1] >= (d.x[-2] + params[p].max) / 2 and d.interval[0] > (d.x[1] + params[p].min) / 2:
                                 res[p] = a(d.interval[0], t='l')
-                        elif p not in ['lnL', 'L_UV_corr']:
+                        elif p not in ['lnL', 'L_UV_ext', 'L_UV_corr']:
                             if d.interval[0] <= d.x[2] and d.interval[1] < d.x[-3]:
                                 res[p] = a(d.interval[1], t='u')
                             elif d.interval[1] >= d.x[-3] and d.interval[0] > d.x[2]:
@@ -1184,7 +1197,8 @@ class QSOSEDfit():
         #print(self.models['gal'].tg)
         #print(self.models['gal'].tau)
         if params is None:
-            norm_bbb = np.nanmean(self.sm[1]) / np.nanmean(self.models['bbb'].data['spec'])
+            norm_bbb = np.nanmean(self.sm[1]) / np.nanmean(self.models['bbb'].data['spec'][0])
+            print('norm_bbb:', norm_bbb)
             params = lmfit.Parameters()
             params.add('bbb_norm', value=norm_bbb, min=0, max=1e10)
             params.add('bbb_slope', value=0, min=-2, max=2, vary=False)
@@ -1194,7 +1208,8 @@ class QSOSEDfit():
             if self.d['z'] > 0.70:
                 params.add('Abump', value=0.01, min=0.0, max=100.0, vary=False)
             params.add('tor_type', value=10, vary=False, min=0, max=self.models['tor'].n - 1)
-            params.add('tor_norm', value=norm_bbb / np.max(self.models['bbb'].data['spec'][0]) * np.max(self.models['tor'].data['spec'][params.valuesdict()['tor_type']]), min=0, max=1e10)
+            params.add('tor_norm', value=norm_bbb / 100 * self.models['bbb'].data['spec'][0][-1] * np.max(self.models['tor'].data['spec'][params.valuesdict()['tor_type']]), min=0, max=1e10)
+            print(norm_bbb / 100 * self.models['bbb'].data['spec'][0][-1] * np.max(self.models['tor'].data['spec'][params.valuesdict()['tor_type']]))
             if 0:
                 params.add('host_type', value=0, vary=False, min=0, max=self.models['host'].n - 1)
             else:
@@ -1205,8 +1220,8 @@ class QSOSEDfit():
             params.add('host_norm', value=norm_gal, min=0, max=1e10)
             params.add('host_Av', value=0.1, min=0, max=1.0)
 
-        anneal_pars = OrderedDict([('tor_type', [int, 5]), ('host_tau', [float, 0.5])]) #, ('host_tg', [float, 0.5])])
-
+        anneal_pars = OrderedDict([('tor_type', [int, 5])]) #, ('host_tau', [float, 0.5])]) #, ('host_tg', [float, 0.5])])
+        #self.ln_like(params, plot=1)
         def objective(best, anneal_pars, params):
             for i, (p, f) in enumerate(anneal_pars.items()):
                 params[p].value = best[i]
@@ -1269,10 +1284,10 @@ class QSOSEDfit():
         self.ind = ind
         self.d = self.df.loc[ind]
         res = None
-        #print(ind, self.d['SDSS_NAME'])
+        print(ind, self.d['SDSS_NAME'])
 
         if method == 'annealing' and self.hostExt and any([f in self.filters.keys() for f in ['J', 'H', 'K', 'W1', 'W2']]) and any([f in self.filters.keys() for f in ['W3', 'W4']]):
-
+            print('anneal:', ind, self.d['SDSS_NAME'])
             result, chi2_min = self.anneal_fit()
             host_min = self.models['gal'].get_model_ind(result.params)
             #print(result.params)
@@ -1284,6 +1299,7 @@ class QSOSEDfit():
 
         elif method in ['emcee', 'zeus'] and self.hostExt and any([f in self.filters.keys() for f in ['J', 'H', 'K', 'W1', 'W2']]) and any([f in self.filters.keys() for f in ['W3', 'W4']]):
 
+            print('mcmc:', ind, self.d['SDSS_NAME'])
             if 1:
                 result, chi2_min = self.anneal_fit()
                 flat_sample, chi2_min, params, res = self.mcmc(params=result.params, method=method, nsteps=self.mcmc_steps)
@@ -1296,6 +1312,7 @@ class QSOSEDfit():
                 print('problem with ', self.ind)
 
             # >>> plot results:
+            #plot = 1
             if self.plot and res is not None:
                 print("plot spectrum of ", self.ind)
                 inds = np.random.randint(flat_sample.shape[0], size=200)
@@ -1311,6 +1328,8 @@ class QSOSEDfit():
                         params[p].value = flat_sample[i, k]
                         #if p in ['tor_type', 'host_tau', 'host_tg']:
                         #    params[p].value = np.max([params[p].min, np.min([params[p].max, round(params[p].value)])])
+                    #self.ln_like(params, plot=plot)
+                    #plot = 0
                     s['total'].append(self.model_emcee(params, self.spec[0], 'spec_full', mtype='total'))
                     s['bbb'].append(self.models['bbb'].models[0].y * params['bbb_norm'].value * (self.models['bbb'].models[0].x / 2500) ** params['bbb_slope'].value * self.extinction(self.models['bbb'].models[0].x, params))
                     s['tor'].append(self.models['tor'].models[self.models['tor'].get_model_ind(params)].y * params['tor_norm'].value)
@@ -1379,8 +1398,8 @@ class QSOSEDfit():
 
         if params is not None:
             host_min = params['host_tau'].value * (params['host_tg'].max + 1) + params['host_tg'].value
-
             bbb, tor, host = self.models['bbb'].models[0], self.models['tor'].models[params['tor_type'].value], self.models['gal'].models[host_min]
+
             # >>> plot templates:
             if alpha == 1:
                 ax.plot(bbb.x, bbb.y * params['bbb_norm'].value, '--', color='tab:blue', zorder=2, label='composite', alpha=alpha)

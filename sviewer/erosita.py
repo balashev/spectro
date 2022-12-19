@@ -297,7 +297,7 @@ class ErositaWidget(QWidget):
                           'L_X': [lambda x: np.log10(x), 'log (L X, erg/s/Hz)'],
                           'L_UV': [lambda x: np.log10(x), 'log (L UV, erg/s/Hz)'],
                           'L_UV_corr': [lambda x: x, 'log (L UV corrected, erg/s/Hz)'],
-                          'L_UV_corr_host_photo': [lambda x: np.log10(x), 'log (L UV corrected, erg/s/Hz) with host and photometry'],
+                          'L_UV_ext': [lambda x: x, 'log (L UV ext corrected, erg/s/Hz)'],
                           'u-b': [lambda x: x, 'u - b'],
                           'r-i': [lambda x: x, 'r - i'],
                           'FIRST_FLUX': [lambda x: np.log10(np.abs(x)), 'log (FIRST flux, mJy)'],
@@ -819,12 +819,12 @@ class ErositaWidget(QWidget):
         self.df[name], self.df[name+'_err'] = np.nan, np.nan
 
         for i, d in self.df.iterrows():
-            #print(i)
+            print(i)
             if np.isfinite(d['z']) and d['z'] > 3500 / self.ero_lUV - 1:
                 spec = self.loadSDSS(d['PLATE'], d['FIBERID'], d['MJD'], Av_gal=d['Av_gal'])
                 if spec is not None:
-                    mask = (spec[0] > (self.ero_lUV - 10) * (1 + d['z'])) * (
-                                spec[0] < (self.ero_lUV + 10) * (1 + d['z'])) * (spec[3] == 0)
+                    mask = (spec[0] > (self.ero_lUV - 20) * (1 + d['z'])) * (
+                                spec[0] < (self.ero_lUV + 20) * (1 + d['z'])) * (spec[3] == 0)
                     if np.sum(mask) > 0 and not np.isnan(np.mean(spec[1][mask])) and not np.mean(spec[2][mask]) == 0:
                         k += 1
                         nm = np.nanmean(spec[1][mask]) * 1e-17 * u.erg / u.cm ** 2 / u.AA / u.s
@@ -836,7 +836,7 @@ class ErositaWidget(QWidget):
                         self.df.loc[i, name] = nm.to(u.erg / u.cm ** 2 / u.s / u.Hz, equivalencies=u.spectral_density(
                             self.ero_lUV * u.AA * (1 + d['z']))).value
                         self.df.loc[i, name+'_err'] = em.to(u.erg / u.cm ** 2 / u.s / u.Hz, equivalencies=u.spectral_density(
-                            self.ero_lUV * u.AA * (1 + d['z']))).value
+                            self.ero_lUV * u.AA * (1 + d['z']))).value / np.sqrt(sum(mask))
                         # self.df['F_UV'] in erg/s/cm^2/Hz
 
         self.updateData()
@@ -878,8 +878,8 @@ class ErositaWidget(QWidget):
 
         if 'F_UV' in self.df.columns:
             #self.df.loc[mask, 'L_UV'] = 4 * np.pi * dl[mask] ** 2 * self.df['F_UV'][mask] #/ (1 + self.df['Z'])
-            self.df.loc[mask, name] = 4 * np.pi * dl[mask] ** 2 * self.df[name.replace('L', 'F')][mask] #/ (1 + self.df['z'][mask])
-            self.df.loc[mask, name + '_err'] = 4 * np.pi * dl[mask] ** 2 * self.df[name.replace('L', 'F') + '_err'][mask]
+            self.df.loc[mask, name] = 4 * np.pi * dl[mask] ** 2 * self.df[name.replace('L', 'F')][mask] / (1 + self.df['z'][mask])
+            self.df.loc[mask, name + '_err'] = 4 * np.pi * dl[mask] ** 2 * self.df[name.replace('L', 'F') + '_err'][mask] / (1 + self.df['z'][mask])
 
         if 0:
             for attr in ['']: # ['', '_host_photo']:
@@ -1062,6 +1062,22 @@ class ErositaWidget(QWidget):
         if self.QSOSEDfit.prepare(self.ind):
             res = self.QSOSEDfit.fit(self.ind, method='emcee')
             print(res)
+        if self.saveFig.isChecked():
+            attr = {'Av': 'Av_int', 'host_tau': 'host_tau', 'host_tg': 'host_tg', 'host_Av': 'Av_host', 'L_host': 'L_host',
+                    'bbb_slope': 'bbb_slope', 'alpha_SDSS': 'alpha_SDSS', 'slope_SDSS': 'slope_SDSS', 'lnL': 'lnL',
+                    'Rv': 'Rv', 'Abump': 'Abump', 'EBV': 'EBV', 'Fe_norm': 'FeII', 'L_UV_corr': 'L_UV_corr', 'L_UV_ext': 'L_UV_ext'}
+            for ak, av in attr.items():
+                if ak in res.keys():
+                    for a in ['', '_l', '_u']:
+                        self.df.loc[self.ind, av + a] = round(res[ak].val - res[ak].minus * (a == '_l') + res[ak].plus * (a == '_u'), 3)
+                    if res[ak].type == 'u':
+                        self.df.loc[self.ind, av + '_u'] = self.df.loc[self.ind, av]
+                        self.df.loc[self.ind, av + '_l'] = -np.inf
+                    if res[ak].type == 'l':
+                        self.df.loc[self.ind, av + '_l'] = self.df.loc[self.ind, av]
+                        self.df.loc[self.ind, av + '_u'] = np.inf
+            self.updateData()
+            self.save_data()
         plt.show()
 
     def correlate(self):

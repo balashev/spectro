@@ -485,23 +485,33 @@ class fitPars:
         self.refreshSys()
 
     def delSys(self, ind=-1):
+
+        if 1:
+            if ind < len(self.sys):
+                for i in range(ind, len(self.sys)-1):
+                    self.swapSys(i, i+1)
+
+            ind = len(self.sys)-1
         s = self.sys[ind]
         self.sys.remove(s)
         del s
+
         gc.collect()
         self.refreshSys()
 
     def swapSys(self, i1, i2):
+        print(i1, i2)
         if self.cf_fit:
             for i in range(self.cf_num):
                 if hasattr(self, 'cf_' + str(i)):
                     p = getattr(self, 'cf_' + str(i))
                     cf = p.addinfo.split('_')
+                    print('cf', cf)
                     if cf[0].find('sys') > -1:
                         if i1 in [int(s) for s in cf[0].split('sys')[1:]]:
-                            self.setValue('cf_' + str(i), 'sys'.join([s if int(s) != i1 else str(i2) for s in cf[0].split('sys')[1:]])+'_'+cf[1], 'addinfo')
+                            self.setValue('cf_' + str(i), 'sys'+'sys'.join([s if int(s) != i1 else str(i2) for s in cf[0].split('sys')[1:]]) + '_' + cf[1], 'addinfo')
                         if i2 in [int(s) for s in cf[0].split('sys')[1:]]:
-                            self.setValue('cf_' + str(i), 'sys'.join([s if int(s) != i2 else str(i1) for s in cf[0].split('sys')[1:]]) + '_' + cf[1], 'addinfo')
+                            self.setValue('cf_' + str(i), 'sys'+'sys'.join([s if int(s) != i2 else str(i1) for s in cf[0].split('sys')[1:]]) + '_' + cf[1], 'addinfo')
                         #if int(p.addinfo[p.addinfo.find('sys')+3:p.addinfo.find('_')]) == i1:
                         #    p.addinfo = p.addinfo[:p.addinfo.find('sys')+3]+str(i2)+p.addinfo[p.addinfo.find('_'):]
                         #elif int(p.addinfo[p.addinfo.find('sys')+3:p.addinfo.find('_')]) == i2:
@@ -632,6 +642,9 @@ class fitPars:
 
     def list_vary(self):
         return [par for par in self.list() if par.vary]
+
+    def list_names(self):
+        return [str(par) for par in self.list()]
 
     def list_species(self):
         species = set()

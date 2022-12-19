@@ -1,21 +1,21 @@
-high FeIIj10
-high FeIIj5
-high FeIIj6
-high FeIIj7
-show FeIIj6
-show FeIIj7
+show CI
+show CIj1
+show CIj2
+show H2 3
+show H2 4
 show CII*
-high FeIIj9
-high FeIIj11
-show FeIIj11
-show FeIIj12
-show FeIIj9
-FeIIj9
-show H2 0 1
-show NV
+show SiII*
+sho H2 0 1 2 3 4
+show H2 0 1 2 3 4
+HeII
+show HeII
+show SiII*
+show CII
+show CII*
 show CI
-show H2j5
-show HDj0
-show H2j2
-x 4195 4202
-show CI
+show MnII
+show MnIIj1
+show ClI
+show ClI
+CII
+CIIj1

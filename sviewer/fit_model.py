@@ -465,8 +465,9 @@ class fitModelWidget(QWidget):
             if 'hcont' in name:
                 self.parent.fit.setValue('hcont', 0, 'vary')
         setattr(self, name, QTreeWidgetItem(getattr(self, parent)))
-        for i in [1, 3, 5, 7, 9]:
+        for i in [1, 3, 5, 9]:
             getattr(self, name).setTextAlignment(i, Qt.AlignRight)
+        getattr(self, name).setTextAlignment(7, Qt.AlignCenter)
         for k in range(4):
             if 'cf' not in name or k < 3:
                 getattr(self, name).setText(2 * k + 3, sign[k])
@@ -493,6 +494,15 @@ class fitModelWidget(QWidget):
         getattr(self, name + '_vary').stateChanged.connect(partial(self.varyChanged, name))
         getattr(self, name + '_vary').setChecked(self.parent.fit.getValue(name, 'vary'))
         self.treeWidget.setItemWidget(getattr(self, name), 2, getattr(self, name + '_vary'))
+        if 'cf' in name:
+            button = QPushButton('', self)
+            button.setFixedSize(24, 24)
+            button.setStyleSheet('QPushButton { background-color:  rgb(49,49,49)}')
+            button.clicked.connect(lambda: self.removeCf(name))
+            button.setIcon(QIcon('images/cross.png'))
+            button.setIconSize(QSize(24, 24))
+            self.treeWidget.setItemWidget(getattr(self, name), 1, button)
+
         if not getattr(self, parent).isExpanded():
             print('remove', name)
             self.parent.fit.remove(name)
@@ -550,6 +560,9 @@ class fitModelWidget(QWidget):
                             combo.setCurrentIndex(0)
                     except:
                         pass
+
+    def removeCf(self, name):
+        self.parent.plot.remove_pcRegion(int(name.split('_')[1]))
 
     def updateCF(self, excl=''):
         try:
@@ -920,12 +933,12 @@ class fitModelWidget(QWidget):
         sign = 1 if k > self.parent.fit.cf_num else -1
         if k != self.parent.fit.cf_num:
             rang = range(self.parent.fit.cf_num, k) if sign == 1 else range(self.parent.fit.cf_num-1, k-1, -1)
+            #print(rang)
             for i in list(rang):
-                if k > self.parent.fit.cf_num:
+                if k > self.parent.fit.cf_num and not isinstance(self.parent.vb.viewRange()[0][0], int):
                     #self.parent.fit.add('cf_'+str(i))
                     self.parent.plot.add_pcRegion(self.parent.vb.viewRange()[0][0], self.parent.vb.viewRange()[0][1])
                 else:
-                    print(i)
                     self.parent.fit.remove('cf_' + str(i))
                     getattr(self, 'cf').removeChild(getattr(self, 'cf_' + str(i)))
                     self.parent.plot.remove_pcRegion(i)
@@ -980,7 +993,7 @@ class fitModelWidget(QWidget):
 
     def onChanged(self, s, attr):
         if s in ['mu', 'dtoh'] or any([c in s for c in ['me', 'cont', 'res', 'cf', 'disp', 'sts', 'stNu', 'stNl']]):
-            print(hasattr(self.parent.fit, s))
+            print(s, attr, hasattr(self.parent.fit, s))
             if hasattr(self.parent.fit, s):
                 setattr(getattr(self.parent.fit, s), attr, float(getattr(self, s + '_' + attr).text()))
 

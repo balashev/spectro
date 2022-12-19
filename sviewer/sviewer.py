@@ -1622,6 +1622,7 @@ class showLinesWidget(QWidget):
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
                     ('title', str), ('show_title', int), ('font_title', int), ('title_x_pos', float), ('title_y_pos', float),
                     ('show_labels', int), ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
+                    ('add_lines', str), ('add_short', int), ('add_full', int),
                     ('plotfile', str), ('show_cont', int), ('corr_cheb', int),
                     ('show_H2', str), ('only_marks', int), ('pos_H2', float),
                     ('show_cf', int), ('cfs', str), ('show_cf_value', int), ('cf_color', int),
@@ -1693,6 +1694,7 @@ class showLinesWidget(QWidget):
                  '', 'hor.:', '', 'vert.:', '',
                  'Line labels:', '', '', 'font', '',
                  '', 'hor.:', '', 'vert.:', '',
+                 '', 'add. lines:', '', '', '',
                  'Continuum', '', '', '', '',
                  'H2/CO labels:', '', '', 'pos:', '',
                  'Covering factor:', '', '', '', '',]
@@ -1714,7 +1716,8 @@ class showLinesWidget(QWidget):
                                     ('x_ticks', [16, 2]), ('xnum', [16, 4]), ('y_ticks', [17, 2]), ('ynum', [17, 4]),
                                     ('title', [18, 2]), ('font_title', [18, 4]), ('title_x_pos', [19, 2]), ('title_y_pos', [19, 4]),
                                     ('font_labels', [20, 4]), ('name_x_pos', [21, 2]), ('name_y_pos', [21, 4]),
-                                    ('show_H2', [23, 1]), ('pos_H2', [23, 4])])
+                                    ('add_lines', [22, 2]),
+                                    ('show_H2', [24, 1]), ('pos_H2', [24, 4])])
         self.buttons = {}
         for opt, v in self.opt_but.items():
             self.buttons[opt] = QLineEdit(str(getattr(self, opt)))
@@ -2640,20 +2643,20 @@ class fitMCMCWidget(QWidget):
         self.start_button = QPushButton("Start")
         self.start_button.setCheckable(True)
         self.start_button.setFixedSize(120, 30)
-        self.start_button.clicked[bool].connect(partial(self.MCMC, True))
+        self.start_button.clicked[bool].connect(partial(self.MCMC, init=True, filename=None))
         self.continue_button = QPushButton("Continue")
         self.continue_button.setFixedSize(120, 30)
         self.continue_button.clicked[bool].connect(self.continueMC)
-        self.stop_button = QPushButton("Stop")
-        self.stop_button.setFixedSize(70, 30)
-        self.stop_button.clicked[bool].connect(self.stop)
+        self.init_button = QPushButton("Init Julia")
+        self.init_button.setFixedSize(100, 30)
+        self.init_button.clicked[bool].connect(self.initJulia)
         #self.cont_fit = QPushButton("Fit cont")
         #self.cont_fit.setFixedSize(70, 30)
         #self.cont_fit.clicked[bool].connect(self.fitCont)
         hbox = QHBoxLayout()
         hbox.addWidget(self.start_button)
         hbox.addWidget(self.continue_button)
-        hbox.addWidget(self.stop_button)
+        hbox.addWidget(self.init_button)
         hbox.addStretch(1)
         #hbox.addWidget(self.cont_fit)
 
@@ -2869,6 +2872,33 @@ class fitMCMCWidget(QWidget):
                 #self.thread = threading.Thread(target=self.MCMC, args=(), kwargs={'init': init}, daemon=True)
             self.thread.start()
 
+    def initJulia(self):
+        fname = QFileDialog.getSaveFileName(self, 'Get file', "file.spj")
+        if fname[0]:
+            self.MCMC(init=True, filename=fname[0])
+
+    def loadJulia(self, filename):
+        self.julia = julia.Julia()
+        self.julia.include("MCMC.jl")
+
+        chain, lns = self.parent.julia.readMCMC(filename)
+
+        print(chain.shape, lns.shape)
+        nwalkers, npars, nsteps = chain.shape[0], chain.shape[1], chain.shape[2]
+        backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
+        backend.reset(nwalkers, npars)
+
+        with backend.open("w") as f:
+            backend.reset(nwalkers, np.sum([p.vary for p in self.parent.julia_pars.values()]))
+            backend.grow(nsteps, None)
+            g = f[backend.name]
+            g.attrs["iteration"] = nsteps
+            if lns is not None:
+                g["log_prob"][...] = lns.transpose()
+            print(chain.shape, chain.transpose(2, 0, 1).shape)
+            g["chain"][...] = chain.transpose(2, 0, 1)
+            g.attrs["pars"] = [p.encode() for p in [str(p) for p in self.parent.fit.list_fit()]]
+
     def stop(self):
         self.start_button.setChecked(False)
         if 1:
@@ -2878,9 +2908,10 @@ class fitMCMCWidget(QWidget):
         self.thread = None
 
     def continueMC(self):
-        self.start(init=False)
+        self.start(init=False, filename=None)
 
-    def MCMC(self, init=True):
+    def MCMC(self, init=True, filename=None):
+        print(init, filename)
         #self.parent.setFit(comp=-1)
         nwalkers, nsteps, nthreads, thinning = int(self.parent.options('MCMC_walkers')), int(self.parent.options('MCMC_iters')), int(self.parent.options('MCMC_threads')), int(self.parent.options('MCMC_thinning'))
 
@@ -2919,25 +2950,34 @@ class fitMCMCWidget(QWidget):
             self.julia = julia.Julia()
             self.julia.include("MCMC.jl")
 
-            chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add,
-                                                   sampler=self.sampler.currentText(), tieds=self.parent.fit.tieds,
-                                                   prior=self.priors, nwalkers=nwalkers, nsteps=nsteps,
-                                                   nthreads=nthreads, thinning=thinning, init=init, opts=opts)
+            if filename is not None:
 
-            if self.sampler.currentText() == 'UltraNest':
-                from ultranest.plot import cornerplot
-                cornerplot(chain)
-                plt.show()
+                self.parent.julia.initJulia(filename, self.parent.julia_spec, self.parent.julia_pars, self.parent.julia_add, self.parent.fit.list_names(),
+                                            sampler=self.sampler.currentText(), prior=self.priors, nwalkers=nwalkers, nsteps=nsteps,
+                                            nthreads=nthreads, thinning=thinning, init=init, opts=opts)
+            else:
+                chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.julia_pars, self.parent.julia_add, self.parent.fit.list_names(),
+                                                       sampler=self.sampler.currentText(), prior=self.priors, nwalkers=nwalkers, nsteps=nsteps,
+                                                       nthreads=nthreads, thinning=thinning, init=init, opts=opts)
 
-            backend.grow(nsteps, None)
-            with backend.open("a") as f:
-                g = f[backend.name]
-                g.attrs["iteration"] = nsteps
-                if lns is not None:
-                    g["log_prob"][...] = lns.transpose()
-                print(chain.shape, chain.transpose(2, 0, 1).shape)
-                g["chain"][...] = chain.transpose(2, 0, 1)
-                g.attrs["pars"] = [p.encode() for p in pars]
+                print(chain)
+                if self.sampler.currentText() == 'UltraNest':
+                    from ultranest.plot import cornerplot
+                    cornerplot(chain)
+                    plt.show()
+
+                #backend.grow(nsteps, None)
+
+                with backend.open("w") as f:
+                    backend.reset(nwalkers, np.sum([p.vary for p in self.parent.julia_pars.values()]))
+                    backend.grow(nsteps, None)
+                    g = f[backend.name]
+                    g.attrs["iteration"] = nsteps
+                    if lns is not None:
+                        g["log_prob"][...] = lns.transpose()
+                    print(chain.shape, chain.transpose(2, 0, 1).shape)
+                    g["chain"][...] = chain.transpose(2, 0, 1)
+                    g.attrs["pars"] = [p.encode() for p in pars]
 
         elif self.sampler.currentText() in ['emcee']:
 
@@ -3418,8 +3458,11 @@ class fitMCMCWidget(QWidget):
         fname = QFileDialog.getOpenFileName(self, 'Load MCMC results', self.parent.work_folder)
 
         if fname[0]:
-            self.parent.options('work_folder', os.path.dirname(fname[0]))
-            self.parent.MCMC_output = fname[0]
+            if fname[0].endswith('.spr'):
+                self.loadJulia(fname[0])
+            else:
+                self.parent.options('work_folder', os.path.dirname(fname[0]))
+                self.parent.MCMC_output = fname[0]
 
     def keyPressEvent(self, event):
         super(fitMCMCWidget, self).keyPressEvent(event)

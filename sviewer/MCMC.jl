@@ -1,6 +1,7 @@
 using DelimitedFiles
 using Distributed
 using Random
+using Serialization
 @everywhere using SpecialFunctions
 @everywhere using Statistics
 @everywhere include("profiles.jl")
@@ -8,16 +9,34 @@ using Random
 @everywhere using Combinatorics
 @everywhere using AdvancedHMC, ForwardDiff
 
-function fitMCMC(spec, ppar, add; sampler="Affine", tieds=Dict(), prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
+function initJulia(filename, spec, pars, add, parnames; sampler="Affine", prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
+	serialize(filename, [spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts])
+end
+
+function runMCMC(filename, nthreads)
+    spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = deserialize(filename)
+	#println(sampler, " ", parnames, " ", prior, " ", nwalkers, " ", nsteps, " ", thinning)
+	chain, llhoodvals = fitMCMC(spec, pars, add, parnames, sampler=sampler, prior=prior, nwalkers=nwalkers, nsteps=nsteps, nthreads=parse(Int, nthreads), thinning=thinning, init=init, opts=opts)
+	serialize(replace(filename, ".spj" => ".spr"), [chain, llhoodvals])
+end
+
+function readMCMC(filename)
+	chain, llhoodvals = deserialize(filename)
+	return chain, llhoodvals
+end
+
+function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
 
     #COUNTERS["num"] = nwalkers
 
 	#println("init: ", init)
-
-    pars = make_pars(ppar, tieds=tieds)
+	#println(parnames)
+    pars = make_pars(pars, parnames=parnames)
+	#println(pars)
     priors = make_priors(prior)
-	println("priors: ", priors)
-    #params = [p.val for (k, p) in pars if p.vary == 1]
+	#println("priors: ", priors)
+    params = [p.val for (k, p) in pars if p.vary == 1]
+	#println(init)
 
 	#lnlike = p->begin
 	function lnlike(p)
@@ -51,6 +70,11 @@ function fitMCMC(spec, ppar, add; sampler="Affine", tieds=Dict(), prior=nothing,
 			if sum(s.mask) > 0
 				model = calc_spectrum(s, pars, out="init")
 				retval -= .5 * sum(((model .- s.y[s.mask]) ./ s.unc[s.mask]) .^ 2)
+
+				#println(retval)
+				#println("model ", model)
+				#println(s.y[s.mask])
+				#println(s.unc[s.mask])
 
 				if opts["hier_continuum"] == true
 					for cont in s.cont
@@ -223,6 +247,8 @@ function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Intege
     Modified version of AffineInvariantMCMC by MADS (see copyright information in initial module)
     """
 	@assert length(size(x0)) == 2
+	#println(thinning)
+	#println("x0: ", x0)
 	x = copy(x0)
 	println(size(x))
 	chain = Array{Float64}(undef, nwalkers, size(x0, 2), div(nsteps, thinning))
@@ -237,7 +263,7 @@ function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Intege
 			active, inactive = ensembles
 			zs = map(u->((a - 1) * u + 1)^2 / a, rand(length(active)))
 			proposals = map(i-> min.(max.(zs[i] * x[active[i], :] + (1 - zs[i]) * x[rand(inactive), :], bounds[:,1]), bounds[:,2]), 1:length(active))
-            newllhoods = pmap(llhood, proposals)
+			newllhoods = pmap(llhood, proposals)
 			for (j, walkernum) in enumerate(active)
 				logratio = (size(x, 2) - 1) * log(zs[j]) + newllhoods[j] - lastllhoodvals[walkernum]
 				if log(rand()) < logratio
@@ -257,9 +283,9 @@ function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Intege
             println(ind)
             x[imin, :], lastllhoodvals[imin] = x[ind, :], lastllhoodvals[ind]
         end
-		open("output/mcmc_last.dat", "w") do io
-			writedlm(io, chain[:, :, i], " ")
-		end
+		#open("output/mcmc_last.dat", "w") do io
+		#	writedlm(io, chain[:, :, i], " ")
+		#end
 	end
 	return chain, llhoodvals
 end

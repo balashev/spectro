@@ -773,8 +773,7 @@ class pcRegion():
         self.parent.vb.removeItem(self.label)
         self.parent.pcRegions.remove(self)
         try:
-            for i in range(self.ind, len(self.parent.pcRegions) + 1):
-                self.parent.parent.fitModel.cf.removeChild(getattr(self.parent.parent.fitModel, 'cf_' + str(i)))
+            self.parent.parent.fitModel.close()
         except:
             pass
 
@@ -782,7 +781,7 @@ class pcRegion():
             for i in range(self.ind, len(self.parent.pcRegions)):
                 self.parent.pcRegions[i].setInd(i)
                 cf = getattr(self.parent.parent.fit, 'cf_' + str(i + 1))
-                setattr(self.parent.parent.fit, 'cf_' + str(i), par(self, 'cf_' + str(i), cf.val, cf.min, cf.max, cf.step, addinfo=cf.addinfo))
+                setattr(self.parent.parent.fit, 'cf_' + str(i), par(self, 'cf_' + str(i), cf.val, 0, 1, cf.step, left=cf.left, right=cf.right, addinfo=cf.addinfo))
                 self.parent.pcRegions[i].redraw()
 
         self.parent.parent.fit.remove('cf_' + str(len(self.parent.pcRegions)))
@@ -790,14 +789,7 @@ class pcRegion():
         if self.parent.parent.fit.cf_num == 0:
             self.parent.parent.fit.cf_fit = False
 
-        try:
-            if self.ind < len(self.parent.pcRegions):
-                for i in range(self.ind, len(self.parent.pcRegions)):
-                    self.parent.parent.fitModel.addChild('cf', 'cf_' + str(i))
-
-            self.parent.parent.fitModel.refresh()
-        except:
-            pass
+        self.parent.parent.setFitModel()
 
         del self
 

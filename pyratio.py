@@ -987,7 +987,6 @@ class pyratio():
                     W += self.species[name].pump_rate * 10 ** self.pars['rad'].value
 
             if debug in [None, 'IR']:
-                print(self.radiation)
                 if self.radiation == 'full':
                     for u in range(speci.num):
                         for l in range(speci.num):
@@ -1605,8 +1604,7 @@ class pyratio():
             d.plot(fig=fig, frac=0.2, indent=0.1, limits=limits, ls=None,
                    xlabel=self.pars[vary[0]].label, ylabel=self.pars[vary[1]].label,
                    color=color, color_point=color_point, color_marg='dodgerblue', cmap=cmap,
-                   alpha=alpha, colorbar=False,
-                   font=18, title=None, zorder=zorder)
+                   alpha=alpha, colorbar=False, font=18, title=None, zorder=zorder)
         else:
             d.plot_contour(ax=ax, limits=limits, ls=None, conf_levels=conf_levels, levels=levels,
                            xlabel=self.pars[vary[0]].label, ylabel=self.pars[vary[1]].label,

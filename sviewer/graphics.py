@@ -344,21 +344,19 @@ class gline():
         self.sort()
         self.n = len(self.x)
 
-    def delete(self, arg=None, x=None, y=None):
-        if arg is None and x is None and y is None:
-            self.x = np.array([])
-            self.y = np.array([])
-        if arg is not None:
+    def delete(self, arg=None, x=None, y=None, err=None):
+        if arg is None and x is None and y is None and err is None:
+            self.x, self.y, self.err = np.array([]), np.array([]), np.array([])
+        else:
+            if arg is None:
+                if x is not None:
+                    arg = np.where(self.x == x)
+                if y is not None:
+                    arg = np.where(self.y == y)
             self.x = np.delete(self.x, arg)
             self.y = np.delete(self.y, arg)
-        if x is not None:
-            arg = np.where(self.x == x)
-            self.x = np.delete(self.x, arg)
-            self.y = np.delete(self.y, arg)
-        if y is not None:
-            arg = np.where(self.y == y)
-            self.x = np.delete(self.x, arg)
-            self.y = np.delete(self.y, arg)
+            if len(self.err) > 0:
+                self.err = np.delete(self.err, arg)
         self.n = len(self.x)
 
     def interpolate(self, err=False, fill_value=np.NaN):
@@ -2368,7 +2366,6 @@ class Spectrum():
             self.spec_save = self.spec.raw.copy()
         self.spec_factor *= factor
 
-        print(self.spec_factor)
         if self.spec_factor < 1:
             self.spec_factor = 1
         self.spec_factor = int(self.spec_factor)
