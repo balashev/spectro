@@ -44,8 +44,8 @@ class Speclist(list):
         self[self.ind].view = self.parent.specview
         for i, s in enumerate(self):
             if i != self.ind:
-                s.init_GU()
-        self[self.ind].init_GU()
+                s.initGUI()
+        self[self.ind].initGUI()
         self.parent.vb.enableAutoRange()
         
     def redraw(self, ind=None):
@@ -753,7 +753,6 @@ class image():
             self.getQuantile(attr=attr)
             self.setLevels(attr=attr)
 
-
     def getQuantile(self, quantile=0.95, attr='z'):
         if getattr(self, attr) is not None:
             x = np.sort(getattr(self, attr).flatten())
@@ -770,14 +769,14 @@ class image():
             top = quantile[1]
         top, bottom = np.max([top, bottom]), np.min([top, bottom])
         if top - bottom < (quantile[1] - quantile[0]) / 100:
-            top += ((quantile[1] - quantile[0]) / 100 - (top - bottom)) /2
+            top += ((quantile[1] - quantile[0]) / 100 - (top - bottom)) / 2
             bottom -= ((quantile[1] - quantile[0]) / 100 - (top - bottom)) / 2
-        setattr(self, attr+'_levels', [bottom, top])
+        setattr(self, attr + '_levels', [bottom, top])
 
     def find_nearest(self, x, y, attr='z'):
         z = getattr(self, attr)
         if len(z.shape) == 2:
-            return z[np.min([z.shape[0]-1, (np.abs(self.y - y)).argmin()]), np.min([z.shape[1]-1, (np.abs(self.x - x)).argmin()])]
+            return z[np.min([z.shape[0] - 1, (np.abs(self.y - y)).argmin()]), np.min([z.shape[1]-1, (np.abs(self.x - x)).argmin()])]
         else:
             return None
 
@@ -817,7 +816,7 @@ class spec2d():
         self.raw.set_data(x=x, y=y, z=z, err=err, mask=mask)
 
     def set_image(self, name, colormap):
-        image = pg.ImageItem()
+        image = pg.ImageItem(colorMap=colormap)
         if name == 'raw':
             image.setImage(self.raw.z.T)
         elif name == 'err':
@@ -830,7 +829,7 @@ class spec2d():
             image.setImage(self.sky.z.T)
         image.translate(self.raw.pos[0], self.raw.pos[1])
         image.scale(self.raw.scale[0], self.raw.scale[1])
-        image.setLookupTable(colormap)
+        #image.setLookupTable(colormap)
         #image.setLevels(self.raw.levels)
         return image
 
@@ -1180,9 +1179,9 @@ class spec2d():
         mask_sky[:border] = 0
         mask_sky[-border:] = 0
         mask = np.zeros_like(self.cr.mask, dtype=bool)
-        mask[:,:] = mask_sky[:,np.newaxis] #np.repeat(mask_sky, self.cr.mask.shape[1], axis=1)
+        mask[:, :] = mask_sky[:,np.newaxis] #np.repeat(mask_sky, self.cr.mask.shape[1], axis=1)
 
-        self.sky.z[:,:] = np.ma.median(np.ma.array(self.raw.z, mask=np.logical_and(mask, self.cr.mask)), axis=0)[np.newaxis, :]
+        self.sky.z[:, :] = np.ma.median(np.ma.array(self.raw.z, mask=np.logical_and(mask, self.cr.mask)), axis=0)[np.newaxis, :]
 
     def extract(self, xmin, xmax, slit=None, mask_type='moffat', helio=None, airvac=True, inplace=False, kind='pdf'):
         self.moffat_kind = 'pdf'
@@ -1216,13 +1215,13 @@ class spec2d():
                 profile = np.exp(-(np.abs(self.raw.y - self.parent.cont2d.y[k]) / self.extr_slit / 2.35482) ** 2)
 
             #self.raw.err[:, i] = 1
-            v = np.sum((1 - self.cr.mask[:, i]) * profile**2) #/ self.raw.err[:, i]**2)
+            v = np.sum((1 - self.cr.mask[:, i]) * profile) #/ self.raw.err[:, i]**2)
             flux = np.sum((self.raw.z[:, i] - sky[:, i]) * profile * (1 - self.cr.mask[:, i])) # / self.raw.err[:, i]**2)
 
             if v is not np.nan:
                 y[k] = flux / v
                 if self.raw.err is not None:
-                    err[k] = np.sqrt(np.sum((1 - self.cr.mask[:, i]) * profile * self.raw.err[:, i]) / v)
+                    err[k] = np.sqrt(np.sum((1 - self.cr.mask[:, i]) * profile * self.raw.err[:, i] ** 2) / v)
 
         if inplace:
             pass
@@ -1279,7 +1278,7 @@ class Spectrum():
         if data is not None:
             self.set_data(data)
             self.parent.s.ind = len(self.parent.s)-1
-            self.init_GU()
+            self.initGUI()
         self.spec2d = spec2d(self)
         self.mask2d = None
         self.cr_mask2d = None
@@ -1300,7 +1299,7 @@ class Spectrum():
     def active(self):
         return self == self.parent.s[self.parent.s.ind]
 
-    def init_GU(self):
+    def initGUI(self):
         #print('caller name:', inspect.stack()[1][3], inspect.stack()[2][3], inspect.stack()[3][3], inspect.stack()[4][3])
         if self.active():
             self.view = self.parent.specview
@@ -1313,15 +1312,9 @@ class Spectrum():
             self.region_brush = pg.mkBrush(147, 185, 69, 60)
             self.mask_region_brush = pg.mkBrush(0, 0, 0, 255)
             self.fit_pixels_pen = pg.mkPen(145, 180, 29, width=4)
-            cdict = cm.get_cmap('viridis')
-            cmap = np.array(cdict.colors)
-            cmap[-1] = [1, 0.4, 0]
-            map = pg.ColorMap(np.linspace(0,1,cdict.N), cmap, mode='rgb')
-            self.colormap = map.getLookupTable(0.0, 1.0, 256, alpha=False)
-            map = pg.ColorMap(np.linspace(0, 1, 2), [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 0.0]], mode='rgb')
-            self.maskcolormap = map.getLookupTable(1.0, 0.0, 2, alpha=True)
-            map = pg.ColorMap(np.linspace(0, 1, 2), [[1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.0]], mode='rgb')
-            self.cr_maskcolormap = map.getLookupTable(1.0, 0.0, 2, alpha=True)
+            self.colormap = pg.colormap.getFromMatplotlib('viridis')
+            self.maskcolormap = pg.ColorMap(np.linspace(0, 1, 2), [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 0.0]], mode='rgb')
+            self.cr_maskcolormap = pg.ColorMap(np.linspace(0, 1, 2), [[1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.0]], mode='rgb')
         else:
             if self.parent.showinactive:
                 self.view = self.parent.specview.replace('err', '')
@@ -1448,6 +1441,7 @@ class Spectrum():
         if self.parent.show_2d and (len(self.parent.s) == 0 or self.active()):
             if self.spec2d.raw.z is not None and self.spec2d.raw.z.shape[0] > 0 and self.spec2d.raw.z.shape[1] > 0:
                 self.image2d = self.spec2d.set_image('raw', self.colormap)
+                print("levels:", self.spec2d.raw.z_levels)
                 self.image2d.setLevels(self.spec2d.raw.z_levels)
                 self.parent.spec2dPanel.vb.addItem(self.image2d)
                 self.parent.spec2dPanel.vb.removeItem(self.parent.spec2dPanel.cursorpos)
@@ -1539,7 +1533,7 @@ class Spectrum():
 
     def redraw(self):
         self.remove()
-        self.init_GU()
+        self.initGUI()
         try:
             self.parent.abs.redraw()
         except:
@@ -2334,7 +2328,7 @@ class Spectrum():
             print(np.sum(bad))
         self.bad_mask.set(x=np.logical_or(self.bad_mask.x(), bad))
         self.remove()
-        self.init_GU()
+        self.initGUI()
 
     def smooth(self, kind='astropy'):
         print('smoothing: ', self.filename)

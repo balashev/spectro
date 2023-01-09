@@ -1,21 +1,21 @@
-show CI
-show CIj1
-show CIj2
-show H2 3
-show H2 4
-show CII*
-show SiII*
-sho H2 0 1 2 3 4
-show H2 0 1 2 3 4
-HeII
-show HeII
-show SiII*
-show CII
-show CII*
-show CI
-show MnII
-show MnIIj1
-show ClI
-show ClI
 CII
 CIIj1
+rescale err 0.1
+rescale err 0.1
+rescale err 0.5
+rescale err 0.005
+shift -100
+shift 100
+shift v -100
+shift v +10
+shift v +10
+rescale err 10
+rescale err 0.05
+rescale err 0.3
+stats
+rescale err 0.8
+rescale err 0.8
+rescale err 1.25
+stats
+stats
+stats

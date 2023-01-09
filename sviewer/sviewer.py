@@ -359,7 +359,7 @@ class plotSpectrum(pg.PlotWidget):
                 sl = ['step', 'steperr', 'line', 'lineerr', 'point', 'pointerr']
                 self.parent.specview = sl[(sl.index(self.parent.specview)+1)*int((sl.index(self.parent.specview)+1) < len(sl))]
                 self.parent.options('specview', self.parent.specview)
-                self.parent.s[self.parent.s.ind].init_GU()
+                self.parent.s[self.parent.s.ind].initGUI()
                 
             if event.key() == Qt.Key_W:
                 if self.w_region is not None and not event.isAutoRepeat():
@@ -1454,7 +1454,7 @@ class preferencesWidget(QWidget):
         self.parent.options('specview', self.parent.specview)
         if self.parent.s.ind is not None:
             self.parent.s[self.parent.s.ind].remove()
-            self.parent.s[self.parent.s.ind].init_GU()
+            self.parent.s[self.parent.s.ind].initGUI()
 
     def setSelect(self):
         if self.parent.s.ind is not None:
@@ -1462,7 +1462,7 @@ class preferencesWidget(QWidget):
         self.parent.selectview = self.selectview.currentText()
         self.parent.options('selectview', self.parent.selectview)
         if self.parent.s.ind is not None:
-            self.parent.s[self.parent.s.ind].init_GU()
+            self.parent.s[self.parent.s.ind].initGUI()
 
     def setLabels(self):
         self.parent.linelabels = self.selectlines.currentText()
@@ -1625,7 +1625,8 @@ class showLinesWidget(QWidget):
                     ('add_lines', str), ('add_short', int), ('add_full', int),
                     ('plotfile', str), ('show_cont', int), ('corr_cheb', int),
                     ('show_H2', str), ('only_marks', int), ('pos_H2', float),
-                    ('show_cf', int), ('cfs', str), ('show_cf_value', int), ('cf_color', int),
+                    ('show_cf', int), ('cfs', str), ('show_cf_value', int),
+                    ('cf_color', int),
                     ])
 
         for opt, func in self.opts.items():
@@ -1699,7 +1700,7 @@ class showLinesWidget(QWidget):
                  'H2/CO labels:', '', '', 'pos:', '',
                  'Covering factor:', '', '', '', '',]
 
-        positions = [(i, j) for i in range(25) for j in range(5)]
+        positions = [(i, j) for i in range(26) for j in range(5)]
 
         for position, name in zip(positions, names):
             if name == '':
@@ -1832,32 +1833,32 @@ class showLinesWidget(QWidget):
         self.showcont = QCheckBox('show')
         self.showcont.setChecked(self.show_cont)
         self.showcont.clicked[bool].connect(self.setCont)
-        grid.addWidget(self.showcont, 22, 1)
+        grid.addWidget(self.showcont, 23, 1)
 
         self.corrcheb = QCheckBox('cheb. applied')
         self.corrcheb.setChecked(self.corr_cheb)
         self.corrcheb.clicked[bool].connect(self.setCheb)
-        grid.addWidget(self.corrcheb, 22, 2)
+        grid.addWidget(self.corrcheb, 23, 2)
 
         self.onlyLineMarks = QCheckBox('only marks')
         self.onlyLineMarks.setChecked(self.only_marks)
         self.onlyLineMarks.clicked[bool].connect(self.onlyMarks)
-        grid.addWidget(self.onlyLineMarks, 23, 2)
+        grid.addWidget(self.onlyLineMarks, 24, 2)
 
         self.showcf = QCheckBox('show')
         self.showcf.setChecked(self.show_cf)
         self.showcf.clicked[bool].connect(self.setCf)
-        grid.addWidget(self.showcf, 24, 1)
+        grid.addWidget(self.showcf, 25, 1)
 
         self.cf = choosePC(self)
         self.cf.fromtext(self.cfs)
         self.cf.triggered.connect(self.setcfs)
-        grid.addWidget(self.cf, 24, 2)
+        grid.addWidget(self.cf, 25, 2)
 
         self.showcfvalue = QCheckBox('value')
         self.showcfvalue.setChecked(self.show_cf_value)
         self.showcfvalue.clicked[bool].connect(self.setCfValue)
-        grid.addWidget(self.showcfvalue, 24, 3)
+        grid.addWidget(self.showcfvalue, 25, 3)
 
         self.cfcolor = pg.ColorButton()
         # self.fitcolor = QColorDialog()
@@ -1865,7 +1866,7 @@ class showLinesWidget(QWidget):
         self.cfcolor.setColor(color=self.cf_color.to_bytes(4, byteorder='big'))
         self.cfcolor.sigColorChanged.connect(partial(self.setColor, comp='cf'))
         self.cfcolor.setStyleSheet(open('config/styles.ini').read())
-        grid.addWidget(self.cfcolor, 24, 4)
+        grid.addWidget(self.cfcolor, 25, 4)
 
         self.colorComps = colorCompBox(self, num=len(self.parent.fit.sys))
         layout.addLayout(self.colorComps)
@@ -2858,8 +2859,8 @@ class fitMCMCWidget(QWidget):
         self.parent.options('MCMC_truths', text)
         self.graph.setCurrentText(self.parent.options('MCMC_truths'))
 
-    def start(self, init=True):
-        self.MCMC(init=init)
+    def start(self, init=True, filename=None):
+        self.MCMC(init=init, fiename=filename)
         if 0 and self.thread is None:
             self.start_button.setChecked(True)
             if 0:
@@ -8004,13 +8005,16 @@ class sviewer(QMainWindow):
             if spec is None:
                 if ':' not in filename:
                     filename = dir_path + filename
-
                 if filename.endswith('.fits'):
                     with fits.open(filename, memmap=False) as hdulist:
-                        if hdulist[0].header['CUNIT1'] == 'A':
-                            k = 1
-                        elif hdulist[0].header['CUNIT1'] == 'nm':
-                            k = 10
+                        if 'CUNIT1' in hdulist[0].header:
+                            if 'A' in hdulist[0].header['CUNIT1']:
+                                k = 1
+                            elif 'nm' in hdulist[0].header['CUNIT1']:
+                                k = 10
+                        else:
+                             k = 1
+                        print(k, 'CUNIT1' in hdulist[0].header)
                         x = np.linspace(hdulist[0].header['CRVAL1'] * k,
                                         (hdulist[0].header['CRVAL1'] + hdulist[0].header['CDELT1'] *
                                         (hdulist[0].header['NAXIS1']-1)) * k,
@@ -8019,6 +8023,7 @@ class sviewer(QMainWindow):
                                         hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] *
                                         (hdulist[0].header['NAXIS2']-1),
                                         hdulist[0].header['NAXIS2'])
+                        print(x)
                         if 'INSTRUME' in hdulist[0].header and 'XSHOOTER' in hdulist[0].header['INSTRUME']:
                             err, mask = None, None
                             for h in hdulist[1:]:
@@ -8026,6 +8031,10 @@ class sviewer(QMainWindow):
                                     err = h.data * 1e17
                                 elif h.header['EXTNAME'].strip() == 'QUAL':
                                     mask = h.data.astype(bool)
+                            s.spec2d.set(x=x, y=y, z=hdulist[0].data * 1e17, err=err, mask=mask)
+
+                        elif 'INSTRUME' in hdulist[0].header and hdulist[0].header['INSTRUME'] == 'SCORPIO-2':
+                            err, mask = None, None
                             s.spec2d.set(x=x, y=y, z=hdulist[0].data * 1e17, err=err, mask=mask)
 
                         if 'ORIGFILE' in hdulist[0].header and 'VANDELS' in hdulist[0].header['ORIGFILE']:
