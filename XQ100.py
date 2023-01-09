@@ -1,10 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 import re
 from astropy import constants as const
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, MaxNLocator
-from lxml import etree
 from scipy.interpolate import splev, splrep
 from .profiles import convolveflux
 from .atomic import atomicData
@@ -1470,77 +1468,9 @@ def load_QSO():
 
     return Q
 
-def load_table(htmlfile):
-
-    data = []
-
-    with open(htmlfile) as f:
-        s = f.read()
-        #s = f.readlines()[122:224]
-    s = s[s.find('<table'):s.find('</table>')+8]
-    s = s.replace(r'<tbody>', '').replace(r'</tbody>', '')
-    #print(s)
-    table = etree.XML(s)
-    rows = iter(table)
-    headers = [col.text for col in next(rows)]
-    for row in rows:
-        values = [col.text for col in row]
-        #print(values)
-        d = dict(zip(headers, values))
-        #print(d)
-        data.append(QSO(d['id'], d['z_PCA']))
-        data[-1].name.append(d['Object'].strip())
-        data[-1].Mag = d['Mag']
-        data[-1].HighRes = d['HighRes']
-        data[-1].z_lit = d['z_lit']
-        try:
-            data[-1].comment = d['comm']
-        except:
-            pass
-        try:
-            data[-1].add_DLA(d['z_DLA'])
-        except:
-            pass
-        try:
-            data[-1].add_LLS(d['D/H'])
-        except:
-            pass
-        #print(data[-1].name)
-        data[-1].print_code()
-
-    return data
-
-
-def printHTMLtable(htmlfile):
-    
-    print("print html table in file: ", htmlfile)
-    keys = 'id name z_lit Mag HighRes DLA LLS DtoH cont comment'
-    
-    st = '<tr><td>N</td>'
-    for k in keys.split():
-        st += '<td>{}</td>'.format(k)
-    st += '</tr>\n'
-
-    for i, q in enumerate(XQ100):
-        st += q.htmlrow(keys).replace('<tr>', '<tr><td>{}</td>'.format(i+1)) + '\n'
-    
-    with open(htmlfile, 'r') as f:
-        s = f.read()
-
-    s = s[:s.find('<tbody>')+7] + st + s[s.find('</tbody>'):]
-    with open(htmlfile, 'w') as f:
-        f.write(s)
-    
-
 if __name__ == '__main__':
     
-    if 0:
-        XQ100 = load_table("D:\science\QSO\XQ100\XQ100.html")
-    else:
-        XQ100 = load_QSO()
-    
-    if 0:    
-        printHTMLtable("D:\science\QSO\XQ100\XQ100.html")
+    XQ100 = load_QSO()
     
     # print([x.DLA for x in XQ100])
     i = 0

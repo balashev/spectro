@@ -6,8 +6,6 @@ from bisect import bisect
 from collections import OrderedDict
 import corner
 from chainconsumer import ChainConsumer
-#from dust_extinction.parameter_averages import G16, F19, G03_SMCBar
-#import extinction
 import emcee
 import json
 import itertools
@@ -22,7 +20,6 @@ from scipy.integrate import cumtrapz
 from scipy.interpolate import interp1d, CubicSpline
 from scipy.special import gamma, gammainc
 import sys
-import time
 import zeus
 
 

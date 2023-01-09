@@ -1,4 +1,4 @@
-from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs
+from lmfit import Parameters
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
@@ -7,8 +7,7 @@ import pickle
 from PyQt5.QtCore import Qt
 import pyqtgraph as pg
 from scipy.interpolate import interp1d
-from scipy.optimize import curve_fit, minimize, least_squares
-from scipy.signal import correlate, argrelextrema
+from scipy.optimize import curve_fit, minimize
 
 from ..profiles import tau, convolveflux, fisherbN
 from ..atomic import line
@@ -16,7 +15,6 @@ from .external import spectres
 from .fit import fitPars
 from .graphics import Spectrum
 from .utils import Timer
-import emcee
 
 def correl(y, fit, err=None):
     stride = y.strides[0]

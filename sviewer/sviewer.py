@@ -9,6 +9,7 @@ from astroquery import sdss as aqsdss
 from chainconsumer import ChainConsumer
 from collections import OrderedDict
 from copy import deepcopy, copy
+import corner
 import emcee
 import h5py
 from importlib import reload
@@ -19,9 +20,9 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
 from multiprocessing import Process
-import numdifftools as nd
 import pandas as pd
 import pickle
+import pyGPs
 import os
 import platform
 from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget,
@@ -40,7 +41,7 @@ import sfdmap
 from shutil import copyfile
 import subprocess
 import tarfile
-from threading import Thread
+#from threading import Thread
 from ..a_unc import a
 from ..absorption_systems import vel_offset
 from ..atomic import *
@@ -3086,7 +3087,6 @@ class fitMCMCWidget(QWidget):
 
         if burnin < samples.shape[0]:
             if self.parent.options('MCMC_graph') == 'chainConsumer':
-                from chainconsumer import ChainConsumer
                 c = ChainConsumer()
                 c.add_chain(samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]], walkers=nwalkers,
                             parameters=names)
@@ -3105,7 +3105,6 @@ class fitMCMCWidget(QWidget):
                                         truth=truth,
                                         )
             if self.parent.options('MCMC_graph') == 'corner':
-                import corner
                 figure = corner.corner(samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]],
                                        labels=names,
                                        show_titles=True,
@@ -6781,6 +6780,10 @@ class sviewer(QMainWindow):
         fitCheb.setStatusTip('Adjust continuum by Chebyshev polynomials')
         fitCheb.triggered.connect(partial(self.fitCheb, typ='cheb'))
 
+        fitGP = QAction('&Fit Gaussian Process', self)
+        fitGP.setStatusTip('Adjust continuum by gaussian Process')
+        fitGP.triggered.connect(partial(self.fitGP))
+
         fitExt = QAction('&Fit Extinction...', self)
         fitExt.setStatusTip('Fit extinction')
         fitExt.triggered.connect(self.fitExt)
@@ -6835,6 +6838,7 @@ class sviewer(QMainWindow):
         fitMenu.addAction(tempFit)
         fitMenu.addSeparator()
         fitMenu.addAction(fitCheb)
+        fitMenu.addAction(fitGP)
         fitMenu.addAction(fitExt)
         fitMenu.addAction(fitGauss)
         fitMenu.addAction(fitPower)
@@ -8617,19 +8621,7 @@ class sviewer(QMainWindow):
                 if np.allclose(chi0, chi):
                     print('not shifted', p)
 
-        if 1:
-            result = minner.minimize(method=self.fit_method)
-        else:
-            result = minner.prepare_fit(params=params)
-            minner.result.method = 'leastsq'
-            pvals = [p.value for p in params.values()]
-            Hfun = nd.Hessian(minner.penalty, full_output=True, step=0.01)
-            #Gfun = nd.Gradient(minner.penalty, full_output=True, step=0.01)
-            #print(Gfun(pvals))
-            print(Hfun(pvals))
-            #print(nd.Jacobian(minner.penalty)(pvals))
-            print([p.name for p in params.values()])
-            #print(minner._calculate_covariance_matrix([p.value for p in params.values()]))
+        result = minner.minimize(method=self.fit_method)
 
         print(result.message)
         self.console.set(result.message)
@@ -8841,20 +8833,35 @@ class sviewer(QMainWindow):
                 self.fit.setValue('cont_' + str(i), c)
             ax.plot(x, self.s[0].correctContinuum(x), '-r')
 
-        elif typ == 'GP':
-            import pyGPs
-            model = pyGPs.GPR()
-            model.getPosterior(x, y)
-            model.optimize(x, y)
-            z = np.linspace(x[0], x[-1], len(x) * 2)
-            model.predict(z)
-            ym = np.reshape(model.ym, (model.ym.shape[0],))
-            ys2 = np.reshape(model.ys2, (model.ys2.shape[0],))
-            ax.plot(z, ym, color='g', ls='-', lw=3.)
-            # print(z, ym, ym - 2. * np.sqrt(ys2), ym + 2. * np.sqrt(ys2))
-            ax.fill_between(z, ym - 2. * np.sqrt(ys2), ym + 2. * np.sqrt(ys2),
-                            facecolor='g', alpha=0.4, linewidths=0.0)
-            # model.plot()
+        plt.show()
+
+    def fitGP(self):
+        """
+        fit Continuum using specified model.
+            - kind        : can be 'cheb', 'GP',
+        """
+        s = self.s[0]
+        mask = (s.spec.x() > self.fit.cont_left) * (s.spec.x() < self.fit.cont_right)
+        fit = s.fit.f(s.spec.x())
+        mask = np.logical_and(fit > 0.05, s.fit_mask.x)
+        x = s.norm.x[mask]
+        y = s.norm.y[mask] / fit[mask]
+        w = s.norm.err[mask] / fit[mask]
+        fig, ax = plt.subplots()
+        ax.errorbar(x, y, yerr=w, fmt='o')
+
+        model = pyGPs.GPR()
+        model.getPosterior(x, y)
+        model.optimize(x, y)
+        z = np.linspace(x[0], x[-1], len(x) * 2)
+        model.predict(z)
+        ym = np.reshape(model.ym, (model.ym.shape[0],))
+        ys2 = np.reshape(model.ys2, (model.ys2.shape[0],))
+        ax.plot(z, ym, color='g', ls='-', lw=3.)
+        # print(z, ym, ym - 2. * np.sqrt(ys2), ym + 2. * np.sqrt(ys2))
+        ax.fill_between(z, ym - 2. * np.sqrt(ys2), ym + 2. * np.sqrt(ys2),
+                        facecolor='g', alpha=0.4, linewidths=0.0)
+        # model.plot()
 
         plt.show()
 

@@ -6,7 +6,6 @@ Created on Tue Dec 20 16:37:28 2016
 """
 from astropy.io import fits
 from functools import partial
-#from matplotlib.mlab import PCA as mPCA
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 import numpy as np
@@ -18,7 +17,6 @@ from scipy.stats import spearmanr
 from sklearn.decomposition import PCA, FastICA
 
 from ..excitation_temp import ExcitationTemp
-from ..profiles import convolveflux
 from ..stats import distr2d, distr1d
 from .graphics import Spectrum, Speclist
 from .utils import Timer, labelLine

@@ -1,5 +1,3 @@
-from astropy import constants as const
-from collections import OrderedDict
 from functools import partial
 from itertools import combinations
 from matplotlib import cm

@@ -14,7 +14,6 @@ from PyQt5.QtWidgets import (QApplication, QAction, QCheckBox, QComboBox, QFrame
 import pyqtgraph as pg
 from .utils import Timer
 from ..a_unc import a
-from ..pyratio import pyratio
 
 class FLineEdit(QLineEdit):
     def __init__(self, parent, text='', var=None, name=''):

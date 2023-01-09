@@ -9,7 +9,6 @@ from astroplan import FixedTarget, Observer, moon
 from astroplan.plots import plot_airmass, plot_sky
 from astroplan import AirmassConstraint, AtNightConstraint
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz, Angle
-from astropy.table import Table
 from astropy.time import Time
 from collections import OrderedDict
 from PyQt5.QtGui import QFont

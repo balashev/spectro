@@ -1,7 +1,7 @@
 from astropy.cosmology import Planck15
 from mendeleev import element
 import numpy as np
-from PyQt5.QtCore import Qt, QRectF
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import (QFont, QTextCursor)
 from PyQt5.QtWidgets import (QTextEdit)
 import pyqtgraph as pg

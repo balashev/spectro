@@ -5,7 +5,6 @@ import astropy.units as u
 from collections import OrderedDict
 import corner
 from chainconsumer import ChainConsumer
-from dust_extinction.averages import G03_SMCBar
 import emcee
 import itertools
 from matplotlib import cm
@@ -13,28 +12,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.lib.recfunctions as rfn
 import lmfit
-import pyqtgraph as pg
 from pyqtgraph.dockarea import *
-from functools import partial
-import os
 import pandas as pd
-import pickle
-from PyQt5.QtCore import Qt, QPoint, QUrl
+from PyQt5.QtCore import QPoint, QUrl
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QMenu, QToolButton,
-                             QLabel, QCheckBox, QFrame, QTextEdit, QSplitter, QComboBox, QAction, QSizePolicy)
-from scipy.interpolate import interp1d
-from scipy.special import gamma, gammainc
-from scipy.stats import linregress, gaussian_kde
+                             QLabel, QCheckBox, QComboBox, QAction)
+
+from scipy.stats import linregress
 
 from sklearn import linear_model
 import sfdmap
-from .graphics import SpectrumFilter
 from .tables import *
-from .utils import smooth, Timer
+from .utils import Timer
 from .QSOSEDfit import QSOSEDfit
-from ..a_unc import a
-from ..profiles import add_ext, add_LyaForest
+from ..profiles import add_ext
 from ..stats import distr1d, distr2d
 
 class dataPlot(pg.PlotWidget):

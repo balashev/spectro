@@ -8,13 +8,8 @@ import astropy.constants as ac
 from astropy.convolution import convolve, Gaussian1DKernel, Gaussian2DKernel
 from astropy.io import fits
 from astropy.modeling.models import Moffat1D
-from bisect import bisect_left
 from ccdproc import cosmicray_lacosmic
-from copy import deepcopy
-import gc
 import itertools
-from importlib import reload
-import julia
 from matplotlib import cm
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,7 +17,7 @@ from numpy.lib.stride_tricks import as_strided
 import os
 import pyqtgraph as pg
 from PyQt5.QtCore import Qt, QRectF
-from PyQt5.QtGui import QFont, QColor, QBrush
+from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QApplication
 import re
 from scipy.interpolate import interp1d, interp2d, splrep, splev
@@ -33,7 +28,7 @@ from scipy.stats import gaussian_kde
 
 from ..profiles import tau, convolveflux, makegrid, add_ext
 from .external import sg_smooth as sg
-from .utils import Timer, debug, MaskableList, moffat_func, smooth
+from .utils import Timer, MaskableList, moffat_func, smooth
 
 class Speclist(list):
     def __init__(self, parent):
