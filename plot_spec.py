@@ -65,11 +65,12 @@ class plot_spec(list):
         - readlist    :  read the path to lines from the file with the list
         -
     """
-    def __init__(self, arg, vel_scale=False, font=14, font_labels=16, fit=True, figure=None, gray_out=False, show_comps=True, show_err=True, error_cap=5):
+    def __init__(self, arg, vel_scale=False, font=None, font_size=14, font_labels=16, fit=True, figure=None, gray_out=False, show_comps=True, show_err=True, error_cap=5):
         self.vel_scale = vel_scale
         self.name_pos = [0.02, 0.19]
         self.add_ioniz = False
         self.font = font
+        self.font_size = font_size
         self.font_labels = font_labels
         self.fit = fit
         self.figure = figure
@@ -362,6 +363,7 @@ class plotline():
         self.y_formatter = None
         self.add_residual = True
         self.font = self.parent.font
+        self.font_size = self.parent.font_size
         self.font_labels = self.parent.font_labels
         self.vel_scale = self.parent.vel_scale
         self.name_pos = self.parent.name_pos[:]
@@ -526,7 +528,7 @@ class plotline():
         self.ax.tick_params(which='both', width=1)
         self.ax.tick_params(which='major', length=5)
         self.ax.tick_params(which='minor', length=3)
-        self.ax.tick_params(axis='both', which='major', labelsize=self.font-2)
+        self.ax.tick_params(axis='both', which='major', labelsize=self.font_size - 2)
 
         # >>> set axis ticks formater:
         if self.y_formatter is not None:
@@ -536,7 +538,7 @@ class plotline():
 
         # >>> set axis labels:
         if self.ylabel is not None:
-            self.ax.set_ylabel(self.ylabel, fontsize=self.font)
+            self.ax.set_ylabel(self.ylabel, fontsize=self.font_size, fontname=self.font)
             if self.ylabel_pos is not None:
                 tr = self.ax.yaxis.label.get_transform()
                 self.ax.yaxis.set_label_coords(self.ax.yaxis.label.get_position()[0], self.ylabel_pos)
@@ -544,7 +546,7 @@ class plotline():
                 self.ax.yaxis.label.set_transform(tr)
 
         if self.xlabel is not None:
-            self.ax.set_xlabel(self.xlabel, fontsize=self.font, labelpad=2)
+            self.ax.set_xlabel(self.xlabel, fontsize=self.font_size, fontname=self.font, labelpad=2)
             if self.xlabel_pos is not None:
                 tr = self.ax.xaxis.label.get_transform()
                 self.ax.xaxis.set_label_coords(self.xlabel_pos, self.ax.xaxis.label.get_position()[1])
@@ -643,7 +645,7 @@ class plotline():
         self.ax.tick_params(which='both', width=1)
         self.ax.tick_params(which='major', length=5)
         self.ax.tick_params(which='minor', length=3)
-        self.ax.tick_params(axis='both', which='major', labelsize=self.font-2)
+        self.ax.tick_params(axis='both', which='major', labelsize=self.font_size - 2)
 
         # >>> set axis ticks formater:
         if self.y_formatter is not None:
@@ -655,18 +657,18 @@ class plotline():
 
         # >>> set axis labels:
         if self.ylabel is not None:
-            self.ax.set_ylabel(self.ylabel, fontsize=self.font)
+            self.ax.set_ylabel(self.ylabel, fontsize=self.font_size, fontname=self.font)
             if self.ylabel_pos is not None:
                 self.ax.yaxis.set_label_coords(self.ylabel_pos)
         if self.xlabel is not None:
-            self.ax.set_xlabel(self.xlabel, fontsize=self.font, labelpad=-4)
+            self.ax.set_xlabel(self.xlabel, fontsize=self.font_size, fontname=self.font, labelpad=-4)
 
         # >>> add lines
         self.ax.plot([self.x_min, self.x_max], [0.0, 0.0], 'k--', lw=0.5)
 
         # >>> add text
         if self.name_pos is not None:
-            self.ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font, transform=self.ax.transAxes)
+            self.ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font_size, transform=self.ax.transAxes)
             if self.label is not None:
                 self.ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha='right', va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
 
@@ -724,9 +726,9 @@ class plotline():
         # ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res-1.1*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
         # ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res+0.9*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
         x_pos = self.x_max - 0.01 * (self.x_max - self.x_min)
-        self.ax.text(x_pos, null_res + delt_res, r'$+$' + str(self.sig) + '$\sigma$', fontsize=self.font - 2,
+        self.ax.text(x_pos, null_res + delt_res, r'$+$' + str(self.sig) + '$\sigma$', fontsize=self.font_size - 2,
                 color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
-        self.ax.text(x_pos, null_res - delt_res, r'$-$' + str(self.sig) + '$\sigma$', fontsize=self.font - 2,
+        self.ax.text(x_pos, null_res - delt_res, r'$-$' + str(self.sig) + '$\sigma$', fontsize=self.font_size - 2,
                 color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
         if sum(self.points) > 0:
             k = (self.points != 1)
@@ -815,14 +817,14 @@ class plotline():
                                 self.ax.plot([line.l() * (1 + self.parent.z_ref), line.l() * (1 + self.parent.z_ref)], [pos_y, pos_y + dpos], lw=1.0, color=color, ls='-')
                                 if kind == 'full':
                                     texts.append(self.ax.text(line.l() * (1 + self.parent.z_ref), pos_y + dpos, str(line.j_l), ha='center', va='bottom',
-                                                 fontsize=self.parent.font - 4, color=color))
+                                                 fontsize=self.parent.font_size - 4, fontname=self.font, color=color))
 
                         self.ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)], [pos_y + dpos, pos_y + dpos], lw=1.0, color=color, ls='-')
                 if kind == 'short':
-                    self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0', ha='left', va='bottom', fontsize=self.parent.font-4, color=color)
+                    self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0', ha='left', va='bottom', fontsize=self.parent.font_size - 4, fontname=self.font, color=color)
                 elif kind == 'full':
                     self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + r': ', ha='right', va='bottom',
-                            fontsize=self.parent.font - 4, color=color)
+                            fontsize=self.parent.font_size - 4, fontname=self.font, color=color)
 
         adjust_text(texts, only_move={'text': 'x'})
 
@@ -889,20 +891,20 @@ class plotline():
                                      [pos_y, pos_y + dpos], lw=1.0, color=color, ls='-')
                         if kind == 'full' and not only_marks:
                             texts.append(self.ax.text(line.l() * (1 + self.parent.z_ref), pos_y + dpos, str(line.j_l),
-                                                      ha='center', va='bottom', fontsize=self.parent.font - 4, color=color, usetex=True))
+                                                      ha='center', va='bottom', fontsize=self.parent.font_size - 4, fontname=self.font, color=color, usetex=True))
 
                 self.ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)],
                              [pos_y + dpos, pos_y + dpos], lw=1.0, color=color, ls=ls)
             if kind == 'short':
                 self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0',
-                                          ha='right', va='bottom', fontsize=self.parent.font-4, color=color)
+                                          ha='right', va='bottom', fontsize=self.parent.font_size - 4, fontname=self.font, color=color)
             elif kind == 'full':
                 if only_marks:
                     self.ax.text((np.max(l) + np.min(l)) / 2 * (1 + self.parent.z_ref), pos_y + dpos, band,
-                                 ha='center', va='bottom', fontsize=self.parent.font - 4, color=color, usetex=True)
+                                 ha='center', va='bottom', fontsize=self.parent.font_size - 4, fontname=self.font, color=color, usetex=True)
                 else:
                     to = self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + ':', # (np.min(l) - (np.max(l) - np.min(l)) / 30)
-                                 ha='right', va='bottom', fontsize=self.parent.font - 4, color=color, usetex=True)
+                                 ha='right', va='bottom', fontsize=self.parent.font_size - 4, fontname=self.font, color=color, usetex=True)
                     to._transform = mtransforms.offset_copy(to._transform, fig=self.fig, x=- (0.4 + 0.2 * (np.min([line.j_l for line in b_lines]) > 9)) * to.get_fontsize(), units='points')
 
 

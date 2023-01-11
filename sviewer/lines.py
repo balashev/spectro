@@ -855,19 +855,29 @@ class colorCompBox(QHBoxLayout):
         self.addWidget(self.default)
         self.cmap = QComboBox()
         self.cmap.setFixedSize(80, 30)
-        self.cmap.addItems(['', 'rainbow', 'viridis', 'plasma', 'inferno', 'magma', 'cividis', 'spring', 'summer', 'autumn', 'winter', 'cool', 'Wistia', 'PiYG', 'PRGn', 'BrBG', 'PuOr', 'RdGy', 'RdBu',
+        cmaplist = ['', 'rainbow', 'viridis', 'plasma', 'inferno', 'magma', 'cividis', 'spring', 'summer', 'autumn', 'winter', 'cool', 'Wistia', 'PiYG', 'PRGn', 'BrBG', 'PuOr', 'RdGy', 'RdBu',
             'RdYlBu', 'RdYlGn', 'Spectral', 'coolwarm', 'bwr', 'seismic', 'twilight', 'twilight_shifted', 'hsv', 'flag', 'prism', 'ocean', 'gist_earth', 'terrain', 'gist_stern',
-            'gnuplot', 'gnuplot2', 'CMRmap', 'cubehelix', 'brg', 'gist_rainbow', 'jet', 'nipy_spectral', 'gist_ncar'])
+            'gnuplot', 'gnuplot2', 'CMRmap', 'cubehelix', 'brg', 'gist_rainbow', 'jet', 'nipy_spectral', 'gist_ncar']
+        self.cmap.addItems([''] + [j for i in [[cmap, cmap + '_r'] for cmap in cmaplist] for j in i])
         self.cmap.currentTextChanged.connect(self.set_default)
         self.addWidget(self.cmap)
 
     def init_colors(self):
+        print(self.num)
         self.colors = [''] * self.num
         if len(self.parent.comp_colors.split(',')) < self.num:
             self.get_default()
+        print(self.colors)
+        print(self.parent.comp_colors.split(','))
         for i, c in enumerate(self.parent.comp_colors.split(',')):
-            if i < self.num and c.strip() != '':
-                self.colors[i] = tuple(int(c.strip()).to_bytes(4, byteorder='big'))
+            print(i, c)
+            print(tuple(int(c.strip()).to_bytes(4, byteorder='big')))
+            if i < self.num:
+                if c.strip() != '':
+                    self.colors[i] = tuple(int(c.strip()).to_bytes(4, byteorder='big'))
+                #else:
+                #    self.colors[i] = 000000 #, tuple(int(111111).to_bytes(4, byteorder='big'))
+        print(self.colors)
         self.saveColors()
 
     def create(self):
@@ -902,4 +912,5 @@ class colorCompBox(QHBoxLayout):
         self.saveColors()
 
     def saveColors(self):
+        # note: self.colors is the list of the tuples in RGBA format, i.e. (255, 255, 255, 255)
         self.parent.comp_colors = ', '.join([str(int.from_bytes(bytes(self.colors[i]), byteorder='big')) for i in range(self.num)])

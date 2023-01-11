@@ -16,7 +16,7 @@ from importlib import reload
 import julia
 from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs, Model
 from matplotlib.colors import to_hex
-import matplotlib as mpl
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
 from multiprocessing import Process
@@ -26,7 +26,7 @@ import pyGPs
 import os
 import platform
 from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget,
-                             QFileDialog, QTextEdit, QVBoxLayout,
+                             QFileDialog, QTextEdit, QVBoxLayout, QFontComboBox,
                              QSplitter, QFrame, QLineEdit, QLabel, QPushButton, QCheckBox,
                              QGridLayout, QTabWidget, QFormLayout, QHBoxLayout, QRadioButton,
                              QTreeWidget, QComboBox, QTreeWidgetItem, QAbstractItemView,
@@ -1619,7 +1619,8 @@ class showLinesWidget(QWidget):
                     ('z_ref', float), ('sys_ind', int),
                     ('show_disp', int), ('disp_alpha', float), ('res_style', str),
                     ('res_color', int), ('comp_colors', str),
-                    ('font', int), ('labels_corr', int), ('xlabel', str), ('ylabel', str),
+                    ('font', str), ('font_size', int),
+                    ('labels_corr', int), ('xlabel', str), ('ylabel', str),
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
                     ('title', str), ('show_title', int), ('font_title', int), ('title_x_pos', float), ('title_y_pos', float),
                     ('show_labels', int), ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
@@ -1688,7 +1689,7 @@ class showLinesWidget(QWidget):
                  'Reference z:', '', '', '', '',
                  'Residuals:', '', '', 'sig:', '',
                  'Disp:' , '', '', 'style:', '',
-                 'Fonts:', 'axis:', '', '', '',
+                 'Fonts:', '', '', 'size:', '',
                  'Labels:', 'x:', '', 'y:', '',
                  'X-ticks:', 'scale:', '', 'num', '',
                  'Y-ticks:', 'scale:', '', 'num', '',
@@ -1714,7 +1715,7 @@ class showLinesWidget(QWidget):
                                     ('spec_lw', [8, 1]), ('error_cap', [8, 4]),
                                     ('fit_lw', [9, 1]), ('comp_lw', [10, 2]), ('z_ref', [11, 1]),
                                     ('res_sigma', [12, 4]), ('disp_alpha', [13, 2]),
-                                    ('font', [14, 2]), ('xlabel', [15, 2]), ('ylabel', [15, 4]),
+                                    ('font_size', [14, 4]), ('xlabel', [15, 2]), ('ylabel', [15, 4]),
                                     ('x_ticks', [16, 2]), ('xnum', [16, 4]), ('y_ticks', [17, 2]), ('ynum', [17, 4]),
                                     ('title', [18, 2]), ('font_title', [18, 4]), ('title_x_pos', [19, 2]), ('title_y_pos', [19, 4]),
                                     ('font_labels', [20, 4]), ('name_x_pos', [21, 2]), ('name_y_pos', [21, 4]),
@@ -1787,6 +1788,11 @@ class showLinesWidget(QWidget):
         self.refcomp.activated.connect(self.onIndChoose)
         grid.addWidget(self.refcomp, 11, 2)
 
+        self.gray = QCheckBox('gray')
+        self.gray.setChecked(self.gray_out)
+        self.gray.clicked[bool].connect(self.setGray)
+        grid.addWidget(self.gray, 11, 4)
+
         self.resid = QCheckBox('')
         self.resid.setChecked(self.residuals)
         self.resid.clicked[bool].connect(self.setResidual)
@@ -1800,11 +1806,6 @@ class showLinesWidget(QWidget):
         self.rescolor.setStyleSheet(open('config/styles.ini').read())
         grid.addWidget(self.rescolor, 12, 2)
 
-        self.gray = QCheckBox('gray')
-        self.gray.setChecked(self.gray_out)
-        self.gray.clicked[bool].connect(self.setGray)
-        grid.addWidget(self.gray, 11, 4)
-
         self.showdisp = QCheckBox('show disp')
         self.showdisp.setChecked(self.show_disp)
         self.showdisp.clicked[bool].connect(self.setDisp)
@@ -1815,6 +1816,12 @@ class showLinesWidget(QWidget):
         self.resstyle.setCurrentText(self.res_style)
         self.resstyle.currentIndexChanged.connect(self.onResStyleChoose)
         grid.addWidget(self.resstyle, 13, 4)
+
+        self.fontname = QComboBox(self) #QFontComboBox(self)
+        self.fontname.addItems([f.name for f in matplotlib.font_manager.fontManager.ttflist])
+        self.fontname.setCurrentText(self.font)
+        self.fontname.currentIndexChanged.connect(self.onFontChoose)
+        grid.addWidget(self.fontname, 14, 1)
 
         self.showtitle = QCheckBox('show')
         self.showtitle.setChecked(self.show_title)
@@ -2035,6 +2042,9 @@ class showLinesWidget(QWidget):
     def onResStyleChoose(self):
         self.res_style = self.resstyle.currentText()
 
+    def onFontChoose(self):
+        self.font = self.fontname.currentText()
+
     def onFitLsChoose(self):
         self.fit_ls = self.lsfit.currentText()
 
@@ -2049,14 +2059,16 @@ class showLinesWidget(QWidget):
         fig = plt.figure(figsize=(self.width, self.height), dpi=300)
         #self.subplot = self.mw.getFigure().add_subplot(self.rows, self.cols, 1)
 
-        mpl.rcParams["axes.formatter.useoffset"] = False
+        matplotlib.rcParams["axes.formatter.useoffset"] = False
+        matplotlib.rcParams["font.family"] = 'sans-serif'
+        matplotlib.rcParams["font.sans-serif"] = self.font
 
         if not self.regions:
             if not self.parent.normview:
                 self.parent.normalize()
 
-            self.ps = plot_spec(len(self.parent.lines), font=self.font, font_labels=self.font_labels, vel_scale=(self.units == 'v'),
-                                gray_out=self.gray_out, show_err=self.show_err, error_cap=self.error_cap, figure=fig)
+            self.ps = plot_spec(len(self.parent.lines), font=self.font, font_size=self.font_size, font_labels=self.font_labels,
+                                vel_scale=(self.units == 'v'), gray_out=self.gray_out, show_err=self.show_err, error_cap=self.error_cap, figure=fig)
             rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order,
                                v_indent=self.v_indent, h_indent=self.h_indent,
                                col_offset=self.col_offset, row_offset=self.row_offset)
@@ -2166,15 +2178,15 @@ class showLinesWidget(QWidget):
                                         p.ax.plot([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], [1 - cf.unc.val, 1 - cf.unc.val], '--', lw=0.5, color=color)
                                         p.ax.fill_between([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], 1 - cf.unc.val - cf.unc.plus, 1 - cf.unc.val + cf.unc.minus, ls=':', color=color, alpha=0.1)
                                     if self.show_cf_value:
-                                        p.ax.text(p.x_max - (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='right', va='bottom', fontsize=p.font_labels, color=color)
+                                        p.ax.text(p.x_max - (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='right', va='bottom', fontsize=p.font_labels, fontname=p.font, color=color)
 
 
                 if i == 0 and self.show_title:
                     print('Title:', self.title)
-                    p.ax.text(self.title_x_pos, self.title_y_pos, str(self.title).strip(), ha='left', va='top', fontsize=self.font_title, transform=p.ax.transAxes)
+                    p.ax.text(self.title_x_pos, self.title_y_pos, str(self.title).strip(), ha='left', va='top', fontsize=self.font_title, fontname=seflf.font, transform=p.ax.transAxes)
 
         else:
-            self.ps = plot_spec(len(self.parent.plot.regions), font=self.font, font_labels=self.font_labels, vel_scale=False,
+            self.ps = plot_spec(len(self.parent.plot.regions), font=self.font, font_size=self.font_size, font_labels=self.font_labels, vel_scale=False,
                                 gray_out=self.gray_out, show_err=self.show_err, error_cap=self.error_cap, figure=fig)
             rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order,
                                v_indent=self.v_indent, h_indent=self.h_indent,
@@ -2276,7 +2288,7 @@ class showLinesWidget(QWidget):
                                         p.ax.fill_between([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], 1 - cf.unc.val - cf.unc.plus, 1 - cf.unc.val + cf.unc.minus, ls=':', color=color, alpha=0.1)
                                     if self.show_cf_value:
                                         #p.ax.text(p.x_max - (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='right', va='bottom', fontsize=p.font_labels, color=color)
-                                        p.ax.text(p.x_min + (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='left', va='bottom', fontsize=p.font_labels, color=color)
+                                        p.ax.text(p.x_min + (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='left', va='bottom', fontsize=p.font_labels, fontname=p.font, color=color)
 
                 if self.show_H2.strip() != '':
                     for speci in ['H2', 'CO', '13CO']:
