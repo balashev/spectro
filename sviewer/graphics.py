@@ -1421,15 +1421,15 @@ class Spectrum():
             self.parent.residualsPanel.vb.addItem(self.residuals)
             self.kde_line = pg.PlotCurveItem(x=-self.kde.x, y=self.kde.y, pen=pg.mkPen(52, 152, 219, 255), fillLevel=0,
                                              brush=pg.mkBrush(52, 152, 219, 100))
-            self.kde_line.rotate(270)
+            self.kde_line.setRotation(270)
             self.parent.residualsPanel.kde.addItem(self.kde_line)
             self.kde_local = pg.PlotCurveItem(x=-self.kde.x, y=self.kde.y, pen=pg.mkPen(46, 204, 113, 255))
-            self.kde_local.rotate(270)
+            self.kde_local.setRotation(270)
             self.parent.residualsPanel.kde.addItem(self.kde_local)
             x = np.linspace(-3, 3, 100)
             y = 1 / np.sqrt(2 * np.pi) * np.exp(-x ** 2 / 2)
             self.kde_gauss = pg.PlotCurveItem(x=x, y=y, pen=pg.mkPen(252, 52, 19, 255))
-            self.kde_gauss.rotate(270)
+            self.kde_gauss.setRotation(270)
             self.parent.residualsPanel.kde.addItem(self.kde_gauss)
 
         # >>> plot 2d spectrum:

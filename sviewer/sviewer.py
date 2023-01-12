@@ -502,6 +502,8 @@ class plotSpectrum(pg.PlotWidget):
                 self.z_status = False
         
             if any([event.key() == getattr(Qt, 'Key_'+s) for s in 'ABCDERSWXZ']):
+                print('Pan mode')
+                #self.vb.removeItem(self.vb._rbScaleBox)
                 self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
 
@@ -637,6 +639,8 @@ class plotSpectrum(pg.PlotWidget):
                     s.update_points()
                     s.set_res()
             self.parent.s.chi2()
+            #self.vb.removeItem(self.vb._rbScaleBox)
+            self.vb.setMouseMode(self.vb.PanMode)
 
         if self.u_status:
             if self.u_status == 1 and self.mousePoint.x() == self.mousePoint_saved.x() and self.mousePoint.y() == self.mousePoint_saved.y():
@@ -2183,7 +2187,7 @@ class showLinesWidget(QWidget):
 
                 if i == 0 and self.show_title:
                     print('Title:', self.title)
-                    p.ax.text(self.title_x_pos, self.title_y_pos, str(self.title).strip(), ha='left', va='top', fontsize=self.font_title, fontname=seflf.font, transform=p.ax.transAxes)
+                    p.ax.text(self.title_x_pos, self.title_y_pos, str(self.title).strip(), ha='left', va='top', fontsize=self.font_title, fontname=self.font, transform=p.ax.transAxes)
 
         else:
             self.ps = plot_spec(len(self.parent.plot.regions), font=self.font, font_size=self.font_size, font_labels=self.font_labels, vel_scale=False,
@@ -2873,7 +2877,7 @@ class fitMCMCWidget(QWidget):
         self.graph.setCurrentText(self.parent.options('MCMC_truths'))
 
     def start(self, init=True, filename=None):
-        self.MCMC(init=init, fiename=filename)
+        self.MCMC(init=init, filename=filename)
         if 0 and self.thread is None:
             self.start_button.setChecked(True)
             if 0:
