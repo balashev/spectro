@@ -1,9 +1,9 @@
-## spectro
+# spectro package
 
-# What is spectro package?
+## What is spectro package?
 Spectro package is a package collects the scripts for the analysis of the astrophysical observations. It is main module sviewer provided powerful tool for the interactive spectral analysis. For the moment the majority of the tool is for the absorption line analysis. The graphical interface is based on PyQt and pyqtgraph packages, that are high-performance graphical packages. The base of the code is written in Python with use of the external high-level packages provided by astronomical community, however the code also allows one to use Julia language to accelerate extensive calculations of the absorption line profiles models and estimation of their parameters.
 
-# What it can do?
+## What it can do?
 The main features of spectro package is
 
 - Powerful Graphical User Interface for spectra analysis
@@ -16,5 +16,5 @@ The main features of spectro package is
 - ISM neutral phase diagram calculation
 - …
 
-# Documentation
+## Documentation
 An incomplete documentation can be found at https://spectro.readthedocs.io. The documentation describes the sviewer - Graphical User Interface for the absorption line analysis, which is located in spectro/sviewer folder, including some tutorials for the basic introductions in absorption line analysis with sviewer.
