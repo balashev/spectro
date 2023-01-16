@@ -502,8 +502,7 @@ class plotSpectrum(pg.PlotWidget):
                 self.z_status = False
         
             if any([event.key() == getattr(Qt, 'Key_'+s) for s in 'ABCDERSWXZ']):
-                print('Pan mode')
-                #self.vb.removeItem(self.vb._rbScaleBox)
+                self.vb.removeItem(self.vb.rbScaleBox)
                 self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
 
@@ -532,8 +531,8 @@ class plotSpectrum(pg.PlotWidget):
 
     def mouseReleaseEvent(self, event):
         if any([getattr(self, s+'_status') for s in 'abcdersuwx']):
+            self.vb.removeItem(self.vb.rbScaleBox)
             self.vb.setMouseMode(self.vb.PanMode)
-            self.vb.rbScaleBox.hide()
         else:
             if event.button() == Qt.RightButton and self.menuEnabled() and self.customMenu:
                 if self.mousePoint == self.mousePoint_saved:

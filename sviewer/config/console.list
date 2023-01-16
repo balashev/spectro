@@ -1,4 +1,3 @@
-CII
 CIIj1
 rescale err 0.1
 rescale err 0.1
@@ -19,3 +18,4 @@ rescale err 1.25
 stats
 stats
 stats
+hide H2
