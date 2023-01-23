@@ -2664,16 +2664,21 @@ class fitMCMCWidget(QWidget):
         self.continue_button = QPushButton("Continue")
         self.continue_button.setFixedSize(120, 30)
         self.continue_button.clicked[bool].connect(self.continueMC)
-        self.init_button = QPushButton("Init Julia")
-        self.init_button.setFixedSize(100, 30)
-        self.init_button.clicked[bool].connect(self.initJulia)
+        self.init_cluster_button = QPushButton("Init")
+        self.init_cluster_button.setFixedSize(90, 30)
+        self.init_cluster_button.clicked[bool].connect(partial(self.initCluster, init=True))
+        self.continue_cluster_button = QPushButton("Continue")
+        self.continue_cluster_button.setFixedSize(90, 30)
+        self.continue_cluster_button.clicked[bool].connect(partial(self.initCluster, init=False))
         #self.cont_fit = QPushButton("Fit cont")
         #self.cont_fit.setFixedSize(70, 30)
         #self.cont_fit.clicked[bool].connect(self.fitCont)
         hbox = QHBoxLayout()
         hbox.addWidget(self.start_button)
         hbox.addWidget(self.continue_button)
-        hbox.addWidget(self.init_button)
+        hbox.addWidget(QLabel('  Cluster:'))
+        hbox.addWidget(self.init_cluster_button)
+        hbox.addWidget(self.continue_cluster_button)
         hbox.addStretch(1)
         #hbox.addWidget(self.cont_fit)
 
@@ -2889,10 +2894,10 @@ class fitMCMCWidget(QWidget):
                 #self.thread = threading.Thread(target=self.MCMC, args=(), kwargs={'init': init}, daemon=True)
             self.thread.start()
 
-    def initJulia(self):
+    def initCluster(self, init=True):
         fname = QFileDialog.getSaveFileName(self, 'Get file', "file.spj")
         if fname[0]:
-            self.MCMC(init=True, filename=fname[0])
+            self.MCMC(init=init, filename=fname[0])
 
     def loadJulia(self, filename):
         self.julia = julia.Julia()

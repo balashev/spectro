@@ -1,3 +1,4 @@
+using ClusterManagers
 using DelimitedFiles
 using Distributed
 using Random
@@ -152,7 +153,14 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
 		#end
 
 		if nthreads > 1
-			addprocs(nthreads - 1)
+			#addprocs(nthreads - 1)
+      		println(nthreads, " ", nthreads ÷ 96 + 1)
+      		try
+			    addprocs(SlurmManager(nthreads)) #, N = nthreads ÷ 96 + 1)
+			catch
+			    addprocs(nthreads - 1)
+			end
+      		#addprocs_slurm(nthreads, nodes=nthreads ÷ 96 + 1, exename="/home/balashev/julia-1.8.5/bin/julia")
 		end
 
 		@everywhere include("profiles.jl")

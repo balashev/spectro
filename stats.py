@@ -370,7 +370,7 @@ class distr2d():
                     w.addItem(line)
         app.instance().exec_()
 
-    def plot_contour(self, conf_levels=None, levels=100, ax=None, xlabel='', ylabel='', limits=None, ls=['--'],
+    def plot_contour(self, conf_levels=None, levels=100, ax=None, xlabel='', ylabel='', limits=None, ls=['--'], lw=1.0,
                      color='dodgerblue', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False,
                      font=14, title=None, zorder=1, label=None):
 
@@ -398,20 +398,22 @@ class distr2d():
         if color is not None:
             levels = [self.level(c) for c in conf_levels]
             if limits == None or limits == 0:
-                c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, linestyles='-',
-                               zorder=zorder, label=label)
+                c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color,
+                               lw=lw, linestyles='-', zorder=zorder, label=label)
             else:
-                c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color, lw=0.5, linestyles='-', alpha=0)
+                c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color,
+                               lw=lw, linestyles='-', zorder=zorder, alpha=0)
                 x, y = c.collections[0].get_segments()[0][:,0], c.collections[0].get_segments()[0][:, 1]
                 inter = interpolate.interp1d(x, y)
                 x = np.linspace(x[0], x[-1], 30)
-                ax.plot(x, inter(x), '-', c=color)
+                ax.plot(x, inter(x), '-', c=color, lw=lw)
                 if limits < 0:
                     lolims, uplims = False, True
                 if limits > 0:
                     lolims, uplims = True, False
                 x = np.linspace(x[0], x[-1], 20)
-                ax.errorbar(x, inter(x), yerr=np.abs(limits), lolims=lolims, fmt='o', color=color, uplims=uplims, markersize=0, capsize=0, zorder=zorder, label=label)
+                ax.errorbar(x, inter(x), yerr=np.abs(limits), lolims=lolims, fmt='o', color=color, uplims=uplims,
+                            markersize=0, capsize=0, zorder=zorder, label=label)
             if ls is not None:
                 for c, s in zip(c.collections[:len(ls)], ls[::-1]):
                     c.set_dashes(s)
@@ -426,26 +428,29 @@ class distr2d():
             ax.set_title(title, fontdict={'fontsize': font})
         return ax
 
-    def plot(self, fig=None, frac=0.1, indent=0.15, color_marg='dodgerblue',
-             conf_levels=None, xlabel='', ylabel='', limits=None, ls=None, stats=False,
-             color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False,
+    def plot(self, fig=None, frac=0.1, indent=0.15, x_shift=0.0, y_shift=0.0,
+             conf_levels=None, xlabel='', ylabel='', limits=None, ls=None, lw=1.0, stats=False,
+             color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False, color_marg='dodgerblue',
              font=14, title=None, zorder=1):
 
         if fig is None:
             fig = plt.figure()
-        ax = fig.add_axes([indent, indent, 1 - indent - frac, 1 - indent - frac])
-        ax.set_position([indent, indent, 1 - indent - frac, 1 - indent - frac])
-        self.plot_contour(ax=ax, conf_levels=conf_levels, xlabel=xlabel, ylabel=ylabel, limits=limits, ls=ls,
+
+        frac = frac if isinstance(frac, list) else [frac, frac]
+        ax = fig.add_axes([x_shift + indent, y_shift + indent, 1 - indent - frac[0] - x_shift, 1 - indent - frac[1] - y_shift])
+        #ax.set_position([indent, indent, 1 - indent - frac, 1 - indent - frac])
+        self.plot_contour(ax=ax, conf_levels=conf_levels, xlabel=xlabel, ylabel=ylabel, limits=limits, ls=ls, lw=lw,
                      color=color, color_point=color_point, cmap=cmap, alpha=alpha, colorbar=colorbar,
                      font=font, title=title, zorder=zorder)
 
         x, y = ax.get_xlim(), ax.get_ylim()
 
         dy = self.marginalize('x')
-        ax1 = fig.add_axes([1 - frac, indent, frac, 1 - indent - frac])
+
+        ax1 = fig.add_axes([1 - frac[0], y_shift + indent, frac[0], 1 - indent - frac[1] - y_shift])
         #ax.set_position([1 - frac, indent, frac, 1 - indent - frac])
         ax1.set_axis_off()
-        ax1.plot(dy.inter(dy.x), dy.x, '-', color=color_marg, lw=1.5)
+        ax1.plot(dy.inter(dy.x), dy.x, '-', color=color_marg, lw=lw + 0.5)
         if stats:
             dy.stats()
             ax.text(0.95, 0.95, dy.latex(f=3), rotation=90, transform=ax.transAxes, va='top', ha='right')
@@ -453,10 +458,10 @@ class distr2d():
         ax1.set_xlim([0 + ax1.get_xlim()[1]/50, ax1.get_xlim()[1]])
 
         dx = self.marginalize('y')
-        ax2 = fig.add_axes([indent, 1 - frac, 1 - indent - frac, frac])
+        ax2 = fig.add_axes([x_shift + indent, 1 - frac[1], 1 - indent - frac[0] - x_shift, frac[1]])
         #ax.set_position([indent, 1 - frac, 1 - indent - frac, frac])
         ax2.set_axis_off()
-        ax2.plot(dx.x, dx.inter(dx.x), '-', color=color_marg, lw=1.5)
+        ax2.plot(dx.x, dx.inter(dx.x), '-', color=color_marg, lw=lw + 0.5)
         if stats:
             dx.stats()
             ax.text(0.05, 0.95, dx.latex(f=3), transform=ax.transAxes, va='top', ha='left')
