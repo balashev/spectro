@@ -2905,13 +2905,16 @@ class fitMCMCWidget(QWidget):
 
         chain, lns = self.parent.julia.readMCMC(filename)
 
+        if os.path.exists("output/mcmc.hdf5"):
+            os.remove("output/mcmc.hdf5")
+
         print(chain.shape, lns.shape)
         nwalkers, npars, nsteps = chain.shape[0], chain.shape[1], chain.shape[2]
         backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
         backend.reset(nwalkers, npars)
 
         with backend.open("w") as f:
-            backend.reset(nwalkers, np.sum([p.vary for p in self.parent.julia_pars.values()]))
+            backend.reset(nwalkers, npars) #np.sum([p.vary for p in self.parent.julia_pars.values()]))
             backend.grow(nsteps, None)
             g = f[backend.name]
             g.attrs["iteration"] = nsteps

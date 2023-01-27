@@ -6,7 +6,7 @@ using Serialization
 @everywhere using SpecialFunctions
 @everywhere using Statistics
 @everywhere include("profiles.jl")
-@everywhere using PyCall
+#@everywhere using PyCall
 @everywhere using Combinatorics
 @everywhere using AdvancedHMC, ForwardDiff
 

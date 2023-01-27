@@ -389,11 +389,14 @@ class distr2d():
             if isinstance(cmap, str):
                 cmap = getattr(cm, cmap)
             my_cmap = cmap(np.arange(cmap.N))
-            my_cmap[:, -1] = np.linspace(alpha * (0.6 + 0.4 * alpha), 0.6 + 0.4 * alpha, cmap.N)
+            my_cmap[:, -1] = np.linspace(alpha * (0.8 + 0.2 * alpha), 0.8 + 0.2 * alpha, cmap.N)
             my_cmap = ListedColormap(my_cmap)
             if not isinstance(levels, int):
                 levels = np.sort([self.level(c) for c in levels] / self.zmax)
-            cs = ax.contourf(self.X, self.Y, self.z / self.zmax, levels, cmap=my_cmap, zorder=zorder, lw=0)
+            cs = ax.contourf(self.X, self.Y, self.z / self.zmax, levels, cmap=my_cmap, zorder=zorder, lw=0, antialiased=True)
+            #for c in cs.collections:
+            #    c.set_edgecolor("face")
+            #    c.set_linewidth(0.000000000001)
 
         if color is not None:
             levels = [self.level(c) for c in conf_levels]
@@ -453,7 +456,9 @@ class distr2d():
         ax1.plot(dy.inter(dy.x), dy.x, '-', color=color_marg, lw=lw + 0.5)
         if stats:
             dy.stats()
-            ax.text(0.95, 0.95, dy.latex(f=3), rotation=90, transform=ax.transAxes, va='top', ha='right')
+            ax1.text(0.05, 0.95, dy.latex(f=stats), rotation=-90, transform=ax1.transAxes, va='top', ha='left')
+            mask = np.logical_and(dy.x >= dy.interval[0], dy.x <= dy.interval[1])
+            ax1.fill_betweenx(dy.x[mask], dy.inter(dy.x)[mask], facecolor=color_marg, alpha=0.3, interpolate=True)
         ax1.set_ylim(y)
         ax1.set_xlim([0 + ax1.get_xlim()[1]/50, ax1.get_xlim()[1]])
 
@@ -464,7 +469,9 @@ class distr2d():
         ax2.plot(dx.x, dx.inter(dx.x), '-', color=color_marg, lw=lw + 0.5)
         if stats:
             dx.stats()
-            ax.text(0.05, 0.95, dx.latex(f=3), transform=ax.transAxes, va='top', ha='left')
+            ax2.text(0.05, 0.05, dx.latex(f=stats), transform=ax2.transAxes, va='bottom', ha='left')
+            mask = np.logical_and(dx.x >= dx.interval[0], dx.x <= dx.interval[1])
+            ax2.fill_between(dx.x[mask], dx.inter(dx.x)[mask], facecolor=color_marg, alpha=0.3, interpolate=True)
         ax2.set_xlim(x)
         ax2.set_ylim([0 + ax2.get_ylim()[1]/50, ax2.get_ylim()[1]])
 
