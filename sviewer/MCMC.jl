@@ -1,8 +1,11 @@
 using ClusterManagers
 using DelimitedFiles
 using Distributed
+using Measures
+using Plots
 using Random
 using Serialization
+using Statistics
 @everywhere using SpecialFunctions
 @everywhere using Statistics
 @everywhere include("profiles.jl")
@@ -14,11 +17,71 @@ function initJulia(filename, spec, pars, add, parnames; sampler="Affine", prior=
 	serialize(filename, [spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts])
 end
 
-function runMCMC(filename, nthreads)
+function runMCMC(filename, nthreads; nstep=nothing, cont=false)
     spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = deserialize(filename)
+    if nstep != nothing
+        nsteps = parse(Int, nstep)
+    end
+    println("steps to go: ", nsteps)
+    if cont
+        println("continue from the last step...")
+        chain, llhoodvals = readMCMC(replace(filename, ".spj" => ".spr"))
+        println(size(chain))
+        init = chain[:, :, end]
+        println(size(init))
+        #println(init)
+    end
+    println("size of init: ", size(init))
 	#println(sampler, " ", parnames, " ", prior, " ", nwalkers, " ", nsteps, " ", thinning)
 	chain, llhoodvals = fitMCMC(spec, pars, add, parnames, sampler=sampler, prior=prior, nwalkers=nwalkers, nsteps=nsteps, nthreads=parse(Int, nthreads), thinning=thinning, init=init, opts=opts)
 	serialize(replace(filename, ".spj" => ".spr"), [chain, llhoodvals])
+	plotChain(filename)
+end
+
+function plotChain(filename) #(pars, chain, llhoodvals)
+    spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = deserialize(filename)
+    pars = make_pars(pars, parnames=parnames)
+    chain, llhoodvals = readMCMC(replace(filename, ".spj" => ".spr"))
+    println(size(chain))
+    n = size(chain)[2]
+    nrows, ncols = round(Int, sqrt(n)) + (n % (round(Int, sqrt(n))) > 0), n ÷ (round(Int, sqrt(n)) + 1) + (n % (round(Int, sqrt(n)) + 1) > 0)
+    #println(nrows, " ", ncols)
+    x = range(1, size(chain)[3])
+    params = [p.name for (k, p) in pars if p.vary == 1]
+    p = Vector{}()
+    ind = rand(1:size(chain)[1])
+    for (i, par) in enumerate(params)
+        if i < n + 1
+            row, col = i ÷ ncols + 1, i - (i ÷ ncols) * ncols
+            mean = quantile(mapslices(x -> quantile(filter(!isnan, x), 0.5), chain[:, i, :], dims = 1)[1, :], 0.5)
+            if startswith(par, "z")
+                y = (chain[:, i, :] .- mean) ./ (1 + mean) .* 3e5
+            else
+                y = chain[:, i, :] ./ mean .- 1.0
+            end
+            ymin = mapslices(x -> quantile(filter(!isnan, x), 0.15), y, dims = 1)[1, :]
+            ymax = mapslices(x -> quantile(filter(!isnan, x), 0.95), y, dims = 1)[1, :]
+            #push!(p, plot(x, [ymin, ymax], lw=5, xtickfontsize=50, ytickfontsize=50, title=par, legend=false))
+            push!(p, plot(x, ymin, fillrange=ymax, fillalpha=0.5, xtickfontsize=100, ytickfontsize=100, xlabel="iteration", label=par, legendfontsize=100))
+            plot!(x, y[ind, :], lw=20, label=false)
+        end
+    end
+    #println(p)
+    plot(p..., layout=grid(ncols, nrows), size=(4000 * ncols, 2000 * nrows), dpi=20)
+    savefig(replace(filename, ".spj" => ".png"))
+    println("Summary figure is plotted in ", replace(filename, ".spj" => ".png"))
+
+    p = Vector{}()
+    for (i, par) in enumerate(params)
+        if i < n + 1
+            row, col = i ÷ ncols + 1, i - (i ÷ ncols) * ncols
+            push!(p, scatter(chain[:, i, end], llhoodvals[:, end], xtickfontsize=100, ytickfontsize=100, label=par, ms=20, legendfontsize=30, bottom_margin=40mm))
+        end
+    end
+    #println(p)
+    plot(p..., layout=grid(ncols, nrows), size=(4000 * ncols, 2000 * nrows), dpi=20)
+    savefig(replace(filename, ".spj" => "_lns.png"))
+    println("Likelihoods are plotted in ", replace(filename, ".spj" => "_lns.png"))
 end
 
 function readMCMC(filename)
@@ -34,6 +97,7 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
 	#println(parnames)
     pars = make_pars(pars, parnames=parnames)
 	#println(pars)
+	println("pars length: ", length(pars))
     priors = make_priors(prior)
 	#println("priors: ", priors)
     params = [p.val for (k, p) in pars if p.vary == 1]
@@ -154,13 +218,11 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
 
 		if nthreads > 1
 			#addprocs(nthreads - 1)
-      		println(nthreads, " ", nthreads ÷ 96 + 1)
-      		try
-			    addprocs(SlurmManager(nthreads)) #, N = nthreads ÷ 96 + 1)
-			catch
-			    addprocs(nthreads - 1)
-			end
-      		#addprocs_slurm(nthreads, nodes=nthreads ÷ 96 + 1, exename="/home/balashev/julia-1.8.5/bin/julia")
+      		#try
+			#    addprocs(SlurmManager(nthreads)) #, N = nthreads ÷ 96 + 1)
+			#catch
+			addprocs(nthreads - 1)
+			#addprocs_slurm(nthreads, nodes=nthreads ÷ 96 + 1, exename="/home/balashev/julia-1.8.5/bin/julia")
 		end
 
 		@everywhere include("profiles.jl")

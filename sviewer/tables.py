@@ -284,9 +284,9 @@ class QSOlistTable(pg.TableWidget):
                 if self.columnIndex(k) is not None:
                     self.setFormat(v, self.columnIndex(k))
         self.resizeColumnsToContents()
-        self.horizontalHeader().setResizeMode(QHeaderView.Stretch)
-        self.horizontalHeader().setResizeMode(0, QHeaderView.ResizeToContents)
-        self.horizontalHeader().setResizeMode(1, QHeaderView.ResizeToContents)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         w = 180 + self.verticalHeader().width() + self.autoScrollMargin()*1.5
         w += sum([self.columnWidth(c) for c in range(self.columnCount())])
         self.resize(w, self.size().height())
@@ -924,9 +924,9 @@ class IGMspecTable(pg.TableWidget):
         print(data)
         self.setData(data)
         self.resizeColumnsToContents()
-        self.horizontalHeader().setResizeMode(QHeaderView.Stretch)
-        self.horizontalHeader().setResizeMode(0, QHeaderView.ResizeToContents)
-        self.horizontalHeader().setResizeMode(1, QHeaderView.ResizeToContents)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         w = 180 + self.verticalHeader().width() + self.autoScrollMargin() * 1.5
         w += sum([self.columnWidth(c) for c in range(self.columnCount())])
         self.resize(w, self.size().height())

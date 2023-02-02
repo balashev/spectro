@@ -2466,7 +2466,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> FeII calculations
-    if 0:
+    if 1:
         pr = pyratio(z=0.34, pumping='simple', radiation='simple', sed_type='AGN', agn={'filter': 'r', 'mag': 18})
         pr.set_pars(['T', 'rad', 'e'])
         pr.pars['T'].range = [3, 5]
@@ -2602,7 +2602,7 @@ if __name__ == '__main__':
             plt.show()
 
     # >>> CI calculations:
-    if 1:
+    if 0:
         pr = pyratio(z=1.17)
         pr.add_spec('CI', num=3)
         pr.set_pars(['T', 'n', 'f'])

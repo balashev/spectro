@@ -2963,7 +2963,7 @@ class fitMCMCWidget(QWidget):
         self.parent.s.calcFit(ind=-1, redraw=False)
 
         pars = [str(p) for p in self.parent.fit.list_fit()]
-        print(pars)
+        print(len(pars), pars)
 
         backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
         backend.reset(nwalkers, np.sum([p.vary for p in self.parent.julia_pars.values()]))
@@ -3323,6 +3323,8 @@ class fitMCMCWidget(QWidget):
         pars, samples, lnprobs = self.readChain()
         nsteps, nwalkers, = lnprobs.shape
         ndims = len(pars)
+        print(ndims, pars)
+        print(samples.shape)
 
         if any([s in qc for s in ['current', 'moments', 'all']]):
             n_hor = int(ndims ** 0.5)
@@ -3334,6 +3336,7 @@ class fitMCMCWidget(QWidget):
             for i, p in enumerate(pars):
                 if p.startswith('z'):
                     samples[:, :, i] = (samples[:, :, i] / np.mean(samples[:, :, i], axis=0) - 1) * 300000
+                print(i, p)
             fig, ax0 = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
             ax0[0, 0].hist(-lnprobs[nsteps-1, :][np.isfinite(lnprobs[nsteps-1, :])], 20, density=1, histtype='bar', color='crimson', label='$\chi^2$')
             ax0[0, 0].legend()

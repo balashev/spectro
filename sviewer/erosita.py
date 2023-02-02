@@ -102,6 +102,7 @@ class dataPlot(pg.PlotWidget):
 
         if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'SD']):
             self.vb.setMouseMode(self.vb.RectMode)
+            self.vb.rbScaleBox.show()
 
     def keyReleaseEvent(self, event):
         super(dataPlot, self).keyPressEvent(event)
@@ -120,8 +121,10 @@ class dataPlot(pg.PlotWidget):
                                        ylabel=self.parent.axis_info[self.parent.ero_y_axis][1])
                     plt.show()
 
-        if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'SD']):
-            self.vb.setMouseMode(self.vb.PanMode)
+            if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'SD']):
+                self.vb.rbScaleBox.hide()
+                #self.vb.removeItem(self.vb.rbScaleBox)
+                self.vb.setMouseMode(self.vb.PanMode)
 
     def mousePressEvent(self, event):
         super(dataPlot, self).mousePressEvent(event)
@@ -130,8 +133,9 @@ class dataPlot(pg.PlotWidget):
 
     def mouseReleaseEvent(self, event):
         if any([getattr(self, s + '_status') for s in 'sd']):
-            self.vb.setMouseMode(self.vb.PanMode)
             self.vb.rbScaleBox.hide()
+            #self.vb.removeItem(self.vb.rbScaleBox)
+            self.vb.setMouseMode(self.vb.PanMode)
 
         if self.s_status or self.d_status:
             self.parent.select_points(self.mousePoint_saved.x(), self.mousePoint_saved.y(), self.mousePoint.x(),
@@ -145,6 +149,9 @@ class dataPlot(pg.PlotWidget):
         self.mousePoint = self.vb.mapSceneToView(event.pos())
         self.mouse_moved = True
 
+        #if any([getattr(self, s + '_status') for s in 'sd']):
+        #    self.vb.setMouseMode(self.vb.RectMode)
+        #    self.vb.rbScaleBox.show()
         pos = self.vb.sceneBoundingRect()
         self.cursorpos.setText('x={0:.3f}, y={1:.2f}'.format(self.mousePoint.x(), self.mousePoint.y()))
         self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(pos.left() + 10, pos.bottom() - 10)))
