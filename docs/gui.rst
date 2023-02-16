@@ -3,8 +3,11 @@
 Graphical User Interface
 ========================
 
-**Spectro** package contains **sviewer** - the graphical user interface for the interactive spectral data analysis. It is located in the separate folder "sviewer" and 
-should be loaded by running ``path/to/spectro/sviewer/__main__.py``, for example::
+**Spectro** package contains **sviewer** - the graphical user interface for the interactive spectral data analysis. It is located in the separate folder "sviewer".
+
+Run
+---
+``sviewer`` GUI can be run using ``path/to/spectro/sviewer/__main__.py``, for example::
 
     $ path/to/python.exe path/to/spectro/sviewer/__main__.py
 
