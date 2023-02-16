@@ -56,7 +56,7 @@ class fitTabBar(QTabBar):
     def __init__(self, parent=None):
         QTabBar.__init__(self, parent)
         self.parent = parent
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.parent.folder + 'config/styles.ini').read())
 
     def mouseReleaseEvent(self, ev):
         super(fitTabBar, self).mouseReleaseEvent(ev)
@@ -160,7 +160,7 @@ class fitModelWidget(QWidget):
         self.refr = False
         super(fitModelWidget, self).__init__()
         self.parent = parent
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
 
         self.tab = QTabWidget(movable=True)
         self.tabBar = fitTabBar(self)
@@ -1086,7 +1086,7 @@ class fitModelSysWidget(QFrame):
         self.ind = ind
         self.fit = self.parent.parent.fit
         self.initGUI()
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.parent.folder + 'config/styles.ini').read())
         #self.setFixedHeight(550)
         #self.show()
         self.init = False
@@ -1428,7 +1428,7 @@ class fitResultsWidget(QWidget):
         self.res = None
         self.view = 'plain'
         self.init_GUI()
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
 
         self.setGeometry(200, 100, 750, 900)
         self.setWindowTitle('Fit results')
@@ -1441,7 +1441,7 @@ class fitResultsWidget(QWidget):
         hl = QHBoxLayout()
         self.latexTable = QPushButton('View:')
         menu = QMenu()
-        menu.setStyleSheet(open('config/styles.ini').read())
+        menu.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         plainView = QAction("Plain", menu)
         plainView.triggered.connect(partial(self.refresh, 'plain'))
         menu.addAction(plainView)
@@ -1711,7 +1711,7 @@ class fitResultsWidget(QWidget):
             self.table = pg.TableWidget(sortable=False)
             self.table.show()
             self.table.resize(1000, 1000)
-            self.table.setStyleSheet(open('config/styles.ini').read())
+            self.table.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
             self.table.setWindowTitle('Fit results')
             self.table.setData(data)
 
@@ -1781,7 +1781,7 @@ class chooseFitParsWidget(QWidget):
         self.parent = parent
         #self.resize(700, 900)
         #self.move(400, 100)
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
 
         self.saved = []
         #if hasattr(self.parent, 'fit'):
@@ -1882,7 +1882,7 @@ class chooseShowParsWidget(QWidget):
     def __init__(self, parent):
         super().__init__()
         self.parent = parent
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
 
         self.saved = []
 

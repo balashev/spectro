@@ -13,7 +13,7 @@ import corner
 import emcee
 import h5py
 from importlib import reload
-import julia
+from julia import Main as julia
 from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs, Model
 from matplotlib.colors import to_hex
 import matplotlib
@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget,
                              QGridLayout, QTabWidget, QFormLayout, QHBoxLayout, QRadioButton,
                              QTreeWidget, QComboBox, QTreeWidgetItem, QAbstractItemView,
                              QStatusBar, QMenu, QButtonGroup, QMessageBox, QToolButton, QColorDialog)
-from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl, QTimer, pyqtSignal, QObject, QPropertyAnimation
+from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl, QTimer, pyqtSignal, QObject, QPropertyAnimation, QDir
 from PyQt5.QtGui import QDesktopServices, QPainter, QFont, QColor, QIcon
 from scipy.interpolate import interp1d, UnivariateSpline
 from scipy.signal import argrelextrema
@@ -166,7 +166,7 @@ class plotSpectrum(pg.PlotWidget):
         """
         if self.menu is None:
             self.menu = QMenu()
-            self.menu.setStyleSheet(open('config/styles.ini').read())
+            self.menu.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
             self.viewAll = QAction("View all", self.menu)
             self.viewAll.triggered.connect(self.autoRange)
             self.menu.addAction(self.viewAll)
@@ -948,7 +948,7 @@ class residualsWidget(pg.PlotWidget):
         """
         if self.menu is None:
             self.menu = QMenu()
-            self.menu.setStyleSheet(open('config/styles.ini').read())
+            self.menu.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
             self.export = QAction("Export...", self.menu)
             self.export.triggered.connect(self.showExportDialog)
             self.exportDialog = None
@@ -1307,7 +1307,7 @@ class preferencesWidget(QWidget):
         self.parent = parent
         self.move(200,100)
         self.setWindowTitle('Preferences')
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
 
         self.initGUI()
         self.setGeometry(300, 200, 100, 100)
@@ -1604,7 +1604,7 @@ class showLinesWidget(QWidget):
         self.initData()
         self.initGUI()
         self.setWindowTitle('Plot line profiles using Matploplib')
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
 
     def initData(self):
         self.savedText = None
@@ -1761,7 +1761,7 @@ class showLinesWidget(QWidget):
         self.fitcolor.setFixedSize(30, 30)
         self.fitcolor.setColor(color=self.fit_color.to_bytes(4, byteorder='big'))
         self.fitcolor.sigColorChanged.connect(partial(self.setColor, comp=-1))
-        self.fitcolor.setStyleSheet(open('config/styles.ini').read())
+        self.fitcolor.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         grid.addWidget(self.fitcolor, 9, 2)
 
         self.lsfit = QComboBox(self)
@@ -1806,7 +1806,7 @@ class showLinesWidget(QWidget):
         self.rescolor.setFixedSize(30, 30)
         self.rescolor.setColor(color=self.res_color.to_bytes(4, byteorder='big'))
         self.rescolor.sigColorChanged.connect(partial(self.setColor, comp='res'))
-        self.rescolor.setStyleSheet(open('config/styles.ini').read())
+        self.rescolor.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         grid.addWidget(self.rescolor, 12, 2)
 
         self.showdisp = QCheckBox('show disp')
@@ -1876,7 +1876,7 @@ class showLinesWidget(QWidget):
         self.cfcolor.setFixedSize(30, 30)
         self.cfcolor.setColor(color=self.cf_color.to_bytes(4, byteorder='big'))
         self.cfcolor.sigColorChanged.connect(partial(self.setColor, comp='cf'))
-        self.cfcolor.setStyleSheet(open('config/styles.ini').read())
+        self.cfcolor.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         grid.addWidget(self.cfcolor, 25, 4)
 
         self.colorComps = colorCompBox(self, num=len(self.parent.fit.sys))
@@ -2429,7 +2429,7 @@ class snapShotWidget(QWidget):
         self.getfilename = QPushButton('Choose')
         self.getfilename.setFixedSize(70, 30)
         self.getfilename.clicked[bool].connect(self.loadfile)
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         l.addWidget(self.filename)
         l.addWidget(self.getfilename)
         l.addStretch(0)
@@ -2566,7 +2566,7 @@ class fitMCMCWidget(QWidget):
         self.initData()
         self.initGUI()
         self.setWindowTitle('Fit with MCMC')
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
 
     def initData(self):
         self.savedText = ''
@@ -2743,7 +2743,7 @@ class fitMCMCWidget(QWidget):
         self.results.setText('# fit results are here')
         self.results.textChanged.connect(self.fitresChanged)
         grid.addWidget(self.results, 5, 1)
-        self.chooseShow = chooseShowParsWidget(self)
+        self.chooseShow = chooseShowParsWidget(self.parent)
         self.chooseShow.setFixedSize(200, 700)
         v = QVBoxLayout()
         v.addLayout(grid)
@@ -2900,8 +2900,7 @@ class fitMCMCWidget(QWidget):
             self.MCMC(init=init, filename=fname[0])
 
     def loadJulia(self, filename):
-        self.julia = julia.Julia()
-        self.julia.include("MCMC.jl")
+        self.parent.julia.include("MCMC.jl")
 
         chain, lns = self.parent.julia.readMCMC(filename)
 
@@ -2972,14 +2971,21 @@ class fitMCMCWidget(QWidget):
 
         if self.sampler.currentText() in ['Affine', 'ESS', 'UltraNest', 'Hamiltonian']:
 
-            self.julia = julia.Julia()
-            self.julia.include("MCMC.jl")
+            self.parent.julia.include("MCMC.jl")
 
             if filename is not None:
 
-                self.parent.julia.initJulia(filename, self.parent.julia_spec, self.parent.julia_pars, self.parent.julia_add, self.parent.fit.list_names(),
-                                            sampler=self.sampler.currentText(), prior=self.priors, nwalkers=nwalkers, nsteps=nsteps,
-                                            nthreads=nthreads, thinning=thinning, init=init, opts=opts)
+                if 0:
+                    self.parent.julia.initJulia(filename, self.parent.julia_spec, self.parent.julia_pars, self.parent.julia_add, self.parent.fit.list_names(),
+                                                sampler=self.sampler.currentText(), prior=self.priors, nwalkers=nwalkers, nsteps=nsteps,
+                                                nthreads=nthreads, thinning=thinning, init=init, opts=opts)
+                else:
+                    self.parent.julia.initJulia2(filename, self.parent.s, fit=self.parent.fit, fit_list=self.parent.fit.list(),
+                                                 parnames=self.parent.fit.list_names(), tieds=self.parent.fit.tieds,
+                                                 sampler=self.sampler.currentText(), prior=self.priors,
+                                                 nwalkers=nwalkers, nsteps=nsteps,
+                                                 nthreads=nthreads, thinning=thinning, init=init, opts=opts)
+
             else:
                 chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.julia_pars, self.parent.julia_add, self.parent.fit.list_names(),
                                                        sampler=self.sampler.currentText(), prior=self.priors, nwalkers=nwalkers, nsteps=nsteps,
@@ -3417,8 +3423,7 @@ class fitMCMCWidget(QWidget):
         #print(fit_disp.shape)
 
         if self.parent.fitType == 'julia':
-            self.julia = julia.Julia()
-            self.julia.include("MCMC.jl")
+            self.parent.julia.include("MCMC.jl")
             fit_disp, fit_comp_disp, cheb_disp = self.parent.julia.fit_disp([f.x for f in fit], samples[burnin:, :, :], self.parent.julia_spec, self.parent.fit.list(),
                                                  self.parent.julia_add, sys=len(self.parent.fit.sys), tieds=self.parent.fit.tieds,
                                                  nthreads=int(self.parent.options('MCMC_threads')), nums=int(self.parent.options('MCMC_disp_num')))
@@ -3509,7 +3514,7 @@ class fitExtWidget(QWidget):
     def __init__(self, parent):
         super(fitExtWidget, self).__init__()
         self.parent = parent
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.initUI()
 
     def initUI(self):
@@ -3809,7 +3814,7 @@ class extract2dWidget(QWidget):
         self.trace_width = [None, None]
         self.init_GUI()
         self.init_Parameters()
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.setGeometry(200, 200, 550, 800)
         self.setWindowTitle('Spectrum Extraction')
 
@@ -4336,7 +4341,7 @@ class fitContWidget(QWidget):
         self.parent = parent
         self.init_GUI()
         self.init_Parameters()
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.setGeometry(200, 200, 550, 500)
         self.setWindowTitle('Continuum construction')
 
@@ -4622,7 +4627,7 @@ class loadSDSSwidget(QWidget):
     def __init__(self, parent):
         super(loadSDSSwidget, self).__init__()
         self.parent = parent
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.initUI()
         
     def initUI(self):      
@@ -4947,7 +4952,7 @@ class SDSSPhotWidget(QWidget):
         super(SDSSPhotWidget, self).__init__()
         self.parent = parent
         self.setGeometry(100, 100, 2000, 1100)
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.show()
 
 
@@ -4956,7 +4961,7 @@ class observabilityWidget(QWidget):
     def __init__(self, parent):
         super(observabilityWidget, self).__init__()
         self.parent = parent
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.initUI()
 
     def initUI(self):
@@ -5216,7 +5221,7 @@ class ShowListImport(QWidget):
         self.parent = parent
 
         self.move(400, 100)
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.table = QSOlistTable(self.parent, cat=cat, subparent=self, editable=False)
         self.table.setSelectionMode(QAbstractItemView.MultiSelection)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -5263,7 +5268,7 @@ class ShowListCombine(QWidget):
         super().__init__()
         self.parent = parent
 
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.table = QSOlistTable(self.parent, cat=cat, subparent=self, editable=False)
         self.table.setSelectionMode(QAbstractItemView.MultiSelection)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -5418,7 +5423,7 @@ class ExportDataWidget(QWidget):
         
         self.setGeometry(200, 200, 800, 350)
         self.setWindowTitle(self.type.title() + ' Data')
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.show()
         
     def filenameChanged(self, text):
@@ -5536,7 +5541,7 @@ class combineWidget(QWidget):
         self.parent = parent
         self.resize(1800, 1000)
         self.move(200, 100)
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
 
         layout = QVBoxLayout()
         l = QHBoxLayout()
@@ -5757,7 +5762,7 @@ class rebinWidget(QWidget):
         self.parent = parent
         self.resize(700, 500)
         self.move(400, 100)
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
 
         self.treeWidget = QTreeWidget()
         self.treeWidget.setHeaderHidden(True)
@@ -5980,7 +5985,7 @@ class GenerateAbsWidget(QWidget):
         self.parent = parent
         self.setGeometry(300, 200, 500, 600)
         self.setWindowTitle('Generate Absorption System:')
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.initData()
         self.initGUI()
 
@@ -6233,7 +6238,7 @@ class infoWidget(QWidget):
         layout.addWidget(self.text)
         layout.addLayout(hbox)
         self.setLayout(layout)
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
 
     def loadtxt(self, text=None):
         if text is None:
@@ -6421,17 +6426,20 @@ class sviewer(QMainWindow):
         super().__init__()
 
         #self.setWindowFlags(Qt.FramelessWindowHint)
-        self.setWindowTitle('Spectro')
-        self.setWindowIcon(QIcon('images/spectro_logo.png'))
         self.initStatus()
         self.initUI()
         self.initStyles()
         self.initData()
+        self.setWindowTitle('Spectro')
+        self.setWindowIcon(QIcon(self.folder + 'images/spectro_logo.png'))
 
     def initStyles(self):
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.folder + 'config/styles.ini').read())
 
     def initStatus(self):
+        self.folder = os.path.dirname(os.path.abspath(__file__)) + '/'
+        QDir.addSearchPath('images', os.path.join(self.folder, 'images'))
+        print(self.folder)
         self.t = Timer()
         self.setAcceptDrops(True)
         self.abs_H2_status = 0
@@ -6445,7 +6453,8 @@ class sviewer(QMainWindow):
             self.config = 'config/options.ini'
         elif platform.system() == 'Linux':
             self.config = 'config/options_linux.ini'
-        self.developer = os.path.isfile('config/developer.ini')
+        self.developer = os.path.isfile(self.folder + 'config/developer.ini')
+        print(self.developer)
         #self.developer = self.options('developerMode', config=self.config)
         self.SDSSfolder = self.options('SDSSfolder', config=self.config)
         self.SDSSDR14 = self.options('SDSSDR14', config=self.config)
@@ -6485,8 +6494,8 @@ class sviewer(QMainWindow):
         self.juliaFit = self.options('julia')
         self.julia = None
         if self.juliaFit:
-            self.julia = julia.Julia()
-            self.julia.include("profiles.jl")
+            self.julia = julia #.Julia()
+            self.julia.include(self.folder + "profiles.jl")
         self.polyDeg = int(self.options('polyDeg'))
         self.SDSScat = self.options('SDSScat')
         self.comp = 0
@@ -6560,7 +6569,7 @@ class sviewer(QMainWindow):
         self.MCMCprogress = QLabel('')
         splitter.addWidget(self.MCMCprogress)
         splitter.setSizes([1500, 200, 300, 500])
-        splitter.setStyleSheet(open('config/styles.ini').read() + "QSplitter::handle:horizontal {height: 1px; background: rgb(49,49,49);}")
+        splitter.setStyleSheet(open(self.folder + 'config/styles.ini').read() + "QSplitter::handle:horizontal {height: 1px; background: rgb(49,49,49);}")
         self.statusBarWidget.addWidget(splitter)
 
         self.statusBar.setText('Ready')
@@ -7229,7 +7238,7 @@ class sviewer(QMainWindow):
         """
         Read and write options from the config file
         """
-        with open(config) as f:
+        with open(self.folder + config) as f:
             s = f.readlines()
 
         for i, line in enumerate(s):
@@ -7254,14 +7263,14 @@ class sviewer(QMainWindow):
             return None
             #return 'option {0} was not found'.format(opt)
 
-        with open('config/options.ini', 'w') as f:
+        with open(self.folder + 'config/options.ini', 'w') as f:
             for line in s:
                 f.write(line)
 
     def reload_julia(self):
         reload(julia)
-        self.julia = julia.Julia()
-        self.julia.include("profiles.jl")
+        self.julia = julia #.Julia()
+        self.julia.include(self.folder + "profiles.jl")
 
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -7617,7 +7626,7 @@ class sviewer(QMainWindow):
             filename += '.spv'
 
         if os.path.isfile(filename):
-            copyfile(filename, os.path.dirname(os.path.realpath(__file__)) + '/temp/backup.spv')
+            copyfile(filename, self.folder + '/temp/backup.spv')
 
         with open(filename, 'w') as f:
 
@@ -7714,7 +7723,6 @@ class sviewer(QMainWindow):
 
             if 'fit' in self.save_opt:
                 excl = [' '.join([str(i), line]) for i, sys in enumerate(self.fit.sys) for line in sys.exclude]
-                print(excl)
                 if len(excl) > 0:
                     f.write('fit_exclude: {0:}\n'.format(len(excl)))
                     for line in excl:
@@ -7780,7 +7788,6 @@ class sviewer(QMainWindow):
 
         for line in filelist:
             filename = line.strip()
-            print(filename)
             s = Spectrum(self, name=filename)
 
             if spec is None:
@@ -8591,7 +8598,7 @@ class sviewer(QMainWindow):
 
     def fitJulia(self):
 
-        self.reload_julia()
+        #self.reload_julia()
 
         self.s.prepareFit(all=False)
         #self.julia_spec = self.julia.prepare(self.s, self.julia_pars)

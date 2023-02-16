@@ -78,7 +78,7 @@ class colorColorWidget(QWidget):
     def __init__(self, parent):
         super(colorColorWidget, self).__init__()
         self.parent = parent
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.setGeometry(100, 120, 2200, 1300)
 
         self.initData()

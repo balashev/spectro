@@ -69,14 +69,14 @@ class Console(QTextEdit):
         self.displayPrompt()
 
     def addhistory(self, command=None):
-        f = open('config/console.list', 'r')
+        f = open(self.parent.folder + 'config/console.list', 'r')
         self.history = f.read().splitlines()
         f.close()
         if command is not None:
             if len(self.history) > 20:
                 del self.history[0]
             self.history.append(command)
-            f = open('config/console.list', 'w')
+            f = open(self.parent.folder + 'config/console.list', 'w')
             for h in self.history:
                 f.write(h + '\n')
             f.close()

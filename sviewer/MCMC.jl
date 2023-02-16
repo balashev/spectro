@@ -17,6 +17,13 @@ function initJulia(filename, spec, pars, add, parnames; sampler="Affine", prior=
 	serialize(filename, [spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts])
 end
 
+function initJulia2(filename, self; fit=nothing, fit_list=nothing, parnames=nothing, tieds=nothing, sampler="Affine", prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
+    pars = make_pars(fit_list, tieds=tieds)
+    add = prepare_add(fit, pars)
+    spec = prepare(self, pars, add)
+    serialize(filename, [spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts])
+end
+
 function runMCMC(filename, nthreads; nstep=nothing, cont=false)
     spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = deserialize(filename)
     if nstep != nothing

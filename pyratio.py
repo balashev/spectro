@@ -281,7 +281,7 @@ class speci:
         read atomic data for FeII: einstein coefficients, branching ratios, electron collisional excitation rates.
         """
         folder = self.parent.folder + '/data/pyratio/'
-        source = 'nist' #'bautista'
+        source = 'nist' #'nist' #'bautista'
         if source == 'nist':
             lines = np.genfromtxt(folder + 'FeII/nist_lines.dat', skip_header=1, delimiter='|', dtype=[('l', '<f8'), ('A_ki', '<f8'), ('acc', 'S5'), ('E_i', '<f8'), ('E_k', '<f8'), ('conf_i', 'S20'), ('term_i', 'S10'), ('J_i', 'S5'), ('conf_k', 'S20'), ('term_k', 'S10'), ('J_k', 'S5') , ('t', 'S')])
             self.E = np.sort(np.unique(np.append(lines['E_i'], lines['E_k'])))
@@ -317,8 +317,6 @@ class speci:
         elif source == 'bautista':
             E = np.genfromtxt(folder + 'FeII/table3.dat', delimiter='|', dtype=[('J', 'i4'), ('term', '|S14'), ('name', '|S10'), ('energy', '<f8')])
             self.E = E['energy'] * 109737.31568160
-            for e1, e2 in zip(np.sort(np.unique(lines['E_i'])), np.sort(self.E)):
-                print(e1/e2 - 1, e1, np.argmin(np.abs(np.sort(self.E) - e1)))
             self.g = [2 * float(e.decode().split('_')[1].split('/')[0]) / float(e.decode().split('_')[1].split('/')[1]) + 1 for e in E['name']]
 
             self.fullnum = len(self.E)
@@ -329,8 +327,9 @@ class speci:
             for tr in br:
                 if tr['Ju'] < self.fullnum + 1 and tr['Jl'] < self.fullnum + 1:
                     self.A[tr['Ju']-1, tr['Jl']-1] = Ai[tr['Ju']-1] * tr['br']
+
         coll = coll_list()
-        coll_source = 'Bautista'
+        coll_source = 'chianti' #'Bautista' #'Ramsbottom' #'Bautista'
         if coll_source == 'Bautista':
             c = np.genfromtxt(folder + 'FeII/table12.dat', unpack=False)
             temp = [5000, 7000, 10000, 15000, 20000]
@@ -357,7 +356,7 @@ class speci:
                     coll.append(collision(self, 'e', int(l[2]) - 1, int(l[3]) - 1, np.array(
                                 [temp, [np.log10(float(l[k])) for k in range(7, len(temp)+7)]])))
         self.coll['e'] = coll
-        self.coll['e'].make_table(self.num+1)
+        self.coll['e'].make_table(self.num + 1)
 
     def read_H2(self):
         """
@@ -773,18 +772,20 @@ class pyratio():
         self.timer = Timer()
 
     def add_spec(self, name, n=None, num=None):
-        d = {'OI': 3, 'CI': 3, 'CII': 2, 'SiII': 2, 'H2': 7, 'HD': 3, 'CO': 15, 'FeII': 13}
+        if num == None:
+            d = {'OI': 3, 'CI': 3, 'CII': 2, 'SiII': 2, 'H2': 7, 'HD': 3, 'CO': 15, 'FeII': 13}
+            num = d[name]
         if n is not None:
-            n += [None] * (d[name] - len(n))
+            n += [None] * (num - len(n))
         else:
-            n = [a()] * d[name]
+            n = [a()] * num
 
         #print('add_spec:', n)
         self.species[name] = speci(self, name, n, num)
-        if self.pumping == 'simple':
+        if self.pumping == 'simple' and 'rad' in self.pars.keys():
             self.pars['rad'].value = 0
             self.pump_matrix(name)
-        if self.radiation == 'simple':
+        if self.radiation == 'simple' and 'rad' in self.pars.keys():
             self.pars['rad'].value = 0
             self.rad_matrix(name)
 
@@ -945,12 +946,13 @@ class pyratio():
         calculate balance matrix for population of levels
         parameters:
             - name       :  name of the species
-            - debug      :  if is not None, than return balance matrix for specified process
+            - debug      :  if is not None, then return balance matrix for specified process
                             notations corresponds to:
-                              'A'    -  spontangeous transitions
-                              'CMB'  -  excitation by CMB
-                              'C'    -  by collisions
-                              'UV'   -  by uv pumping
+                              'A'      -  spontangeous transitions
+                              'CMB'    -  excitation by CMB
+                              'C'      -  collisions
+                              'UV'     -  UV pumping
+                              'total'  -  total
 
         """
         if name is None:
@@ -962,22 +964,22 @@ class pyratio():
         #self.timer.time('rates in')
 
         #self.timer.time('A')
-        if debug in [None, 'A']:
+        if debug in [None, 'A', 'total']:
             W += speci.Aij
 
-        if debug in [None, 'C']:
+        if debug in [None, 'C', 'total']:
             for u in range(speci.num):
                 for l in range(speci.num):
                     if any(x in self.pars.keys() for x in ['n', 'e', 'H2', 'H']):
                         W[u, l] += self.collision_rate(speci, u, l)
 
-        if debug in [None, 'CMB']:
+        if debug in [None, 'CMB', 'total']:
             if 'CMB' in self.pars:
                 W += np.multiply(speci.Bij, self.rad_field(speci.Eij, sed_type='CMB'))
 
         if 'rad' in self.pars:
 
-            if debug in [None, 'UV']:
+            if debug in [None, 'UV', 'total']:
                 if self.pumping == 'full':
                     for u in range(speci.num):
                         for l in range(speci.num):
@@ -986,7 +988,7 @@ class pyratio():
                 elif self.pumping == 'simple':
                     W += self.species[name].pump_rate * 10 ** self.pars['rad'].value
 
-            if debug in [None, 'IR']:
+            if debug in [None, 'IR', 'total']:
                 if self.radiation == 'full':
                     for u in range(speci.num):
                         for l in range(speci.num):
@@ -1001,9 +1003,9 @@ class pyratio():
             for i in range(speci.num):
                 for k in range(speci.num):
                     K[i, i] -= W[i, k]
+            #print(K)
             return np.insert(np.abs(np.linalg.solve(K[1:, 1:], -K[1:, 0])), 0, 1)
-
-        elif debug in ['A', 'CMB', 'C', 'UV', 'IR']:
+        elif debug in ['A', 'CMB', 'C', 'UV', 'IR', 'total']:
             return W
 
         else:

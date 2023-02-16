@@ -401,7 +401,7 @@ class choiceLinesWidget(QWidget):
         self.d = d
         self.resize(1700, 1200)
         self.move(400, 100)
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         layout = QVBoxLayout()
         self.grid = QGridLayout()
         layout.addLayout(self.grid)
@@ -499,7 +499,7 @@ class Doublet():
 
     def read_regular(self):
         self.doublet = {}
-        with open('data/doublet.dat') as f:
+        with open(self.parent.parent.folder + 'data/doublet.dat') as f:
             for line in f:
                 if '#' not in line:
                     self.doublet[line.split()[0]] = [float(d) for d in line.split()[1:]]
@@ -863,21 +863,21 @@ class colorCompBox(QHBoxLayout):
         self.addWidget(self.cmap)
 
     def init_colors(self):
-        print(self.num)
+        #print(self.num)
         self.colors = [''] * self.num
         if len(self.parent.comp_colors.split(',')) < self.num:
             self.get_default()
-        print(self.colors)
-        print(self.parent.comp_colors.split(','))
+        #print(self.colors)
+        #print(self.parent.comp_colors.split(','))
         for i, c in enumerate(self.parent.comp_colors.split(',')):
-            print(i, c)
-            print(tuple(int(c.strip()).to_bytes(4, byteorder='big')))
+            #print(i, c)
+            #print(tuple(int(c.strip()).to_bytes(4, byteorder='big')))
             if i < self.num:
                 if c.strip() != '':
                     self.colors[i] = tuple(int(c.strip()).to_bytes(4, byteorder='big'))
                 #else:
                 #    self.colors[i] = 000000 #, tuple(int(111111).to_bytes(4, byteorder='big'))
-        print(self.colors)
+        #print(self.colors)
         self.saveColors()
 
     def create(self):

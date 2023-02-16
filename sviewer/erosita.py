@@ -254,7 +254,7 @@ class ErositaWidget(QWidget):
     def __init__(self, parent):
         super(ErositaWidget, self).__init__()
         self.parent = parent
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.setGeometry(0, 0, 1920, 1080)
 
         self.initData()

@@ -72,7 +72,7 @@ class expTableWidget(TableWidget):
         self.parent = parent
         #self.resize(100, 800)
         self.move(500, 300)
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         #self.setWindowFlags(Qt.FramelessWindowHint)
         self.setSortingEnabled(False)
         self.setWidth = None
@@ -183,7 +183,7 @@ class expTableWidget(TableWidget):
 class QSOlistTable(pg.TableWidget):
     def __init__(self, parent, cat=None, folder=None, subparent=None, editable=True):
         super().__init__(editable=editable)
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.parent = parent     
         self.subparent = subparent
         self.folder = folder
@@ -894,7 +894,7 @@ class QSOlistTable(pg.TableWidget):
 class IGMspecTable(pg.TableWidget):
     def __init__(self, parent, cat=None, subparent=None, editable=False):
         super().__init__(editable=editable)
-        self.setStyleSheet(open('config/styles.ini').read())
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.parent = parent
         self.subparent = subparent
         self.setSortingEnabled(True)

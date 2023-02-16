@@ -1,21 +1,21 @@
-rescale err 0.1
-rescale err 0.1
-rescale err 0.5
-rescale err 0.005
-shift -100
-shift 100
-shift v -100
-shift v +10
-shift v +10
-rescale err 10
-rescale err 0.05
-rescale err 0.3
-stats
-rescale err 0.8
-rescale err 0.8
-rescale err 1.25
-stats
-stats
-stats
-hide H2
-FeIIj6
+show FeIIj3
+show FeIIj4
+show FeIIj5
+show FeIIj6
+show FeIIj7
+show FeIIj9
+show FeIIj10
+show FeIIj11
+show FeIIj12
+show FeIIj13
+show CI
+show CIj1
+show MnII
+show MnIIj1
+show SiII
+show SiIIj1
+high FeIIj9
+FeIIj9
+high FeIIj10
+FeIIj10
+show CI
