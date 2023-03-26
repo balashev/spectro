@@ -183,10 +183,10 @@ class expTableWidget(TableWidget):
 class QSOlistTable(pg.TableWidget):
     def __init__(self, parent, cat=None, folder=None, subparent=None, editable=True):
         super().__init__(editable=editable)
-        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
-        self.parent = parent     
+        self.parent = parent
         self.subparent = subparent
         self.folder = folder
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.setSortingEnabled(False)
         self.cat = cat
         self.resize(100, 800)

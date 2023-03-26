@@ -3,7 +3,7 @@
 Graphical User Interface
 ========================
 
-**Spectro** package contains **sviewer** - the graphical user interface for the interactive spectral data analysis. It is located in the separate folder "sviewer".
+**Spectro** package contains **sviewer** - the graphical user interface for the interactive spectral data analysis. It is located in the separate folder ``sviewer``.
 
 Run
 ---

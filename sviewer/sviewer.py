@@ -1629,7 +1629,7 @@ class showLinesWidget(QWidget):
                     ('show_labels', int), ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
                     ('add_lines', str), ('add_short', int), ('add_full', int),
                     ('plotfile', str), ('show_cont', int), ('corr_cheb', int),
-                    ('show_H2', str), ('only_marks', int), ('pos_H2', float),
+                    ('show_H2', str), ('only_marks', int), ('all_comps_marks', int), ('pos_H2', float),
                     ('show_cf', int), ('cfs', str), ('show_cf_value', int),
                     ('cf_color', int),
                     ])
@@ -1702,7 +1702,7 @@ class showLinesWidget(QWidget):
                  '', 'hor.:', '', 'vert.:', '',
                  '', 'add. lines:', '', '', '',
                  'Continuum', '', '', '', '',
-                 'H2/CO labels:', '', '', 'pos:', '',
+                 'H2/CO labels:', '', '', '', '',
                  'Covering factor:', '', '', '', '',]
 
         positions = [(i, j) for i in range(26) for j in range(5)]
@@ -1856,6 +1856,11 @@ class showLinesWidget(QWidget):
         self.onlyLineMarks.clicked[bool].connect(self.onlyMarks)
         grid.addWidget(self.onlyLineMarks, 24, 2)
 
+        self.allCompsMarks = QCheckBox('all comps')
+        self.allCompsMarks.setChecked(self.all_comps_marks)
+        self.allCompsMarks.clicked[bool].connect(self.allComps)
+        grid.addWidget(self.allCompsMarks, 24, 3)
+
         self.showcf = QCheckBox('show')
         self.showcf.setChecked(self.show_cf)
         self.showcf.clicked[bool].connect(self.setCf)
@@ -2006,6 +2011,9 @@ class showLinesWidget(QWidget):
     def onlyMarks(self):
         self.only_marks = int(self.onlyLineMarks.isChecked())
 
+    def allComps(self):
+        self.all_comps_marks = int(self.allCompsMarks.isChecked())
+
     def setCf(self):
         self.show_cf = int(self.showcf.isChecked())
 
@@ -2132,7 +2140,8 @@ class showLinesWidget(QWidget):
                 else:
                     fit_disp, fit_comp_disp = None, None
 
-                p.loaddata(d=np.array([s.spec.x(), s.spec.y() / cheb(s.spec.x()), s.spec.err() / cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp)
+                p.loaddata(d=np.array([s.spec.x(), s.spec.y() / cheb(s.spec.x()), s.spec.err() / cheb(s.spec.x()), s.mask.x()]),
+                           f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp, z=[sys.z.val for sys in self.parent.fit.sys])
                 if len(self.parent.lines[self.ps.index(p)].split()) > 3:
                     for s in self.parent.lines[self.ps.index(p)].split()[2:]:
                         if 'ymin' in s:
@@ -2267,7 +2276,8 @@ class showLinesWidget(QWidget):
                 else:
                     fit_disp, fit_comp_disp = None, None
 
-                p.loaddata(d=np.array([s.spec.x(), s.spec.y() / cheb(s.spec.x()), s.spec.err() / cheb(s.spec.x()), s.mask.x()]), f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp)
+                p.loaddata(d=np.array([s.spec.x(), s.spec.y() / cheb(s.spec.x()), s.spec.err() / cheb(s.spec.x()), s.mask.x()]),
+                           f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp, z=[sys.z.val for sys in self.parent.fit.sys])
                 p.show_comps = self.show_comps
                 if self.show_labels:
                     p.name_pos = [self.name_x_pos, self.name_y_pos]
@@ -2301,7 +2311,7 @@ class showLinesWidget(QWidget):
                             else:
                                 levels = [(speci + "j") * l.isdigit() + l for l in self.show_H2.split()]
                             print(levels)
-                            p.showLineLabels(levels=levels, pos=self.pos_H2, kind='full', only_marks=self.only_marks)
+                            p.showLineLabels(levels=levels, pos=self.pos_H2, kind='full', only_marks=self.only_marks, show_comps=self.all_comps_marks)
                     
                 if self.show_cont:
                     if not self.show_disp:

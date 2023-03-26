@@ -1585,7 +1585,8 @@ class pyratio():
         X1 = np.linspace(self.pars[vary[0]].range[0], self.pars[vary[0]].range[1], grid_num)
         X2 = np.linspace(self.pars[vary[1]].range[0], self.pars[vary[1]].range[1], grid_num)
         Z = np.zeros([len(X1), len(X2)])
-        printProgressBar(0, grid_num, prefix='Progress:')
+        if verbose:
+            printProgressBar(0, grid_num, prefix='Progress:')
         for i in range(len(X1)):
             print(i)
             self.pars[vary[0]].value = X1[i]

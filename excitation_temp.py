@@ -368,8 +368,8 @@ class ExcitationTemp():
                 d1.plot(xlabel=label)
         self.temp_to_slope()
 
-        if self.plot:
-            plt.show()
+        #if self.plot:
+        #    plt.show()
 
     def boot(self, iter=1000):
         y_rvs = np.empty([self.num, iter], dtype=np.float)
@@ -386,7 +386,7 @@ class ExcitationTemp():
 
         fig, ax = plt.subplots()
         ax.hist(temp, 30)
-        plt.show()
+        #plt.show()
         temp = np.sort(temp)
         print(temp[int(0.157*iter)], temp[int((1-0.157)*iter)])
 

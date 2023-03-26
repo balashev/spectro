@@ -370,7 +370,7 @@ class plotline():
         self.show_comps = self.parent.show_comps
         self.sig = 2
 
-    def loaddata(self, d=None, f=None, fit_comp=None, fit_disp=None, fit_comp_disp=None, filename=None, verbose=False):
+    def loaddata(self, d=None, f=None, fit_comp=None, fit_disp=None, fit_comp_disp=None, z=None, filename=None, verbose=False):
 
         if filename is not None:
             self.filename = [filename]
@@ -427,6 +427,11 @@ class plotline():
                 self.fit_comp_disp[k] = [data(x=fit_comp_disp[k][0], y=fit_comp_disp[k][1]), data(x=fit_comp_disp[k][0], y=fit_comp_disp[k][2])]
         else:
             self.fit_comp_disp = None
+
+        if z is not None:
+            self.z = np.asarray(z)
+        else:
+            self.z = None
 
         if f is None:
             self.fit = None
@@ -828,14 +833,25 @@ class plotline():
 
         adjust_text(texts, only_move={'text': 'x'})
 
-    def showLineLabels(self, levels=['H2j0', 'H2j1'], pos=0.84, dpos=0.1, color='cornflowerblue', show_ticks=True, kind='full', only_marks=True):
+    def showLineLabels(self, levels=['H2j0', 'H2j1'], pos=0.84, dpos=0.1, color=None, show_comps=True, show_ticks=True, kind='full', only_marks=True):
 
         ymin, ymax = self.ax.get_ylim()
         pos_y = ymin + pos * (ymax - ymin)
         xmin, xmax = self.ax.get_xlim()
 
-        #print('showLines:', levels)
+        if color is None:
+            color = self.parent.color_total
+        #z_ref, z_col = [], []
+        if show_comps:
+            #print(self.z, self.parent.color)
+            #print([self.parent.color[np.argmin(np.abs(self.z - self.parent.z_ref))]])
+            z_ref, z_col = np.append([self.z], [self.parent.z_ref]), self.parent.color + [self.parent.color[np.argmin(np.abs(self.z - self.parent.z_ref))]]
+            #z_col.append(self.parent.color[np.argmin(np.abs(self.z - self.parent.z_ref))])
+        else:
+            z_ref, z_col = [self.parent.z_ref], [color]
+
         species = levels[0][:levels[0].index('j')]
+
         if species == 'H2':
             lines = atomicData.H2(levels)
             lines = [l for l in lines if l.l() * (1 + self.parent.z_ref) > xmin and l.l() * (1 + self.parent.z_ref) < xmax]
@@ -859,53 +875,58 @@ class plotline():
                                 line.nu_l == int(i.split()[1][i.split()[1].index('-') + 1:])]))]
                      for i in s]
         texts = []
-        dpos = dpos / (len(bands) + 1) * (ymax - ymin)
-        print(bands)
+        d_pos = dpos / (len(bands) + 1) * (ymax - ymin)
+        #print(bands)
 
         for i, b in enumerate(bands):
 
             band, levs = b[0], b[3]
             ls = '--' if b[2] != bands[0][2] else '-'
-            if species == 'H2':
-                if 0:
-                    if ('L' in band and (int(band.split('-')[0][1:]) % 2 == 0 or (np.max(levs) < 5 and int(band.split('-')[0][1:]) < 10))):
-                        pos_y = pos
-                    elif 'W' in band:
-                        pos_y = pos - 2 * dpos - 2 * dpos * (ymax - ymin)
+            for ind, z, color in zip(range(len(z_ref)), z_ref, z_col):
+                #print(z, color)
+                ls = '-' if ind == self.num_comp * show_comps else '--'
+                lw = self.parent.lw_total if ind == self.num_comp * show_comps else self.parent.lw[0]
+                if species == 'H2':
+                    if 0:
+                        if ('L' in band and (int(band.split('-')[0][1:]) % 2 == 0 or (np.max(levs) < 5 and int(band.split('-')[0][1:]) < 10))):
+                            pos_y = pos
+                        elif 'W' in band:
+                            pos_y = pos - 2 * d_pos - 2 * d_pos * (ymax - ymin)
+                        else:
+                            pos_y = pos - d_pos - d_pos * (ymax - ymin)
                     else:
-                        pos_y = pos - dpos - dpos * (ymax - ymin)
-                else:
-                    pos_y = pos + i * dpos + i * dpos * (ymax - ymin)
+                        pos_y = pos + i * d_pos + i * d_pos * (ymax - ymin)
+                print(pos_y)
+                b_lines = [line for line in lines if band.replace(' ', '') in str(line)]
+                #print(b_lines)
+                b_lines = [line for line in b_lines if line.l() * (1 + self.parent.z_ref) > xmin and line.l() * (1 + self.parent.z_ref) < xmax]
+                #print(b_lines)
+                #if str(min(levs)) in [str(line).split()[0][str(line).split()[0].index("j")+1:] for line in b_lines]:
+                l = [line.l() for line in b_lines]
+                if show_ticks:
+                    for line in b_lines:
+                        print(line, line.j_l)
+                        if line.j_l in levs:
+                            self.ax.plot([line.l() * (1 + z), line.l() * (1 + z)],
+                                         [pos_y, pos_y + d_pos], lw=lw, color=color, ls='-')
+                            if kind == 'full' and not only_marks and ind == self.num_comp * show_comps:
+                                texts.append(self.ax.text(line.l() * (1 + self.parent.z_ref), pos_y + d_pos, str(line.j_l),
+                                                          ha='center', va='bottom', fontsize=self.parent.font_size - 4, fontname=self.font, color=color, usetex=True))
 
-            b_lines = [line for line in lines if band.replace(' ', '') in str(line)]
-            #print(b_lines)
-            b_lines = [line for line in b_lines if line.l() * (1 + self.parent.z_ref) > xmin and line.l() * (1 + self.parent.z_ref) < xmax]
-            #print(b_lines)
-            #if str(min(levs)) in [str(line).split()[0][str(line).split()[0].index("j")+1:] for line in b_lines]:
-            l = [line.l() for line in b_lines]
-            if show_ticks:
-                for line in b_lines:
-                    print(line, line.j_l)
-                    if line.j_l in levs:
-                        self.ax.plot([line.l() * (1 + self.parent.z_ref), line.l() * (1 + self.parent.z_ref)],
-                                     [pos_y, pos_y + dpos], lw=1.0, color=color, ls='-')
-                        if kind == 'full' and not only_marks:
-                            texts.append(self.ax.text(line.l() * (1 + self.parent.z_ref), pos_y + dpos, str(line.j_l),
-                                                      ha='center', va='bottom', fontsize=self.parent.font_size - 4, fontname=self.font, color=color, usetex=True))
+                    self.ax.plot([np.min(l) * (1 + z), np.max(l) * (1 + z)], [pos_y + d_pos, pos_y + d_pos], lw=lw, color=color, ls=ls)
 
-                self.ax.plot([np.min(l) * (1 + self.parent.z_ref), np.max(l) * (1 + self.parent.z_ref)],
-                             [pos_y + dpos, pos_y + dpos], lw=1.0, color=color, ls=ls)
-            if kind == 'short':
-                self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + '-0',
-                                          ha='right', va='bottom', fontsize=self.parent.font_size - 4, fontname=self.font, color=color)
-            elif kind == 'full':
-                if only_marks:
-                    self.ax.text((np.max(l) + np.min(l)) / 2 * (1 + self.parent.z_ref), pos_y + dpos, band,
-                                 ha='center', va='bottom', fontsize=self.parent.font_size - 4, fontname=self.font, color=color, usetex=True)
-                else:
-                    to = self.ax.text(np.min(l) * (1 + self.parent.z_ref), pos_y + dpos, band + ':', # (np.min(l) - (np.max(l) - np.min(l)) / 30)
-                                 ha='right', va='bottom', fontsize=self.parent.font_size - 4, fontname=self.font, color=color, usetex=True)
-                    to._transform = mtransforms.offset_copy(to._transform, fig=self.fig, x=- (0.4 + 0.2 * (np.min([line.j_l for line in b_lines]) > 9)) * to.get_fontsize(), units='points')
+                if ind == self.num_comp * show_comps:
+                    if kind == 'short':
+                        self.ax.text(np.min(l) * (1 + z), pos_y + d_pos, band + '-0',
+                                                  ha='right', va='bottom', fontsize=self.parent.font_size - 4, fontname=self.font, color=color)
+                    elif kind == 'full':
+                        if only_marks:
+                            self.ax.text((np.max(l) + np.min(l)) / 2 * (1 + z), pos_y + d_pos, band,
+                                         ha='center', va='bottom', fontsize=self.parent.font_size - 4, fontname=self.font, color=color, usetex=True)
+                        else:
+                            to = self.ax.text(np.min(l) * (1 + z), pos_y + d_pos, band + ':', # (np.min(l) - (np.max(l) - np.min(l)) / 30)
+                                         ha='right', va='bottom', fontsize=self.parent.font_size - 4, fontname=self.font, color=color, usetex=True)
+                            to._transform = mtransforms.offset_copy(to._transform, fig=self.fig, x=- (0.4 + 0.2 * (np.min([line.j_l for line in b_lines]) > 9)) * to.get_fontsize(), units='points')
 
 
         #print(texts)
