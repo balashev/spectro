@@ -1,5 +1,3 @@
-OII
-show OIj1
 show OIj2
 show ClI
 show SiII*
@@ -19,3 +17,5 @@ FeII
 show CI
 show H2 0 1
 show CI
+show SiII*
+show H2 0 1

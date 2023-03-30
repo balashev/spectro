@@ -2583,6 +2583,7 @@ class fitMCMCWidget(QWidget):
         self.opts = OrderedDict([
             ('MCMC_walkers', int), ('MCMC_iters', int), ('MCMC_threads', int),
             ('MCMC_burnin', int), ('MCMC_smooth', bool), ('MCMC_truth', bool),
+            ('MCMC_thinning', int),
         ])
         self.thread = None
 
@@ -3011,9 +3012,9 @@ class fitMCMCWidget(QWidget):
 
                 with backend.open("w") as f:
                     backend.reset(nwalkers, np.sum([p.vary for p in self.parent.julia_pars.values()]))
-                    backend.grow(nsteps, None)
+                    backend.grow(nsteps // thinning, None)
                     g = f[backend.name]
-                    g.attrs["iteration"] = nsteps
+                    g.attrs["iteration"] = nsteps // thinning
                     if lns is not None:
                         g["log_prob"][...] = lns.transpose()
                     print(chain.shape, chain.transpose(2, 0, 1).shape)

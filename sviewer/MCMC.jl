@@ -2,7 +2,7 @@ using ClusterManagers
 using DelimitedFiles
 using Distributed
 using Measures
-using Plots
+#using Plots
 using Random
 using Serialization
 using Statistics
@@ -41,7 +41,7 @@ function runMCMC(filename, nthreads; nstep=nothing, cont=false)
     println("size of init: ", size(init))
 	#println(sampler, " ", parnames, " ", prior, " ", nwalkers, " ", nsteps, " ", thinning)
 	chain, llhoodvals = fitMCMC(spec, pars, add, parnames, sampler=sampler, prior=prior, nwalkers=nwalkers, nsteps=nsteps, nthreads=parse(Int, nthreads), thinning=thinning, init=init, opts=opts)
-	serialize(replace(filename, ".spj" => ".spr"), [chain, llhoodvals])
+	serialize(replace(filename, ".spj" => ".spr"), [parnames, chain, llhoodvals])
 	plotChain(filename)
 end
 
@@ -92,7 +92,7 @@ function plotChain(filename) #(pars, chain, llhoodvals)
 end
 
 function readMCMC(filename)
-	chain, llhoodvals = deserialize(filename)
+	parnames, chain, llhoodvals = deserialize(filename)
 	return chain, llhoodvals
 end
 
