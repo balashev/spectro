@@ -366,6 +366,10 @@ class line():
     def g(self, ref=None):
         return self.gamma
 
+    @_with_ref
+    def refer(self, ref=None):
+        return self.ref
+
     def set_Ju(self):
         d = {'O': -2, 'P': -1, 'Q': 0, 'R': 1, 'S': 2}
         self.j_u = self.j_l + d[self.rot]

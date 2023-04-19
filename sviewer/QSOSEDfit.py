@@ -141,7 +141,7 @@ class Filter():
         #print(name, self.value, self.err)
         if value is not None and err is not None:
             self.flux = self.get_flux(value) * 1e17
-            self.err_flux = [(self.get_flux(value + err) - self.get_flux(value)) * 1e17, (self.get_flux(value) - self.get_flux(value - err)) * 1e17]
+            self.err_flux = [(self.get_flux(value) - self.get_flux(value + err)) * 1e17, (self.get_flux(value - err) - self.get_flux(value)) * 1e17]
         self.x = self.data.x[:]
         self.calc_weight()
 
@@ -551,10 +551,12 @@ class QSOSEDfit():
 
     def prepare(self, ind):
         self.d = self.df.loc[ind]
+        #print(self.df.loc[ind, 'z'])
         self.spec = self.loadSDSS(self.df.loc[ind, 'PLATE'], self.df.loc[ind, 'FIBERID'], self.df.loc[ind, 'MJD'],
                              Av_gal=self.df.loc[ind, 'Av_gal'])
         self.mask = self.calc_mask(self.spec, self.df.loc[ind, 'z'])
 
+        #print(self.mask, np.sum(self.mask))
         if np.sum(self.mask) > 20:
             self.set_filters(ind)
             if self.plot:
@@ -627,6 +629,7 @@ class QSOSEDfit():
             if f.range[0] > self.wavemin * (1 + self.df.loc[ind, 'z']) and f.range[1] < self.wavemax * (1 + self.df.loc[ind, 'z']) and np.isfinite(f.value) and np.isfinite(f.err):
                 self.filters[k].fit = True
             #print(k, self.filters[k].fit)
+        print(self.filters)
 
     def add_mask(self, name=None):
         if name is not None:
@@ -706,7 +709,7 @@ class QSOSEDfit():
             ext = self.extinction_MW(10 ** qso[1].data['loglam'][:], Av=Av_gal)
             mask = ~np.logical_and(np.logical_and(np.isfinite(qso[1].data['flux']), np.isfinite(np.sqrt(1.0 / qso[1].data['ivar']))), (ext != 0))
             #print('mask: ', np.sum(mask))
-            #print(ext)
+            #print(Av_gal, ext)
             return [10 ** qso[1].data['loglam'], qso[1].data['flux'] / ext, np.sqrt(1.0 / qso[1].data['ivar']) / ext, np.logical_and(mask, qso[1].data['and_mask'])]
 
     def spec_model(self, params, x):
@@ -1375,6 +1378,7 @@ class QSOSEDfit():
         if self.spec is not None and params is None:
             ax.plot(self.spec[0] / (1 + self.d['z']), self.spec[1], '-k', lw=.5, zorder=2, label='spectrum')
             for k, f in self.filters.items():
+                print(f.name, f.l_eff, f.flux, f.err_flux)
                 ax.errorbar([f.l_eff / (1 + self.d['z'])], [f.flux], yerr=[[f.err_flux[0]], [f.err_flux[1]]], marker='s', color=[c / 255 for c in f.color])
 
             if self.addPhoto:
@@ -1544,10 +1548,10 @@ class jsoncat():
     def __repr__(self):
         return self.data
 
-def run_model(ind):
+def run_model(ind, catfile=None):
     print(ind)
 
-    qso = QSOSEDfit(catalog=path + '/match2_DR14Q_add.csv', plot=1, mcmc_steps=1000, anneal_steps=100, save=1, corr=30, verbose=1)
+    qso = QSOSEDfit(catalog=catfile, plot=1, mcmc_steps=3000, anneal_steps=100, save=1, corr=30, verbose=1)
     if qso.prepare(ind):
         res = qso.fit(ind, method='emcee')
     else:
@@ -1559,16 +1563,17 @@ if __name__ == "__main__":
     # by slurm (since it executes a copy)
     sys.path.append(os.getcwd())
 
-    path = '/home/balashev/science/Erosita/'
-    path = 'C:/science/Erosita/UV_Xray'
+    catfile = '/home/balashev/science/Erosita/match2_DR14Q_add.csv'
+    catfile = 'C:/science/Erosita/UV_Xray/match2_DR14Q_add.csv'
+    catfile = 'C:/science/Erosita/UV_Xray/individual/individual_targets_add.csv'
 
     try:
         i1, i2 = int(sys.argv[1]), int(sys.argv[2])
     except:
         i1, i2 = 1, 1
 
-    if 0:
-        res = run_model(4630)
+    if 1:
+        res = run_model(0, catfile=catfile)
         print(res)
     else:
         #pars = ['bbb_norm', 'Av', 'tor_type', 'tor_norm', 'host_tau', 'host_tg', 'host_norm', 'host_Av', 'sigma', 'alpha_GALEX', 'alpha_SDSS', 'alpha_2MASS', 'alpha_UKIDSS']

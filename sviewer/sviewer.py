@@ -3179,6 +3179,7 @@ class fitMCMCWidget(QWidget):
                 print(i, p)
                 if p in names:
                     s = samples[burnin:, :, i].flatten()
+                    print(np.min(s), np.max(s))
                     x = np.linspace(np.min(s), np.max(s), 100)
                     kde = gaussian_kde(s)
                     d = distr1d(x, kde(x))
@@ -5279,8 +5280,8 @@ class ShowListCombine(QWidget):
         super().__init__()
         self.parent = parent
 
-        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
-        self.table = QSOlistTable(self.parent, cat=cat, subparent=self, editable=False)
+        self.setStyleSheet(open(self.parent.parent.folder + 'config/styles.ini').read())
+        self.table = QSOlistTable(self.parent.parent, cat=cat, subparent=self, editable=False)
         self.table.setSelectionMode(QAbstractItemView.MultiSelection)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
 
@@ -5307,9 +5308,9 @@ class ShowListCombine(QWidget):
         data = np.delete(data, (0), axis=0)
         self.table.setdata(data)
         self.table.resizeColumnsToContents()
-        self.table.horizontalHeader().setResizeMode(QHeaderView.Stretch)
-        self.table.horizontalHeader().setResizeMode(0, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setResizeMode(1, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         if self.setWidth is None:
             self.setWidth = 120 + self.table.verticalHeader().width() + self.table.autoScrollMargin() * 2.5
             self.setWidth += np.sum([self.table.columnWidth(c) for c in range(self.table.columnCount())])
@@ -7834,7 +7835,8 @@ class sviewer(QMainWindow):
                         #try:
                         if 'XSHOOTER' in hdulist[0].header['INSTRUME']:
                             prihdr = hdulist[1].data
-                            s.set_data([prihdr[0][0][:] * 10, prihdr[0][1][:] * 1e17, prihdr[0][2][:] * 1e17])
+                            scale = 10 if prihdr[0][0][0] < 2000 else 1
+                            s.set_data([prihdr[0][0][:] * scale, prihdr[0][1][:] * 1e17, prihdr[0][2][:] * 1e17])
 
                         if any([instr in hdulist[0].header['INSTRUME'] for instr in ['UVES', 'VIMOS']]):
                             prihdr = hdulist[1].data
@@ -7850,15 +7852,18 @@ class sviewer(QMainWindow):
                         if 'STIS' in hdulist[0].header['INSTRUME']:
                             prihdr = hdulist[1].data
 
-                            for k in [0, 1]:
-                                s = Spectrum(self, name=filename + f'_{k}')
-                                r = range(k, hdulist[1].header['NAXIS2'], 2)
-                                s.set_data([np.concatenate([np.r_[prihdr['WAVELENGTH'][i], 2 * prihdr['WAVELENGTH'][i][-1] - prihdr['WAVELENGTH'][i][-2]] for i in r]),
-                                            np.concatenate([np.r_[prihdr['FLUX'][i], np.inf] for i in r]) * 1e12,
-                                            np.concatenate([np.r_[prihdr['ERROR'][i], np.inf] for i in r]) * 1e12])
-                                if k == 0:
-                                    s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
-                                    self.s.append(s)
+                            if hdulist[1].header['NAXIS2'] == 1:
+                                s.set_data([prihdr['WAVE'][0], prihdr['FLUX'][0], prihdr['ERROR'][0]])
+                            else:
+                                for k in [0, 1]:
+                                    s = Spectrum(self, name=filename + f'_{k}')
+                                    r = range(k, hdulist[1].header['NAXIS2'], 2)
+                                    s.set_data([np.concatenate([np.r_[prihdr['WAVELENGTH'][i], 2 * prihdr['WAVELENGTH'][i][-1] - prihdr['WAVELENGTH'][i][-2]] for i in r]),
+                                                np.concatenate([np.r_[prihdr['FLUX'][i], np.inf] for i in r]) * 1e12,
+                                                np.concatenate([np.r_[prihdr['ERROR'][i], np.inf] for i in r]) * 1e12])
+                                    if k == 0:
+                                        s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
+                                        self.s.append(s)
 
                         if 'COS' in hdulist[0].header['INSTRUME']:
                             prihdr = hdulist[1].data
@@ -7917,8 +7922,8 @@ class sviewer(QMainWindow):
                             data = hdulist[1].data
                             DR9 = 0
                             print(hdulist[0].header['VERSUTIL'])
-                            if hdulist[0].header['VERSUTIL'].strip() == 'v5_3_0':
-                                l = 10 ** (hdulist[0].header['COEFF0'] + hdulist[0].header['COEFF1'] * np.arange(hdulist[0].header['NAXIS1']))
+                            if 0 and hdulist[0].header['VERSUTIL'].strip() == 'v5_3_0':
+                                l = 10 ** (hdulist[0].header['COEFF0'] + hdulist[0].header['COEFF1'] * np.arange(hdulist[1].header['NAXIS2']))
                                 fl = hdulist[0].data[0]
                                 cont = hdulist[0].data[1]
                                 sig = hdulist[0].data[2]
@@ -7935,6 +7940,7 @@ class sviewer(QMainWindow):
                                 fl = data.field('flux')
                                 sig = (data.field('ivar'))**(-0.5)
                                 cont = data.field('model')
+                                print(l, fl, sig)
                             s.set_data([l, fl, sig])
                             s.cont.set_data(l, cont)
                             s.resolution = 2000

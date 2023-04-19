@@ -97,10 +97,10 @@ class a:
 
         self.likelihood_approx = 2
         self.method = 'Nelder-Mead'
-        self.method = 'L-BFGS-B'
+        #self.method = 'L-BFGS-B'
         #self.method = 'SLSQP'
         #self.method = 'TNC'
-        self.tol = 1e-3
+        self.tol = 1e-5
 
         # if the input is empty       
         if len(args) in [0]:
@@ -370,8 +370,8 @@ class a:
             other.dec()
             if self.type == 'm' and other.type == 'm':
                 res.val = self.val / other.val
-                res.val, res.plus, res.minus = self.val / other.val, np.sqrt((self.plus / other.val)**2 + (self.val / other.val**2 * other.plus)**2), np.sqrt((self.minus / other.val)**2 + (self.val / other.val**2 * other.minus)**2)
-                #if (res.minus > res.value): res.minus = res.value * 0.9
+                res.val, res.plus, res.minus = self.val / other.val, min(res.val * 0.9, np.sqrt((self.plus / other.val)**2 + (self.val / other.val ** 2 * other.plus) ** 2)), min(res.val * 0.9, np.sqrt((self.minus / other.val)**2 + (self.val / other.val**2 * other.minus)**2))
+                #print('truediv:', res.val, res.plus, res.minus)
                 res = self.mini(self.div_lnL, other, res)
             else: 
                 res.val = self.val/other.val
@@ -455,16 +455,16 @@ class a:
         return res
 
     def sum_lnL(self, x, other, delta):
-        return (-1)*self.lnL(delta * (self.val + other.val) - x * other.val) - other.lnL(x * other.val)
+        return (-1) * self.lnL(delta * (self.val + other.val) - x * other.val) - other.lnL(x * other.val)
     
     def sub_lnL(self, x, other, delta):
-        return (-1)*self.lnL(delta * (self.val - other.val) + x * other.val) - other.lnL(x * other.val)
+        return (-1) * self.lnL(delta * (self.val - other.val) + x * other.val) - other.lnL(x * other.val)
     
     def mul_lnL(self, x, other, delta):
-        return (-1)*self.lnL(delta * self.val / x) - other.lnL(x * other.val)
+        return (-1) * self.lnL(delta * self.val / x) - other.lnL(x * other.val)
     
     def div_lnL(self, x, other, delta):
-        return (-1)*self.lnL(delta * self.val * x) - other.lnL(x * other.val)
+        return (-1) * self.lnL(delta * self.val * x) - other.lnL(x * other.val)
         
     def lnL(self, x, ind=2):
         alpha = x - self.val
@@ -552,7 +552,7 @@ if __name__ == '__main__':
         plt.show()
         print(z.log())
         print(z.dec())
-    if 1:
+    if 0:
         x = a(10, t='u')
     if 0:
         x = a("1.06^{+0.44}_{-0.10}")
@@ -608,5 +608,9 @@ if __name__ == '__main__':
         m = a('18.04^{+0.17}_{-0.14}', 'd')
         print(m.latex(f=3, base=0))
         print(u * m, u * u, m * u, l * m)
-        
+
+    if 1:
+        x = a(16.4, 0.1, 2.8, 'l')
+        y = a(1.1, 1.7, 0.2, 'l')
+        print(x / y)
 

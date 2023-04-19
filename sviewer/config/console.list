@@ -1,21 +1,21 @@
-show OIj2
-show ClI
-show SiII*
-show OI*
-show OI**
 show CII*
-OI*
-SiIIj1
-show NV
-CI
-13CI
-show 13CI
+show FeII*
+show FeIIj5
 show FeII
-show OI
-FeiI
 FeII
 show CI
-show H2 0 1
+show CIj1
+show CIj2
+stats
+stats
+stats
+show COj0
 show CI
-show SiII*
-show H2 0 1
+show COj1
+show COj2
+show COj3
+show CIj1
+high COj0
+show ClI
+COj1
+high COj1

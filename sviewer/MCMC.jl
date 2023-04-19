@@ -2,7 +2,7 @@ using ClusterManagers
 using DelimitedFiles
 using Distributed
 using Measures
-#using Plots
+using Plots
 using Random
 using Serialization
 using Statistics
@@ -89,10 +89,22 @@ function plotChain(filename) #(pars, chain, llhoodvals)
     plot(p..., layout=grid(ncols, nrows), size=(4000 * ncols, 2000 * nrows), dpi=20)
     savefig(replace(filename, ".spj" => "_lns.png"))
     println("Likelihoods are plotted in ", replace(filename, ".spj" => "_lns.png"))
+
+    p = Vector{}()
+    for (i, par) in enumerate(params)
+        if i < n + 1
+            row, col = i ÷ ncols + 1, i - (i ÷ ncols) * ncols
+            push!(p, histogram(vec(chain[:, i, (end - div(end, 4)):end]), xtickfontsize=100, ytickfontsize=100, label=par, ms=20, legendfontsize=30, bottom_margin=40mm))
+        end
+    end
+    #println(p)
+    plot(p..., layout=grid(ncols, nrows), size=(4000 * ncols, 2000 * nrows), dpi=20)
+    savefig(replace(filename, ".spj" => "_1d.png"))
+    println("Marginalized distributions are plotted in ", replace(filename, ".spj" => "_1d.png"))
 end
 
 function readMCMC(filename)
-	parnames, chain, llhoodvals = deserialize(filename)
+	parnames, chain, llhoodvals = deserialize(q)
 	return chain, llhoodvals
 end
 

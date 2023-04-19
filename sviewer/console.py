@@ -237,7 +237,7 @@ class Console(QTextEdit):
                     lines.append(l)
                     lf.append(l.f())
             for i in np.argsort(lf):
-                s += str(lines[i]) + ',  l={:.5f}, f={:.2e},  g={:.1e} \n'.format(lines[i].l(), lines[i].f(), lines[i].g())
+                s += str(lines[i]) + ',  l={:.5f}, f={:.2e},  g={:.1e}, ref={:s} \n'.format(lines[i].l(), lines[i].f(), lines[i].g(), lines[i].refer().decode())
             return s
 
         elif any(s in args[0] for s in ['HD', 'H2']):
