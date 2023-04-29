@@ -2,7 +2,7 @@ using ClusterManagers
 using DelimitedFiles
 using Distributed
 using Measures
-using Plots
+#using Plots
 using Random
 using Serialization
 using Statistics
@@ -21,7 +21,8 @@ function initJulia2(filename, self; fit=nothing, fit_list=nothing, parnames=noth
     pars = make_pars(fit_list, tieds=tieds)
     add = prepare_add(fit, pars)
     spec = prepare(self, pars, add)
-    serialize(filename, [spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts])
+    priors = make_priors(prior)
+    serialize(filename, [spec, pars, add, parnames, sampler, priors, nwalkers, nsteps, thinning, init, opts])
 end
 
 function runMCMC(filename, nthreads; nstep=nothing, cont=false)
@@ -104,7 +105,7 @@ function plotChain(filename) #(pars, chain, llhoodvals)
 end
 
 function readMCMC(filename)
-	parnames, chain, llhoodvals = deserialize(q)
+	parnames, chain, llhoodvals = deserialize(filename)
 	return chain, llhoodvals
 end
 

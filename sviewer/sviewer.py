@@ -3371,7 +3371,7 @@ class fitMCMCWidget(QWidget):
         if any([s in qc for s in ['moments', 'all']]):
             ind = np.random.randint(0, nwalkers)
             SomeChain = samples[:, 1+ind, :]
-            mean, std, chimin = np.empty([ndims, nsteps]), np.empty([ndims, nsteps]), np.empty([ndims, nsteps])
+            mean, std, chimin = np.empty([ndims, nsteps]), np.empty([ndims, nsteps]), np.empty([3, nsteps])
             for i in range(nsteps):
                 mean[:, i] = np.mean(samples[i, :, :], axis=0)
                 std[:, i] = np.std(samples[i, :, :], axis=0)

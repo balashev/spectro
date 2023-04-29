@@ -1636,9 +1636,18 @@ class fitResultsWidget(QWidget):
                 d.append(sp.b.fitres(latex=True, dec=2, showname=False))
 
             if self.tiedN.isChecked():
-                d.append(sys.logn.fitres(latex=True, dec=2, showname=False))
-                d.append(sys.logT.fitres(latex=True, dec=2, showname=False))
-                d.append(sys.Ntot.fitres(latex=True, dec=2, showname=False))
+                if hasattr(sys, 'logn'):
+                    d.append(sys.logn.fitres(latex=True, dec=2, showname=False))
+                else:
+                    d.append('')
+                if hasattr(sys, 'logT'):
+                    d.append(sys.logT.fitres(latex=True, dec=2, showname=False))
+                else:
+                    d.append('')
+                if hasattr(sys, 'Ntot'):
+                    d.append(sys.Ntot.fitres(latex=True, dec=2, showname=False))
+                else:
+                    d.append('')
 
             for sp in sps.keys():
                 if sp in sys.sp.keys() and 'Ntot' not in sys.sp[sp].N.addinfo:
