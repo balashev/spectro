@@ -8,7 +8,7 @@ import astropy.constants as ac
 from astropy.convolution import convolve, Gaussian1DKernel, Gaussian2DKernel
 from astropy.io import fits
 from astropy.modeling.models import Moffat1D
-from ccdproc import cosmicray_lacosmic
+#from ccdproc import cosmicray_lacosmic
 import itertools
 from matplotlib import cm
 import matplotlib.pyplot as plt

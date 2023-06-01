@@ -25,23 +25,29 @@ function initJulia2(filename, self; fit=nothing, fit_list=nothing, parnames=noth
     serialize(filename, [spec, pars, add, parnames, sampler, priors, nwalkers, nsteps, thinning, init, opts])
 end
 
-function runMCMC(filename, nthreads; nstep=nothing, cont=false)
+function runMCMC(filename, nthreads; nstep=nothing, cont=false, last=false)
     spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = deserialize(filename)
     if nstep != nothing
         nsteps = parse(Int, nstep)
     end
     println("steps to go: ", nsteps)
+    println(cont, " ", last)
     if cont
         println("continue from the last step...")
-        chain, llhoodvals = readMCMC(replace(filename, ".spj" => ".spr"))
-        println(size(chain))
-        init = chain[:, :, end]
+        if last
+            init = deserialize(replace(filename, ".spj" => ".spl"))
+        else
+            chain, llhoodvals = readMCMC(replace(filename, ".spj" => ".spr"))
+            println(size(chain))
+            init = chain[:, :, end]
+        end
         println(size(init))
         #println(init)
     end
+
     println("size of init: ", size(init))
 	#println(sampler, " ", parnames, " ", prior, " ", nwalkers, " ", nsteps, " ", thinning)
-	chain, llhoodvals = fitMCMC(spec, pars, add, parnames, sampler=sampler, prior=prior, nwalkers=nwalkers, nsteps=nsteps, nthreads=parse(Int, nthreads), thinning=thinning, init=init, opts=opts)
+	chain, llhoodvals = fitMCMC(spec, pars, add, parnames, sampler=sampler, prior=prior, nwalkers=nwalkers, nsteps=nsteps, nthreads=parse(Int, nthreads), thinning=thinning, init=init, opts=opts, filename=filename)
 	serialize(replace(filename, ".spj" => ".spr"), [parnames, chain, llhoodvals])
 	plotChain(filename)
 end
@@ -109,7 +115,7 @@ function readMCMC(filename)
 	return chain, llhoodvals
 end
 
-function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
+function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0, filename="mcmc")
 
     #COUNTERS["num"] = nwalkers
 
@@ -253,7 +259,7 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
 	if sampler == "Affine"
 		bounds = hcat([p.min for (k, p) in pars if p.vary], [p.max for (k, p) in pars if p.vary])
 		#println(bounds)
-		chain, llhoodvals = sampleAffine(lnlike, nwalkers, init, nsteps, thinning, bounds)
+		chain, llhoodvals = sampleAffine(lnlike, nwalkers, init, nsteps, thinning, bounds, filename=filename)
 
 	elseif sampler == "ESS"
 		bounds = hcat([p.min for (k, p) in pars if p.vary], [p.max for (k, p) in pars if p.vary])
@@ -332,7 +338,7 @@ function check_pars(proposal, pars)
     return all([proposal[i] > p.min && proposal[i] < p.max for (i, p) in enumerate([p for p in pars if p.vary])])
 end
 
-function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thinning::Integer, bounds::Array; a::Number=2., out::Number=1.)
+function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thinning::Integer, bounds::Array; a::Number=2., out::Number=1., filename::String="mcmc_last.spj")
     """
     Modified version of AffineInvariantMCMC by MADS (see copyright information in initial module)
     """
@@ -373,9 +379,9 @@ function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Intege
             println(ind)
             x[imin, :], lastllhoodvals[imin] = x[ind, :], lastllhoodvals[ind]
         end
-		#open("output/mcmc_last.dat", "w") do io
-		#	writedlm(io, chain[:, :, i], " ")
-		#end
+        if i % thinning == 0
+            serialize(replace(filename, ".spj" => ".spl"), chain[:, :, end])
+        end
 	end
 	return chain, llhoodvals
 end

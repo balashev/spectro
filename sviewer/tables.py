@@ -109,7 +109,7 @@ class expTableWidget(TableWidget):
         if self.setWidth is None:
             self.setWidth = 120 + self.verticalHeader().width() + self.autoScrollMargin() * 2.5
             self.setWidth += sum([self.columnWidth(c) for c in range(self.columnCount())])
-        self.resize(self.setWidth, self.rowCount() * 40 + 140)
+        self.resize(int(self.setWidth), int(self.rowCount() * 40 + 140))
         if len(self.parent.s) > 0:
             self.selectRow(self.parent.s.ind)
 

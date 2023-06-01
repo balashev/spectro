@@ -158,7 +158,7 @@ class par:
 
     def fitres(self, latex=False, dec=None, showname=True, classview=False, aview=False):
         if self.unc is not None:
-            if dec is None:
+            if dec is None and not latex:
                 d = np.asarray([self.unc.plus, self.unc.minus])
                 if len(np.nonzero(d)[0]) > 0:
                     dec = int(np.round(np.abs(np.log10(np.min(d[np.nonzero(d)])))) + 1)
@@ -166,9 +166,11 @@ class par:
                     dec = self.dec
             if latex:
                 if self.name in ['z']:
+                    dec = int(np.round(np.abs(np.log10(np.min(np.asarray([self.unc.plus, self.unc.minus])[np.nonzero(np.asarray([self.unc.plus, self.unc.minus]))])))) + 1)
                     return '${0:.{3}f}(^{{+{1:d}}}_{{-{2:d}}})$'.format(self.unc.val, int(self.unc.plus*10**dec), int(self.unc.minus*10**dec), dec)
                 else:
-                    return '${0:.{3}f}^{{+{1:.{3}f}}}_{{-{2:.{3}f}}}$'.format(self.unc.val, self.unc.plus, self.unc.minus, dec)
+                    return self.unc.latex(f=dec, base=0)
+                    #return '${0:.{3}f}^{{+{1:.{3}f}}}_{{-{2:.{3}f}}}$'.format(self.unc.val, self.unc.plus, self.unc.minus, dec)
             elif classview:
                 if self.name in ['z']:
                     return 'co = sy({0:.{2}f}, {1:d})'.format(self.unc.val, int(np.sqrt(self.unc.plus**2 + self.unc.minus**2) * 10 ** dec), dec)
@@ -279,6 +281,7 @@ class fitSystem:
                 #print('init', self.pr.pumping, self.pr.radiation,  self.pr.sed_type)
                 d = {'CO': [-1, 10], 'CI': [-1, 3], 'FeII': [-1, 13], 'H2': [-1, 3]}
                 for s in self.sp.keys():
+                    print(s)
                     if s.startswith('CO'):
                         d['CO'][0] = 0 if s[3:4].strip() == '' else max(d['CO'][0], int(s[3:4]))
                         pars = ['T', 'n', 'f', 'CMB']
@@ -293,6 +296,7 @@ class fitSystem:
                         d['H2'][0] = 0 if s[3:4].strip() == '' else max(d['H2'][0], int(s[3:4]))
                         pars = ['T', 'n', 'f', 'rad']
                 self.pr.set_pars(pars)
+                print(d)
                 for k, v in d.items():
                     if v[0] > -1:
                         self.pr.add_spec(k, num=v[1])

@@ -108,7 +108,7 @@ class a:
             self.plus = 0
             self.minus = 0
             self.type = 'f'
-            
+
         if len(args) in [1, 2]:
             # if the input like latex style a($19.00^{+0.10}_{-0.10}$, 'l')        
             if isinstance(args[0], str):
@@ -184,32 +184,59 @@ class a:
     def __repr__(self):
         return self.__str__()
     
-    def latex(self, eqs=1, f=2, base=None):
+    def latex(self, eqs=1, f=None, base=None):
         """
         show representation of <a> values in tex
         parameters:
-                
                 eqs      : if ==1 add $...$
-                f        : format - number of numbers after floating point
+                f        : format - number of numbers after floating point, if None, than it will be set automatically
                 base     : base for dec values                
         """
+
+        print(self.val, self.plus, self.minus)
+        if base == None:
+            base = int(np.log10(abs(self.val)))
+
+        # >>> set automatical number of significant digits, called <f>
+        if f == None:
+            d = np.asarray([self.plus, self.minus])
+            if len(np.nonzero(d)[0]) > 0:
+                if self.repr == 'log':
+                    f = int(np.round(np.abs(np.log10(np.min(d[np.nonzero(d)]))) + 1.97)) - base - 1
+                if self.repr == 'dec':
+                    #f = 1 if np.abs(np.min(d) / self.val) > 0.5 else 2
+                    f = 1 if int(np.floor(np.min(d) / (10 ** np.floor(np.log10(np.min(d)))))) > 2 else 2
+            else:
+                f = 2
+
+        # >>> recalc values, taking into account significant digits
+        if self.repr == 'log':
+            val = round(self.val, f)
+            plus = round(round(self.val + self.plus, f) - round(self.val, f), f)
+            minus = round(round(self.val, f) - round(self.val - self.minus, f), f)
+
+        elif self.repr == 'dec':
+
+            #r = int(f - (np.floor(np.log10(abs(self.val))) - base) - np.floor(np.log10(min(abs(self.plus), abs(self.minus)))))
+            r = int(f - np.floor(np.log10(min(abs(self.plus), abs(self.minus))))) - 1 + base
+            val = round(self.val/10**base, r)
+            plus = round(round(self.val/10**base + self.plus/10**base, r) - round(self.val/10**base, r), r)
+            minus = round(round(self.val/10**base, r) - round(self.val/10**base - self.minus/10**base, r), r)
+
         if np.isfinite(self.plus) and np.isfinite(self.minus) and self.type == 'm':
             if self.repr == 'log':
-                #print(self.val, self.plus, self.minus, f)
-                s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.val, self.plus, self.minus, n=f)
+                #print(val, plus, minus, f)
+                s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(val, plus, minus, n=f)
             if self.repr == 'dec':
-                if base == None:
-                    base = int(np.log10(abs(self.val)))
-                if base == 0:
-                    s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(self.val/10**base, self.plus/10**base, self.minus/10**base, n=f)
+                if r > 0:
+                    s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}".format(val, plus, minus, n=r) + base * " \\times 10^{{{b}}}".format(b=base)
                 else:
-                    s = "{0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}} \\times 10^{{{b}}}".format(self.val/10**base, self.plus/10**base, self.minus/10**base, b=base, n=f)
+                    s = "{0:{n}d}^{{+{1:{n}d}}}_{{-{2:{n}d}}}".format(int(val), int(plus), int(minus), b=base, n=r) + base * " \\times 10^{{{b}}}".format(b=base)
         else:
-            print(self.type)
             if (not np.isfinite(self.plus) and np.isfinite(self.minus)) or self.type == 'l':
-                pre, val = '>', self.val - self.minus
+                pre, val = '>', round(self.val - self.minus, f)
             elif (np.isfinite(self.plus) and not np.isfinite(self.minus)) or self.type == 'u':
-                pre, val = '<', self.val + self.plus
+                pre, val = '<', round(self.val + self.plus, f)
             if self.repr == 'log':
                 #print(self.val, self.plus, self.minus, f)
                 s = "{0:s}{1:.{n}f}".format(pre, val, n=f)
@@ -539,10 +566,9 @@ if __name__ == '__main__':
 
     if 0:
         x = a("$11.37\pm0.03", 'l')
-
-        x = a(13.78, 0.30, 0.30, 'l')
+        x = a(13.78, 0.16, 0.40, 'l')
         y = a("$14.90\pm0.15", 'l')
-        y = a(13.85, 0.20, 0.20, 'l')
+        y = a(13.85, 0.50, 0.50, 'l')
         print(x.dec())
         print(y.dec())
         #x = a("$1\pm0.1", 'd')
@@ -552,6 +578,12 @@ if __name__ == '__main__':
         plt.show()
         print(z.log())
         print(z.dec())
+
+    if 1:
+        for d in np.linspace(0.01, 0.40, 10):
+            #print(d, 47.78 + d, a(47.78, d, 2.40, 'l').log().latex())
+            print(d, (a(47.78, d, 0.32, 'l')).latex(f=None, base=0))
+
     if 0:
         x = a(10, t='u')
     if 0:
@@ -609,7 +641,7 @@ if __name__ == '__main__':
         print(m.latex(f=3, base=0))
         print(u * m, u * u, m * u, l * m)
 
-    if 1:
+    if 0:
         x = a(16.4, 0.1, 2.8, 'l')
         y = a(1.1, 1.7, 0.2, 'l')
         print(x / y)

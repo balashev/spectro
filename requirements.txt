@@ -24,5 +24,4 @@ scikit_learn==1.2.0
 scipy==1.9.1
 sfdmap==0.1.1
 statsmodels==0.13.2
-ultranest==3.5.7
 zeus==0.1.1

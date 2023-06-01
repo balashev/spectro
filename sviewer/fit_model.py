@@ -1544,9 +1544,26 @@ class fitResultsWidget(QWidget):
         layout.addLayout(hl)
 
         hl = QHBoxLayout()
-        restoval = QPushButton('set Values')
+        self.fixedformat = QCheckBox('Fixed format:')
+        self.fixedformat.setChecked(False)
+        self.fixedformat.clicked.connect(self.refresh)
+        self.digits = QLineEdit('2')
+        self.digits.setFixedSize(40, 30)
+        self.digits.setEnabled(self.fixedformat.isChecked())
+        self.digits.returnPressed.connect(self.refresh)
+        hl.addWidget(self.fixedformat)
+        hl.addWidget(self.digits)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        update = QPushButton('Update')
+        update.setFixedSize(120, 30)
+        update.clicked.connect(self.refresh)
+        restoval = QPushButton('Set Values')
         restoval.setFixedSize(120, 30)
         restoval.clicked.connect(self.restoval)
+        hl.addWidget(update)
         hl.addWidget(restoval)
         hl.addStretch(0)
         layout.addLayout(hl)
@@ -1559,6 +1576,9 @@ class fitResultsWidget(QWidget):
             self.z_ref = self.parent.fit.sys[self.comp-1].z.val
             self.zref.setText(str(self.z_ref))
 
+    #def update(self):
+    #    self.refresh(view=self.view)
+
     def refresh(self, view=None):
         self.zref.setEnabled(self.showv.isChecked() * len(self.parent.fit.sys) > 0)
         self.vcomp.setEnabled(self.showv.isChecked() * len(self.parent.fit.sys) > 0)
@@ -1570,6 +1590,7 @@ class fitResultsWidget(QWidget):
         self.depRef.setEnabled(self.showdep.isChecked())
         self.depref = self.depRef.text() if self.showdep.isChecked() else ''
         self.ratios.setEnabled(self.showratios.isChecked())
+        self.digits.setEnabled(self.fixedformat.isChecked())
         if isinstance(view, str):
             self.view = view
         if self.view == 'plain':
@@ -1622,6 +1643,7 @@ class fitResultsWidget(QWidget):
             d += [r'LFR']
         data = [d]
 
+        dec = int(self.digits.text()) if self.fixedformat.isChecked() else None
         for sys in fit.sys:
             d = [str(fit.sys.index(sys)+1)]
             d.append(sys.z.fitres(latex=True, showname=False))
@@ -1633,26 +1655,27 @@ class fitResultsWidget(QWidget):
                 sp = sys.sp[list(sys.sp.keys())[0]]
                 if sp.b.addinfo != '':
                     sp = sys.sp[sp.b.addinfo]
-                d.append(sp.b.fitres(latex=True, dec=2, showname=False))
+                print(dec, sp.b.fitres(latex=True, dec=dec, showname=False))
+                d.append(sp.b.fitres(latex=True, dec=dec, showname=False))
 
             if self.tiedN.isChecked():
                 if hasattr(sys, 'logn'):
-                    d.append(sys.logn.fitres(latex=True, dec=2, showname=False))
+                    d.append(sys.logn.fitres(latex=True, dec=dec, showname=False))
                 else:
                     d.append('')
                 if hasattr(sys, 'logT'):
-                    d.append(sys.logT.fitres(latex=True, dec=2, showname=False))
+                    d.append(sys.logT.fitres(latex=True, dec=dec, showname=False))
                 else:
                     d.append('')
                 if hasattr(sys, 'Ntot'):
-                    d.append(sys.Ntot.fitres(latex=True, dec=2, showname=False))
+                    d.append(sys.Ntot.fitres(latex=True, dec=dec, showname=False))
                 else:
                     d.append('')
 
             for sp in sps.keys():
                 if sp in sys.sp.keys() and 'Ntot' not in sys.sp[sp].N.addinfo:
                     sys.sp[sp].N.unc.log()
-                    d.append(sys.sp[sp].N.fitres(latex=True, dec=2, showname=False))
+                    d.append(sys.sp[sp].N.fitres(latex=True, dec=dec, showname=False))
                 else:
                     d.append(' ')
 
@@ -1660,7 +1683,7 @@ class fitResultsWidget(QWidget):
             if self.showtotal.isChecked():
                 for el in ['H2', 'CO', 'HD', 'CI', 'SiII']:
                     if el in sys.total.keys():
-                        d.append(sys.total[el].N.fitres(latex=True, dec=2, showname=False))
+                        d.append(sys.total[el].N.fitres(latex=True, dec=dec, showname=False))
                         t = el
                     elif all([el in sp for sp in sys.sp.keys()]):
                         n = a(0, 0, 0)
@@ -1669,7 +1692,7 @@ class fitResultsWidget(QWidget):
                         sys.addSpecies(el + 't')
                         sys.sp[el + 't'].N.set(n.val)
                         sys.sp[el + 't'].N.set(n, attr='unc')
-                        d.append(sys.sp[el + 't'].N.fitres(latex=True, dec=2, showname=False))
+                        d.append(sys.sp[el + 't'].N.fitres(latex=True, dec=dec, showname=False))
                         del sys.sp[el + 't']
                         t = el
 
@@ -1678,7 +1701,7 @@ class fitResultsWidget(QWidget):
                     sp = s.split('/')
                     if sp[0] in sys.sp.keys() and sp[1] in sys.sp.keys():
                         print(sys.sp[sp[0]].N.unc / sys.sp[sp[1]].N.unc)
-                        d.append((sys.sp[sp[0]].N.unc / sys.sp[sp[1]].N.unc).latex(f=2))
+                        d.append((sys.sp[sp[0]].N.unc / sys.sp[sp[1]].N.unc).latex(f=dec))
                     else:
                         d += ['']
 

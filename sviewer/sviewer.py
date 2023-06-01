@@ -20,6 +20,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
 from multiprocessing import Process
+import numpy as np
 import pandas as pd
 import pickle
 import pyGPs
@@ -737,8 +738,8 @@ class plotSpectrum(pg.PlotWidget):
         self.cursorpos.setText('x={0:.3f}, y={1:.2f}, rest={2:.3f}'.format(self.mousePoint.x(), self.mousePoint.y(), self.mousePoint.x()/(1+self.parent.z_abs)))
         #self.cursorpos.setText("<span style='font-size: 12pt'>x={0:.3f}, <span style='color: red'>y={1:.2f}</span>".format(mousePoint.x(),mousePoint.y()))
         pos = self.vb.sceneBoundingRect()
-        self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(pos.left()+10,pos.bottom()-10)))
-        self.specname.setPos(self.vb.mapSceneToView(QPoint(pos.right()-10,pos.bottom()-10)))
+        self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(int(pos.left()+10), int(pos.bottom()-10))))
+        self.specname.setPos(self.vb.mapSceneToView(QPoint(int(pos.right()-10), int(pos.bottom()-10))))
         if self.r_status == 2 and event.type() == QEvent.MouseMove:
             self.regions[-1].setRegion([self.mousePoint_saved.x(), self.mousePoint.x()])
         if any([getattr(self, s + '_status') for s in 'acr']) and event.type() == QEvent.MouseMove:
@@ -773,8 +774,8 @@ class plotSpectrum(pg.PlotWidget):
         else:
             super(plotSpectrum, self).wheelEvent(event)
             pos = self.vb.sceneBoundingRect()
-            self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(pos.left()+10,pos.bottom()-10)))
-            self.specname.setPos(self.vb.mapSceneToView(QPoint(pos.right()-10,pos.bottom()-10)))
+            self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(int(pos.left()+10), int(pos.bottom()-10))))
+            self.specname.setPos(self.vb.mapSceneToView(QPoint(int(pos.right()-10), int(pos.bottom()-10))))
 
     def mouseDragEvent(self, ev):
         
@@ -791,7 +792,7 @@ class plotSpectrum(pg.PlotWidget):
             
             if ev.isFinish():  
                 self.rbScaleBox.hide()
-                ax = QtCore.QRectF(Point(ev.buttonDownPos(ev.button())), Point(pos))
+                ax = QRectF(QPoint(ev.buttonDownPos(ev.button())), QPoint(pos))
                 ax = self.childGroup.mapRectFromParent(ax) 
                 MouseRectCoords =  ax.getCoords()  
                 self.dataSelection(MouseRectCoords)      
@@ -1252,7 +1253,7 @@ class spec2dWidget(pg.PlotWidget):
         self.cursorpos.setText(s)
 
         pos = self.vb.sceneBoundingRect()
-        self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(pos.left() + 10, pos.bottom() - 10)))
+        self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(int(pos.left() + 10), int(pos.bottom() - 10))))
         if self.s_status == 2 and event.type() == QEvent.MouseMove:
             range = self.vb.getState()['viewRange']
             delta = ((self.mousePoint.x() - self.mousePoint_saved.x()) / (range[0][1] - range[0][0]),
@@ -1266,7 +1267,7 @@ class spec2dWidget(pg.PlotWidget):
             im.setLevels(self.parent.s[self.parent.s.ind].spec2d.raw.z_levels)
             self.levels.setText("levels: {:.4f} {:.4f}".format(levels[0], levels[1]))
 
-        self.levels.setPos(self.vb.mapSceneToView(QPoint(pos.right() - 10, pos.bottom() - 10)))
+        self.levels.setPos(self.vb.mapSceneToView(QPoint(int(pos.right() - 10), int(pos.bottom() - 10))))
         if self.t_status:
             self.t_status = 2
 
@@ -1277,7 +1278,7 @@ class spec2dWidget(pg.PlotWidget):
     def wheelEvent(self, event):
         super(spec2dWidget, self).wheelEvent(event)
         pos = self.vb.sceneBoundingRect()
-        self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(pos.left() + 10, pos.bottom() - 10)))
+        self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(int(pos.left() + 10), int(pos.bottom() - 10))))
 
     def mouseDragEvent(self, ev):
 
@@ -1294,7 +1295,7 @@ class spec2dWidget(pg.PlotWidget):
 
             if ev.isFinish():
                 self.rbScaleBox.hide()
-                ax = QtCore.QRectF(Point(ev.buttonDownPos(ev.button())), Point(pos))
+                ax = QRectF(QPoint(ev.buttonDownPos(ev.button())), QPoint(pos))
                 ax = self.childGroup.mapRectFromParent(ax)
                 MouseRectCoords = ax.getCoords()
                 self.dataSelection(MouseRectCoords)
@@ -1305,7 +1306,7 @@ class preferencesWidget(QWidget):
     def __init__(self, parent):
         super().__init__()
         self.parent = parent
-        self.move(200,100)
+        self.move(200, 100)
         self.setWindowTitle('Preferences')
         self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
 
@@ -6276,7 +6277,7 @@ class messageWindow(QWidget):
 
         self.pos = [QApplication.desktop().screenGeometry().width() / 2, QApplication.desktop().screenGeometry().height() / 2]
         self.resize(400 + len(self.text) * 12, 50)
-        self.move(self.pos[0] - self.size().width() / 2 , self.pos[1] - self.size().height() / 2)
+        self.move(int(self.pos[0] - self.size().width() / 2), int(self.pos[1] - self.size().height() / 2))
 
         self.fillColor = QColor(229, 23, 80, 120) #QColor(83, 148, 83, 105)
         self.penColor = QColor(70, 70, 70, 255)
@@ -6306,7 +6307,7 @@ class messageWindow(QWidget):
         font.setBold(True)
         qp.setFont(font)
         qp.setPen(QColor(200, 200, 200))
-        qp.drawText(self.size().width() / 2 - len(self.text) * 5, self.size().height() / 2 + 8, self.text)
+        qp.drawText(int(self.size().width() / 2 - len(self.text) * 5), int(self.size().height() / 2 + 8), self.text)
         qp.end()
 
     def _onclose(self):
@@ -9747,8 +9748,8 @@ class sviewer(QMainWindow):
         search_H2(self, z_abs=self.z_abs)
 
     def show_H2_cand(self):
-        self.mw = MatplotlibWidget(size=(200,100), dpi=100)
-        self.mw.move(QPoint(100,100))
+        self.mw = MatplotlibWidget(size=(200, 100), dpi=100)
+        self.mw.move(QPoint(100, 100))
         self.mw.show()
         figure = self.mw.getFigure()
         self.s[self.s.ind].calc_norm()
