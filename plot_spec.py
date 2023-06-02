@@ -140,8 +140,8 @@ class plot_spec(list):
     def specify_comps(self, *args):
         self.comps = np.array(args)
                 
-    def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, ls_total='solid',
-                       disp_alpha=0.7, res_style='scatter', res_color=None):
+    def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, ls_total='solid', ind_ls='dotted', ind_lw=1.0,
+                       add_lines=0.0, add_ls='dotted', disp_alpha=0.7, res_style='scatter', res_color=None):
 
         if color_total is not None:
             if not isinstance(color_total, str):
@@ -183,6 +183,10 @@ class plot_spec(list):
         self.lw_total = lw_total
         self.lw_spec = lw_spec
         self.ls_total = ls_total
+        self.ind_ls = ind_ls
+        self.ind_lw = ind_lw
+        self.add_lines = add_lines
+        self.add_ls = add_ls
         self.disp_alpha = disp_alpha
         self.res_style = res_style
         if res_color is not None:
@@ -563,12 +567,12 @@ class plotline():
         if self.show_comps and self.show_fit:
             for k in range(self.num_comp):
                 v = (self.parent.comps[k] - self.parent.z_ref) * 299794.26 / (1 + self.parent.z_ref)
-                self.ax.plot([v, v], [self.y_min, self.y_max], color=self.parent.color[k], linestyle=':', lw=1.0) #self.parent.lw[k])
+                self.ax.plot([v, v], [self.y_min, self.y_max], color=self.parent.color[k], linestyle=self.parent.ind_ls, lw=self.parent.ind_lw) #self.parent.lw[k])
                 if self.parent.comp_names is not None:
                     self.ax.text(v, null_res - 1.5 * delt_res, self.parent.comp_names[k], fontsize=self.font_labels - 2,
                     color=self.parent.color[k], backgroundcolor='w', clip_on=True, ha='center', va='top', zorder=21)
-                if 0 and 'HI' in self.name:
-                    ax.plot([v-81.6, v-81.6], [self.y_min, self.y_max], color=self.parent.color[k], linestyle=':', lw=self.parent.lw[k])
+                if self.parent.add_lines != 0:
+                    self.ax.plot([v+self.parent.add_lines, v+self.parent.add_lines], [self.y_min, self.y_max], color=self.parent.color[k], linestyle=self.parent.add_ls, lw=self.parent.ind_lw)
 
         # >>> add text
         if self.name_pos is not None:

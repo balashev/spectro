@@ -1628,9 +1628,10 @@ class showLinesWidget(QWidget):
                     ('x_ticks', float), ('xnum', int), ('y_ticks', float), ('ynum', int),
                     ('title', str), ('show_title', int), ('font_title', int), ('title_x_pos', float), ('title_y_pos', float),
                     ('show_labels', int), ('font_labels', int), ('name_x_pos', float), ('name_y_pos', float),
-                    ('add_lines', str), ('add_short', int), ('add_full', int),
-                    ('plotfile', str), ('show_cont', int), ('corr_cheb', int),
+                    ('indlines_ls', str), ('indlines_lw', float), ('add_lines', str), ('addlines_ls', str),
+                    ('add_short', int), ('add_full', int),
                     ('show_H2', str), ('only_marks', int), ('all_comps_marks', int), ('pos_H2', float),
+                    ('plotfile', str), ('show_cont', int), ('corr_cheb', int),
                     ('show_cf', int), ('cfs', str), ('show_cf_value', int),
                     ('cf_color', int),
                     ])
@@ -1701,12 +1702,13 @@ class showLinesWidget(QWidget):
                  '', 'hor.:', '', 'vert.:', '',
                  'Line labels:', '', '', 'font', '',
                  '', 'hor.:', '', 'vert.:', '',
-                 '', 'add. lines:', '', '', '',
-                 'Continuum', '', '', '', '',
+                 'Position lines:', 'widths:', '', 'linestyle:', '',
+                 '', 'add. lines:', '', 'linestyle:', '',
                  'H2/CO labels:', '', '', '', '',
+                 'Continuum', '', '', '', '',
                  'Covering factor:', '', '', '', '',]
 
-        positions = [(i, j) for i in range(26) for j in range(5)]
+        positions = [(i, j) for i in range(27) for j in range(5)]
 
         for position, name in zip(positions, names):
             if name == '':
@@ -1723,13 +1725,14 @@ class showLinesWidget(QWidget):
                                     ('x_ticks', [16, 2]), ('xnum', [16, 4]), ('y_ticks', [17, 2]), ('ynum', [17, 4]),
                                     ('title', [18, 2]), ('font_title', [18, 4]), ('title_x_pos', [19, 2]), ('title_y_pos', [19, 4]),
                                     ('font_labels', [20, 4]), ('name_x_pos', [21, 2]), ('name_y_pos', [21, 4]),
-                                    ('add_lines', [22, 2]),
+                                    ('indlines_lw', [22, 2]),
+                                    ('add_lines', [23, 2]),
                                     ('show_H2', [24, 1]), ('pos_H2', [24, 4])])
         self.buttons = {}
         for opt, v in self.opt_but.items():
             self.buttons[opt] = QLineEdit(str(getattr(self, opt)))
             self.buttons[opt].setFixedSize(80, 30)
-            if opt not in ['xlabel', 'ylabel', 'show_H2', 'title']:
+            if opt not in ['xlabel', 'ylabel', 'show_H2', 'title', 'add_lines']:
                 self.buttons[opt].setValidator(validator)
             self.buttons[opt].textChanged[str].connect(partial(self.onChanged, attr=opt))
             grid.addWidget(self.buttons[opt], v[0], v[1])
@@ -1842,15 +1845,17 @@ class showLinesWidget(QWidget):
         self.labelscorr.clicked[bool].connect(self.setLabelsCorr)
         grid.addWidget(self.labelscorr, 20, 2)
 
-        self.showcont = QCheckBox('show')
-        self.showcont.setChecked(self.show_cont)
-        self.showcont.clicked[bool].connect(self.setCont)
-        grid.addWidget(self.showcont, 23, 1)
+        self.lsindlines = QComboBox(self)
+        self.lsindlines.addItems(['solid', 'dashed', 'dotted', 'dashdot'])
+        self.lsindlines.setCurrentText(self.indlines_ls)
+        self.lsindlines.currentIndexChanged.connect(self.onIndLinesLsChoose)
+        grid.addWidget(self.lsindlines, 22, 4)
 
-        self.corrcheb = QCheckBox('cheb. applied')
-        self.corrcheb.setChecked(self.corr_cheb)
-        self.corrcheb.clicked[bool].connect(self.setCheb)
-        grid.addWidget(self.corrcheb, 23, 2)
+        self.lsaddlines = QComboBox(self)
+        self.lsaddlines.addItems(['solid', 'dashed', 'dotted', 'dashdot'])
+        self.lsaddlines.setCurrentText(self.addlines_ls)
+        self.lsaddlines.currentIndexChanged.connect(self.onAddLinesLsChoose)
+        grid.addWidget(self.lsaddlines, 23, 4)
 
         self.onlyLineMarks = QCheckBox('only marks')
         self.onlyLineMarks.setChecked(self.only_marks)
@@ -1862,20 +1867,30 @@ class showLinesWidget(QWidget):
         self.allCompsMarks.clicked[bool].connect(self.allComps)
         grid.addWidget(self.allCompsMarks, 24, 3)
 
+        self.showcont = QCheckBox('show')
+        self.showcont.setChecked(self.show_cont)
+        self.showcont.clicked[bool].connect(self.setCont)
+        grid.addWidget(self.showcont, 25, 1)
+
+        self.corrcheb = QCheckBox('cheb. applied')
+        self.corrcheb.setChecked(self.corr_cheb)
+        self.corrcheb.clicked[bool].connect(self.setCheb)
+        grid.addWidget(self.corrcheb, 25, 2)
+
         self.showcf = QCheckBox('show')
         self.showcf.setChecked(self.show_cf)
         self.showcf.clicked[bool].connect(self.setCf)
-        grid.addWidget(self.showcf, 25, 1)
+        grid.addWidget(self.showcf, 26, 1)
 
         self.cf = choosePC(self)
         self.cf.fromtext(self.cfs)
         self.cf.triggered.connect(self.setcfs)
-        grid.addWidget(self.cf, 25, 2)
+        grid.addWidget(self.cf, 26, 2)
 
         self.showcfvalue = QCheckBox('value')
         self.showcfvalue.setChecked(self.show_cf_value)
         self.showcfvalue.clicked[bool].connect(self.setCfValue)
-        grid.addWidget(self.showcfvalue, 25, 3)
+        grid.addWidget(self.showcfvalue, 26, 3)
 
         self.cfcolor = pg.ColorButton()
         # self.fitcolor = QColorDialog()
@@ -1883,7 +1898,7 @@ class showLinesWidget(QWidget):
         self.cfcolor.setColor(color=self.cf_color.to_bytes(4, byteorder='big'))
         self.cfcolor.sigColorChanged.connect(partial(self.setColor, comp='cf'))
         self.cfcolor.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
-        grid.addWidget(self.cfcolor, 25, 4)
+        grid.addWidget(self.cfcolor, 26, 4)
 
         self.colorComps = colorCompBox(self, num=len(self.parent.fit.sys))
         layout.addLayout(self.colorComps)
@@ -2063,8 +2078,15 @@ class showLinesWidget(QWidget):
     def onCompLsChoose(self):
         self.comp_ls = self.lscomp.currentText()
 
+    def onIndLinesLsChoose(self):
+        self.indlines_ls = self.lsindlines.currentText()
+
+    def onAddLinesLsChoose(self):
+        self.addlines_ls = self.lsaddlines.currentText()
+
     def chooseFile(self):
-        fname = QFileDialog.getOpenFileName(self, 'Export file...', self.parent.plot_set_folder)[0]
+        fname = QFileDialog.getExistingDirectory(self, 'Select export folder...', self.parent.plot_set_folder)
+        print(fname)
         self.file.setText(fname)
 
     def showPlot(self, savefig=True):
@@ -2090,7 +2112,10 @@ class showLinesWidget(QWidget):
             self.ps.set_ticks(x_tick=self.x_ticks, x_num=self.xnum, y_tick=self.y_ticks, y_num=self.ynum)
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
             self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw,
-                                   ls=self.comp_ls, ls_total=self.fit_ls, color_total=self.fit_color.to_bytes(4, byteorder='big'),
+                                   ls=self.comp_ls, ls_total=self.fit_ls,
+                                   ind_ls=self.indlines_ls, ind_lw=self.indlines_lw,
+                                   add_lines=float(self.add_lines), add_ls=self.addlines_ls,
+                                   color_total=self.fit_color.to_bytes(4, byteorder='big'),
                                    color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')],
                                    disp_alpha=self.disp_alpha, res_style=self.res_style, res_color=self.res_color.to_bytes(4, byteorder='big')
                                    )
@@ -2174,6 +2199,9 @@ class showLinesWidget(QWidget):
 
                 p.plot_line()
 
+                if self.buttons['add_lines'].text().strip() != '':
+                    print(self.buttons['add_lines'].text().strip())
+
                 if self.show_cf and self.parent.fit.cf_fit and p.show_fit:
                     def conv(x):
                         return (x / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26
@@ -2192,7 +2220,6 @@ class showLinesWidget(QWidget):
                                         p.ax.fill_between([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], 1 - cf.unc.val - cf.unc.plus, 1 - cf.unc.val + cf.unc.minus, ls=':', color=color, alpha=0.1)
                                     if self.show_cf_value:
                                         p.ax.text(p.x_max - (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='right', va='bottom', fontsize=p.font_labels, fontname=p.font, color=color)
-
 
                 if i == 0 and self.show_title:
                     print('Title:', self.title)
