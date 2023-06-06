@@ -141,7 +141,7 @@ class plot_spec(list):
         self.comps = np.array(args)
                 
     def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, ls_total='solid', ind_ls='dotted', ind_lw=1.0,
-                       add_lines=0.0, add_ls='dotted', disp_alpha=0.7, res_style='scatter', res_color=None):
+                       add_lines="0.0", add_ls='dotted', disp_alpha=0.7, res_style='scatter', res_color=None):
 
         if color_total is not None:
             if not isinstance(color_total, str):
@@ -185,7 +185,7 @@ class plot_spec(list):
         self.ls_total = ls_total
         self.ind_ls = ind_ls
         self.ind_lw = ind_lw
-        self.add_lines = add_lines
+        self.add_lines = float(add_lines) if add_lines.replace('.','',1).isdigit() else 0
         self.add_ls = add_ls
         self.disp_alpha = disp_alpha
         self.res_style = res_style

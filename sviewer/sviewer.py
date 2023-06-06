@@ -2114,7 +2114,7 @@ class showLinesWidget(QWidget):
             self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw,
                                    ls=self.comp_ls, ls_total=self.fit_ls,
                                    ind_ls=self.indlines_ls, ind_lw=self.indlines_lw,
-                                   add_lines=float(self.add_lines), add_ls=self.addlines_ls,
+                                   add_lines=self.add_lines, add_ls=self.addlines_ls,
                                    color_total=self.fit_color.to_bytes(4, byteorder='big'),
                                    color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')],
                                    disp_alpha=self.disp_alpha, res_style=self.res_style, res_color=self.res_color.to_bytes(4, byteorder='big')
