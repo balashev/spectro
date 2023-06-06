@@ -185,7 +185,7 @@ class plot_spec(list):
         self.ls_total = ls_total
         self.ind_ls = ind_ls
         self.ind_lw = ind_lw
-        self.add_lines = float(add_lines) if add_lines.replace('.','',1).isdigit() else 0
+        self.add_lines = float(add_lines) if add_lines.replace('.','',1).replace('-', '').isdigit() else 0
         self.add_ls = add_ls
         self.disp_alpha = disp_alpha
         self.res_style = res_style
@@ -583,9 +583,9 @@ class plotline():
 
         if self.parent.add_ioniz:
             el = element(self.el.name)
-            print(el, self.ion_state, el.ionenergies)
+            #print(el, self.ion_state, el.ionenergies)
             ion_en = "{:.3f} eV".format(el.ionenergies[self.ion_state])
-            print(ion_en)
+            #print(ion_en)
             self.ax.text(1-self.name_pos[0], self.name_pos[1], str(ion_en), ha='right', va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
 
         return self.ax
