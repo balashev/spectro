@@ -193,7 +193,7 @@ class a:
                 base     : base for dec values                
         """
 
-        print(self.val, self.plus, self.minus)
+        #print(self.val, self.plus, self.minus)
         if base == None:
             base = int(np.log10(abs(self.val)))
 
@@ -202,12 +202,13 @@ class a:
             d = np.asarray([self.plus, self.minus])
             if len(np.nonzero(d)[0]) > 0:
                 if self.repr == 'log':
-                    f = int(np.round(np.abs(np.log10(np.min(d[np.nonzero(d)]))) + 1.97)) - base - 1
+                    f = int(np.round(np.abs(np.log10(np.min(d[np.nonzero(d)]))) + 1.97)) - 1
                 if self.repr == 'dec':
                     #f = 1 if np.abs(np.min(d) / self.val) > 0.5 else 2
                     f = 1 if int(np.floor(np.min(d) / (10 ** np.floor(np.log10(np.min(d)))))) > 2 else 2
             else:
                 f = 2
+            #print(self.repr, f, int(np.round(np.abs(np.log10(np.min(d[np.nonzero(d)]))) + 1.97)), base)
 
         # >>> recalc values, taking into account significant digits
         if self.repr == 'log':
