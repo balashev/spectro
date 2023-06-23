@@ -3337,39 +3337,39 @@ class fitMCMCWidget(QWidget):
                         #ax[vert, hor].set_title(str(p).replace('_', ' '))
 
             elif t == 'cols':
-                sp = set()
+                species = set()
                 for i, sys in enumerate(self.parent.fit.sys):
                     for s in sys.sp.keys():
-                        if s not in sp:
-                            sp.add(s)
+                        if s not in species:
+                            species.add(s)
                     for el in ['H2', 'HD', 'CO', 'CI', 'CII', 'FeII']:
                         if any([el+'j' in s for s in sys.sp.keys()]):
                             self.parent.fit.sys[i].addSpecies(el, 'total')
                             self.parent.fit.total.addSpecies(el + '_total')
-                print(sp)
-                for s in sp:
+                print(species)
+                for s in species:
                     self.parent.fit.total.addSpecies(s)
 
-                sp = self.parent.fit.list_total()
-                print(sp)
-                n_hor = int(len(sp) ** 0.5)
+                species = self.parent.fit.list_total()
+                print(species)
+                n_hor = int(len(species) ** 0.5)
                 if n_hor <= 1:
                     n_hor = 2
-                n_vert = len(sp) // n_hor + 1 if len(sp) % n_hor > 0 else len(sp) // n_hor
+                n_vert = len(species) // n_hor + 1 if len(species) % n_hor > 0 else len(species) // n_hor
                 if n_vert <= 1:
                     n_vert = 2
                 print(self.parent.fit.list())
                 fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
-                i = 0
-                for k, v in sp.items():
-                    print(k, v)
-                    if 'total' in k:
-                        if k.split('_')[-1] == 'total':
-                            inds = np.where([k.split('_')[2] in str(s) and str(s)[0] == 'N' for s in self.parent.fit.list()])[0]
+                k = 0
+                for sp, v in species.items():
+                    print(sp, v)
+                    if 'total' in sp:
+                        if sp.split('_')[-1] == 'total':
+                            inds = np.where([sp.split('_')[2] in str(s) and str(s)[0] == 'N' for s in self.parent.fit.list()])[0]
                         else:
-                            inds = np.where([str(s)[0] == 'N' and k.split('_')[2] == str(s).split('_')[2] for s in self.parent.fit.list()])[0]
+                            inds = np.where([str(s)[0] == 'N' and sp.split('_')[2] == str(s).split('_')[2] for s in self.parent.fit.list()])[0]
                     else:
-                        inds = np.where([k[2:] in str(s) and str(s)[0] == 'N' for s in self.parent.fit.list()])[0]
+                        inds = np.where([sp[2:] in str(s) and str(s)[0] == 'N' for s in self.parent.fit.list()])[0]
                     if 1:
                         d = distr1d(np.log10(np.sum(10 ** values[:, inds], axis=1)))
                         d.dopoint()
@@ -3378,13 +3378,13 @@ class fitMCMCWidget(QWidget):
                         v.set(res, attr='unc')
                         v.set(d.point)
                         f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
-                        self.results.setText(self.results.toPlainText() + k + ': ' + v.fitres(latex=True, dec=f, showname=False) + '\n')
-                        vert, hor = i // n_hor, i % n_hor
-                        i += 1
+                        self.results.setText(self.results.toPlainText() + sp + ': ' + v.fitres(latex=True, dec=f, showname=False) + '\n')
+                        vert, hor = k // n_hor, k % n_hor
+                        k += 1
                         d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
                         ax[vert, hor].yaxis.set_ticklabels([])
                         ax[vert, hor].yaxis.set_ticks([])
-                        ax[vert, hor].text(.1, .9, k.replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
+                        ax[vert, hor].text(.1, .9, sp.replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
 
         if k < n_hor * n_vert - 1:
             for i in range(i+1, n_hor * n_vert):

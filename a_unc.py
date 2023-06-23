@@ -580,7 +580,7 @@ if __name__ == '__main__':
         print(z.log())
         print(z.dec())
 
-    if 1:
+    if 0:
         for d in np.linspace(0.01, 0.40, 10):
             #print(d, 47.78 + d, a(47.78, d, 2.40, 'l').log().latex())
             print(d, (a(47.78, d, 0.32, 'l')).latex(f=None, base=0))
@@ -642,8 +642,8 @@ if __name__ == '__main__':
         print(m.latex(f=3, base=0))
         print(u * m, u * u, m * u, l * m)
 
-    if 0:
-        x = a(16.4, 0.1, 2.8, 'l')
-        y = a(1.1, 1.7, 0.2, 'l')
-        print(x / y)
+    if 1:
+        x = a(13.29, 0.18, 0.07, 'l')
+        tot = a(13.86, 0.11, 0.11, 'l')
+        print(x / tot)
 
