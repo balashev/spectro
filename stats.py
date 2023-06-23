@@ -164,7 +164,9 @@ class distr1d():
             res = "{name} = ${0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}$".format(self.point / 10 ** dec, (self.interval[1] - self.point ) / 10 ** dec, (self.point - self.interval[0]) / 10 ** dec, n=latex, name=self.name)
             if dec != 0:
                 res = res[:res.index('$')+1] + '(' + res[res.index('$')+1:-1] + r')\times 10^{{{:2d}}}$'.format(dec)
-
+            if name == '':
+                res = res.replace('=', '').strip()
+                print(res)
             return res
 
     def pdf(self, x):

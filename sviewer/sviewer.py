@@ -2199,12 +2199,33 @@ class showLinesWidget(QWidget):
 
                 p.plot_line()
 
+                def conv(x):
+                    return (x / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26
+
+                if self.show_cont:
+
+                    if not self.show_disp or len(s.fit.disp[0].norm.x) == 0:
+                        if p.vel_scale:
+                            x = conv(s.cheb.x())
+                        else:
+                            x = s.cheb.x()
+                        #print(x, s.cheb.y(), self.corr_cheb)
+                        p.ax.plot(x, np.power(s.cheb.y(), 1 - self.corr_cheb), '--k', lw=1)
+                    else:
+                        if p.vel_scale:
+                            x = conv(s.cheb.disp[0].norm.x)
+                        else:
+                            x = s.cheb.disp[0].norm.x
+                        p.ax.fill_between(x, s.cheb.disp[0].norm.y / cheb(s.cheb.disp[0].norm.x), s.cheb.disp[1].norm.y / cheb(s.cheb.disp[0].norm.x), fc='k', alpha=p.parent.disp_alpha / 2, zorder=11)
+                        p.ax.plot(x, s.cheb.disp[0].norm.y / cheb(s.cheb.disp[0].norm.x), '--k', lw=1, zorder=10)
+                        p.ax.plot(x, s.cheb.disp[1].norm.y / cheb(s.cheb.disp[0].norm.x), '--k', lw=1, zorder=10)
+                    if 0:
+                        self.showContCorr(ax=ax)
+
                 if self.buttons['add_lines'].text().strip() != '':
                     print(self.buttons['add_lines'].text().strip())
 
                 if self.show_cf and self.parent.fit.cf_fit and p.show_fit:
-                    def conv(x):
-                        return (x / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26
                     for k in range(self.parent.fit.cf_num):
                         if self.cfs == 'all' or 'cf' + str(k) in self.cfs:
                             attr = 'cf_' + str(k)
@@ -2342,14 +2363,14 @@ class showLinesWidget(QWidget):
                             p.showLineLabels(levels=levels, pos=self.pos_H2, kind='full', only_marks=self.only_marks, show_comps=self.all_comps_marks)
                     
                 if self.show_cont:
-                    if not self.show_disp:
+                    if not self.show_disp or len(s.fit.disp[0].norm.x) == 0:
                         p.ax.plot(s.cheb.x(), np.power(s.cheb.y(), 1 - self.corr_cheb), '--k', lw=1)
                     else:
                         if p.vel_scale:
                             x = (s.cheb.disp[0].norm.x / p.wavelength / (1 + p.parent.z_ref) - 1) * 299794.26
                         else:
                             x = s.cheb.disp[0].norm.x
-                        p.ax.fill_between(x, s.cheb.disp[0].norm.y / cheb(x), s.cheb.disp[1].norm.y / cheb(x), fc='k', alpha=p.parent.disp_alpha, zorder=11)
+                        p.ax.fill_between(x, s.cheb.disp[0].norm.y / cheb(x), s.cheb.disp[1].norm.y / cheb(x), fc='k', alpha=p.parent.disp_alpha / 2, zorder=11)
                         p.ax.plot(x, s.cheb.disp[0].norm.y / cheb(x), '--k', lw=1, zorder=10)
                         p.ax.plot(x, s.cheb.disp[1].norm.y / cheb(x), '--k', lw=1, zorder=10)
                     if 0:
@@ -3247,22 +3268,34 @@ class fitMCMCWidget(QWidget):
                 k = 0
                 for i in range(len(self.parent.fit.sys)):
                     for ratio in ratios:
-                        inds = [np.where([str(s) == 'N_{0:d}_{1:s}'.format(i, r) for s in pars])[0] for r in ratio]
-                        print(inds)
-                        if len(inds[0]) > 0 and len(inds[1]) > 0:
-                            d = distr1d(samples[burnin:, :, inds[0]].flatten() - samples[burnin:, :, inds[1]].flatten())
+                        d = {}
+                        for r in ratio:
+                            if 'total' in r:
+                                inds = np.where(['N_{0:d}_{1:s}'.format(i, r.split('total')[0]) in str(s) for s in pars])[0]
+                                print(r, inds)
+                                d[r] = np.log10(np.sum(10 ** samples[burnin:, :, inds], axis=2)).flatten()
+                            else:
+                                print(r, np.where([str(s) == 'N_{0:d}_{1:s}'.format(i, r) for s in pars])[0])
+                                d[r] = samples[burnin:, :, np.where([str(s) == 'N_{0:d}_{1:s}'.format(i, r) for s in pars])[0]].flatten()
+                        #inds = [np.where([str(s) == 'N_{0:d}_{1:s}'.format(i, r) for s in pars])[0] for r in ratio]
+                        #print(inds)
+                        if len(d.keys()) > 1:
+                            d = distr1d(d[ratio[0]] - d[ratio[1]])
                             d.dopoint()
                             d.dointerval()
                             res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0], 'log')
                             f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
                             self.results.setText(self.results.toPlainText() + str('{0:s}_{1:s}_{2:d}'.format(ratio[0], ratio[1], i)) + ': ' + res.latex(f=f) + '\n')
+                            print('{0:s}_{1:s}_{2:d}'.format(ratio[0], ratio[1], i) + ': ' + res.latex(f=f) + '\n')
                             # vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
                             vert, hor = k // n_hor, k % n_hor
+                            print(vert, hor)
                             k += 1
                             d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
                             ax[vert, hor].yaxis.set_ticklabels([])
                             ax[vert, hor].yaxis.set_ticks([])
                             ax[vert, hor].text(.1, .9, str('{0:s}/{1:s} {2:d}'.format(ratio[0], ratio[1], i)), ha='left', va='top', transform=ax[vert, hor].transAxes)
+                            ax[vert, hor].text(.1, .8, res.latex(f=f), ha='left', va='top', transform=ax[vert, hor].transAxes)
         else:
             values = []
             for k in range(burnin, samples.shape[0]):
@@ -3353,7 +3386,7 @@ class fitMCMCWidget(QWidget):
                         ax[vert, hor].yaxis.set_ticks([])
                         ax[vert, hor].text(.1, .9, k.replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
 
-        if i < n_hor * n_vert:
+        if k < n_hor * n_vert - 1:
             for i in range(i+1, n_hor * n_vert):
                 vert, hor = i // n_hor, i % n_hor
                 fig.delaxes(ax[vert, hor])
@@ -6514,6 +6547,7 @@ class sviewer(QMainWindow):
         self.KodiaqFile = self.options('KodiaqFile', config=self.config)
         self.UVESfolder = self.options('UVESfolder', config=self.config)
         self.ErositaFile = self.options('ErositaFile', config=self.config)
+        self.MALSfolder = self.options('MALSfolder', config=self.config)
         self.IGMspecFile = self.options('IGMspecFile', config=self.config)
         self.SFDMapPath = self.options('SFDMapPath', config=self.config)
         self.MCMC_output = 'output/mcmc.hdf5'
@@ -7178,6 +7212,12 @@ class sviewer(QMainWindow):
                         IGMspecMenu.addAction(item)
                 except:
                     pass
+
+            MALS_gal = None
+            if self.MALSfolder is not None and os.path.isfile(self.MALSfolder):
+                MALS_gal = QAction('&MALS_galactic', self)
+                MALS_gal.setStatusTip('load MALS galactic sample')
+                MALS_gal.triggered.connect(self.showMALS)
 
             samplesMenu.addAction(XQ100list)
             samplesMenu.addAction(P94list)
@@ -10142,6 +10182,11 @@ class sviewer(QMainWindow):
     def showErosita(self):
         if self.ErositaWidget is None:
             self.ErositaWidget = ErositaWidget(self)
+
+    def showMALS(self):
+        pass
+        #if self.ErositaWidget is None:
+        #    self.ErositaWidget = ErositaWidget(self)
 
     def showIGMspec(self, cat, data=None):
         self.IGMspecTable = IGMspecTable(self, cat)

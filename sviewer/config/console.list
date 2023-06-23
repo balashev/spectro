@@ -1,10 +1,3 @@
-show CI
-show COj1
-show COj2
-show COj3
-show CIj1
-high COj0
-show ClI
 COj1
 high COj1
 stats
@@ -19,3 +12,10 @@ show ClI
 show CO
 show ClI
 show CO
+show HeI*
+show CaII
+show CO
+set cont 1
+set cont 1
+set cont 1
+set cont 1
