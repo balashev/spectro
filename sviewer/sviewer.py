@@ -7231,6 +7231,8 @@ class sviewer(QMainWindow):
                 samplesMenu.addAction(UVES)
             if Erosita is not None:
                 samplesMenu.addAction(Erosita)
+            if MALS_gal is not None:
+                samplesMenu.addAction(MALS_gal)
             samplesMenu.addSeparator()
             if IGMspecMenu is not None:
                 samplesMenu.addMenu(IGMspecMenu)
@@ -10184,9 +10186,10 @@ class sviewer(QMainWindow):
             self.ErositaWidget = ErositaWidget(self)
 
     def showMALS(self):
-        pass
-        #if self.ErositaWidget is None:
-        #    self.ErositaWidget = ErositaWidget(self)
+        self.MALS = QSOlistTable(self, 'MALS', folder=self.MALSfolder)
+        data = np.genfromtxt(self.UVESfolder + 'list.dat', names=True, delimiter='\t',
+                             dtype=('U20', '<f8', '<f8', '<i4', '<i4', 'U5', 'U20', 'U200'))
+        self.UVESTable.setdata(data)
 
     def showIGMspec(self, cat, data=None):
         self.IGMspecTable = IGMspecTable(self, cat)
