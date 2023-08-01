@@ -470,9 +470,11 @@ class plotLineSpectrum(pg.PlotCurveItem):
     def __init__(self, *args, **kwargs):
         self.parent = kwargs['parent']
         self.view = kwargs['view']
+        self.name = kwargs['name']
         #self.parent.spec_save = self.parent.spec.raw.copy()
         #print({k: v for k, v in kwargs.items() if k not in ['parent', 'view']})
         super().__init__(*args, **{k: v for k, v in kwargs.items() if k not in ['parent', 'view']})
+        self.setSegmentedLineMode('off')
 
     def initial(self):
         self.parent.spec.raw.initial(False)
@@ -1263,6 +1265,7 @@ class Spectrum():
         self.sm = specline(self)
         self.rebin = None
         self.fit = fitline(self)
+        self.fit_bin = fitline(self)
         self.fit_comp = []
         self.cheb = fitline(self)
         self.res = gline()
@@ -1337,8 +1340,7 @@ class Spectrum():
                 self.g_point.setZValue(2)
                 self.parent.vb.addItem(self.g_point)
             if 'step' in self.view or 'line' in self.view:
-                self.g_line = plotLineSpectrum(parent=self, view=self.view, x=x, y=y, clickable=True, connect='finite')
-                self.g_line.setPen(self.pen)
+                self.g_line = plotLineSpectrum(parent=self, view=self.view, name='spec', x=x, y=y, clickable=True, connect='finite', pen=self.pen)
                 self.g_line.sigClicked.connect(self.specClicked)
                 self.g_line.setZValue(2)
                 self.parent.vb.addItem(self.g_line)
@@ -1349,21 +1351,21 @@ class Spectrum():
         # >>> plot fit point:
         self.set_fit_mask()
         if len(self.fit_mask.x()) > 0:
-            if self.parent.selectview == 'points':
+            if self.parent.selectview == 'points' or (self.parent.selectview == 'color' and 'point' in self.view):
                 self.points = pg.ScatterPlotItem(x=self.spec.x()[self.fit_mask.x()], y=self.spec.y()[self.fit_mask.x()], size=self.points_size, brush=self.points_brush)
                 self.points.setZValue(3)
                 self.parent.vb.addItem(self.points)
 
-            elif self.parent.selectview == 'color':
+            elif self.parent.selectview == 'color' and ('step' in self.view or 'line' in self.view):
                 x, y = np.copy(self.spec.x()), np.copy(self.spec.y())
                 if len(x) > 0:
                     y[np.logical_not(self.fit_mask.x())] = np.NaN
-                self.points = plotLineSpectrum(parent=self, view=self.view, connect='finite', pen=self.fit_pixels_pen)
+                self.points = plotLineSpectrum(parent=self, view=self.view, x=x, y=y, name='points', connect='finite', pen=self.fit_pixels_pen)
                 if self.active:
                     self.points.setZValue(3)
                 else:
                     self.points.setZValue(0)
-                self.points.setData(x=x, y=y)
+                #self.points.setData(x=x, y=y)
                 self.parent.vb.addItem(self.points)
 
             elif self.parent.selectview == 'regions':
@@ -1377,13 +1379,17 @@ class Spectrum():
             self.parent.vb.addItem(self.bad_pixels)
 
         # >>> plot fit:
-        if self.parent.fitPoints:
-            self.g_fit = pg.ScatterPlotItem(x=[], y=[], size=5, symbol='o',
-                                            pen=self.fit_pen, brush=pg.mkBrush(self.fit_pen.color()))
-        else:
+        if self.parent.fitview == 'points':
+            self.g_fit = pg.ScatterPlotItem(x=[], y=[], size=5, symbol='o', pen=self.fit_pen, brush=pg.mkBrush(self.fit_pen.color()))
+        elif self.parent.fitview == 'line':
             self.g_fit = pg.PlotCurveItem(x=[], y=[], pen=self.fit_pen)
+        elif self.parent.fitview == 'bins':
+            self.g_fit = plotLineSpectrum(parent=self, view='step', x=x, y=y, name='fit', connect='finite', pen=self.fit_pen)
         self.g_fit.setZValue(7)
         self.parent.vb.addItem(self.g_fit)
+        #self.g_fit_bin = plotLineSpectrum(parent=self, view='step', name='fit', connect='finite', pen=self.fit_pen)
+        #self.g_fit_bin.setZValue(1)
+        #self.parent.vb.addItem(self.g_fit_bin)
         self.set_gfit()
         if len(self.parent.fit.sys) > 0:
             self.construct_g_fit_comps()
@@ -1480,7 +1486,7 @@ class Spectrum():
             self.remove_g_fit_comps()
         except:
             pass
-        attrs = ['g_fit', 'g_fit_comp', 'points', 'bad_pixels', 'g_cont', 'g_spline',
+        attrs = ['g_fit', 'g_fit_bin', 'g_fit_comp', 'points', 'bad_pixels', 'g_cont', 'g_spline',
                  'normline', 'sm_line', 'g_cheb', 'rebin']
         for attr in attrs:
             try:
@@ -1572,17 +1578,21 @@ class Spectrum():
                 self.set_cheb()
             self.parent.s.chi2()
 
-    def set_fit(self, x, y):
+    def set_fit(self, x, y, attr='fit'):
         if self.cont.n > 0: # and self.active():
-            self.fit.line.norm.set_data(x=x, y=y)
-            self.fit.line.norm.interpolate(fill_value=1)
+            getattr(self, attr).line.norm.set_data(x=x, y=y)
+            getattr(self, attr).line.norm.interpolate(fill_value=1)
             if not self.parent.normview:
-                self.fit.line.normalize(norm=False, cont_mask=False, inter=True)
-                self.fit.line.raw.interpolate()
+                getattr(self, attr).line.normalize(norm=False, cont_mask=False, inter=True)
+                getattr(self, attr).line.raw.interpolate()
 
     def set_gfit(self):
-        if len(self.fit.line.norm.x) > 0 and self.cont.n > 0 and self.active():
-            self.g_fit.setData(self.fit.line.x(), self.fit.line.y())
+        if (len(self.fit.line.norm.x) > 0 or len(self.fit_bin.line.norm.x) > 0) and self.cont.n > 0 and self.active():
+            if self.parent.fitview in ['line', 'points']:
+                self.g_fit.setData(self.fit.line.x(), self.fit.line.y())
+            elif self.parent.fitview == 'bins':
+                self.g_fit.setData(self.fit_bin.line.x(), self.fit_bin.line.y())
+            #self.g_fit_bin.setData(self.fit_bin.line.x(), self.fit_bin.line.y())
 
     def set_fit_disp(self, show=True):
         if show:
@@ -2058,9 +2068,9 @@ class Spectrum():
 
             # >>> calculate the intrinsic absorption line spectrum
             if 1:
-                x, flux = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, comp=comp + 1)
+                x, flux, bins, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, comp=comp + 1)
             else:
-                flux = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=comp + 1, out="init")
+                x, flux, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=comp + 1, out="cum")
                 x = self.spec.norm.x[self.mask.norm.x]
 
             if timer:
@@ -2068,7 +2078,11 @@ class Spectrum():
 
             # >>> set fit graphics
             if comp == -1:
-                self.set_fit(x=x, y=flux)
+                self.set_fit(x=x, y=flux, attr='fit')
+                y = np.ones_like(self.spec.y()) * np.NaN
+                if len(y) > 0:
+                    y[self.fit_mask.x()] = binned
+                self.set_fit(x=np.copy(self.spec.x()), y=y, attr='fit_bin')
                 if redraw:
                     self.set_gfit()
                     self.set_res()

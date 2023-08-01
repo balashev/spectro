@@ -1,21 +1,21 @@
+set cont 1
+set cont 1
+hide H2
+FeII
+show CI
+show CIj1
+show CIj2
+13CI
+show 13CI
+show 13CIj1
+show 13CIj2
 COj1
-high COj1
-stats
-HD
-HDj0
-HDj0
-stats
+COj1
 cont 1
-high FeIIj3
-high FeIIj4
-show ClI
-show CO
-show ClI
-show CO
-show HeI*
-show CaII
-show CO
+cont 1
+show CI
+show CIj1
+show CIj2
+show CIj2
 set cont 1
-set cont 1
-set cont 1
-set cont 1
+set err 0.001

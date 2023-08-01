@@ -1823,7 +1823,7 @@ class pyratio():
         if 0:
             stat = s.g[u]/s.g[l]*np.exp(-hu/(ac.k_B.cgs*10**self.pars['T'].value*au.K))
             #print(u, l, s.A[u,l], stat, s.A[u,l]/self.collision_rate(s, u, l)/10**self.pars['n'].value)
-            L = s.A[u,l] / au.s * hu * stat / (1 + stat + s.A[u,l]/self.collision_rate(s, u, l))
+            L = s.A[u, l] / au.s * hu * stat / (1 + stat + s.A[u, l]/self.collision_rate(s, u, l))
         else:
             x = self.balance(sp.name)
             L = sp.A[u, l] / au.s * hu * x[u]

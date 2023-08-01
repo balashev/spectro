@@ -524,6 +524,9 @@ class a:
             return np.log(np.abs((np.sign(alpha) - d[self.type]) / 2))
 
 
+    def sigma(self, x):
+        print(x, self.val, self.plus, self.minus)
+        return (x - self.val) / self.plus if x - self.val > 0 else (self.val - x) / self.minus
 
     def L(self, x, ind=2):
         return np.exp(self.lnL(x, ind=ind))

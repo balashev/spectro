@@ -275,10 +275,13 @@ function update_pars(pars, spec, add)
                 end
             end
         end
-        if occursin("dtoh", pars[k].name)
+        if occursin("iso", pars[k].name)
             for (k1, v1) in pars
-                if occursin("N_", k1) * occursin("DI", k1) * occursin("DtoH", v1.addinfo)
+                if occursin("D/H", pars[k].addinfo) * occursin("N_", k1) * occursin("DI", k1) * occursin("iso", v1.addinfo)
                     pars[k1].val = pars[replace(k1, "DI" => "HI")].val + pars[k].val
+                end
+                if occursin("13C/12C", pars[k].addinfo) * occursin("N_", k1) * occursin("13CI", k1) * occursin("iso", v1.addinfo) * haskey(pars, replace(k1, "13" => ""))
+                    pars[k1].val = pars[replace(k1, "13" => "")].val + pars[k].val
                 end
             end
         end
@@ -550,6 +553,8 @@ mutable struct spectrum
     disps::Float64
     dispz::Float64
     cont::Vector{Any}
+    bins::Vector{Any}
+    bin_mask::BitArray
 end
 
 function prepare(s, pars, add)
@@ -557,7 +562,9 @@ function prepare(s, pars, add)
     #println(append!(c,  [cheb([], 0, 0, 0)]))
     spec = Vector(undef, size(s)[1])
     for (i, si) in enumerate(s)
-        spec[i] = spectrum(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.resolution, prepare_lines(si.fit_lines), 0, 0, prepare_cheb(pars, i))
+        spec[i] = spectrum(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.resolution, prepare_lines(si.fit_lines), 0, 0, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0))
+        spec[i].bins = (si.spec.norm.x[2:end] + si.spec.norm.x[1:end-1]) / 2
+        spec[i].bin_mask = spec[i].mask[1:end-1] .|| spec[i].mask[2:end]
     end
     update_pars(pars, spec, add)
     return spec
@@ -592,7 +599,7 @@ function line_profile(line, x; toll=1e-6)
     end
 end
 
-function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
+function calc_spectrum_nonbinned(spec, pars; comp=0, regular=-1, regions="fit", out="all")
 
     timeit = 0
     if timeit == 1
@@ -774,8 +781,24 @@ function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
         y_c = 1 .- y_c
         #end
 
+        println("indexes: ", searchsortedfirst.(Ref(x), spec.x[x_grid .> -1]))
         if out == "all"
             return x, y_c
+        elseif out == "cum"
+            # compute initial value
+            @inbounds init = (x[2] - x[1]) * (y[1] + y[2])
+            n = length(x)
+            retarr = Vector{typeof(init)}(undef, n)
+            retarr[1] = init
+
+            # for all other values
+            @inbounds @fastmath for i in 2:n # not sure if @simd can do anything here
+                retarr[i] = retarr[i-1] + (x[i] - x[i-1]) * (y[i] + y[i-1])
+            end
+
+            return HALF * retarr
+
+            return y_c[x_mask]
         elseif out == "init"
             #println("all done ", sum(y_c[x_mask]))
             return y_c[x_mask]
@@ -787,8 +810,243 @@ function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
             return y[x_mask]
         end
     end
-
 end
+
+function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
+
+    timeit = 0
+    if timeit == 1
+        start = time()
+        println("start ", spec.resolution)
+    end
+
+    line_mask = update_lines(spec.lines, pars, comp=comp)
+
+    x_instr = 1.0 / spec.resolution / 2.355
+    x_grid = -1 .* ones(Int8, size(spec.bins)[1])
+    x_grid[spec.bin_mask] = zeros(Int8, sum(spec.bin_mask))
+    for i in findall(!=(0), spec.bin_mask[2:end])
+        x_grid[i] = max(x_grid[i], round(Int, (spec.bins[i] - spec.bins[i-1]) / spec.bins[i] / x_instr * 2))
+    end
+    for i in findall(!=(0), spec.bin_mask[1:end-1] - spec.bin_mask[2:end])
+        for k in binsearch(spec.bins, spec.bins[i] * (1 - 6 * x_instr), type="min"):binsearch(spec.bins, spec.bins[i] * (1 + 6 * x_instr), type="max")
+            x_grid[k] = max(x_grid[k], round(Int, (spec.bins[i] - spec.bins[i-1]) / spec.bins[i] / x_instr * 2))
+        end
+    end
+
+    for line in spec.lines[line_mask]
+        line.dx = voigt_range(line.a, 0.001 / line.tau0)
+        x, r = voigt_step(line.a, line.tau0)
+        x = line.l .+ x * line.ld
+        if size(x)[1] > 0
+            i_min, i_max = binsearch(spec.bins, x[1], type="min"), binsearch(spec.bins, x[end], type="max") - 1
+            if i_max - i_min > 0 && i_min > 0
+                for i in i_min:i_max
+                    k_min, k_max = binsearch(x, spec.bins[i]), binsearch(x, spec.bins[i+1])
+                    x_grid[i] = max(x_grid[i], Int(floor((spec.bins[i+1] - spec.bins[i]) / (0.1 / maximum(r[k_min:k_max]) * line.ld)))+1)
+                end
+            end
+            i_min, i_max = binsearch(spec.bins, x[1] * (1 - 3 * x_instr), type="min"), binsearch(spec.bins, x[end] * (1 + 3 * x_instr), type="max")
+            if i_max - i_min > 1 && i_min > 1
+                for i in i_min:i_max
+                    x_grid[i] = max(x_grid[i], round(Int, (spec.bins[i] - spec.bins[i-1]) / line.l / x_instr * 3))
+                end
+            end
+        end
+    end
+    x_grid .+= iseven.(x_grid)
+    #println("x_grid: ", x_grid)
+    if timeit == 1
+        println("update ", time() - start)
+    end
+
+    x_grid[x_grid .>= 0] = round.(imfilter(x_grid[x_grid .>= 0], ImageFiltering.Kernel.gaussian((2,))))
+
+    if timeit == 1
+        println("grid conv ", time() - start)
+    end
+
+    if regular == 0
+        x = spec.bins[x_grid .> -1]
+        x_mask = ~isinf(x)
+    else
+        x = [0.0]
+        x_mask = Vector{Int64}(undef, 0)
+        k = 1
+        if regular == -1
+            for i in 1:size(x_grid)[1]-1
+                if spec.bin_mask[i] > 0
+                    append!(x_mask, k)
+                end
+                if x_grid[i] == 0
+                    splice!(x, k, [spec.bins[i], spec.bins[i]])
+                    k += 1
+                elseif x_grid[i] > 0
+                    step = (spec.bins[i+1] - spec.bins[i]) / (x_grid[i] + 1)
+                    splice!(x, k, range(spec.bins[i], length=x_grid[i]+2, step=step))
+                    k += x_grid[i] + 1
+                end
+
+            end
+        elseif regular > 0
+            for i in 1:size(x_grid)[1]-1
+                if spec.mask[i] > 0
+                    append!(x_mask, k)
+                end
+                if x_grid[i] > -1 && x_grid[i+1] > -1
+                    step = (spec.bins[i+1] - spec.bins[i]) / (regular + 1)
+                    splice!(x, k, range(spec.bins[i], stop=spec.bins[i+1], length=regular+2))
+                    k += kind + 1
+                end
+            end
+        end
+    end
+
+    if timeit == 1
+        println("make grid ", time() - start)
+    end
+
+    if ~any([occursin("cf", p.first) for p in pars])
+        y = ones(size(x))
+        for line in spec.lines[line_mask]
+            i_min, i_max = binsearch(x, line.l - line.dx * line.ld, type="min"), binsearch(x, line.l + line.dx * line.ld, type="max")
+            t = line_profile(line, x[i_min:i_max])
+            @. @views y[i_min:i_max] = y[i_min:i_max] .* t
+        end
+    else
+        y = zero(x)
+        cfs, inds = [], []
+        for (i, line) in enumerate(spec.lines[line_mask])
+            append!(cfs, line.cf)
+            append!(inds, i)
+        end
+        for l in unique(cfs)
+            if l > -1
+                cf = pars["cf_" * string(l)].val
+            else
+                cf = 1
+            end
+            profile = zero(x)
+            for (i, c) in zip(inds, cfs)
+                if c == l
+                    line = spec.lines[line_mask][i]
+                    i_min, i_max = binsearch(x, line.l - line.dx * line.ld, type="min"), binsearch(x, line.l + line.dx * line.ld, type="max")
+                    t = line_profile(line, x[i_min:i_max])
+                    @. @views profile[i_min:i_max] += log.(t)
+                end
+            end
+            #y += log.(exp.(profile) .* cf .+ (1 .- cf))
+            y += real.(log.(exp.(profile) .* cf .+ (1 .- cf) .+ 0im))
+        end
+        y = exp.(y)
+    end
+
+    if timeit == 1
+        println("calc lines ", time() - start)
+        #println(size(x))
+    end
+
+    #if any([occursin("disp", p.first) for p in pars])
+    #    n = Int(sum([occursin("disp", p.first) for p in pars]) / 2)
+    #    for i in 0:n-1
+    #        println(i)
+    #        for p in pars
+    #            #println(p.first, " ", occursin("disp", p.first), " ", parse(Int, split(p.first, "_")[2]) == i, " ", occursin("disp", p.first) & (parse(Int, split(p.first, "_")[2]) == i))
+    #            if occursin("disp", p.first) & (parse(Int, split(p.first, "_")[2]) == i)
+    #                println(p.first, " ", p.second.addinfo)
+    #            end
+    #        end
+    #    end
+    #end
+    #println(spec.dispz, " ", spec.disps)
+    if (spec.dispz != 0) & (spec.disps != 0)
+        inter = LinearInterpolation(x, y, extrapolation_bc=Flat())
+        y = inter(x .+ (x .- spec.dispz) .* spec.disps)
+    end
+
+    if size(spec.cont)[1] > 0
+        y .*= correct_continuum(spec.cont, pars, x)
+    end
+
+    if spec.resolution != 0
+        y = 1 .- y
+        y_c = zero(y)
+        #y_c = Vector{Float64}(undef, size(y)[1])
+        for (i, xi) in enumerate(x)
+            sigma_r = xi / spec.resolution / 1.66511
+            k_min, k_max = binsearch(x, xi - 3 * sigma_r), binsearch(x, xi + 3 * sigma_r)
+            #println(k_min, "  ", k_max)
+            instr = exp.( -1 .* ((view(x, k_min:k_max) .- xi) ./ sigma_r ) .^ 2)
+            s = 0
+            @inbounds for k = k_min+1:k_max
+                s = s + (y[k] * instr[k-k_min+1] + y[k-1] * instr[k-k_min]) * (x[k] - x[k-1])
+            end
+            y_c[i] = s / 2 / sqrt(π) / sigma_r  + y[k_min] * (1 - SpecialFunctions.erf((xi - x[k_min]) / sigma_r)) / 2 + y[k_max] * (1 - SpecialFunctions.erf((x[k_max] - xi) / sigma_r)) / 2
+            #sleep(5)
+        end
+
+        if timeit == 1
+            println("convolve ", time() - start)
+        end
+
+        #if size(spec.cont)[1] > 0
+        #    y_c = (1 .-y_c) .* correct_continuum(spec.cont, pars, x)
+        #else
+        y_c = 1 .- y_c
+        #end
+
+        if out == "old all"
+            return x, y_c
+
+        elseif out in ["all", "binned"]
+
+            #println("y_c:", y_c)
+            inds = searchsortedfirst.(Ref(x), spec.bins[spec.bin_mask])
+            #println("bins:", spec.bins[spec.bin_mask])
+            #println("indexes: ", inds, " ", size(inds))
+            cumsum = zeros(size(x))
+            #cumsum[1] = 0
+            @inbounds @fastmath for i in 2:size(x)[1] # not sure if @simd can do anything here
+                cumsum[i] = cumsum[i-1] + (x[i] - x[i-1]) * (2 - y_c[i] - y_c[i-1])
+            end
+            cumsum = cumsum .* 0.5
+            #println("cumsum:", cumsum)
+
+            #println(1 .- (cumsum[inds[2:end]] .- cumsum[inds[1:end-1]]) ./ (x[inds[2:end]] .- x[inds[1:end-1]]))
+
+            binned = zero(spec.x[spec.mask])
+            for (k, xi) in enumerate(spec.x[spec.mask])
+                ind = findmin(abs.(x .- xi))[2]
+                #println(xi, " ", ind)
+            #for (k, ind) in enumerate(searchsortedfirst.(Ref(x), spec.x[spec.mask] .* 1.000000001))
+                ind_min, ind_max = searchsortedlast(inds, ind), searchsortedfirst(inds, ind)
+                #println(xi, " ", ind, " ",  ind_max, " ", ind_min, " ", x[inds[ind_max]], " ", x[inds[ind_min]])
+                for i in inds[ind_min]+1:inds[ind_max]
+                    binned[k] += (x[i] - x[i-1]) * (2 - y_c[i] - y_c[i-1])
+                end
+
+                binned[k] = 1 - binned[k] / (x[inds[ind_max]] - x[inds[ind_min]]) / 2
+            end
+            #println("binned:", binned)
+
+            if out == "all"
+                return x, y_c, spec.x[spec.mask], binned #1 .- (cumsum[inds[2:end]] .- cumsum[inds[1:end-1]]) ./ (x[inds[2:end]] .- x[inds[1:end-1]])
+            elseif out == "binned"
+                return binned
+            end
+            #println("all done ", sum(y_c[x_mask]))
+            #return y_c[x_mask]
+
+        end
+    else
+        if out == "all"
+            return x, y
+        elseif out == "init"
+            return y[x_mask]
+        end
+    end
+end
+
 
 
 function fitLM(spec, p_pars, add; tieds=Dict())
@@ -808,7 +1066,7 @@ function fitLM(spec, p_pars, add; tieds=Dict())
         res = Vector{Float64}()
         for s in spec
             if sum(s.mask) > 0
-                append!(res, (calc_spectrum(s, pars, out="init") .- s.y[s.mask]) ./ s.unc[s.mask])
+                append!(res, (calc_spectrum(s, pars, out="binned") .- s.y[s.mask]) ./ s.unc[s.mask])
             end
         end
         return res

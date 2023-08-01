@@ -166,7 +166,6 @@ class distr1d():
                 res = res[:res.index('$')+1] + '(' + res[res.index('$')+1:-1] + r')\times 10^{{{:2d}}}$'.format(dec)
             if name == '':
                 res = res.replace('=', '').strip()
-                print(res)
             return res
 
     def pdf(self, x):

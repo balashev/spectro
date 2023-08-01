@@ -1,4 +1,4 @@
-Alex Ignácio da Silva	ignacioalex@yahoo.com
+Alex Ignï¿½cio da Silva	ignacioalex@yahoo.com
 
 last change: March 9, 2000.
 
@@ -40,7 +40,7 @@ Transition probabilities:
 
 source:
  
-	M.E. Galavís, C. Mendoza and C.J.Zeippen, 1997: A&AS 123, 159
+	M.E. Galavï¿½s, C. Mendoza and C.J.Zeippen, 1997: A&AS 123, 159
 	(Iron Project calculation)
 
 number of transitions listed
@@ -67,7 +67,7 @@ source:
 	Allowed transitions listed in Verner et al. 1996: Atomic Data Nucl. Data Tables 64, 1
 	(based on Opacity Project calculations)
 	
-	(wavelength range: 1128-1659 Å)
+	(wavelength range: 1128-1659 ï¿½)
 
 number of transitions listed (may be zero)
 Ej [cm^-1]	g(j)	i	Aji [s^-1]
@@ -195,7 +195,7 @@ source:
 	C. T. Johnson, P. G. Burke and A. E. Kingston, 1987: J. Phys. B 20, 2553
 	(fits to the transitions involving the ground term levels 3PJ - 3PJ')
 
-	D. Péquignot and S. M. V. Aldrovandi, 1976: A&A 50, 141
+	D. Pï¿½quignot and S. M. V. Aldrovandi, 1976: A&A 50, 141
 	(fits to the transitions involving the ground term and levels 1D and 1S)
 
 The program actually calls subroutine CI_gam to get the fits to
@@ -292,7 +292,8 @@ ortho-H2
 
 source:
 
-	V. Staemmler and D. R. Flower, 1991: J. Phys. B 24, 2343
+	K. Schroder, V. Staemmler, M. D. Smith, D. R. Flower and R. Jaquet, 1991: 
+a												J. Phys. B 24, 2487	
 
 #
 helium
@@ -303,3 +304,7 @@ helium
 2	1	8.49E-12	1.35E-11	1.53E-11	1.59E-11	1.65E-11	1.69E-11	1.74E-11	1.79E-11	1.86E-11	
 3	1	4.05E-11	4.23E-11	4.30E-11	4.34E-11	4.37E-11	4.39E-11	4.42E-11	4.46E-11	4.53E-11	
 3	2	7.15E-11	7.48E-11	7.64E-11	7.75E-11	7.92E-11	8.09E-11	8.29E-11	8.51E-11	8.83E-11	
+
+source:
+
+	V. Staemmler and D. R. Flower, 1991: J. Phys. B 24, 2343

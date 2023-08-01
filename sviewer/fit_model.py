@@ -48,7 +48,7 @@ class FLineEdit(QLineEdit):
     def calcFit(self):
         if self.var in ['N', 'b', 'z', 'kin', 'turb', 'v', 'c', 'Ntot', 'logn', 'logT', 'rad', 'CMB']:
             self.parent.parent.s.reCalcFit() #self.parent.tab.currentIndex())
-        elif self.var in ['mu', 'dtoh'] or any([x in self.var for x in ['me', 'dispz', 'disps', 'res', 'st']]):
+        elif self.var in ['mu', 'iso'] or any([x in self.var for x in ['me', 'dispz', 'disps', 'res', 'st']]):
             self.parent.parent.s.prepareFit()
             self.parent.parent.s.calcFit()
 
@@ -324,10 +324,19 @@ class fitModelWidget(QWidget):
         for i in range(self.parent.fit.cont_num):
             self.addContParent(self.cont, 'region_' + str(i), expanded=self.parent.fit.cont_fit)
 
-        for s, name in zip(['mu', 'dtoh'], ['mp/me', 'D/H']):
-            setattr(self, s + '_p', self.addParent(self.treeWidget, name, expanded=hasattr(self.parent.fit, s)))
-            getattr(self, s + '_p').name = s
-            self.addChild(s + '_p', s)
+        self.iso_p = self.addParent(self.treeWidget, 'Isotopic', expanded=hasattr(self.parent.fit, 'iso'))
+        self.iso_p.name = 'iso'
+        self.iso_m = QTreeWidgetItem(self.iso_p)
+        self.iso_m.setTextAlignment(2, Qt.AlignRight)
+        self.iso_m.setText(2, 'Ratio: ')
+        self.iso_type = QComboBox(self)
+        self.iso_type.setFixedSize(100, 30)
+        self.iso_type.addItems(['None', 'D/H', '13C/12C'])
+        self.iso_type.currentTextChanged.connect(self.isoChanged)
+        self.treeWidget.setItemWidget(self.iso_m, 3, self.iso_type)
+        if 'iso' in self.parent.fit.list_names():
+            self.addChild('iso_p', 'iso')
+
         #self.treeWidget.itemChanged.connect(self.stateChanged)
 
         self.me = self.addParent(self.treeWidget, 'Metallicity', expanded=self.parent.fit.me_num > 0)
@@ -356,6 +365,11 @@ class fitModelWidget(QWidget):
         for i in range(self.parent.fit.res_num):
             self.addChild('res', 'res_' + str(i), text_val='res ' + str(i))
         #self.res.setExpanded(self.parent.fit.res_fit)
+
+        for s, name in zip(['mu'], ['mp/me']):
+            setattr(self, s + '_p', self.addParent(self.treeWidget, name, expanded=hasattr(self.parent.fit, s)))
+            getattr(self, s + '_p').name = s
+            self.addChild(s + '_p', s)
 
         self.cf = self.addParent(self.treeWidget, 'Covering factors', expanded=self.parent.fit.cf_fit)
         self.cf.name = 'cf'
@@ -460,7 +474,9 @@ class fitModelWidget(QWidget):
             sign = [text_val + ': ', 'range: ', '....', 'step: ']
 
         if not hasattr(self.parent.fit, name):
+            print(name)
             self.parent.fit.add(name)
+            print(self.parent.fit.list_names())
             if 'hcont' in name:
                 self.parent.fit.setValue('hcont', 0, 'vary')
         setattr(self, name, QTreeWidgetItem(getattr(self, parent)))
@@ -770,7 +786,7 @@ class fitModelWidget(QWidget):
             self.refresh('varyChanged')
 
     def stateChanged(self, item):
-        if item.name in ['mu', 'dtoh']:
+        if item.name in ['mu']:
             if item.isExpanded():
                 self.parent.fit.add(item.name)
             else:
@@ -927,6 +943,19 @@ class fitModelWidget(QWidget):
             if self.refr:
                 self.refresh()
 
+    def isoChanged(self):
+        name = self.iso_type.currentText()
+        if hasattr(self, 'iso'):
+            self.iso_p.removeChild(self.iso)
+        if name != 'None':
+            if 'iso' in self.parent.fit.list_names():
+                self.parent.fit.remove('iso')
+            self.parent.fit.add('iso', addinfo=name)
+            self.addChild('iso_p', 'iso')
+            print(self.parent.fit.list_names())
+        if self.refr:
+            self.refresh()
+
     def numCfChanged(self):
         k = int(self.cf_num.text())
         sign = 1 if k > self.parent.fit.cf_num else -1
@@ -991,7 +1020,7 @@ class fitModelWidget(QWidget):
         self.parent.fit.cont[ind].update()
 
     def onChanged(self, s, attr):
-        if s in ['mu', 'dtoh'] or any([c in s for c in ['me', 'cont', 'res', 'cf', 'disp', 'sts', 'stNu', 'stNl']]):
+        if s in ['mu', 'iso'] or any([c in s for c in ['me', 'cont', 'res', 'cf', 'disp', 'sts', 'stNu', 'stNl']]):
             print(s, attr, hasattr(self.parent.fit, s))
             if hasattr(self.parent.fit, s):
                 setattr(getattr(self.parent.fit, s), attr, float(getattr(self, s + '_' + attr).text()))
@@ -1006,7 +1035,7 @@ class fitModelWidget(QWidget):
     def refresh(self, excl='', refresh=None, ):
         #print('refresh:', self.refr)
         names = ['val', 'max', 'min', 'step']
-        for s in ['mu', 'dtoh']:
+        for s in ['mu', 'iso']:
             if hasattr(self.parent.fit, s) and hasattr(self, s + '_vary'):
                 getattr(self, s + '_vary').setChecked(getattr(getattr(self.parent.fit, s), 'vary'))
                 for attr in names:
@@ -1251,13 +1280,13 @@ class fitModelSysWidget(QFrame):
             if self.parent.parent.fit.me_num > 0:
                 for i in range(self.parent.parent.fit.me_num):
                     combo.addItems(['me_' + str(i)])
-            if hasattr(self.parent.parent.fit, 'dtoh'):
-                combo.addItems(['DtoH'])
+            if hasattr(self.parent.parent.fit, 'iso'):
+                combo.addItems(['iso'])
             if self.Ncons.isExpanded():
                 combo.addItems(['Ntot'])
             try:
                 s = getattr(getattr(self.fit.sys[self.ind].sp[species], 'N'), 'addinfo').strip()
-                if s in ['Ntot', 'DtoH'] or 'me' in s:
+                if s in ['Ntot', 'iso'] or 'me' in s:
                     combo.setCurrentText(s)
                 else:
                     combo.setCurrentIndex(0)
@@ -1376,6 +1405,7 @@ class fitModelSysWidget(QFrame):
 
         if not self.init:
             self.fit.update(what=what, ind=ind)
+
 
             names = ['val', 'max', 'min', 'step']
             for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:

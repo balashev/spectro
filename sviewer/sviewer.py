@@ -1396,10 +1396,13 @@ class preferencesWidget(QWidget):
             getattr(self, self.parent.comp_view).toggle()
 
             ind += 1
-            self.fitPoints = QCheckBox('show fit points')
-            self.fitPoints.setChecked(self.parent.fitPoints)
-            self.fitPoints.stateChanged.connect(partial(self.setChecked, 'fitPoints'))
-            self.grid.addWidget(self.fitPoints, ind, 0)
+            self.grid.addWidget(QLabel('Fit view:'), ind, 0)
+            self.fitView = QComboBox()
+            self.fitView.addItems(['bins', 'line', 'points'])
+            self.fitView.setCurrentText(self.parent.fitview)
+            self.fitView.currentIndexChanged.connect(self.setFitView)
+            self.fitView.setFixedSize(120, 30)
+            self.grid.addWidget(self.fitView, ind, 1)
 
             ind +=1
             self.animateFit = QCheckBox('animate fit')
@@ -1497,6 +1500,11 @@ class preferencesWidget(QWidget):
                 self.parent.options('comp_view', self.parent.comp_view)
                 self.parent.s.redraw()
                 return
+
+    def setFitView(self):
+        self.parent.fitview = self.fitView.currentText()
+        self.parent.options('fitview', self.parent.fitview)
+        self.parent.s.redraw()
 
     def setChecked(self, attr):
         self.parent.options(attr, getattr(self, attr).isChecked())
@@ -6595,7 +6603,7 @@ class sviewer(QMainWindow):
         
         dbg = pg.dbg()
         # self.specview sets the type of plot representation
-        for l in ['specview', 'selectview', 'linelabels', 'showinactive', 'show_osc', 'fitType', 'fitComp', 'fitPoints']:
+        for l in ['specview', 'selectview', 'linelabels', 'showinactive', 'show_osc', 'fitType', 'fitComp', 'fitview']:
             setattr(self, l, self.options(l))
         # >>> create panel for plotting spectra
         self.plot = plotSpectrum(self)
@@ -7214,7 +7222,7 @@ class sviewer(QMainWindow):
                     pass
 
             MALS_gal = None
-            if self.MALSfolder is not None and os.path.isfile(self.MALSfolder):
+            if self.MALSfolder is not None and os.path.isfile(self.MALSfolder + 'catalog.csv'):
                 MALS_gal = QAction('&MALS_galactic', self)
                 MALS_gal.setStatusTip('load MALS galactic sample')
                 MALS_gal.triggered.connect(self.showMALS)
@@ -7313,8 +7321,6 @@ class sviewer(QMainWindow):
             foo = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(foo)
             foo.loadaction(self)
-
-
 
     def options(self, opt, value=None, config='config/options.ini'):
         """
@@ -8079,6 +8085,11 @@ class sviewer(QMainWindow):
                         s.set_data([data[0], data[1] * 1e17, data[2] * 1e17])
                     else:
                         s.set_data([data[0], data[1], data[2]])
+
+                elif filename.endswith('.csv') and 'MALS' in filename:
+                    data = np.genfromtxt(filename, comments='#', skip_header=1, unpack=True, usecols=(1, 2), delimiter=',')
+                    s.set_data([data[0] / 1e9, data[1]])
+
                 else:
                     # >>>> other ascii data, e.g. .dat, .txt, etc
                     try:
@@ -10186,10 +10197,10 @@ class sviewer(QMainWindow):
             self.ErositaWidget = ErositaWidget(self)
 
     def showMALS(self):
-        self.MALS = QSOlistTable(self, 'MALS', folder=self.MALSfolder)
-        data = np.genfromtxt(self.UVESfolder + 'list.dat', names=True, delimiter='\t',
-                             dtype=('U20', '<f8', '<f8', '<i4', '<i4', 'U5', 'U20', 'U200'))
-        self.UVESTable.setdata(data)
+        self.MALSTable = QSOlistTable(self, 'MALS', folder=self.MALSfolder)
+        #data = np.genfromtxt(self.MALSfolder + 'catalog.csv', names=True, delimiter=',', dtype=('U20', '<f8'))
+        data = pd.read_csv(self.MALSfolder + 'catalog.csv', index_col=False).to_records(index=False)
+        self.MALSTable.setdata(data)
 
     def showIGMspec(self, cat, data=None):
         self.IGMspecTable = IGMspecTable(self, cat)

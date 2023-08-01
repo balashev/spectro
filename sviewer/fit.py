@@ -28,11 +28,11 @@ class par:
         elif 'stN' in self.name:
             self.dec = 2
         else:
-            d = {'z': 7, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'dtoh': 3, 'hcont': 3,
+            d = {'z': 7, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'iso': 3, 'hcont': 3,
                  'Ntot': 3, 'logn': 3, 'logT': 3, 'logf': 3, 'rad': 3, 'CMB': 3}
             self.dec = d[self.name]
 
-        if self.name in ['N', 'Ntot', 'logn', 'logT', 'rad', 'dtoh', 'me', 'mu', 'sts', 'stNl', 'stNu']:
+        if self.name in ['N', 'Ntot', 'logn', 'logT', 'rad', 'iso', 'me', 'mu', 'sts', 'stNl', 'stNu']:
             self.form = 'l'
         else:
             self.form = 'd'
@@ -286,7 +286,7 @@ class fitSystem:
                         d['CO'][0] = 0 if s[3:4].strip() == '' else max(d['CO'][0], int(s[3:4]))
                         pars = ['T', 'n', 'f', 'CMB']
                         self.pr = pyratio(z=self.z.val, radiation='full', sed_type='CMB')
-                    if 'CI' in s:
+                    if s.startswith('CI'):
                         d['CI'][0] = 0 if s[3:4].strip() == '' else max(d['CI'][0], int(s[3:4]))
                         pars = ['T', 'n', 'f', 'rad', 'CMB']
                     if 'FeII' in s:
@@ -432,13 +432,18 @@ class fitPars:
         self.stack_num = 0
         self.tieds = {}
 
-    def add(self, name):
+    def add(self, name, addinfo=''):
         if name in 'mu':
             self.mu = par(self, 'mu', 1e-6, 1e-7, 5e-6, 1e-8)
         if 'me' in name:
             setattr(self, name, par(self, name, 0, -3, 1, 0.01))
-        if name in 'dtoh':
-            self.dtoh = par(self, 'dtoh', -4.5, -5.4, -4, 0.01)
+        print(name)
+        if name in 'iso':
+            print('iso', name)
+            if addinfo == 'D/H':
+                self.iso = par(self, 'iso', -4.5, -5.4, -4, 0.01, addinfo=addinfo)
+            if addinfo == '13C/12C':
+                self.iso = par(self, 'iso', -2.0, -5, 0, 0.1, addinfo=addinfo)
         if 'res' in name:
             setattr(self, name, par(self, name, 45000, 1000, 60000, 1, addinfo='exp_0'))
         if 'cont' in name:
@@ -460,7 +465,7 @@ class fitPars:
 
 
     def remove(self, name):
-        if name in ['mu', 'dtoh', 'hcont'] or any([x in name for x in ['me', 'res', 'cf', 'disp', 'sts', 'stNu', 'stNl']]):
+        if name in ['mu', 'iso', 'hcont'] or any([x in name for x in ['me', 'res', 'cf', 'disp', 'sts', 'stNu', 'stNl']]):
             if hasattr(self, name):
                 delattr(self, name)
         if 'cont_' in name:
@@ -534,15 +539,21 @@ class fitPars:
         elif attr in ['vary', 'fit']:
             val = int(val)
 
-        if s[0] in ['mu', 'dtoh']:
+        if s[0] in ['mu', 'iso']:
             if not hasattr(self, s[0]):
                 self.add(s[0])
             res = getattr(self, s[0]).set(val, attr, check=check)
+
+        if s[0] in ['dtoh']:
+            if not hasattr(self, 'iso'):
+                self.add('iso', addinfo='D/H')
+            res = getattr(self, 'iso').set(val, attr, check=check)
 
         if s[0] in ['me', 'res', 'cf', 'dispz', 'disps', 'hcont', 'sts', 'stNl', 'stNu']:
             if not hasattr(self, name):
                 self.add(name)
             res = getattr(self, name).set(val, attr, check=check)
+
         if s[0] in ['cont']:
             if not hasattr(self, name):
                 self.cont.add(name)
@@ -566,26 +577,6 @@ class fitPars:
 
     def update(self, what='all', ind='all', redraw=True):
 
-        for i, sys in enumerate(self.sys):
-            if ind == 'all' or i == ind:
-                for k, s in sys.sp.items():
-                    if what in ['all', 'b', 'turb', 'kin']:
-                        if s.b.addinfo != '' and s.b.addinfo != 'consist':
-                            s.b.val = sys.sp[s.b.addinfo].b.val
-                        elif s.b.addinfo == 'consist':
-                            s.b.val = doppler(k, sys.turb.val, sys.kin.val)
-                    if what in ['all', 'me', 'dtoh']:
-                        if 'me' in s.N.addinfo and 'HI' in sys.sp.keys():
-                            if 'DI' not in k and self.me_num > 0:
-                                s.N.val = abundance(k, sys.sp['HI'].N.val, getattr(self, s.N.addinfo).val)
-                        if s.N.addinfo == 'DtoH' and 'HI' in sys.sp.keys():
-                            if 'DI' in k and hasattr(self, 'dtoh'):
-                                s.N.val = sys.sp['HI'].N.val + self.dtoh.val
-
-                if what in ['all', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
-                    if hasattr(sys, 'Ntot'):
-                        sys.pyratio()
-
         if what in ['all', 'res']:
             if self.res_num > 0:
                 for i in range(self.res_num):
@@ -600,13 +591,41 @@ class fitPars:
                     except:
                         pass
 
+        for i, sys in enumerate(self.sys):
+            if ind == 'all' or i == ind:
+                for k, s in sys.sp.items():
+                    if what in ['all', 'b', 'turb', 'kin']:
+                        if s.b.addinfo != '' and s.b.addinfo != 'consist':
+                            s.b.val = sys.sp[s.b.addinfo].b.val
+                        elif s.b.addinfo == 'consist':
+                            s.b.val = doppler(k, sys.turb.val, sys.kin.val)
+
+                if what in ['all', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
+                    if hasattr(sys, 'Ntot'):
+                        sys.pyratio()
+                        what = 'all'
+
+                for k, s in sys.sp.items():
+                    if what in ['all', 'me', 'iso']:
+                        if 'me' in s.N.addinfo and 'HI' in sys.sp.keys():
+                            if any([sp not in k for sp in ['DI', '13C']]) and self.me_num > 0:
+                                s.N.val = abundance(k, sys.sp['HI'].N.val, getattr(self, s.N.addinfo).val)
+                        if s.N.addinfo == 'iso':
+                            if self.iso.addinfo == 'D/H' and 'HI' in sys.sp.keys():
+                                if 'DI' in k:
+                                    s.N.val = sys.sp['HI'].N.val + self.iso.val
+                            if self.iso.addinfo == '13C/12C':
+                                if '13CI' in k and k.replace('13', '') in sys.sp.keys():
+                                    s.N.val = sys.sp[k.replace('13', '')].N.val + self.iso.val
+
+
         for k, v in self.tieds.items():
             self.setValue(k, self.getValue(v))
 
     def getPar(self, name):
         s = name.split('_')
         par = None
-        if s[0] in ['mu', 'dtoh', 'hcont']:
+        if s[0] in ['mu', 'iso', 'hcont']:
             if hasattr(self, s[0]):
                 par = getattr(self, s[0])
 
@@ -660,7 +679,7 @@ class fitPars:
     def pars(self, ind=None):
         pars = OrderedDict()
         if ind in [None, -1]:
-            for attr in ['mu', 'dtoh', 'hcont']:
+            for attr in ['mu', 'iso', 'hcont']:
                 if hasattr(self, attr):
                     p = getattr(self, attr)
                     pars[str(p)] = p
@@ -740,16 +759,23 @@ class fitPars:
             print(self.cont_num, int(s[0].split('_')[1]))
             self.cont_num = max(self.cont_num, int(s[0].split('_')[1]) + 1)
             self.cont_fit = True
+
         if 'res' in s[0]:
             self.res_num = max(self.res_num, int(s[0][4:]) + 1)
+
+        if 'iso' in s[0]:
+            self.add(s[0], addinfo=s[6])
+
         if 'me' in s[0]:
             if s[0] == 'me':
                 s[0] = 'me_0'
             self.me_num = max(self.me_num, int(s[0][3:]) + 1)
+
         if 'cf' in s[0]:
             self.cf_fit = True
             attrs = ['val', 'left', 'right', 'step', 'vary', 'addinfo']
             self.parent.plot.add_pcRegion()
+
         if 'disp' in s[0]:
             self.disp_num = max(self.disp_num, int(s[0][6:]) + 1)
 

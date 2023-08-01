@@ -14,6 +14,7 @@ import pyqtgraph as pg
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QHeaderView
 from scipy.interpolate import interp1d
+import sys
 
 from spectro.sdss import SDSS
 from .external import spectres
@@ -236,6 +237,8 @@ class QSOlistTable(pg.TableWidget):
             self.format = {'SDSS_NAME_fl': '%s', 'PLATE_fl': '%5d', 'MJD_fl': '%5d', 'FIBERID_fl': '%4d', 'z': '%.6f',
                            'RA_fin': '%.7f', 'DEC_fin': '%.7f', 'srcname_fin': '%s', 'F_X_int': '%.4e',
                            'ML_FLUX_ERR_0': '%.4e', 'DET_LIKE_0': '%.3f'}
+        if self.cat == 'MALS':
+            self.setWindowTitle('MALS galactic sample')
         if self.cat is None:
             self.setWindowTitle('QSO list of files')
         self.cellDoubleClicked.connect(self.row_clicked)
@@ -277,7 +280,7 @@ class QSOlistTable(pg.TableWidget):
 
     def setdata(self, data):
         self.data = data
-        #print(self.data.dtype)
+        print(self.data, self.data.dtype)
         self.setData(data)
         if self.format is not None:
             for k, v in self.format.items():
@@ -289,9 +292,11 @@ class QSOlistTable(pg.TableWidget):
         self.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
         w = 180 + self.verticalHeader().width() + self.autoScrollMargin()*1.5
         w += sum([self.columnWidth(c) for c in range(self.columnCount())])
-        self.resize(w, self.size().height())
+        print(w, self.size())
+        print(self.size().height())
+        self.resize(int(w), self.size().height())
         if self.subparent is not None:
-            self.subparent.resize(w, self.size().height()+50)
+            self.subparent.resize(int(w), self.size().height()+50)
         self.setSortingEnabled(True)
 
     def editCell(self, row, col):
@@ -802,6 +807,23 @@ class QSOlistTable(pg.TableWidget):
                     self.parent.ErositaWidget.index(name=self.cell_value('SDSS_NAME'), ext=False)
                 # self.parent.s[-1].resolution = 2000
 
+        if 'MALS' == self.cat:
+            if colInd == 0:
+                name = self.cell_value('name').strip()
+                filename = self.parent.MALSfolder + 'GALHI/CENTRAL_LSRK/' + name + '/' + name + '_spec_sm.csv'
+                print(filename)
+                if os.path.exists(filename):
+                    self.parent.importSpectrum(filename)
+                self.parent.vb.enableAutoRange()
+                self.parent.console.exec_command('x 1.415 1.426')
+                plotfile = self.parent.MALSfolder + 'QC/' + name + '_fit.png'
+                if os.path.exists(plotfile):
+                    if sys.platform.startswith('darwin'):
+                        subprocess.call(('open', ))
+                    elif os.name == 'nt':
+                        os.startfile(plotfile)
+                    elif os.name == 'posix':
+                        subprocess.call(('xdg-open', plotfile))
         if load_spectrum:
 
             self.parent.importSpectrum(filename)
