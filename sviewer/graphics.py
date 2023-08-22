@@ -1307,7 +1307,7 @@ class Spectrum():
             self.points_size = 15
             self.sm_pen = pg.mkPen(245, 0, 80)
             self.bad_brush = pg.mkBrush(252, 58, 38)
-            self.region_brush = pg.mkBrush(147, 185, 69, 60)
+            self.region_brush = pg.mkBrush(117, 185, 69, 40)
             self.mask_region_brush = pg.mkBrush(0, 0, 0, 255)
             self.fit_pixels_pen = pg.mkPen(145, 180, 29, width=4)
             self.colormap = pg.colormap.getFromMatplotlib('viridis')

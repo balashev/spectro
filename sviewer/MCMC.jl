@@ -159,12 +159,13 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
 
 		for s in spec
 			if sum(s.mask) > 0
-				model = calc_spectrum(s, pars, out="init")
+				model = calc_spectrum(s, pars, out="binned")
+				#println("model ", model)
+
 				retval -= .5 * sum(((model .- s.y[s.mask]) ./ s.unc[s.mask]) .^ 2)
 
 				#println(retval)
-				#println("model ", model)
-				#println(s.y[s.mask])
+                #println(s.y[s.mask])
 				#println(s.unc[s.mask])
 
 				if opts["hier_continuum"] == true

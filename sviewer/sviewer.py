@@ -662,7 +662,7 @@ class plotSpectrum(pg.PlotWidget):
             mask = np.logical_and(s.spec.x() > min(self.mousePoint.x(), self.mousePoint_saved.x()),
                                   s.spec.x() < max(self.mousePoint.x(), self.mousePoint_saved.x()))
             if np.sum(mask) > 0:
-                curve1 = plotLineSpectrum(parent=s, view='step', x=s.spec.x()[mask], y=s.spec.y()[mask], pen=pg.mkPen())
+                curve1 = plotLineSpectrum(parent=s, view='step', name='EW', x=s.spec.x()[mask], y=s.spec.y()[mask], pen=pg.mkPen())
                 x, y = curve1.returnPathData()
                 if len(s.cont.x) > 0 and s.cont.x[0] < x[0] and s.cont.x[-1] > x[-1]:
                     if QApplication.keyboardModifiers() != Qt.ShiftModifier:
@@ -1642,6 +1642,7 @@ class showLinesWidget(QWidget):
                     ('plotfile', str), ('show_cont', int), ('corr_cheb', int),
                     ('show_cf', int), ('cfs', str), ('show_cf_value', int),
                     ('cf_color', int),
+                    ('over_file', str), ('over_color', int),
                     ])
 
         for opt, func in self.opts.items():
@@ -1913,10 +1914,30 @@ class showLinesWidget(QWidget):
 
         layout.addStretch(1)
         l = QHBoxLayout()
+        self.overButton = QPushButton("Overplot from:")
+        self.overButton.setFixedSize(120, 30)
+        self.overButton.clicked.connect(self.chooseOverFile)
+        self.overFile = QLineEdit(self.over_file)
+        self.overFile.setFixedSize(450, 30)
+        self.overFile.textChanged[str].connect(self.setOverFilename)
+        self.overColor = pg.ColorButton()
+        # self.fitcolor = QColorDialog()
+        self.overColor.setFixedSize(30, 30)
+        self.overColor.setColor(color=self.over_color.to_bytes(4, byteorder='big'))
+        self.overColor.sigColorChanged.connect(partial(self.setColor, comp='over'))
+        self.overColor.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
+
+        l.addWidget(self.overButton)
+        l.addWidget(self.overFile)
+        l.addWidget(self.overColor)
+        l.addStretch(1)
+        layout.addLayout(l)
+
+        l = QHBoxLayout()
         self.showButton = QPushButton("Show")
         self.showButton.setFixedSize(110, 30)
         self.showButton.clicked.connect(partial(self.showPlot, False))
-        expButton = QPushButton("Export:")
+        expButton = QPushButton("Export to :")
         expButton.setFixedSize(110, 30)
         expButton.clicked.connect(partial(self.showPlot, True))
 
@@ -1934,8 +1955,8 @@ class showLinesWidget(QWidget):
         self.chooseFileButton.clicked.connect(self.chooseFile)
 
         l.addWidget(self.file)
-        l.addStretch(1)
         l.addWidget(self.chooseFileButton)
+        l.addStretch(1)
         layout.addLayout(l)
 
         l = QHBoxLayout()
@@ -2001,6 +2022,8 @@ class showLinesWidget(QWidget):
             self.cf_color = int.from_bytes(color.color(mode="byte"), byteorder='big')
         if comp == 'res':
             self.res_color = int.from_bytes(color.color(mode="byte"), byteorder='big')
+        if comp == 'over':
+            self.over_color = int.from_bytes(color.color(mode="byte"), byteorder='big')
 
     def setErr(self):
         self.show_err = int(self.showerr.isChecked())
@@ -2050,6 +2073,9 @@ class showLinesWidget(QWidget):
     def setFilename(self):
         self.plotfile = self.file.text()
 
+    def setOverFilename(self):
+        self.over_file = self.overFile.text()
+
     def readLines(self):
         if self.regions:
             self.parent.plot.regions.fromText(self.lines.toPlainText(), sort=False)
@@ -2097,6 +2123,10 @@ class showLinesWidget(QWidget):
         print(fname)
         self.file.setText(fname)
 
+    def chooseOverFile(self):
+        fname = QFileDialog.getExistingDirectory(self, 'Select overplot file...', self.parent.plot_set_folder)
+        self.over_file.setText(fname)
+
     def showPlot(self, savefig=True):
         fig = plt.figure(figsize=(self.width, self.height), dpi=300)
         #self.subplot = self.mw.getFigure().add_subplot(self.rows, self.cols, 1)
@@ -2104,7 +2134,11 @@ class showLinesWidget(QWidget):
         matplotlib.rcParams["axes.formatter.useoffset"] = False
         matplotlib.rcParams["font.family"] = 'sans-serif'
         matplotlib.rcParams["font.sans-serif"] = self.font
-
+        
+        try:
+            over = np.genfromtxt(self.over_file, unpack=True)
+        except:
+            over = None
         if not self.regions:
             if not self.parent.normview:
                 self.parent.normalize()
@@ -2206,7 +2240,7 @@ class showLinesWidget(QWidget):
                 p.y_formatter = self.y_formatter
 
                 p.plot_line()
-
+                
                 def conv(x):
                     return (x / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26
 
@@ -2343,6 +2377,10 @@ class showLinesWidget(QWidget):
                 p.add_residual, p.sig = self.residuals, self.res_sigma
                 p.y_formatter = self.y_formatter
                 p.plot_line()
+
+                if over is not None:
+                    p.ax.plot(over[0], over[1], ls='-', color=to_hex(tuple(c / 255 for c in self.over_color.to_bytes(4, byteorder='big'))), lw=1)
+                    
                 if self.show_cf and self.parent.fit.cf_fit and p.show_fit:
                     for k in range(self.parent.fit.cf_num):
                         if self.cfs == 'all' or 'cf' + str(k) in self.cfs:
@@ -5383,7 +5421,8 @@ class ShowListCombine(QWidget):
         if self.setWidth is None:
             self.setWidth = 120 + self.table.verticalHeader().width() + self.table.autoScrollMargin() * 2.5
             self.setWidth += np.sum([self.table.columnWidth(c) for c in range(self.table.columnCount())])
-        self.table.resize(self.setWidth, self.table.rowCount() * 40 + 140)
+
+        self.table.resize(int(self.setWidth), int(self.table.rowCount() * 40 + 140))
 
 
 class ExportDataWidget(QWidget):
@@ -5809,6 +5848,7 @@ class combineWidget(QWidget):
                 mask_s = (s.spec.err() != 0)
                 mask = (x > s.spec.x()[mask_s][2]) * (x < s.spec.x()[mask_s][-3])
                 comb[i][mask], e_comb[i][mask] = spectres.spectres(s.spec.x()[mask_s], s.spec.y()[mask_s], x[mask], spec_errs=s.spec.err()[mask_s])
+                e_comb[i][s.bad_mask.x()] = np.nan
 
         print(comb, e_comb)
 
@@ -6928,13 +6968,13 @@ class sviewer(QMainWindow):
         AncMenu = QMenu('&Diagnostic plots', self)
         AncMenu.setStatusTip('Some ancillary for fit procedures')
 
-        H2Exc = QAction('&H2 exc. diagram', self)
-        H2Exc.setStatusTip('Show H2 excitation diagram')
-        H2Exc.triggered.connect(self.H2ExcDiag)
+        ExcDiag = QAction('&Excitation diagram', self)
+        ExcDiag.setStatusTip('Show excitation diagram')
+        ExcDiag.triggered.connect(self.ExcDiag)
 
-        H2ExcTemp = QAction('&H2 Excitation temperature', self)
-        H2ExcTemp.setStatusTip('Calculate H2 excitation temperature')
-        H2ExcTemp.triggered.connect(partial(self.H2ExcitationTemp, levels=[0, 1, 2], ind=None, plot=True))
+        ExcTemp = QAction('&Excitation temperature', self)
+        ExcTemp.setStatusTip('Calculate excitation temperature')
+        ExcTemp.triggered.connect(partial(self.ExcitationTemp, levels=[0, 1, 2, 3], ind=None, plot=True))
 
         MetalAbundance = QAction('&Metal abundance', self)
         MetalAbundance.setStatusTip('Show Metal abundances')
@@ -6964,8 +7004,8 @@ class sviewer(QMainWindow):
         fitMenu.addSeparator()
         fitMenu.addAction(H2Upper)
         fitMenu.addMenu(AncMenu)
-        AncMenu.addAction(H2Exc)
-        AncMenu.addAction(H2ExcTemp)
+        AncMenu.addAction(ExcDiag)
+        AncMenu.addAction(ExcTemp)
         AncMenu.addAction(MetalAbundance)
 
         # >>> create 1d spec Menu items
@@ -9253,18 +9293,69 @@ class sviewer(QMainWindow):
 
         self.statusBar.setText('H2 upper limit is: ' + str(self.fit.sys[0].Ntot.val))
 
-    def H2ExcDiag(self):
+    def ExcitationTemp(self, species='H2', levels=[0, 1, 2], E=None, ind=None, plot=True, ax=None):
+        from ..excitation_temp import ExcitationTemp
+
+        for i, sys in enumerate(self.fit.sys):
+            if ind is None or ind == i:
+                if all(['H2j'+str(x) in sys.sp.keys() for x in levels]):
+                    temp = ExcitationTemp('H2')
+                    # print(Temp.col_dens(num=4, Temp=92, Ntot=21.3))
+                    n = [sys.sp['H2j'+str(x)].N.unc for x in levels]
+                    if any([ni.val == 0 for ni in n]):
+                        n = [a(sys.sp['H2j'+str(x)].N.val, 0, 0) for x in levels]
+                if any(['COj' + str(x) in sys.sp.keys() for x in levels]):
+                    temp = ExcitationTemp('CO')
+                    levels = [int(k[3:]) for k in sys.sp.keys() if int(k[3:]) in levels]
+                    print(levels)
+                    n = [sys.sp['COj' + str(x)].N.unc for x in levels]
+                    if any([ni.val == 0 for ni in n]):
+                        n = [a(sys.sp['COj' + str(x)].N.val, 0, 0) for x in levels]
+                temp.calcTemp(n, calc='', plot=plot, verbose=1)
+                if E == None:
+                    E = temp.E
+                elif isinstance(E, (float, int)):
+                    E = np.asarray([0, E])
+                elif isinstance(E, list):
+                    E = np.asarray(E)
+                if ax is not None:
+                    if isinstance(temp.slope, (float, int, np.float)):
+                        ax.plot(E / 1.4388 * 1.5, temp.slope * E * 1.5 + temp.zero, '--k', lw=1.5)
+                        text = [E[-1] / 1.4388 * 1.5, temp.slope * E[-1] * 1.5 + temp.zero,
+                                'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + "{:.1f}".format(temp.temp) + '$\,$K']
+                    elif temp.slope.type == 'm':
+                        ax.plot(E / 1.4388 * 1.5, temp.slope.val * E * 1.5 + temp.zero.val, '--k', lw=1.5)
+                        text = [E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
+                                'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + temp.latex(f=0, base=0)+'$\,$K']
+                    elif temp.slope.type == 'u':
+                        E = np.linspace(E[0], E[1], 5)
+                        ax.errorbar(E / 1.4388 * 1.5, (temp.slope.val - temp.slope.minus) * E * 1.5 + temp.zero.val, fmt='--k', yerr=0.1, lolims=E>0, lw=1.5, capsize=0, zorder=0 )
+                        text = [E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
+                                'T$_{' + ''.join([str(l) for l in levels]) + '}>' + '{:.0f}\,$'.format(temp.temp.dec().val) + 'K']
+                    text[2] = ax.text(text[0], text[1], text[2], va='top', ha='right', fontsize=16)
+        if plot:
+            plt.show()
+
+        return text
+
+    def ExcDiag(self):
         """
-        Show H2 excitation diagram for the selected component 
+        Show H2 excitation diagram for the selected component
         """
-        data = np.genfromtxt('data/H2/energy_X.dat', comments='#', unpack=True)
+        data_H2 = np.genfromtxt('data/H2/energy_X.dat', comments='#', unpack=True)
+        def data_CO(nu, j):
+            we, we_xe, Be, De = 2169.81358, 13.28831, 1.93128087, 6.12147e-06
+            return (nu + .5) * we - (nu + .5) ** 2 * we_xe + Be * j * (j + 1) - De * j * (j + 1)
+
         fig, ax = plt.subplots(figsize=(6, 7))
         num_sys = 0
         text = []
+        species = ''
         for sys in self.fit.sys:
             label = 'sys_'+str(self.fit.sys.index(sys)+1)
             label = 'z = '+str(sys.z.str(attr='val')[:8])
             if any(['H2' in name for name in sys.sp.keys()]):
+                species = 'H2'
                 num_sys += 1
                 x, y = [], []
                 for sp in sys.sp:
@@ -9273,8 +9364,8 @@ class sviewer(QMainWindow):
                             nu, j = int(sp[sp.index('v')+1:]), int(sp[sp.index('j')+1:sp.index('v')])
                         else:
                             nu, j = 0, int(sp[sp.index('j')+1:])
-                        m = np.logical_and(data[0] == nu, data[1] == j)
-                        x.append(float(data[2][m]))
+                        m = np.logical_and(data_H2[0] == nu, data_H2[1] == j)
+                        x.append(float(data_H2[2][m]))
                         #x.append(self.atomic[sp].energy)
                         if sys.sp[sp].N.unc.val != 0:
                             y.append(deepcopy(sys.sp[sp].N.unc).log()) # - np.log10(self.atomic[sp].statw()))
@@ -9289,9 +9380,37 @@ class sviewer(QMainWindow):
                 p = ax.plot(x, [v.val for v in y], 'o', markersize=1) #, label='sys_' + str(self.fit.sys.index(sys)))
                 ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]],  fmt='o', color = p[0].get_color(), label=label)
                 #temp = self.H2ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax)
-                text.append(self.H2ExcitationTemp(levels=[0, 1], E=500, ind=self.fit.sys.index(sys), plot=False, ax=ax))
+                text.append(self.ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax))
 
-        adjust_text([t[2] for t in text], [t[0] for t in text], [t[1] for t in text], ax=ax)
+            if any(['CO' in name for name in sys.sp.keys()]):
+                species = 'CO'
+                num_sys += 1
+                x, y = [], []
+                for sp in sys.sp:
+                    if 'CO' in sp:
+                        if 'v' in sp:
+                            nu, j = int(sp[sp.index('v')+1:]), int(sp[sp.index('j')+1:sp.index('v')])
+                        else:
+                            nu, j = 0, int(sp[sp.index('j')+1:])
+                        x.append(data_CO(nu, j) - data_CO(0, 0))
+                        #x.append(self.atomic[sp].energy)
+                        if sys.sp[sp].N.unc.val != 0:
+                            y.append(deepcopy(sys.sp[sp].N.unc).log()) # - np.log10(self.atomic[sp].statw()))
+                        else:
+                            y.append(a(sys.sp[sp].N.val, 0.2, 0.2, 'l')) # - np.log10(self.atomic[sp].statw()))
+                        y[-1].log()
+                        y[-1].val = sys.sp[sp].N.val - np.log10(self.atomic[sp].statw())
+                arg = np.argsort(x)
+                x = np.array(x)[arg]
+                y = np.array(y)[arg]
+
+                p = ax.plot(x, [v.val for v in y], 'o', markersize=1) #, label='sys_' + str(self.fit.sys.index(sys)))
+                ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]],  fmt='o', color = p[0].get_color(), label=label)
+                text.append(self.ExcitationTemp(species='CO', levels=[0, 1, 2, 3], ind=self.fit.sys.index(sys), plot=False, ax=ax))
+
+
+        if len(text) > 0:
+            adjust_text([t[2] for t in text], [t[0] for t in text], [t[1] for t in text], ax=ax)
         ax.set_xlabel(r'Energy, cm$^{-1}$')
         ax.set_ylabel(r'$\log\, N$ / g')
         ax.xaxis.set_minor_locator(AutoMinorLocator(5))
@@ -9303,49 +9422,9 @@ class sviewer(QMainWindow):
         if num_sys > 1:
             ax.legend(loc='best')
         fig.tight_layout()
-        plt.savefig(os.path.dirname(os.path.realpath(__file__)) + '/output/H2_exc.pdf', bbox_inches='tight')
+        plt.savefig(os.path.dirname(os.path.realpath(__file__)) + f'/output/{species}_Exc.pdf', bbox_inches='tight')
         plt.show()
-        self.statusBar.setText('Excitation diagram for H2 rotational level for {:d} component is shown'.format(self.comp))
-
-    def H2ExcitationTemp(self, levels=[0, 1, 2], E=None, ind=None, plot=True, ax=None):
-        from ..excitation_temp import ExcitationTemp
-
-        for i, sys in enumerate(self.fit.sys):
-            if ind is None or ind == i:
-                print(levels, ['H2j'+str(x) in sys.sp.keys() for x in levels])
-                if all(['H2j'+str(x) in sys.sp.keys() for x in levels]):
-                    temp = ExcitationTemp('H2')
-                    # print(Temp.col_dens(num=4, Temp=92, Ntot=21.3))
-                    n = [sys.sp['H2j'+str(x)].N.unc for x in levels]
-                    if any([ni.val == 0 for ni in n]):
-                        n = [a(sys.sp['H2j'+str(x)].N.val, 0, 0) for x in levels]
-                    temp.calcTemp(n, calc='', plot=plot, verbose=1)
-                    if E == None:
-                        E = temp.E
-                    elif isinstance(E, (float, int)):
-                        E = np.asarray([0, E])
-                    elif isinstance(E, list):
-                        E = np.asarray(E)
-                    if ax is not None:
-                        if isinstance(temp.slope, (float, int, np.float)):
-                            ax.plot(E / 1.4388 * 1.5, temp.slope * E * 1.5 + temp.zero, '--k', lw=1.5)
-                            text = [E[-1] / 1.4388 * 1.5, temp.slope * E[-1] * 1.5 + temp.zero,
-                                    'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + "{:.1f}".format(temp.temp) + '$\,$K']
-                        elif temp.slope.type == 'm':
-                            ax.plot(E / 1.4388 * 1.5, temp.slope.val * E * 1.5 + temp.zero.val, '--k', lw=1.5)
-                            text = [E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
-                                    'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + temp.latex(f=0, base=0)+'$\,$K']
-                        elif temp.slope.type == 'u':
-                            E = np.linspace(E[0], E[1], 5)
-                            ax.errorbar(E / 1.4388 * 1.5, (temp.slope.val - temp.slope.minus) * E * 1.5 + temp.zero.val, fmt='--k', yerr=0.1, lolims=E>0, lw=1.5, capsize=0, zorder=0 )
-                            text = [E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
-                                    'T$_{' + ''.join([str(l) for l in levels]) + '}>' + '{:.0f}\,$'.format(temp.temp.dec().val) + 'K']
-                        text[2] = ax.text(text[0], text[1], text[2], va='top', ha='right', fontsize=16)
-        if plot:
-            plt.show()
-
-        return text
-
+        self.statusBar.setText('Excitation diagram for {0:s} rotational level for {1:d} component is shown'.format(species, self.comp))
     def showMetalAbundance(self, species=[], component=1, dep_ref='ZnII', HI=a(21,0,0)):
         """
         Show metal abundances, metallicity and depletions based on the fit

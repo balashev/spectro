@@ -1,21 +1,21 @@
-set cont 1
-set cont 1
-hide H2
-FeII
+x 5000 5003
+show COj0
+show COj1
+show COj2
+show COj23
+show COj3
+show COj5
+stats
+stats
+stats
+x 5000 5005
 show CI
 show CIj1
 show CIj2
-13CI
-show 13CI
-show 13CIj1
-show 13CIj2
-COj1
-COj1
-cont 1
-cont 1
-show CI
-show CIj1
-show CIj2
-show CIj2
-set cont 1
-set err 0.001
+x 5570 5572
+x 5570 5572
+x 5000 5005
+x 5000 5005
+x 5570 5572
+snr
+stats

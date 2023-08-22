@@ -110,8 +110,7 @@ class ExcitationTemp():
         
         if self.species == 'CO':
             self.g = np.array([2*i+1 for i in range(self.num)])
-            data = [0, 1, 3, 6, 10]
-            self.E = np.arange(self.num)*(np.arange(self.num)+1) * 2.77
+            self.E = np.arange(self.num) * (np.arange(self.num) + 1) * 1.93128087 / 0.695 - np.power(np.arange(self.num) * (np.arange(self.num) + 1), 2) * 6.12147e-6 / 0.695
             print('E', self.E)
 
         if self.species == 'FeII':
