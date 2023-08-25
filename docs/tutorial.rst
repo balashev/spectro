@@ -63,7 +63,7 @@ The representation of selected pixels (regions, points, lines) can be changed in
 Making fit model
 ----------------
 
-The fit model should be defined in the **Fit model** widget, which can be opened either by ``Fit/Fit model...`` in Main Menu or pressing ``CTRL + f``. Detailed description of the **Fit Model** widget is given in :ref:`fit-model`
+The fit model should be defined in the **Fit model** widget, which can be opened either by ``Fit/Fit model...`` in Main Menu or pressing ``F3``. Detailed description of the **Fit Model** widget is given in :ref:`fit-model`
 
 After setting/modification of fit model one can update (if it was not update automatically) the fit by pressing 
 
@@ -77,15 +77,15 @@ Fitting
 
 There are two avaliable fit routines:
 
-* Minimizing likelihood using Levenberg-Marquard method. The uncertainties on the fitting parameters estimate from the covariance matrix approach. This fit is performed by the pressing ``Fit`` button in :ref:`control-panel`. There is a possibility to choose a particular set of the paramaters that will be varied during the fit, inside **Fit parameters** widget, which can be opened either by ``Fit/Fit paramaters...`` in Main Menu or pressing ``F3``.
+* Minimizing likelihood using Levenberg-Marquard method. The uncertainties on the fitting parameters estimate from the covariance matrix approach. This fit is performed by the pressing ``Fit`` button in :ref:`control-panel`. There is a possibility to choose a particular set of the paramaters that will be varied during the fit, inside **Fit parameters** widget, which can be opened either by ``Fit/Fit paramaters...`` in Main Menu or pressing ``F4``.
 
-* Bayessian approach by Monte Carlo Markov Chain (MCMC) technique with a set of Samplers. The options and control is provide in **MCMC widget**, which can be called using either by ``Fit/MCMC Fit...`` in Main Menu or pressing ``F6``. The detailed description is provided in :ref:`mcmc`
+* Bayessian approach by Monte Carlo Markov Chain (MCMC) technique with a set of Samplers. The options and control is provide in **MCMC widget**, which can be called using either by ``Fit/MCMC Fit...`` in Main Menu or pressing ``F5``. The detailed description is provided in :ref:`mcmc`
 
 .. _viewing-results:
 Viewing results
 ---------------
 
-The fit result can be provided inside **Fit results** widget, which can be called  either by ``Fit/Fit results...`` in Main Menu or pressing ``F8``. There various option for the output, including plain text, PyQt widget table and latex table.
+The fit result can be provided inside **Fit results** widget, which can be called  either by ``Fit/Fit results...`` in Main Menu or pressing ``F6``. There various option for the output, including plain text, PyQt widget table and latex table.
 
-The fit profiles can be constructed in the publish-ready representation with ``matplotlib`` by using **Plot Lines** widget, which can be called  either by ``View/Plot line profiles...`` in Main Menu or pressing ``F5``. The detailed description of **Plot profiles** widget is provided in :ref:`plot-lines`
+The fit profiles can be constructed in the publish-ready representation with ``matplotlib`` by using **Plot Lines** widget, which can be called  either by ``View/Plot line profiles...`` in Main Menu or pressing ``F7``. The detailed description of **Plot profiles** widget is provided in :ref:`plot-lines`
 

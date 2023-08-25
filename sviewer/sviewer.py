@@ -2505,7 +2505,7 @@ class showLinesWidget(QWidget):
         key = event.key()
 
         if not event.isAutoRepeat():
-            if event.key() == Qt.Key_F5:
+            if event.key() == Qt.Key_F7:
                 #if (QApplication.keyboardModifiers() == Qt.ControlModifier):
                 self.parent.showlines.close()
 
@@ -3001,7 +3001,9 @@ class fitMCMCWidget(QWidget):
             self.thread.start()
 
     def initCluster(self, init=True):
-        fname = QFileDialog.getSaveFileName(self, 'Get file', "file.spj")
+
+        #fname = QFileDialog.getSaveFileName(self, 'Select/set file', self.parent.work_folder + , ".spj")
+        fname = QFileDialog.getSaveFileName(self, 'Select/set file', self.parent.options('filename_saved').replace('.spv', '.spj'), ".spj")
         if fname[0]:
             self.MCMC(init=init, filename=fname[0])
 
@@ -3619,7 +3621,7 @@ class fitMCMCWidget(QWidget):
         key = event.key()
 
         if not event.isAutoRepeat():
-            if event.key() == Qt.Key_F6:
+            if event.key() == Qt.Key_F5:
                 #if (QApplication.keyboardModifiers() == Qt.ControlModifier):
                 self.parent.MCMC.close()
 
@@ -6796,7 +6798,7 @@ class sviewer(QMainWindow):
         exp.triggered.connect(self.showExpList)
 
         self.showResiduals = QAction('&Residuals', self)
-        self.showResiduals.setShortcut('F4')
+        self.showResiduals.setShortcut('F8')
         self.showResiduals.setStatusTip('Show/Hide Residuals panel')
         self.showResiduals.triggered.connect(partial(self.showResidualsPanel, show=None))
         self.showResidualsPanel(self.show_residuals)
@@ -6813,7 +6815,7 @@ class sviewer(QMainWindow):
         preferences.triggered.connect(self.showPreferences)
 
         showLines = QAction('&Plot line profiles', self)
-        showLines.setShortcut('F5')
+        showLines.setShortcut('F7')
         showLines.setStatusTip('Plot line profiles using matplotlib')
         showLines.triggered.connect(partial(self.showLines, True))
 
@@ -6880,13 +6882,13 @@ class sviewer(QMainWindow):
         # >>> create Fit Menu items
         
         setFit = QAction('&Fit model', self)
-        setFit.setShortcut('Ctrl+F')
+        setFit.setShortcut('F3')
         setFit.setStatusTip('set Fit model parameters')
         setFit.triggered.connect(self.setFitModel)
 
         chooseFitPars = QAction('&Fit parameters', self)
         chooseFitPars.setStatusTip('Choose particular fit parameters')
-        chooseFitPars.setShortcut('F3')
+        chooseFitPars.setShortcut('F4')
         chooseFitPars.triggered.connect(self.chooseFitPars)
 
         showFit = QAction('&Show fit', self)
@@ -6901,7 +6903,7 @@ class sviewer(QMainWindow):
 
         fitResults = QAction('&Fit results', self)
         fitResults.setStatusTip('Show fit results')
-        fitResults.setShortcut('F8')
+        fitResults.setShortcut('F6')
         fitResults.triggered.connect(self.showFitResults)
 
         fitLM = QAction('&Fit LM', self)
@@ -6910,7 +6912,7 @@ class sviewer(QMainWindow):
 
         fitMCMC = QAction('&Fit MCMC...', self)
         fitMCMC.setStatusTip('Fit by MCMC method')
-        fitMCMC.setShortcut('F6')
+        fitMCMC.setShortcut('F5')
         fitMCMC.triggered.connect(self.fitMCMC)
 
         fitGrid = QAction('&Grid fit', self)
@@ -7870,6 +7872,9 @@ class sviewer(QMainWindow):
                     f.write('fit_results: {0:}\n'.format(len(pars)))
                     for p in pars:
                         f.write(str(p) + ' = ' + p.fitres(latex=True, showname=True) + '\n')
+
+        self.work_folder = os.path.dirname(filename)
+        self.options('work_folder', self.work_folder)
 
         self.statusBar.setText('Data is saved to ' + filename)
 

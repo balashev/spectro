@@ -158,6 +158,7 @@ class chooseSystemPC(QToolButton):
 class fitModelWidget(QWidget):
     def __init__(self, parent):
         self.refr = False
+        self.swap = 1
         super(fitModelWidget, self).__init__()
         self.parent = parent
         self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
@@ -245,12 +246,16 @@ class fitModelWidget(QWidget):
         self.delSys = QPushButton("Del system")
         self.delSys.setFixedSize(120, 30)
         self.delSys.clicked[bool].connect(self.delSystem)
+        self.sortSys = QPushButton("Sort systems")
+        self.sortSys.setFixedSize(120, 30)
+        self.sortSys.clicked[bool].connect(self.sortSystem)
         self.okButton = QPushButton("OK")
         self.okButton.setFixedSize(70, 30)
         self.okButton.clicked[bool].connect(self.close)
         hbox = QHBoxLayout()
         hbox.addWidget(self.addSys)
         hbox.addWidget(self.delSys)
+        hbox.addWidget(self.sortSys)
         hbox.addStretch(1)
         hbox.addWidget(self.okButton)
 
@@ -332,6 +337,8 @@ class fitModelWidget(QWidget):
         self.iso_type = QComboBox(self)
         self.iso_type.setFixedSize(100, 30)
         self.iso_type.addItems(['None', 'D/H', '13C/12C'])
+        if hasattr(self.parent.fit, 'iso'):
+            self.iso_type.setCurrentText(self.parent.fit.iso.addinfo)
         self.iso_type.currentTextChanged.connect(self.isoChanged)
         self.treeWidget.setItemWidget(self.iso_m, 3, self.iso_type)
         if 'iso' in self.parent.fit.list_names():
@@ -754,7 +761,7 @@ class fitModelWidget(QWidget):
         self.tab.setCurrentIndex(len(self.parent.fit.sys)-1)
         self.parent.s.refreshFitComps()
         self.parent.s.reCalcFit(self.tab.currentIndex())
-        if hasattr(self.parent, 'chooseFit') and self.parent.chooseFit is not None:
+        if hasattr(self.parent, 'chooseFit') and self.parent.chooseFit != None:
             self.parent.chooseFit.update()
         self.onTabChanged()
 
@@ -767,12 +774,31 @@ class fitModelWidget(QWidget):
             self.tab.widget(i).ind = i
         self.parent.s.refreshFitComps()
         self.parent.showFit()
-        if hasattr(self.parent, 'chooseFit'):
+        if hasattr(self.parent, 'chooseFit') and self.parent.chooseFit != None:
+            self.parent.chooseFit.update()
+        self.onTabChanged()
+
+    def sortSystem(self):
+        self.swap = -self.swap
+        for i in range(len(self.parent.fit.sys)-1):
+            zs = [sys.z.val for sys in self.parent.fit.sys[i:]]
+            if self.swap == -1:
+                ind = np.argmin(zs)
+            else:
+                ind = np.argmax(zs)
+            self.parent.fit.swapSys(i + ind, i)
+
+        for i in range(self.tabNum):
+            self.tab.setTabText(i, "sys {:}".format(i))
+            self.tab.widget(i).ind = i
+        self.parent.s.refreshFitComps()
+        self.parent.showFit()
+        if hasattr(self.parent, 'chooseFit') and self.parent.chooseFit != None:
             self.parent.chooseFit.update()
         self.onTabChanged()
 
     def onTabChanged(self):
-        if self.tab.currentWidget() is not None:
+        if self.tab.currentWidget() != None:
             self.tab.currentWidget().refresh()
             self.parent.comp = self.tab.currentIndex()
             self.parent.componentBar.setText("{:d} component".format(self.parent.comp))
@@ -1093,7 +1119,8 @@ class fitModelWidget(QWidget):
         pass
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_F and QApplication.keyboardModifiers() == Qt.ControlModifier:
+        #if event.key() == Qt.Key_F and QApplication.keyboardModifiers() == Qt.ControlModifier:
+        if event.key() == Qt.Key_F3:
             self.close()
             #
         super(fitModelWidget, self).keyPressEvent(event)
@@ -1824,9 +1851,8 @@ class fitResultsWidget(QWidget):
         key = event.key()
 
         if not event.isAutoRepeat():
-            if event.key() == Qt.Key_T:
-                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
-                    self.parent.fitResults.close()
+            if event.key() == Qt.Key_F6:
+                self.parent.fitResults.close()
 
     def closeEvent(self, event):
         self.parent.fitResults = None

@@ -10,11 +10,12 @@ Keybord bindings
 
 * **F1**:  show help/Howto.
 * **F2**:  show/hide list of exposures widget.
-* **F3**:  show/hide choose fitted parameters panel.
-* **F4**:  show/hide residuals panel.
-* **F5**:  show/hide plot widget.
-* **F6**:  show/hide MCMC widget.
-* **F8**:  show/hide fit results widget.
+* **F3**:  show/hide panel to construct fit model
+* **F4**:  show/hide choose fitted parameters panel.
+* **F5**:  show/hide MCMC widget.
+* **F6**:  show/hide fit results widget.
+* **F7**:  show/hide plot widget.
+* **F8**:  show/hide residuals panel.
 * **F9**:  show/hide 2d spectrum panel.
 * **F11**:  show/hide Preferences menu.
 
@@ -58,7 +59,7 @@ Keybord bindings
    
    * **f**                              :  show fit (only lines nearby fitting points)
    * **f + SHIFT**                      :  show full fit (all avaliable lines in the full wavelenght range of exposures)
-   * **f + CTRL**                       :  show panel to construct fit model
+   * **f + CTRL**                       :  <not set yet>
    
 * **g**: fit gauss
 
