@@ -1580,6 +1580,7 @@ class Spectrum():
 
     def set_fit(self, x, y, attr='fit'):
         if self.cont.n > 0: # and self.active():
+            print(x, y)
             getattr(self, attr).line.norm.set_data(x=x, y=y)
             getattr(self, attr).line.norm.interpolate(fill_value=1)
             if not self.parent.normview:
@@ -2079,10 +2080,11 @@ class Spectrum():
             # >>> set fit graphics
             if comp == -1:
                 self.set_fit(x=x, y=flux, attr='fit')
-                y = np.ones_like(self.spec.y()) * np.NaN
-                if len(y) > 0:
-                    y[self.fit_mask.x()] = binned
-                self.set_fit(x=np.copy(self.spec.x()), y=y, attr='fit_bin')
+                if len(binned) > 0:
+                    y = np.ones_like(self.spec.y()) * np.NaN
+                    if len(y) > 0:
+                        y[self.fit_mask.x()] = binned
+                    self.set_fit(x=np.copy(self.spec.x()), y=y, attr='fit_bin')
                 if redraw:
                     self.set_gfit()
                     self.set_res()
@@ -2553,7 +2555,7 @@ class regionList(list):
         return '\n'.join([str(r) for r in self])
 
 class regionItem(pg.LinearRegionItem):
-    def __init__(self, parent, brush=None, xmin=None, xmax=None, span=(0.75, 1.0), addinfo=''):
+    def __init__(self, parent, brush=None, xmin=None, xmax=None, span=(0.9, 1.0), addinfo=''):
         self.parent = parent
         if 1:
             brush = pg.mkBrush(173, 173, 173, 100)
@@ -2595,7 +2597,7 @@ class regionItem(pg.LinearRegionItem):
             for l in self.lines:
                 l.setPen(self.inactivePen)
                 l.setHoverPen(self.inactivePen)
-            self.setSpan(0.75, 1)
+            self.setSpan(0.9, 1)
 
     def hoverEvent(self, ev):
         self.lines[0].setMovable((QApplication.keyboardModifiers() == Qt.ShiftModifier))

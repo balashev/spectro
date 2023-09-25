@@ -2201,10 +2201,10 @@ class showLinesWidget(QWidget):
                     fit = None
                     fit_comp = None
                 if self.show_disp and len(s.fit.disp[0].norm.x) > 0:
-                    fit_disp = [s.fit.disp[0].norm.x, s.fit.disp[0].norm.y, s.fit.disp[1].norm.y]
+                    fit_disp = [s.fit.disp[0].norm.x, s.fit.disp[0].norm.y / cheb(s.fit.disp[0].norm.x), s.fit.disp[1].norm.y / cheb(s.fit.disp[0].norm.x)]
                     fit_comp_disp = []
                     for comp in s.fit_comp:
-                        fit_comp_disp.append([comp.disp[0].norm.x, comp.disp[0].norm.y, comp.disp[1].norm.y])
+                        fit_comp_disp.append([comp.disp[0].norm.x, comp.disp[0].norm.y / cheb(s.fit.disp[0].norm.x), comp.disp[1].norm.y / cheb(s.fit.disp[0].norm.x)])
                 else:
                     fit_disp, fit_comp_disp = None, None
 
@@ -2379,7 +2379,7 @@ class showLinesWidget(QWidget):
                 p.plot_line()
 
                 if over is not None:
-                    p.ax.plot(over[0], over[1], ls='-', color=to_hex(tuple(c / 255 for c in self.over_color.to_bytes(4, byteorder='big'))), lw=1)
+                    p.ax.plot(over[0], over[1], ls='-', color=to_hex(tuple(c / 255 for c in self.over_color.to_bytes(4, byteorder='big'))), lw=self.fit_lw, zorder=12)
                     
                 if self.show_cf and self.parent.fit.cf_fit and p.show_fit:
                     for k in range(self.parent.fit.cf_num):

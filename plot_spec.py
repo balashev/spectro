@@ -712,7 +712,7 @@ class plotline():
 
         # >>> plot joint fit
         if self.fit_disp is None:
-            self.ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=11)
+            self.ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=15)
         else:
             # >>> plot fit dispersion
             if self.vel_scale:

@@ -1,21 +1,21 @@
-show COj23
-show COj3
-show COj5
-stats
-stats
-stats
-x 5000 5005
-show CI
-show CIj1
-show CIj2
-x 5570 5572
-x 5570 5572
-x 5000 5005
-x 5000 5005
-x 5570 5572
-snr
-stats
-show CI
-show CIj1
-show CIj2
-13CI
+show 13COj2
+show COj0
+show COj1
+show 13COj3
+show 13COj2
+show 13COj3
+show 13COj4
+show 13COj2
+13COj0
+show 13COj0
+show 13COj1
+show 13COj2
+show 13COj3
+13COj0
+13COj0
+show 13COj0
+show 13COj1
+show 13COj2
+cont 1
+cont 1
+cont 1

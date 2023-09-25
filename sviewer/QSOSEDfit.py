@@ -20,8 +20,7 @@ from scipy.integrate import cumtrapz
 from scipy.interpolate import interp1d, CubicSpline
 from scipy.special import gamma, gammainc
 import sys
-import zeus
-
+#import zeus
 
 if __name__ in ["__main__", "__mp_main__"]:
     from a_unc import a

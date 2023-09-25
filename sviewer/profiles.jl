@@ -945,7 +945,6 @@ function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
         println("calc lines ", time() - start)
         #println(size(x))
     end
-
     #if any([occursin("disp", p.first) for p in pars])
     #    n = Int(sum([occursin("disp", p.first) for p in pars]) / 2)
     #    for i in 0:n-1
@@ -1028,6 +1027,7 @@ function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
                 binned[k] = 1 - binned[k] / (x[inds[ind_max]] - x[inds[ind_min]]) / 2
             end
             #println("binned:", binned)
+            #println("specmask: ", spec.x[spec.mask])
 
             if out == "all"
                 return x, y_c, spec.x[spec.mask], binned #1 .- (cumsum[inds[2:end]] .- cumsum[inds[1:end-1]]) ./ (x[inds[2:end]] .- x[inds[1:end-1]])

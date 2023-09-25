@@ -1,0 +1,3 @@
+
+adjustText astroplan astropy astroquery ccdproc ChainConsumer corner dust_extinction emcee extinction h5py julia lmfit matplotlib mendeleev
+numba numpy pandas pyGPs PyQt5 pyqtgraph pytz scikit_learn scipy sfdmap statsmodels zeus

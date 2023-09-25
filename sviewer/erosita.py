@@ -154,7 +154,7 @@ class dataPlot(pg.PlotWidget):
         #    self.vb.rbScaleBox.show()
         pos = self.vb.sceneBoundingRect()
         self.cursorpos.setText('x={0:.3f}, y={1:.2f}'.format(self.mousePoint.x(), self.mousePoint.y()))
-        self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(pos.left() + 10, pos.bottom() - 10)))
+        self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(int(pos.left()) + 10, int(pos.bottom()) - 10)))
         for ind, name in enumerate(['shown_sel', 'selected', 'shown']):
             if name == 'shown_sel':
                 s = np.sum(np.logical_and(np.isfinite(self.parent.x[self.parent.mask]),
@@ -165,13 +165,13 @@ class dataPlot(pg.PlotWidget):
                 s = np.sum(np.logical_and(np.isfinite(self.parent.x),
                                           np.isfinite(self.parent.y)))
             self.selectedstat[name].setText(name + '={0:d}'.format(s))
-            self.selectedstat[name].setPos(self.vb.mapSceneToView(QPoint(pos.right() - 10, pos.bottom() - 10 - ind * 20)))
+            self.selectedstat[name].setPos(self.vb.mapSceneToView(QPoint(int(pos.right()) - 10, int(pos.bottom()) - 10 - ind * 20)))
         self.plotRegLabels(pos)
 
     def plotRegLabels(self, pos):
         for name, ind in zip(['all', 'all_r', 'selected'], [10, 30, 50]):
             if self.reg[name] is not None:
-                self.corr[name].setPos(self.vb.mapSceneToView(QPoint(pos.left() + 10, pos.top() + ind)))
+                self.corr[name].setPos(self.vb.mapSceneToView(QPoint(int(pos.left()) + 10, int(pos.top()) + ind)))
                 self.corr[name].setText(name + ': ' + self.parent.reg[name])
 
     def mouseDoubleClickEvent(self, ev):
