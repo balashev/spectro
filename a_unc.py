@@ -146,7 +146,7 @@ class a:
                 self.type = 'f'
             else:
                 self.type = 'm'
-        
+
         if 't' in kwargs.keys():
             self.type = kwargs['t']
         if 'type' in kwargs.keys():
@@ -219,7 +219,10 @@ class a:
         elif self.repr == 'dec':
 
             #r = int(f - (np.floor(np.log10(abs(self.val))) - base) - np.floor(np.log10(min(abs(self.plus), abs(self.minus)))))
-            r = int(f - np.floor(np.log10(min(abs(self.plus), abs(self.minus))))) - 1 + base
+            if min(abs(self.plus), abs(self.minus)) > 0:
+                r = int(f - np.floor(np.log10(min(abs(self.plus), abs(self.minus))))) - 1 + base
+            else:
+                r = f - 1 + base
             val = round(self.val/10**base, r)
             plus = round(round(self.val/10**base + self.plus/10**base, r) - round(self.val/10**base, r), r)
             minus = round(round(self.val/10**base, r) - round(self.val/10**base - self.minus/10**base, r), r)

@@ -1,4 +1,5 @@
 import astropy.constants as ac
+import scipy.stats
 from astropy.cosmology import Planck15 #, FlatLambdaCDM, LambdaCDM
 from astropy.io import fits
 import astropy.units as u
@@ -7,6 +8,7 @@ from collections import OrderedDict
 import corner
 from chainconsumer import ChainConsumer
 import emcee
+from functools import partial
 import json
 import itertools
 import matplotlib.pyplot as plt
@@ -87,6 +89,164 @@ def smooth(x, window_len=11, window='hanning', mode='valid'):
 
     y = np.convolve(w / w.sum(), s, mode=mode)[window_len-1:-window_len+1]
     return y
+
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# >>>
+# >>>   SpectRes
+# >>>
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+# >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+"""
+SpectRes: A fast spectral resampling function.
+Copyright (C) 2017  A. C. Carnall
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
+# Function for calculating the left hand side (lhs) positions and widths of the spectral bins from their central wavelengths.
+def make_bins(wavelengths, make_rhs="False"):
+    bin_widths = np.zeros(wavelengths.shape[0])
+
+    # This option makes the final entry in the left hand sides array the right hand side of the final bin
+    if make_rhs == "True":
+        bin_lhs = np.zeros(wavelengths.shape[0] + 1)
+        # The first lhs position is assumed to be as far from the first central wavelength as the rhs of the first bin.
+        bin_lhs[0] = wavelengths[0] - (wavelengths[1] - wavelengths[0]) / 2
+        bin_widths[-1] = (wavelengths[-1] - wavelengths[-2])
+        bin_lhs[-1] = wavelengths[-1] + (wavelengths[-1] - wavelengths[-2]) / 2
+        bin_lhs[1:-1] = (wavelengths[1:] + wavelengths[:-1]) / 2
+        bin_widths[:-1] = bin_lhs[1:-1] - bin_lhs[:-2]
+
+    # Otherwise just return the lhs positions of each bin
+    else:
+        bin_lhs = np.zeros(wavelengths.shape[0])
+        bin_lhs[0] = wavelengths[0] - (wavelengths[1] - wavelengths[0]) / 2
+        bin_widths[-1] = (wavelengths[-1] - wavelengths[-2])
+        bin_lhs[1:] = (wavelengths[1:] + wavelengths[:-1]) / 2
+        bin_widths[:-1] = bin_lhs[1:] - bin_lhs[:-1]
+
+    return bin_lhs, bin_widths
+
+
+# Function for performing spectral resampling on a spectrum or array of spectra.
+def spectres(spec_wavs, spec_fluxes, resampling, spec_errs=None, filename=None):
+    # Generate arrays of left hand side positions and widths for the old and new bins
+    resampling = resampling[(resampling > spec_wavs[0]) * (resampling < spec_wavs[-1])]
+    filter_lhs, filter_widths = make_bins(resampling, make_rhs="True")
+    spec_lhs, spec_widths = make_bins(spec_wavs)
+
+    # Check that the range of wavelengths to be resampled onto falls within the initial sampling region
+    if filter_lhs[0] < spec_lhs[0] or filter_lhs[-1] > spec_lhs[-1]:
+        print("Spec_lhs, filter_lhs, filter_rhs, spec_rhs ", spec_lhs[0], filter_lhs[0], filter_lhs[-1], spec_lhs[-1], filename)
+        sys.exit("spectres was passed a spectrum which did not cover the full wavelength range of the specified filter curve.")
+
+    # Generate output arrays to be populated
+    if spec_fluxes.ndim == 1:
+        resampled = np.zeros((resampling.shape[0]))
+
+    elif spec_fluxes.ndim == 2:
+        resampled = np.zeros((len(resampling), spec_fluxes.shape[1]))
+
+    if spec_errs is not None:
+        if spec_errs.shape != spec_fluxes.shape:
+            sys.exit("If specified, spec_errs must be the same shape as spec_fluxes.")
+        else:
+            resampled_errs = np.copy(resampled)
+
+    start = 0
+    stop = 0
+
+    # Calculate the new spectral flux and uncertainty values, loop over the new bins
+    for j in range(len(filter_lhs) - 1):
+
+        # Find the first old bin which is partially covered by the new bin
+        while spec_lhs[start + 1] <= filter_lhs[j]:
+            start += 1
+
+        # Find the last old bin which is partially covered by the new bin
+        while spec_lhs[stop + 1] < filter_lhs[j + 1]:
+            stop += 1
+
+        if spec_fluxes.ndim == 1:
+
+            # If the new bin falls entirely within one old bin the are the same the new flux and new error are the same as for that bin
+            if stop == start:
+
+                resampled[j] = spec_fluxes[start]
+                if spec_errs is not None:
+                    resampled_errs[j] = spec_errs[start]
+
+            # Otherwise multiply the first and last old bin widths by P_ij, all the ones in between have P_ij = 1
+            else:
+
+                start_factor = (spec_lhs[start + 1] - filter_lhs[j]) / (spec_lhs[start + 1] - spec_lhs[start])
+                end_factor = (filter_lhs[j + 1] - spec_lhs[stop]) / (spec_lhs[stop + 1] - spec_lhs[stop])
+
+                spec_widths[start] *= start_factor
+                spec_widths[stop] *= end_factor
+
+                # Populate the resampled spectrum and uncertainty arrays
+                resampled[j] = np.sum(spec_widths[start:stop + 1] * spec_fluxes[start:stop + 1]) / np.sum(
+                    spec_widths[start:stop + 1])
+
+                if spec_errs is not None:
+                    resampled_errs[j] = np.sqrt(
+                        np.sum((spec_widths[start:stop + 1] * spec_errs[start:stop + 1]) ** 2)) / np.sum(
+                        spec_widths[start:stop + 1])
+
+                # Put back the old bin widths to their initial values for later use
+                spec_widths[start] /= start_factor
+                spec_widths[stop] /= end_factor
+
+
+        # The same as above, except operates on each row of the array, resampling all of the input models
+        elif spec_fluxes.ndim == 2:
+
+            if stop == start:
+
+                resampled[j, :] = spec_fluxes[start, :]
+                if spec_errs is not None:
+                    resampled_errs[j, :] = spec_errs[start, :]
+
+            else:
+
+                start_factor = (spec_lhs[start + 1] - filter_lhs[j]) / (spec_lhs[start + 1] - spec_lhs[start])
+                end_factor = (filter_lhs[j + 1] - spec_lhs[stop]) / (spec_lhs[stop + 1] - spec_lhs[stop])
+
+                spec_widths[start] *= start_factor
+                spec_widths[stop] *= end_factor
+
+                resampled[j, :] = np.sum(
+                    np.expand_dims(spec_widths[start:stop + 1], axis=1) * spec_fluxes[start:stop + 1, :],
+                    axis=0) / np.sum(spec_widths[start:stop + 1])
+
+                if spec_errs is not None:
+                    resampled_errs[j, :] = np.sqrt(
+                        np.sum((np.expand_dims(spec_widths[start:stop + 1], axis=1) * spec_errs[start:stop + 1]) ** 2,
+                               axis=0)) / np.sum(spec_widths[start:stop + 1])
+
+                spec_widths[start] /= start_factor
+                spec_widths[stop] /= end_factor
+
+    # If errors were supplied return the resampled spectrum and error arrays
+    if spec_errs is not None:
+        return resampled, resampled_errs
+
+    # Otherwise just return the resampled spectrum array
+    else:
+        return resampled
 
 def add_LyaForest(x, z_em=0, factor=1, kind='trans'):
     """
@@ -188,7 +348,7 @@ class Filter():
                 }
         self.zp = {'Vega': zp_vega[self.name], 'AB': zp_ab[self.name]}
 
-        colors = {'u': (23, 190, 207), 'g': (44, 160, 44), 'r': (214, 39, 40), 'i': (227, 119, 194), 'z': (31, 119, 180),
+        colors = {'u': (23, 190, 207), 'g': (44, 160, 44), 'r': (255, 139, 0), 'i': (227, 119, 194), 'z': (153, 102, 204),
                   'G': (225, 168, 18), 'G_BP': (0, 123, 167), 'G_RP': (227, 66, 52),
                   'J_2MASS': (152, 255, 152), 'H_2MASS': (8, 232, 222), 'Ks_2MASS': (30, 144, 255),
                   'Y_VISTA': (212, 245, 70), 'J_VISTA': (142, 245, 142), 'H_VISTA': (18, 222, 212), 'Ks_VISTA': (20, 134, 245),
@@ -319,9 +479,10 @@ class Filter():
         if 'W' in self.name:
             self.weight = 1
         elif self.name in ['FUV', 'NUV']:
-            self.weight = 20
+            self.weight = 1
         else:
-            self.weight = 5 #np.sqrt(np.sum(self.filter.inter(x)) / np.max(self.filter.data.y))
+            self.weight = 1
+            #np.sqrt(np.sum(self.filter.inter(x)) / np.max(self.filter.data.y))
         #self.weight = 1
         #print('weight:', self.name, self.weight)
 
@@ -337,6 +498,39 @@ class sed_template():
         else:
             return self.y
 
+    def ext_fm07(self, wave, Rv=2.74, c1=-4.959, c2=2.264, c3=0.389, c4=0.319, c5=6.097, x0=4.592, gamma=0.922):
+        """
+        Return extinction for provided wavelengths
+        Args:
+            wave:      wavelengths in Angstrem
+            Av:        visual extinction
+            ...
+
+        Returns: extinction
+        """
+        x = (1e4 / np.asarray(wave, dtype=np.float64))
+
+        k = np.zeros_like(x)
+        uv = (x >= 1.e4 / 2700.)
+
+        # UV region
+        def D(x, x0, gamma):
+            return x ** 2 / ((x ** 2 - x0 ** 2) ** 2 + x ** 2 * gamma ** 2)
+
+        k[uv] = c1 + c2 * x[uv] + c3 * D(x[uv], x0, gamma)
+        k[uv * (x > c5)] += c4 * (x[uv * (x > c5)] - c5) ** 2
+
+        # Anchors
+        x_uv = 1.e4 / np.array([2700., 2600.])
+        k_uv = c1 + c2 * x_uv + c3 * D(x_uv, x0, gamma)
+        x_opt = 1.e4 / np.array([5530., 4000., 3300.])
+        k_opt = np.array([0., 1.322, 2.055])
+        x_ir = np.array([0., 0.25, 0.50, 0.75, 1.])
+        k_ir = (-0.83 + 0.63 * Rv) * x_ir ** 1.84 - Rv
+
+        k[~uv] = CubicSpline(np.concatenate(([x_ir, x_opt, x_uv])), np.concatenate((k_ir, k_opt, k_uv)))(x[~uv])
+
+        return k
     def load_data(self, smooth_window=None, xmin=None, xmax=None, z=0, x=None, y=None):
 
         if x is None and y is None:
@@ -410,7 +604,15 @@ class sed_template():
             elif self.name == 'Fe':
                 self.x, self.y = np.genfromtxt(self.parent.path + r'/data/Models/Fe.dat', unpack=True)
                 self.norm = np.mean(self.y[(self.x > 2490) & (self.x < 2510)])
-                print('norm:', self.norm)
+
+            elif self.name == 'ext':
+                self.x = np.logspace(2, 5, 100)
+                self.y = self.ext_fm07(self.x, Rv=2.7, c1=-4.959, c2=2.264, c3=0, c4=0.319, c5=6.097, x0=4.592, gamma=0.922)
+
+            elif self.name == 'ext_gal':
+                self.x = np.logspace(2, 5, 100)
+                self.y = self.ext_fm07(self.x, Rv=3.01, c1=-0.175, c2=0.807, c3=2.991, c4=0.319, c5=6.097, x0=4.592, gamma=0.922)
+
         else:
             self.x, self.y = x, y
 
@@ -475,8 +677,16 @@ class sed():
             self.n_tau = self.tau.shape[0]
             self.n_tg = self.tg.shape[0]
 
-        elif self.name == 'Fe':
+        if self.name == 'Fe':
             self.models.append(sed_template(self, 'Fe'))
+            self.values = [0]
+
+        if self.name == 'ext':
+            self.models.append(sed_template(self, 'ext'))
+            self.values = [0]
+
+        if self.name == 'ext_gal':
+            self.models.append(sed_template(self, 'ext_gal'))
             self.values = [0]
 
         self.n = len(self.values)
@@ -556,7 +766,7 @@ class QSOSEDfit():
         self.mask = self.calc_mask(self.spec, self.df.loc[ind, 'z'])
 
         #print(self.mask, np.sum(self.mask))
-        if np.sum(self.mask) > 20:
+        if np.sum(self.mask) > 10:
             self.set_filters(ind)
             if self.plot:
                 self.plot_spec()
@@ -564,32 +774,34 @@ class QSOSEDfit():
             self.sm = [np.asarray(self.spec[0][self.mask], dtype=np.float64), self.spec[1][self.mask], self.spec[2][self.mask]]
 
             self.models = {}
-            for name in ['bbb', 'tor', 'host', 'gal', 'Fe']:
+            for name in ['bbb', 'tor', 'host', 'gal', 'Fe', 'ext', 'ext_gal']:
                 self.models[name] = sed(name=name, xmin=self.wavemin, xmax=self.wavemax, z=self.df.loc[ind, 'z'])
                 self.models[name].set_data('spec', self.sm[0])
                 for k, f in self.filters.items():
                     if self.filters[k].fit:
                         self.models[name].set_data(k, f.x)
                 self.models[name].set_data('spec_full', self.spec[0])
+
             return True
 
     def set_filters(self, ind, names=None):
         self.photo = {}
         self.filters = {}
         if self.addPhoto:
-            for k in ['FUV', 'NUV']:
-                if (names is None and k in self.filter_names) or (names is not None and k in names):
-                    if 0:
-                        if not np.isnan(self.df[f'{k}mag'][ind]) and not np.isnan(self.df[f'e_{k}mag'][ind]):
-                            self.filters[k] = Filter(self, k, value=self.df.loc[ind, f'{k}mag'], err=self.df.loc[ind, f'e_{k}mag'])
-                    else:
-                        if self.df.loc[ind, 'GALEX_MATCHED'] and not np.isnan(self.df.loc[ind, f'{k}mag']) and not np.isnan(self.df.loc[ind, f'e_{k}mag']):
-                            f = Filter(self, k, value=-2.5 * np.log10(np.exp(1.0)) * np.arcsinh(self.df.loc[ind, f'{k}'] / 0.01) + 28.3,
-                                                     err=-2.5 * np.log10(np.exp(1.0)) * (np.arcsinh(self.df.loc[ind, f'{k}'] / 0.01) - np.arcsinh((self.df.loc[ind, f'{k}'] + 1 / np.sqrt(self.df.loc[ind, f'{k}_IVAR'])) / 0.01)))
+            if 1:
+                for k in ['FUV', 'NUV']:
+                    if (names is None and k in self.filter_names) or (names is not None and k in names):
+                        if 0:
+                            if not np.isnan(self.df[f'{k}mag'][ind]) and not np.isnan(self.df[f'e_{k}mag'][ind]):
+                                self.filters[k] = Filter(self, k, value=self.df.loc[ind, f'{k}mag'], err=self.df.loc[ind, f'e_{k}mag'])
+                        else:
+                            if self.df.loc[ind, 'GALEX_MATCHED'] and not np.isnan(self.df.loc[ind, f'{k}mag']) and not np.isnan(self.df.loc[ind, f'e_{k}mag']):
+                                f = Filter(self, k, value=-2.5 * np.log10(np.exp(1.0)) * np.arcsinh(self.df.loc[ind, f'{k}'] / 0.01) + 28.3,
+                                                         err=-2.5 * np.log10(np.exp(1.0)) * (np.arcsinh(self.df.loc[ind, f'{k}'] / 0.01) - np.arcsinh((self.df.loc[ind, f'{k}'] + 1 / np.sqrt(self.df.loc[ind, f'{k}_IVAR'])) / 0.01)))
 
-                            if f.range[0] > 912 * (self.df.loc[ind, 'z'] + 1):
-                                self.filters[k] = f
-                                self.photo[k] = 'GALEX'
+                                if f.range[0] > 912 * (self.df.loc[ind, 'z'] + 1):
+                                    self.filters[k] = f
+                                    self.photo[k] = 'GALEX'
 
             for i, k in enumerate(['u', 'g', 'r', 'i', 'z']):
                 if (names is None and k in self.filter_names) or (names is not None and k in names):
@@ -628,12 +840,14 @@ class QSOSEDfit():
             if f.range[0] > self.wavemin * (1 + self.df.loc[ind, 'z']) and f.range[1] < self.wavemax * (1 + self.df.loc[ind, 'z']) and np.isfinite(f.value) and np.isfinite(f.err):
                 self.filters[k].fit = True
             #print(k, self.filters[k].fit)
-        print(self.filters)
 
     def add_mask(self, name=None):
         if name is not None:
             self.mask = np.logical_or(self.mask, self.df['SDSS_NAME'] == name)
             #print(np.sum(self.mask))
+
+    def D_bump(self, x, x0, gamma):
+        return x ** 2 / ((x ** 2 - x0 ** 2) ** 2 + x ** 2 * gamma ** 2)
 
     def ext_fm07(self, wave, Av, Rv=2.74, c1=-4.959, c2=2.264, c3=0.389, c4=0.319, c5=6.097, x0=4.592, gamma=0.922):
         """
@@ -651,15 +865,13 @@ class QSOSEDfit():
         uv = (x >= 1.e4 / 2700.)
 
         # UV region
-        def D(x, x0, gamma):
-            return x ** 2 / ((x ** 2 - x0 ** 2) ** 2 + x ** 2 * gamma ** 2)
 
-        k[uv] = c1 + c2 * x[uv] + c3 * D(x[uv], x0, gamma)
+        k[uv] = c1 + c2 * x[uv] + c3 * self.D_bump(x[uv], x0, gamma)
         k[uv * (x > c5)] += c4 * (x[uv * (x > c5)] - c5) ** 2
 
         # Anchors
         x_uv = 1.e4 / np.array([2700., 2600.])
-        k_uv = c1 + c2 * x_uv + c3 * D(x_uv, x0, gamma)
+        k_uv = c1 + c2 * x_uv + c3 * self.D_bump(x_uv, x0, gamma)
         x_opt = 1.e4 / np.array([5530., 4000., 3300.])
         k_opt = np.array([0., 1.322, 2.055])
         x_ir = np.array([0., 0.25, 0.50, 0.75, 1.])
@@ -678,19 +890,20 @@ class QSOSEDfit():
         #return 10 ** (-0.4 * Av * (1.39 * (1e4 / np.asarray(x, dtype=np.float64)) ** 1.2 - 0.38) / 2.74)
         return 10 ** (-0.4 * self.ext_fm07(x, Av=Av, Rv=3.01, c1=-0.175, c2=0.807, c3=2.991, c4=0.319, c5=6.097, x0=4.592, gamma=0.922))
 
-    def extinction(self, wave, params, z_ext=0):
+    def extinction(self, wave, params, z_ext=0, kind='qso'):
         """
         Return extinction for provided wavelengths
         Args:
-            wave:         wavelengths in Angstrem
+            wave:      wavelengths in Angstrem
             z_ext:     redshift
-            Av:        visual extinction
+            params:    parameters for visual extinction
 
         Returns: extinction
         """
         Rv = 2.71 if 'Rv' not in params.keys() else params.valuesdict()['Rv']
         #c3 = 0.389 if 'c3' not in params.keys() else params.valuesdict()['c3']
-        c3 = 0.389 if 'c3' not in params.keys() else params.valuesdict()['Abump'] * 2 * 0.922 / params.valuesdict()['EBV'] / np.pi
+        c3 = 0.389 if 'Abump' not in params.keys() else params.valuesdict()['Abump'] * 2 * 0.922 / params.valuesdict()['EBV'] / np.pi
+        c3 = 0.0 if 'Abump' not in params.keys() else params.valuesdict()['Abump'] * 2 * 0.922 / params.valuesdict()['EBV'] / np.pi
         #s = time.time()
         #self.extinction_Pervot(wave, params, z_ext=z_ext)
         #print('t_Pervot:', time.time() - s)
@@ -698,18 +911,26 @@ class QSOSEDfit():
         #10 ** (-0.4 * self.ext_fm07(wave * (1 + z_ext), Av=params.valuesdict()['Av'], Rv=Rv, c1=-4.959, c2=2.264, c3=0.389, c4=0.319, c5=6.097, x0=4.592, gamma=0.922))
         #print('t_FM07:', time.time() - s)
         #return self.extinction_Pervot(wave, params, z_ext=z_ext)
+        #print(self.ext_fm07(wave * (1 + z_ext), Av=params.valuesdict()['EBV'] * Rv, Rv=Rv, c1=-4.959, c2=2.264, c3=c3, c4=0.319, c5=6.097, x0=4.592, gamma=0.922))
         return 10 ** (-0.4 * self.ext_fm07(wave * (1 + z_ext), Av=params.valuesdict()['EBV'] * Rv, Rv=Rv, c1=-4.959, c2=2.264, c3=c3, c4=0.319, c5=6.097, x0=4.592, gamma=0.922))
 
-    def loadSDSS(self, plate, fiber, mjd, Av_gal=np.nan):
+    def loadSDSS(self, plate, fiber, mjd, Av_gal=np.nan, rebin=11):
         filename = os.path.dirname(self.catalog) + '/spectra/spec-{0:04d}-{2:05d}-{1:04d}.fits'.format(int(plate), int(fiber), int(mjd))
         #print(filename)
         if os.path.exists(filename):
             qso = fits.open(filename)
             ext = self.extinction_MW(10 ** qso[1].data['loglam'][:], Av=Av_gal)
-            mask = ~np.logical_and(np.logical_and(np.isfinite(qso[1].data['flux']), np.isfinite(np.sqrt(1.0 / qso[1].data['ivar']))), (ext != 0))
+            mask = np.logical_and(np.logical_and(np.isfinite(qso[1].data['flux']), np.isfinite(np.sqrt(1.0 / qso[1].data['ivar']))), (ext != 0))
             #print('mask: ', np.sum(mask))
             #print(Av_gal, ext)
-            return [10 ** qso[1].data['loglam'], qso[1].data['flux'] / ext, np.sqrt(1.0 / qso[1].data['ivar']) / ext, np.logical_and(mask, qso[1].data['and_mask'])]
+            x, y, err, mask = 10 ** qso[1].data['loglam'], qso[1].data['flux'] / ext, np.sqrt(1.0 / qso[1].data['ivar']) / ext, np.logical_and(mask, qso[1].data['and_mask'] == 0)
+            if rebin > 1:
+                y, err = spectres(x, y, x[int(rebin / 2) + 1:((len(x) // rebin) - 1) * rebin:rebin], err, filename=filename)
+                err *= rebin
+                mask = spectres(x, mask, x[int(rebin / 2) + 1:((len(x) // rebin) - 1) * rebin:rebin]) > 0.9
+                x = x[int(rebin / 2) + 1:((len(x) // rebin) - 1) * rebin:rebin]
+                #mask = np.sum(mask[int(rebin/2)+1:((len(mask) // rebin) - 1) * rebin + int(rebin/2)+2].reshape(len(mask) // rebin, rebin), axis=1) > 1
+            return [x, y, err, mask]
 
     def spec_model(self, params, x):
         return None
@@ -726,7 +947,7 @@ class QSOSEDfit():
         #    model += self.models['host'].data[kind][params.valuesdict()['host_type']] * params.valuesdict()['host_norm'] * self.extinction(x / (1 + d['z']), Av=params.valuesdict()['host_Av'])
         return model
 
-    def model_emcee(self, params, x, dtype, mtype='total'):
+    def model_emcee_old(self, params, x, dtype, mtype='total'):
         for s in ['spec', 'spec_full']:
             self.photo[s] = 'spec'
         alpha = 10 ** params['alpha_' + self.photo[dtype]].value * (x / (1 + self.d['z']) / 2500) ** params['slope_' + self.photo[dtype]].value if self.photo[dtype] not in ['WISE', 'spec'] else 1
@@ -745,6 +966,56 @@ class QSOSEDfit():
         if mtype in ['total', 'gal'] and params['host_tau'].value > -1 and params['host_tg'].value > -1:
             model += self.models['gal'].data[dtype][self.models['gal'].get_model_ind(params)] * params['host_norm'].value * self.extinction_MW(x / (1 + self.d['z']), Av=params['host_Av'].value)
 
+        #if params.valuesdict()['host_type'] > -1:
+        #    model += self.models['host'].data[kind][params.valuesdict()['host_type']] * params.valuesdict()['host_norm'] * self.extinction(x / (1 + d['z']), Av=params.valuesdict()['host_Av'])
+        return model
+
+    def model_emcee(self, params, x, dtype, mtype='total'):
+        for s in ['spec', 'spec_full']:
+            self.photo[s] = 'spec'
+        alpha = 10 ** params['alpha_' + self.photo[dtype]].value * (x / (1 + self.d['z']) / 2500) ** params['slope_' + self.photo[dtype]].value if self.photo[dtype] not in ['WISE', 'spec'] else 1
+        #print(dtype, self.photo[dtype], alpha)
+        if 'bbb_slope' in params.keys():
+            alpha *= (x / (1 + self.d['z']) / 2500) ** params['bbb_slope'].value
+        model = np.zeros_like(self.models['bbb'].data[dtype][0])
+        if mtype in ['total', 'bbb']:
+            model += self.models['bbb'].data[dtype][0] * alpha * params['bbb_norm'].value
+        if mtype in ['total', 'Fe']:
+            model += self.models['Fe'].data[dtype][0] * params['Fe_norm'].value * params['bbb_norm'].value
+        if mtype in ['total', 'bbb', 'Fe']:
+            model *= 10 ** (-0.4 * params['EBV'].value * (self.models['ext'].data[dtype][0] + params['Rv'].value))
+        if mtype in ['total', 'tor'] and params['tor_type'].value > -1:
+            model += self.models['tor'].data[dtype][self.models['tor'].get_model_ind(params)] * params['tor_norm'].value
+        if mtype in ['total', 'gal'] and params['host_tau'].value > -1 and params['host_tg'].value > -1:
+            model += self.models['gal'].data[dtype][self.models['gal'].get_model_ind(params)] * params['host_norm'].value * 10 ** (-0.4 * params['host_Av'].value * (self.models['ext_gal'].data[dtype][0] / 2.7 + 1))
+
+        #if params.valuesdict()['host_type'] > -1:
+        #    model += self.models['host'].data[kind][params.valuesdict()['host_type']] * params.valuesdict()['host_norm'] * self.extinction(x / (1 + d['z']), Av=params.valuesdict()['host_Av'])
+        return model
+
+    def model_emcee_slope(self, params, x, dtype, mtype='total'):
+        for s in ['spec', 'spec_full']:
+            self.photo[s] = 'spec'
+        if self.photo[dtype] not in ['WISE', 'spec']:
+            alpha = 10 ** params['alpha_' + self.photo[dtype]].value * (x / (1 + self.d['z']) / 2500) ** params['slope_' + self.photo[dtype]].value
+            alpha = alpha[:,np.newaxis] * np.power((x / (1 + self.d['z']) / 2500)[:, np.newaxis], np.linspace(-0.5, 0.5, 10))
+        else:
+            alpha = np.power((x / (1 + self.d['z']) / 2500)[:, np.newaxis], np.linspace(-0.5, 0.5, 10))
+        #print(dtype, self.photo[dtype])
+        #print(alpha.shape)
+        model = np.zeros_like(alpha)
+        if mtype in ['total', 'bbb']:
+            model += params['bbb_norm'].value * self.models['bbb'].data[dtype][0][:, np.newaxis] * alpha
+        if mtype in ['total', 'Fe']:
+            model += self.models['Fe'].data[dtype][0][:, np.newaxis] * params['Fe_norm'].value * params['bbb_norm'].value
+        if mtype in ['total', 'bbb', 'Fe']:
+            model *= 10 ** (-0.4 * params['EBV'].value * (self.models['ext'].data[dtype][0][:, np.newaxis] + params['Rv'].value))
+        if mtype in ['total', 'tor'] and params['tor_type'].value > -1:
+            model += self.models['tor'].data[dtype][self.models['tor'].get_model_ind(params)][:, np.newaxis] * params['tor_norm'].value
+        if mtype in ['total', 'gal'] and params['host_tau'].value > -1 and params['host_tg'].value > -1:
+            model += self.models['gal'].data[dtype][self.models['gal'].get_model_ind(params)][:, np.newaxis] * params['host_norm'].value * 10 ** (-0.4 * params['host_Av'].value * (self.models['ext_gal'].data[dtype][0][:, np.newaxis] / 2.7 + 1))
+
+        #print(model.shape)
         #if params.valuesdict()['host_type'] > -1:
         #    model += self.models['host'].data[kind][params.valuesdict()['host_type']] * params.valuesdict()['host_norm'] * self.extinction(x / (1 + d['z']), Av=params.valuesdict()['host_Av'])
         return model
@@ -770,8 +1041,10 @@ class QSOSEDfit():
             lum *= 1e-17 * 4 * np.pi * Planck15.luminosity_distance(self.d['z']).to('cm').value ** 2
         return lum
 
-    def fcn2min(self, params):
+    def fcn2min(self, params, outliers=True):
         chi = (self.model(params, self.sm[0], 'spec') - self.sm[1]) / self.sm[2]
+        if outliers:
+            chi = chi[np.abs(chi) < np.quantile(np.abs(chi), 0.95)]
         for k, f in self.filters.items():
             if self.filters[k].fit and any([s in k for s in ['UKIDSS', 'W', '2MASS']]):
                 chi = np.append(chi, [f.weight / f.err * (f.value - f.get_value(x=f.x, y=self.model(params, f.x, k)))])
@@ -786,9 +1059,15 @@ class QSOSEDfit():
         if not np.isfinite(lp):
             return -np.inf
         #print(lp, np.sum(np.power(self.ln_like(pars), 2)))
-        return lp -.5 * np.sum(np.power(self.ln_like(pars), 2))
+        return lp - .5 * np.sum(np.power(self.ln_like(pars), 2))
+        #return lp -.5 * np.sum(np.power(self.ln_like_slope(pars), 2))
 
     def anneal_priors(self, params):
+        prior = 100 * self.lum_prior(params, kind='anneal') + 50 * self.agn_host_prior(params)
+        #print(prior)
+        if all([p in params.keys() for p in ['bbb_slope', 'EBV']]):
+            prior += 1 - 10 ** (-3 * params.valuesdict()['bbb_slope'] * params.valuesdict()['EBV'] * 3.1)
+        #print(params.valuesdict()['bbb_slope'], params.valuesdict()['EBV'], prior)
         #print(self.lum_prior(params), self.agn_host_prior(params), params)
         return 100 * self.lum_prior(params, kind='anneal') + 50 * self.agn_host_prior(params)
 
@@ -827,9 +1106,9 @@ class QSOSEDfit():
                 return -np.inf
             if p.name == 'bbb_slope':
                 if p.value < 0:
-                    prior -= .5 * ((p.value - 0) / 0.3) ** 2
+                    prior -= .5 * ((p.value + 0.1) / 0.3) ** 6
                 else:
-                    prior -= .5 * ((p.value - 0) / 0.1) ** 2
+                    prior -= .5 * ((p.value + 0.1) / 0.3) ** 6
             if p.name == 'Fe_norm':
                 prior -= .5 * ((p.value - 0) / 0.2) ** 2
             if p.name == 'host_tau':
@@ -842,7 +1121,7 @@ class QSOSEDfit():
                 prior -= .5 * ((p.value - 2.71) / 0.2) ** 2
             if p.name == 'EBV':
                 #prior -= .5 * ((p.value - 0) / 0.05) ** 2
-                prior -= 1.5 * np.log10(p.value) + ((p.value - 0) / 0.05) ** 2
+                prior -= 1.5 * np.log(10 ** p.value) #+ ((p.value - 0) / 0.05) ** 2
             if 'alpha' in p.name:
                 prior -= .5 * (p.value / params['sigma'].value) ** 2 + np.log(params['sigma'].value)
             if 'slope' in p.name:
@@ -853,10 +1132,12 @@ class QSOSEDfit():
             #print(p.name, prior)
         return prior
 
-    def ln_like(self, params, plot=0):
+    def ln_like(self, params, plot=0, outliers=False):
         # print(params)
         # t = Timer()
         chi = (self.model_emcee(params, self.sm[0], 'spec') - self.sm[1]) / self.sm[2]
+        if outliers:
+            chi = chi[np.abs(chi) < np.quantile(np.abs(chi), 0.95)]
         if plot:
             fig, ax = plt.subplots()
             ax.plot(self.sm[0], chi)
@@ -878,6 +1159,27 @@ class QSOSEDfit():
 
         return chi
 
+    def ln_like_slope(self, params, plot=0, outliers=False):
+        # print(params)
+        # t = Timer()
+        #print('model:', self.model_emcee_slope(params, self.sm[0], 'spec').shape)
+        chi = (self.model_emcee_slope(params, self.sm[0], 'spec') - self.sm[1][:, np.newaxis]) / self.sm[2][:, np.newaxis]
+        #print('chi:', chi.shape)
+        #if np.sum(np.isnan(chi)):
+        #    print(self.sm[0][np.isnan(chi)])
+        # t.time('spec')
+        for k, f in self.filters.items():
+            if self.filters[k].fit:
+                chi = np.append(chi, [f.weight / f.err * (f.value - f.get_value(x=f.x, y=y)) for y in np.transpose(self.model_emcee_slope(params, f.x, k))])
+
+        #print('chi:', chi.shape)
+        norm = np.exp(-((np.arange(-0.6, 0.4, 10) + 0.1) / 0.3) ** 2)
+        lnlike = np.log10(np.sum(np.exp(-chi) * np.exp(-((np.arange(-0.6, 0.4, 10) + 0.1) / 0.3) ** 2)[np.newaxis, :], axis=0) / norm)
+        #if outliers:
+        #    lnlike = lnlike[np.abs(lnlike) < np.quantile(np.abs(lnlike), 0.95)]
+
+        return lnlike
+
     def set_params(self, x):
         params = self.params
         for p, v in zip(params.keys(), x):
@@ -885,7 +1187,7 @@ class QSOSEDfit():
             #print(p, v, params[p].value)
         return params
 
-    def mcmc(self, params=None, tvary=True, dust='Rv', stat=1, method='zeus', nsteps=200):
+    def mcmc(self, params=None, tvary=True, stat=1, method='zeus', calc=1, nsteps=200):
         # import os
         # os.environ["OMP_NUM_THREADS"] = "1"
         # from multiprocessing import Pool
@@ -917,7 +1219,7 @@ class QSOSEDfit():
             params['bbb_slope'].value = np.log(self.extinction(1000, params) / self.extinction(2500, params)) / np.log(0.4)
             params['EBV'].value = 0.01
 
-        cov_range = {'bbb_norm': [params['bbb_norm'].value / 30, params['bbb_norm'].value / 2], 'bbb_slope': [0.1, 0.1],
+        cov_range = {'bbb_norm': [params['bbb_norm'].value / 5, params['bbb_norm'].value / 5], 'bbb_slope': [0.1, 0.1],
                      'EBV': [0.01, 0.3], 'Rv': [0.2, 0.2], # 'c3': [0.05, 0.3],
                      'tor_type': [1, 5], 'tor_norm': [params['tor_norm'].value / 10, params['tor_norm'].value / 2],
                      'host_tau': [0.05, 0.5], 'host_tg': [0.1, 1],
@@ -953,149 +1255,186 @@ class QSOSEDfit():
             #params.add('alpha_spec', value=0.0, min=-3, max=3)
             #cov['alpha_spec'] = params['sigma'].value / 10
             #print(self.filters)
+            #print(self.photo.items())
             for p in set([v for k, v in self.photo.items() if self.filters[k].fit]):
                 if p != 'WISE':
-                    params.add('alpha_' + p, value=0, min=-3, max=3)
-                    cov['alpha_' + p] = params['sigma'].value
-                    params.add('slope_' + p, value=0, min=-1, max=1)
-                    cov['slope_' + p] = 0.02
+                    if np.sum([p == self.photo[k] and self.filters[k].fit for k in self.filters.keys()]) > 1:
+                        params.add('alpha_' + p, value=0, min=-3, max=3)
+                        params.add('slope_' + p, value=0, min=-3, max=3)
+                        x, y = [], []
+                        for k, f in self.filters.items():
+                            if p == self.photo[k] and self.filters[k].fit:
+                                x.append(np.log10(f.l_eff))
+                                y.append(np.log10(f.get_value(x=f.x, y=self.model_emcee(params, f.x, k)) / f.value))
+                        if len(x) > 1:
+                            res = scipy.stats.linregress(x, y)
+                            params['alpha_' + p].value = res.intercept
+                            params['slope_' + p].value = res.slope
+                            cov['alpha_' + p] = res.intercept_stderr if res.intercept_stderr != 0 else params['sigma'].value
+                            cov['slope_' + p] = res.stderr if res.stderr != 0 else 0.02
+                    else:
+                        params.add('alpha_' + p, value=0, min=-3, max=3)
+                        params.add('slope_' + p, value=0, min=-3, max=3)
+                        for k, f in self.filters.items():
+                            if p == self.photo[k] and self.filters[k].fit:
+                                params['alpha_' + p].value = np.log10(f.get_value(x=f.x, y=self.model_emcee(params, f.x, k)) / f.value)
+                        cov['alpha_' + p] = 0.2
+                        cov['slope_' + p] = 0.02
+                    #cov['alpha_' + p] = params['sigma'].value
+                    #cov['slope_' + p] = 0.02
 
-            for p in set(self.photo.values()):
-                if p != 'WISE':
-                    chi = []
-                    for k, f in self.filters.items():
-                        if self.photo[k] == p and self.filters[k].fit:
-                            chi.append([f.value, f.get_value(x=f.x, y=self.model_emcee(params, f.x, k))])
-                    if len(chi) > 0:
-                        params['alpha_' + p].value = -(np.sum(np.asarray(chi), axis=0)[0] - np.sum(np.asarray(chi), axis=0)[1]) / len(np.sum(np.asarray(chi), axis=0)) / 2.5
+            #for p in set(self.photo.values()):
+            #    if p != 'WISE':
+            #        chi = []
+            #        for k, f in self.filters.items():
+            #            if self.photo[k] == p and self.filters[k].fit:
+            #                chi.append([f.value, f.get_value(x=f.x, y=self.model_emcee(params, f.x, k))])
+            #        if len(chi) > 0:
+            #            params['alpha_' + p].value = -(np.sum(np.asarray(chi), axis=0)[0] - np.sum(np.asarray(chi), axis=0)[1]) / len(np.sum(np.asarray(chi), axis=0)) / 2.5
         #print(params)
         #print(cov)
 
-        nwalkers, ndims = 50, len(params)
+        if calc:
+            nwalkers, ndims = 100, len(params)
 
-        pos = np.asarray([params[p].value + np.random.randn(nwalkers) * cov[p] for p in params])
-        for k, p in enumerate(params.values()):
-            pos[k][pos[k] <= p.min] = p.min + (p.max - p.min) / 100
-            pos[k][pos[k] >= p.max] = p.max - (p.max - p.min) / 100
-        pos = np.transpose(pos)
-        #print(pos)
-        #print(pos.shape, nwalkers, )
+            pos = np.asarray([params[p].value + np.random.randn(nwalkers) * cov[p] for p in params])
+            for k, p in enumerate(params.values()):
+                pos[k][pos[k] <= p.min] = p.min + (p.max - p.min) * np.random.rand(sum(pos[k] <= p.min))
+                pos[k][pos[k] >= p.max] = p.max - (p.max - p.min) * np.random.rand(sum(pos[k] >= p.max))
+            pos = np.transpose(pos)
+            #print(pos)
+            #print(pos.shape, nwalkers, )
 
-        print("run mcmc for ", self.ind)
-        if 0:
-            result = lmfit.minimize(self.fcn2min_mcmc, method='emcee', params=params, progress=self.verbose,
-                                    nwalkers=nwalkers, steps=steps, burn=int(steps / 2), thin=2, pos=pos,
-                                    nan_policy='omit')
-            flat_sample = result.flatchain
+            print("run mcmc for ", self.ind)
+            if 0:
+                result = lmfit.minimize(self.fcn2min_mcmc, method='emcee', params=params, progress=self.verbose,
+                                        nwalkers=nwalkers, steps=steps, burn=int(steps / 2), thin=2, pos=pos,
+                                        nan_policy='omit')
+                flat_sample = result.flatchain
+            else:
+                self.params = params
+                if method == 'emcee':
+                    sampler = emcee.EnsembleSampler(nwalkers, ndims, self.fcn2min_mcmc, moves=[(emcee.moves.DESnookerMove(), 0.5), (emcee.moves.StretchMove(), 0.5)])
+
+                    subiters = 3
+                    #try:
+                    for i in range(subiters):
+                        # We'll track how the average autocorrelation time estimate changes
+                        autocorr = np.empty(self.mcmc_steps)
+
+                        # This will be useful to testing convergence
+                        index, old_tau = 0, np.inf
+
+                        iterations = self.mcmc_steps // 10 if i < subiters - 1 else self.mcmc_steps
+                        for sm in sampler.sample(pos, iterations=iterations, skip_initial_state_check=False, progress=(self.verbose == 1)):
+                            # Only check convergence every <n> steps
+                            if sampler.iteration % self.corr:
+                                continue
+
+                            # Compute the autocorrelation time so far
+                            # Using tol=0 means that we'll always get an estimate even
+                            # if it isn't trustworthy
+                            tau = sampler.get_autocorr_time(tol=0)
+                            autocorr[index] = np.mean(tau)
+                            # print(tau)
+                            # print(np.abs(old_tau - tau) / tau)
+                            index += 1
+
+                            # Check convergence
+                            converged = np.all(tau * self.corr < sampler.iteration)
+                            converged &= np.all(np.abs(old_tau - tau) / tau < 1 / self.corr)
+                            if converged:
+                                break
+                            old_tau = tau
+
+                        if i < subiters - 1:
+                            lnL = sampler.get_last_sample().log_prob
+                            pos = sampler.get_last_sample().coords
+                            inds = np.argwhere(lnL < np.quantile(lnL, 0.5) + 1.0 * (np.quantile(lnL, 0.5) - np.max(lnL)))
+                            #print(np.quantile(lnL, 0.7) + 1.0 * (np.quantile(lnL, 0.7) - np.max(lnL)), len(inds))
+                            if len(inds) > 0:
+                                mask = np.ones(lnL.shape, dtype=bool)
+                                mask[inds] = False
+                                mpos = np.mean(pos[mask], axis=0)
+                                for ind in inds[0]:
+                                    pos[ind, :] = mpos + (mpos - pos[mask, :][np.random.randint(np.sum(mask))]) * (0.5 * np.random.random(len(mpos)))
+                                    for k, p in enumerate(params.values()):
+                                        pos[ind, k] = np.max([p.min, np.min([p.max, pos[ind, k]])])
+                    #except:
+                    #    print(self.ind, i, len(inds))
+                    #    print(mpos)
+                    #    print(mask)
+                    #    print(pos[mask, :][np.random.randint(np.sum(mask))])
+                    #    print(0.5 * np.random.random(len(mpos)))
+                    #    print(params, cov, pos)
+
+
+                    thinning = int(0.5 * np.nanmax([2, np.nanmin(sampler.get_autocorr_time(tol=0))]))
+                    #print(thinning)
+                    burnin = int(2 * sampler.iteration // 3)
+                    flat_sample = sampler.get_chain(discard=burnin, thin=thinning, flat=True)
+                    ln_max = -np.max(sampler.get_log_prob(discard=burnin, thin=thinning, flat=True))
+                    #print(flat_sample)
+                    #except:
+                    #    print("Problem with ", self.ind, self.d['SDSS_NAME'])
+
+                elif method == 'zeus':
+                    sampler = zeus.EnsembleSampler(nwalkers, ndims, self.fcn2min_mcmc)
+
+                    cb0 = zeus.callbacks.AutocorrelationCallback(ncheck=50, dact=0.05, nact=50, discard=0.5)
+                    cb1 = zeus.callbacks.SplitRCallback(ncheck=50, epsilon=0.05, nsplits=2, discard=0.5)
+                    cb2 = zeus.callbacks.MinIterCallback(nmin=100)
+
+                    sampler.run_mcmc(pos, self.mcmc_steps, callbacks=[cb0, cb1, cb2])
+                    if self.verbose:
+                        print(sampler.summary)
+
+                    if self.plot:
+                        tau = cb0.estimates
+                        R = cb1.estimates
+
+                        N = np.arange(len(tau)) * 100
+
+                        figqc, ax = plt.subplots(ncols=2, figsize=(12, 6))
+
+                        ax[0].plot(N, tau, lw=2.5)
+                        ax[0].set_title('Integrated Autocorrelation Time', fontsize=14)
+                        ax[0].set_xlabel('Iterations', fontsize=14)
+                        ax[0].set_ylabel(r'$\tau$', fontsize=14)
+
+                        ax[1].plot(N, R, lw=2.5)
+                        ax[1].set_title('Split-R Gelman-Rubin Statistic', fontsize=14)
+                        ax[1].set_xlabel('Iterations', fontsize=14)
+                        ax[1].set_ylabel(r'$R$', fontsize=14)
+
+                        figqc.tight_layout()
+                        if self.save:
+                            figqc.savefig(os.path.dirname(self.catalog) + '/QC/plots/' + self.d['SDSS_NAME'] + '_conv.png', bbox_inches='tight', pad_inches=0.1)
+
+                    burnin = int(2 * sampler.iteration // 3)
+                    flat_sample = sampler.get_chain(discard=burnin, thin=10, flat=True)
+                    ln_max = -np.max(sampler.get_log_prob(discard=burnin, thin=10, flat=True))
+            #self.calc_host_lum(result.flatchain)
+
+            #print(sampler.get_log_prob(discard=sampler.iteration // 2, thin=thinning, flat=True))
+            pars, flat_sample = list(params.valuesdict().keys()) + ['lnL'], np.append(flat_sample, sampler.get_log_prob(discard=burnin, thin=thinning, flat=True)[:, np.newaxis], axis=1)
+            flat_sample = flat_sample[np.isfinite(flat_sample[:, -1]), :]
+            # >>> saving flat_samples"
+            if self.save:
+                with open(os.path.dirname(self.catalog) + '/QC/chains/' + self.d['SDSS_NAME'] + '.pickle', 'wb') as f:
+                    pickle.dump([pars, flat_sample], f)
+
         else:
-            self.params = params
-            if method == 'emcee':
-                sampler = emcee.EnsembleSampler(nwalkers, ndims, self.fcn2min_mcmc, moves=[(emcee.moves.DESnookerMove(), 0.5), (emcee.moves.StretchMove(), 0.5)])
+            with open(os.path.dirname(self.catalog) + '/QC/chains/' + self.d['SDSS_NAME'] + '.pickle', 'rb') as f:
+                pars, flat_sample = pickle.load(f)
+                ln_max = np.min(flat_sample[:, -1])
+                print('ln_max:', ln_max)
 
-                subiters = 3
-                #try:
-                for i in range(subiters):
-                    # We'll track how the average autocorrelation time estimate changes
-                    autocorr = np.empty(self.mcmc_steps)
-
-                    # This will be useful to testing convergence
-                    index, old_tau = 0, np.inf
-
-                    iterations = self.mcmc_steps // 10 if i < subiters - 1 else self.mcmc_steps
-                    for sm in sampler.sample(pos, iterations=iterations, skip_initial_state_check=True, progress=(self.verbose == 1)):
-                        # Only check convergence every <n> steps
-                        if sampler.iteration % self.corr:
-                            continue
-
-                        # Compute the autocorrelation time so far
-                        # Using tol=0 means that we'll always get an estimate even
-                        # if it isn't trustworthy
-                        tau = sampler.get_autocorr_time(tol=0)
-                        autocorr[index] = np.mean(tau)
-                        # print(tau)
-                        # print(np.abs(old_tau - tau) / tau)
-                        index += 1
-
-                        # Check convergence
-                        converged = np.all(tau * self.corr < sampler.iteration)
-                        converged &= np.all(np.abs(old_tau - tau) / tau < 1 / self.corr)
-                        if converged:
-                            break
-                        old_tau = tau
-
-                    if i < subiters - 1:
-                        lnL = sampler.get_last_sample().log_prob
-                        pos = sampler.get_last_sample().coords
-                        inds = np.argwhere(lnL < np.quantile(lnL, 0.7) + 1.0 * (np.quantile(lnL, 0.7) - np.max(lnL)))
-                        #print(np.quantile(lnL, 0.7) + 1.0 * (np.quantile(lnL, 0.7) - np.max(lnL)), len(inds))
-                        if len(inds) > 0:
-                            mask = np.ones(lnL.shape, dtype=np.bool)
-                            mask[inds] = False
-                            mpos = np.mean(pos[mask], axis=0)
-                            for ind in inds[0]:
-                                pos[ind, :] = mpos + (mpos - pos[mask, :][np.random.randint(np.sum(mask))]) * (0.5 * np.random.random(len(mpos)))
-                                for k, p in enumerate(params.values()):
-                                    pos[ind, k] = np.max([p.min, np.min([p.max, pos[ind, k]])])
-                #except:
-                #    print(self.ind, i, len(inds))
-                #    print(mpos)
-                #    print(mask)
-                #    print(pos[mask, :][np.random.randint(np.sum(mask))])
-                #    print(0.5 * np.random.random(len(mpos)))
-                #    print(params, cov, pos)
-                
-
-                thinning = int(0.5 * np.nanmax([2, np.nanmin(sampler.get_autocorr_time(tol=0))]))
-                #print(thinning)
-                flat_sample = sampler.get_chain(discard=sampler.iteration // 2, thin=thinning, flat=True)
-                ln_max = -np.max(sampler.get_log_prob(discard=sampler.iteration // 2, thin=thinning, flat=True))
-                #print(flat_sample)
-                #except:
-                #    print("Problem with ", self.ind, self.d['SDSS_NAME'])
-
-            elif method == 'zeus':
-                sampler = zeus.EnsembleSampler(nwalkers, ndims, self.fcn2min_mcmc)
-
-                cb0 = zeus.callbacks.AutocorrelationCallback(ncheck=50, dact=0.05, nact=50, discard=0.5)
-                cb1 = zeus.callbacks.SplitRCallback(ncheck=50, epsilon=0.05, nsplits=2, discard=0.5)
-                cb2 = zeus.callbacks.MinIterCallback(nmin=100)
-
-                sampler.run_mcmc(pos, self.mcmc_steps, callbacks=[cb0, cb1, cb2])
-                if self.verbose:
-                    print(sampler.summary)
-
-                if self.plot:
-                    tau = cb0.estimates
-                    R = cb1.estimates
-
-                    N = np.arange(len(tau)) * 100
-
-                    figqc, ax = plt.subplots(ncols=2, figsize=(12, 6))
-
-                    ax[0].plot(N, tau, lw=2.5)
-                    ax[0].set_title('Integrated Autocorrelation Time', fontsize=14)
-                    ax[0].set_xlabel('Iterations', fontsize=14)
-                    ax[0].set_ylabel(r'$\tau$', fontsize=14)
-
-                    ax[1].plot(N, R, lw=2.5)
-                    ax[1].set_title('Split-R Gelman-Rubin Statistic', fontsize=14)
-                    ax[1].set_xlabel('Iterations', fontsize=14)
-                    ax[1].set_ylabel(r'$R$', fontsize=14)
-
-                    figqc.tight_layout()
-                    if self.save:
-                        figqc.savefig(os.path.dirname(self.catalog) + '/QC/plots/' + self.d['SDSS_NAME'] + '_conv.png', bbox_inches='tight', pad_inches=0.1)
-
-                flat_sample = sampler.get_chain(discard=sampler.iteration // 2, thin=10, flat=True)
-                ln_max = -np.max(sampler.get_log_prob(discard=sampler.iteration // 2, thin=10, flat=True))
-        #self.calc_host_lum(result.flatchain)
-
-        #print(sampler.get_log_prob(discard=sampler.iteration // 2, thin=thinning, flat=True))
-        pars, flat_sample = list(params.valuesdict().keys()) + ['lnL'], np.append(flat_sample, sampler.get_log_prob(discard=sampler.iteration // 2, thin=thinning, flat=True)[:, np.newaxis], axis=1)
-        flat_sample = flat_sample[np.isfinite(flat_sample[:, -1]), :]
         #print(pars)
         #print(flat_sample.shape)
         #print(flat_sample)
+        #print(flat_sample[:, 13])
+        #print(flat_sample[:, 14])
 
         if flat_sample.shape[0] > flat_sample.shape[1]:
             if self.plot:
@@ -1141,7 +1480,6 @@ class QSOSEDfit():
                             elif p == 'Av':
                                 s.append(params['EBV'].value * params['Rv'].value)
                             elif p == 'L_UV_ext':
-                                #print('L_UV_ext', self.d['L_UV'], self.d['L_UV_err'], self.extinction(2500, params), np.log10((self.d['L_UV'] + np.random.randn() * self.d['L_UV_err']) / self.extinction(2500, params)))
                                 s.append(np.log10((self.d['L_UV'] + np.random.randn() * self.d['L_UV_err']) / self.extinction(2500, params)))
                             elif p == 'L_UV_corr':
                                 sind = np.argmin(np.abs(self.sm[0] - 2500 * (1 + self.d['z'])))
@@ -1191,24 +1529,24 @@ class QSOSEDfit():
 
         return flat_sample, ln_max, params, res
 
-    def anneal_fit(self, params=None):
+    def anneal_fit(self, params=None, anneal_steps=None, slope=True):
 
+        if anneal_steps == None:
+            anneal_steps = self.anneal_steps
         #print(self.models['gal'].tg)
         #print(self.models['gal'].tau)
         if params is None:
             norm_bbb = np.nanmean(self.sm[1]) / np.nanmean(self.models['bbb'].data['spec'][0])
-            print('norm_bbb:', norm_bbb)
             params = lmfit.Parameters()
             params.add('bbb_norm', value=norm_bbb, min=0, max=1e10)
-            params.add('bbb_slope', value=0, min=-2, max=2, vary=False)
+            params.add('bbb_slope', value=-0.1, min=-2, max=2, vary=False)
             params.add('Fe_norm', value=0, min=-1, max=100, vary=False)
-            params.add('EBV', value=0.02, min=0.0, max=10)
+            params.add('EBV', value=0.01, min=0.0, max=10)
             params.add('Rv', value=2.74, min=0.5, max=6.0, vary=False)
-            if self.d['z'] > 0.70:
-                params.add('Abump', value=0.01, min=0.0, max=100.0, vary=False)
+            #if self.d['z'] > 0.70:
+            #    params.add('Abump', value=0.01, min=0.0, max=100.0, vary=False)
             params.add('tor_type', value=10, vary=False, min=0, max=self.models['tor'].n - 1)
             params.add('tor_norm', value=norm_bbb / 100 * self.models['bbb'].data['spec'][0][-1] * np.max(self.models['tor'].data['spec'][params.valuesdict()['tor_type']]), min=0, max=1e10)
-            print(norm_bbb / 100 * self.models['bbb'].data['spec'][0][-1] * np.max(self.models['tor'].data['spec'][params.valuesdict()['tor_type']]))
             if 0:
                 params.add('host_type', value=0, vary=False, min=0, max=self.models['host'].n - 1)
             else:
@@ -1226,15 +1564,15 @@ class QSOSEDfit():
                 params[p].value = best[i]
 
             #print(params)
-            minner = lmfit.Minimizer(self.fcn2min, params, nan_policy='propagate', calc_covar=True)
-            result = minner.minimize(method='leastsq')
+            minner = lmfit.Minimizer(self.fcn2min, params, nan_policy='propagate', calc_covar=True, max_nfev=100)
+            result = minner.minimize(method='nelder')
             #lmfit.report_fit(result)
             chi = self.fcn2min(result.params)
             #print(np.sum(chi ** 2) / (len(chi) - len(result.params)))
             #print(np.sum(chi ** 2), 100 * self.lum_prior(result.params, kind='anneal'), self.anneal_priors(result.params))
             return (np.sum(chi ** 2) - self.anneal_priors(result.params)), result #/ (len(chi) - len(result.params)), result
 
-        def simulated_annealing(objective, params, anneal_pars, n_iterations=self.anneal_steps, temp=1000):
+        def simulated_annealing(objective, params, anneal_pars, n_iterations=anneal_steps, temp=1000):
             # generate an initial point
             best = [f[0](params[p].value) for p, f in anneal_pars.items()]
             # evaluate the initial point
@@ -1245,6 +1583,9 @@ class QSOSEDfit():
             curr, curr_eval = best, best_eval
             # run the algorithm
             for i in range(n_iterations):
+                if i > n_iterations / 2:
+                    params['bbb_slope'].vary = True
+                #print(i)
                 # take a step
                 #candidate = curr + randn(len(bounds)) * step_size
                 candidate = [f[0](params[p].value + np.random.randn() * f[1]) for p, f in anneal_pars.items()]
@@ -1278,14 +1619,13 @@ class QSOSEDfit():
             print(chi2_min, lmfit.report_fit(result))
         return result, chi2_min
 
-    def fit(self, ind=None, method='zeus'):
+    def fit(self, ind=None, method='zeus', calc=True):
 
         self.ind = ind
         self.d = self.df.loc[ind]
         res = None
-        print(ind, self.d['SDSS_NAME'])
 
-        if method == 'annealing' and self.hostExt and any([f in self.filters.keys() for f in ['J', 'H', 'K', 'W1', 'W2']]) and any([f in self.filters.keys() for f in ['W3', 'W4']]):
+        if method == 'annealing' and self.hostExt and any([f in self.filters.keys() for f in ['J_UKIDSS', 'H_UKIDSS', 'K_UKIDSS', 'J', 'H', 'K', 'W1', 'W2']]) and any([f in self.filters.keys() for f in ['W3', 'W4']]):
             print('anneal:', ind, self.d['SDSS_NAME'])
             result, chi2_min = self.anneal_fit()
             host_min = self.models['gal'].get_model_ind(result.params)
@@ -1296,15 +1636,13 @@ class QSOSEDfit():
             if self.plot:
                 self.plot_spec(params=result.params)
 
-        elif method in ['emcee', 'zeus'] and self.hostExt and any([f in self.filters.keys() for f in ['J', 'H', 'K', 'W1', 'W2']]) and any([f in self.filters.keys() for f in ['W3', 'W4']]):
-
-            print('mcmc:', ind, self.d['SDSS_NAME'])
-            if 1:
+        elif method in ['emcee', 'zeus'] and self.hostExt and any([f in self.filters.keys() for f in ['J_UKIDSS', 'H_UKIDSS', 'K_UKIDSS', 'J', 'H', 'K', 'W1', 'W2']]): #and any([f in self.filters.keys() for f in ['W3', 'W4']]):
+            if calc:
                 result, chi2_min = self.anneal_fit()
                 flat_sample, chi2_min, params, res = self.mcmc(params=result.params, method=method, nsteps=self.mcmc_steps)
             else:
-                flat_sample, chi2_min, params, res = self.mcmc(method=method, nsteps=self.mcmc_steps)
-
+                result, chi2_min = self.anneal_fit(anneal_steps=1)
+                flat_sample, chi2_min, params, res = self.mcmc(params=result.params, method=method, nsteps=self.mcmc_steps, calc=calc)
             #print(res)
 
             if res is None:
@@ -1331,6 +1669,8 @@ class QSOSEDfit():
                     #plot = 0
                     s['total'].append(self.model_emcee(params, self.spec[0], 'spec_full', mtype='total'))
                     s['bbb'].append(self.models['bbb'].models[0].y * params['bbb_norm'].value * (self.models['bbb'].models[0].x / 2500) ** params['bbb_slope'].value * self.extinction(self.models['bbb'].models[0].x, params))
+                    #s['bbb'].append(self.models['bbb'].models[0].y * params['bbb_norm'].value * (self.models['bbb'].models[0].x / 2500) ** (-0.1) * self.extinction(self.models['bbb'].models[0].x, params))
+
                     s['tor'].append(self.models['tor'].models[self.models['tor'].get_model_ind(params)].y * params['tor_norm'].value)
                     if self.hostExt:
                         s['host'].append(self.models['gal'].models[self.models['gal'].get_model_ind(params)].y * params['host_norm'].value * self.extinction_MW(self.models['gal'].models[self.models['gal'].get_model_ind(params)].x, Av=params['host_Av'].value))
@@ -1354,7 +1694,8 @@ class QSOSEDfit():
 
                 self.fig.axes[0].fill_between(self.spec[0] / (1 + self.d['z']), *np.quantile(np.asarray(s['total']), [0.05, 0.95], axis=0), lw=1, color='tab:red', zorder=3, label='total', alpha=0.5)
 
-                title = "id={0:4d} {1:19s} ({2:5d} {3:5d} {4:4d}) z={5:5.3f} slope={6:4.2f} EBV={7:4.2f} chi2={8:4.2f}".format(ind, self.df.loc[ind, 'SDSS_NAME'], self.df.loc[ind, 'PLATE'], self.df.loc[ind, 'MJD'], self.df.loc[ind, 'FIBERID'], self.df.loc[ind, 'z'], params['bbb_slope'].value, params['EBV'].value, chi2_min)
+                print(ind, self.df.loc[ind, 'PLATE'], self.df.loc[ind, 'MJD'], self.df.loc[ind, 'FIBERID'])
+                title = "id={0:4d} {1:19s} ({2:5d} {3:5d} {4:4d}) z={5:5.3f} slope={6:4.2f} EBV={7:4.2f} chi2={8:4.2f}".format(ind, self.df.loc[ind, 'SDSS_NAME'], self.df.loc[ind, 'PLATE'], self.df.loc[ind, 'MJD'], self.df.loc[ind, 'FIBERID'], self.df.loc[ind, 'z'], params['bbb_slope'].value, params['EBV'].value, chi2_min) #params['bbb_slope'].value
                 if 0 and self.hostExt:
                     # title += " fgal={1:4.2f} {0:s}".format(self.models['host'].values[host_min], self.df['f_host' + '_photo' * self.addPhoto.isChecked()][i])
                     title += " fgal={2:4.2f} tau={0:4.2f} tg={1:4.2f}".format(self.models['gal'].values[host_min][0], self.models['gal'].values[host_min][1], self.df['f_host' + '_photo' * self.addPhoto][i])
@@ -1363,21 +1704,22 @@ class QSOSEDfit():
                 if self.save:
                     self.fig.savefig(os.path.dirname(self.catalog) + '/QC/plots/' + self.df.loc[ind, 'SDSS_NAME'] + '_spec.png', bbox_inches='tight', pad_inches=0.1)
 
-                if 0:
-                    plt.show()
+                #print(self.fig)
+                #self.fig.show()
+                plt.show()
+                #plt.close(self.fig)
 
         return res
 
     def plot_spec(self, params=None, fig=None, alpha=1):
-        if self.fig is None:
+        if fig is None or self.fig is None:
             self.fig, ax = plt.subplots(figsize=(20, 12))
         else:
             ax = self.fig.axes[0]
 
         if self.spec is not None and params is None:
-            ax.plot(self.spec[0] / (1 + self.d['z']), self.spec[1], '-k', lw=.5, zorder=2, label='spectrum')
+            ax.plot(self.spec[0] / (1 + self.d['z']), self.spec[1], '-k', lw=2, zorder=2, label='spectrum')
             for k, f in self.filters.items():
-                print(f.name, f.l_eff, f.flux, f.err_flux)
                 ax.errorbar([f.l_eff / (1 + self.d['z'])], [f.flux], yerr=[[f.err_flux[0]], [f.err_flux[1]]], marker='s', color=[c / 255 for c in f.color])
 
             if self.addPhoto:
@@ -1447,8 +1789,11 @@ class QSOSEDfit():
         l = [20, 22, 23, 26]
         return np.sum(m[:, l], axis=1)
 
-    def calc_mask(self, spec, z_em=0, iter=3, window=101, clip=3.0):
-        mask = np.logical_not(self.sdss_mask(spec[3]))
+    def calc_mask(self, spec, z_em=0, iter=3, window=7, clip=3.0, exp_pixel=1):
+        if 0:
+            mask = np.logical_not(self.sdss_mask(spec[3]))
+        else:
+            mask = spec[3]
         #print(np.sum(mask))
 
         mask *= spec[0] > 1280 * (1 + z_em)
@@ -1458,13 +1803,13 @@ class QSOSEDfit():
             if window > 0 and np.sum(mask) > window:
                 if i > 0:
                     m[mask] = np.abs(sm - spec[1][mask]) / spec[2][mask] > clip
-                    mask *= np.logical_not(self.expand_mask(m, exp_pixel=2))
+                    mask *= np.logical_not(self.expand_mask(m, exp_pixel=exp_pixel))
                     #mask[mask] *= np.abs(sm - spec[1][mask]) / spec[2][mask] < clip
                 sm = smooth(spec[1][mask], window_len=window, window='hanning', mode='same')
 
-        mask = np.logical_not(self.expand_mask(np.logical_not(mask), exp_pixel=3))
+        mask = np.logical_not(self.expand_mask(np.logical_not(mask), exp_pixel=exp_pixel))
 
-        mask[mask] *= (spec[1][mask] > 0) * (spec[1][mask] / spec[2][mask] > 1)
+        mask[mask] *= (spec[1][mask] > 0) * (spec[1][mask] / spec[2][mask] > 0.5)
         
         #print(np.sum(mask))
         # remove  emission lines regions
@@ -1479,15 +1824,15 @@ class QSOSEDfit():
             # only strong ones
             windows = [[1295, 1320], [1330, 1360], [1375, 1430], [1500, 1600], [1625, 1700], [1740, 1760],
                        [1840, 1960], [2050, 2120], [2250, 2400], #[2250, 2650], #[2710, 2890],
-                       [2630, 2930], #[2940, 2990], [3280, 3330],
-                       [3820, 3920], #[4200, 4680],
-                       [4920, 5080], #[4780, 5080],
+                       [2690, 2880], #[2940, 2990], [3280, 3330],
+                       [3820, 3920], [4240, 4440],
+                       [4920, 5080], [4720, 5080],
                        [5130, 5400], [5500, 5620], [5780, 6020],
                        [6300, 6850], [7600, 8050], [8250, 8300], [8400, 8600], [9000, 9400], [9500, 9700],
                        [9950, 10200]]
             # only strongest ones
-            windows = [[1500, 1600], [1840, 1960], [2760, 2860], [4920, 5080],  # [4780, 5080],
-                       [6300, 6850]]
+            #windows = [[1500, 1600], [1840, 1960], [2760, 2860], [4920, 5080],  # [4780, 5080],
+            #           [6300, 6850]]
         for w in windows:
             mask *= (spec[0] < w[0] * (1 + z_em)) + (spec[0] > w[1] * (1 + z_em))
 
@@ -1547,10 +1892,13 @@ class jsoncat():
     def __repr__(self):
         return self.data
 
+def worker_wrapper(arg):
+    ind, catfile = arg
+    return run_model(ind, catfile=catfile)
 def run_model(ind, catfile=None):
     print(ind)
 
-    qso = QSOSEDfit(catalog=catfile, plot=1, mcmc_steps=3000, anneal_steps=100, save=1, corr=30, verbose=1)
+    qso = QSOSEDfit(catalog=catfile, plot=0, mcmc_steps=5000, anneal_steps=300, save=1, corr=30, verbose=0)
     if qso.prepare(ind):
         res = qso.fit(ind, method='emcee')
     else:
@@ -1562,28 +1910,30 @@ if __name__ == "__main__":
     # by slurm (since it executes a copy)
     sys.path.append(os.getcwd())
 
-    catfile = '/home/balashev/science/Erosita/match2_DR14Q_add.csv'
+    #catfile = '/home/balashev/science/Erosita/match2_DR14Q_add.csv'
     catfile = 'C:/science/Erosita/UV_Xray/match2_DR14Q_add.csv'
-    catfile = 'C:/science/Erosita/UV_Xray/individual/individual_targets_add.csv'
+    #catfile = 'C:/science/Erosita/UV_Xray/individual/individual_targets_add.csv'
+    path = os.path.dirname(catfile)
+    #print(path)
+    #path = '/home/balashev/science/Erosita/'
 
     try:
         i1, i2 = int(sys.argv[1]), int(sys.argv[2])
     except:
         i1, i2 = 1, 1
 
-    if 1:
+    if 0:
         res = run_model(0, catfile=catfile)
         print(res)
     else:
         #pars = ['bbb_norm', 'Av', 'tor_type', 'tor_norm', 'host_tau', 'host_tg', 'host_norm', 'host_Av', 'sigma', 'alpha_GALEX', 'alpha_SDSS', 'alpha_2MASS', 'alpha_UKIDSS']
-        num = 90
+        num = 25
         calc = 1
         if calc:
             if 1:
                 for i in range(7975 // num + 1):
-                    if i % i2 + 1 == i1:
                         with Pool(num) as p:
-                            res_new = p.map(run_model, np.arange(i * num, min((i + 1) * num, 7975))) #total number of AGNs 7975
+                            res_new = p.map(worker_wrapper, [(k, catfile) for k in np.arange(i * num, min((i + 1) * num, 7975))]) #total number of AGNs 7975
                         print(res_new)
                         res = jsoncat(path=path)
                         res.add(res_new)

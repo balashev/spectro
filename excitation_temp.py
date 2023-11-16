@@ -250,7 +250,7 @@ class ExcitationTemp():
     
         num = 300
       
-        n1 = [a(),a()]
+        n1 = [a(), a()]
         n1[0].val = self.y[0].val - 2*self.y[0].minus
         n1[1].val = self.y[1].val + 2*self.y[1].plus
         al_min = self.calc_two_levels(n1, self.E)
@@ -304,7 +304,7 @@ class ExcitationTemp():
             self.regionplot.plot(self.slope.val, self.zero.val, marker='+', color='k', ms=10, mew=3)
             self.regionplot.plot(min(slope),max(zero), marker='+', color='k', ms=10, mew=3)    
             self.regionplot.plot(max(slope),min(zero), marker='+', color='k', ms=10, mew=3)
-            s = "$T_{kin} = $ " + self.temp.dec().latex(f=2, base=2)
+            s = "$T_{exc} = $ " + self.temp.dec().latex(f=2, base=2)
             self.regionplot.text(0.1, 0.1, s, ha='left', va='top', transform = self.regionplot.transAxes)
             
             for l in p[0].vertices:
@@ -371,7 +371,7 @@ class ExcitationTemp():
         #    plt.show()
 
     def boot(self, iter=1000):
-        y_rvs = np.empty([self.num, iter], dtype=np.float)
+        y_rvs = np.empty([self.num, iter], dtype=float)
         for i, y in enumerate(self.y):
             y_rvs[i] = y.rvs(iter)
 

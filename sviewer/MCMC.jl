@@ -185,9 +185,9 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
 		# constraints for H2 on increasing b parameter with J level increase
 		if opts["b_increase"] == true
 			for (k, v) in pars
-				if occursin("H2j", k) & occursin("b_", k) & (strip(v.addinfo) == "")
+				if occursin("H2j", k) & occursin("b_", k) & ~occursin("v", k) & (strip(v.addinfo) == "")
 					for (k1, v1) in pars
-						if occursin(k[1:7], k1) & ~occursin(k, k1) & (strip(v1.addinfo) == "")
+						if occursin(k[1:7], k1) & ~occursin(k, k1) & ~occursin("v", k1) & (strip(v1.addinfo) == "")
 							j, j1 = parse(Int64, k[8:end]), parse(Int64, k1[8:end])
 							x = sign(j - j1) * (v.val / v1.val - 1) * 10
 							retval -= (x < 0 ? x : 0) ^ 2
@@ -200,8 +200,8 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
 		# constraints for H2 on on excitation diagram to be gradually increasing with J
 		if opts["H2_excitation"] == true
 			T = Dict()
-			E = [118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61] * 1.42879 #Energy difference in K
-			g = [(2 * level + 1) * ((level % 2) * 2 + 1) for level in 0:11]  #statweights
+			E = [118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61, 9523.82, 10800.6, 12123.66, 13485.56] * 1.42879 #Energy difference in K
+			g = [(2 * level + 1) * ((level % 2) * 2 + 1) for level in 0:15]  #statweights
 			for (k, v) in pars
 				if occursin("H2j", k) & occursin("N_", k) & ~occursin("v", k)
 					j = parse(Int64, k[8:end])

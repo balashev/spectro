@@ -1,21 +1,21 @@
-show 13COj2
-show COj0
-show COj1
-show 13COj3
-show 13COj2
-show 13COj3
-show 13COj4
-show 13COj2
-13COj0
-show 13COj0
-show 13COj1
-show 13COj2
-show 13COj3
-13COj0
-13COj0
-show 13COj0
-show 13COj1
-show 13COj2
-cont 1
-cont 1
-cont 1
+high H2j6
+high H2j7
+set cont 1
+x 3000 9000
+x 3500 6500
+x 3500 6500
+x 3600 5500
+hide H2
+show H2 0 1 2 3 4 5
+HeI
+hide H2
+show H2 0 1 2
+show H2j8
+high H2j0
+high H2j7
+high H2j8
+high H2j7
+stats
+show H2 0 1
+high NI
+NI

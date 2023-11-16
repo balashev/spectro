@@ -377,17 +377,17 @@ def convolveflux(l, f, res, vel=False, kind='astropy', verbose=False, debug=Fals
 
 # jit decorator tells Numba to compile this function.
 # The argument types will be inferred by Numba when function is called.
-@jit
+@jit(forceobj=True, looplift=True)
 def gauss(x, s):
     return 1 / np.sqrt(2 * np.pi) / s * np.exp(-.5 * (x / s) ** 2)
 
-@jit
+@jit(forceobj=True, looplift=True)
 def errf(x):
     a = [0.3480242, -0.0958798, 0.7478556]
     t = 1 / (1 + 0.47047 * np.abs(x))
     return np.sign(x) * (1 - t * (a[0] + t * (a[1] + t * a[2])) * np.exp(-x**2))
 
-@jit
+@jit(forceobj=True, looplift=True)
 def errf_v2(x):
     a = [-1.26551223, 1.00002368, 0.37409196, 0.09678418, -0.18628806, 0.27886807, -1.13520398, 1.48851587, -0.82215223, 0.17087277]
     t = 1 / (1 + 0.5 * np.abs(x))
@@ -397,7 +397,7 @@ def errf_v2(x):
     else:
         return tau - 1
 
-@jit
+@jit(forceobj=True, looplift=True)
 def convolve_res(l, f, R):
     """
     Convolve flux with instrument function specified by resolution R
@@ -446,7 +446,7 @@ def convolve_res(l, f, R):
 
     return fc
 
-@jit
+@jit(forceobj=True, looplift=True)
 def convolve_res2(l, f, R):
     """
     Convolve flux with instrument function specified by resolution R

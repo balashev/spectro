@@ -1080,7 +1080,7 @@ function fitLM(spec, p_pars, add; tieds=Dict())
     upper = [p.max for (k, p) in pars if p.vary == true]
 
     #println(params, " ", lower, " ", upper)
-    fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=100, lower=lower, upper=upper, show_trace=true, x_tol=1e-3)
+    fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=100, lower=lower, upper=upper, show_trace=true, x_tol=1e-5)
     param, sigma, covar = copy(fit.param), stderror(fit), estimate_covar(fit)
 
     #println(dof(fit))

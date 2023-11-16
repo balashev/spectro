@@ -369,18 +369,18 @@ class lineList(list):
 
     def add(self, line=None):
         if line is not None and self.check(line) is None:
-            self.append(line)
-            self.setActive(line, True)
+            self.append(' '.join(line.split()[0:2]))
+            self.setActive(line, active=True)
 
     def remove(self, line):
         i = self.check(line)
         if i is not None:
-            self.setActive(line, False)
+            self.setActive(line, active=False)
             del self[i]
 
     def setActive(self, line, active=False):
         if self.parent.abs.index(' '.join(line.split()[0:2])) is not None:
-            self.parent.abs.lines[self.parent.abs.index(' '.join(line.split()[0:2]))].setActive(active)
+            self.parent.abs.lines[self.parent.abs.index(' '.join(line.split()[0:2]))].setActive(bool=active)
 
     def fromText(self, text):
         for i in reversed(range(len(self))):

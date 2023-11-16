@@ -17,7 +17,7 @@ from numpy.lib.stride_tricks import as_strided
 import os
 import pyqtgraph as pg
 from PyQt5.QtCore import Qt, QRectF
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QTransform
 from PyQt5.QtWidgets import QApplication
 import re
 from scipy.interpolate import interp1d, interp2d, splrep, splev
@@ -824,8 +824,14 @@ class spec2d():
             image.setImage(self.cr.mask.T)
         elif name == 'sky':
             image.setImage(self.sky.z.T)
-        image.translate(self.raw.pos[0], self.raw.pos[1])
-        image.scale(self.raw.scale[0], self.raw.scale[1])
+        #image.translate(self.raw.pos[0], self.raw.pos[1])
+        #image.transformOriginPoint(QPoint(int(self.raw.pos[0]), int(self.raw.pos[1])))
+        #image.scale(self.raw.scale[0], self.raw.scale[1])
+        print(name, self.raw.z.T)
+        tr = QTransform()  # prepare ImageItem transformation:
+        tr.scale(int(self.raw.scale[0]), int(self.raw.scale[1]))  # scale horizontal and vertical axes
+        tr.translate(int(self.raw.pos[0]), int(self.raw.pos[1]))
+        image.setTransform(tr)
         #image.setLookupTable(colormap)
         #image.setLevels(self.raw.levels)
         return image
@@ -2071,7 +2077,7 @@ class Spectrum():
             if 1:
                 x, flux, bins, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, comp=comp + 1)
             else:
-                x, flux, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=comp + 1, out="cum")
+                x, flux, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=comp + 1, out="binned")
                 x = self.spec.norm.x[self.mask.norm.x]
 
             if timer:

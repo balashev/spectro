@@ -3449,6 +3449,7 @@ class fitMCMCWidget(QWidget):
     def MCMCqc(self, qc='all'):
         pars, samples, lnprobs = self.readChain()
         nsteps, nwalkers, = lnprobs.shape
+        print(lnprobs.shape)
         ndims = len(pars)
         print(ndims, pars)
         print(samples.shape)
@@ -6231,6 +6232,7 @@ class GenerateAbsWidget(QWidget):
             attr = 'gen_template'
         if attr is not None:
             setattr(self, attr, self.opts[attr](text))
+        self.parent.options(attr, self.opts[attr](text))
 
     def generate(self):
         snr = self.gen_snr if self.snr.isChecked() else None
@@ -6261,7 +6263,7 @@ class GenerateAbsWidget(QWidget):
             self.parent.fit.load()
             self.parent.generate(template='const', z=self.gen_z, fit=True,
                                  xmin=self.gen_xmin, xmax=self.gen_xmax,
-                                 resolution=self.gen_resolution, snr= snr,
+                                 resolution=self.gen_resolution, snr=snr,
                                  lyaforest=self.gen_lyaforest, lycutoff=False, Av=self.gen_Av, z_Av=self.gen_z_Av, redraw=True)
             self.parent.normalize(True)
             if i == 0:
@@ -6284,6 +6286,7 @@ class GenerateAbsWidget(QWidget):
                 s.add_points(r[0], 1.5, r[1], -0.5, remove=False, redraw=False)
             s.set_fit_mask()
             self.parent.s.prepareFit(all=False)
+            #self.parent.s.calcFit(redraw=False)
 
             self.parent.fit.shake()
             self.parent.fit.update()
@@ -6588,6 +6591,7 @@ class sviewer(QMainWindow):
         self.SDSSquery = None
         self.filters_status = {'SDSS': 0, 'Gaia': 0, '2MASS': 0, 'VISTA':0, 'UKIDSS': 0, 'WISE': 0, 'GALEX': 0}
         self.filters = {'SDSS': None, 'Gaia': None, '2MASS': None, 'VISTA': None, 'UKIDSS': None, 'WISE': None, 'GALEX': None}
+        self.photo = None
         self.UVESSetup_status = False
         self.XQ100folder = self.options('XQ100folder', config=self.config)
         self.P94folder = self.options('P94folder', config=self.config)
@@ -7551,6 +7555,12 @@ class sviewer(QMainWindow):
         if self.fitResults is not None:
             self.fitResults.close()
 
+        if self.photo is not None:
+            for f in self.photo:
+                self.plot.vb.removeItem(f[0])
+                self.plot.vb.removeItem(f[1])
+            self.photo = None
+
         self.fit = fitPars(self)
 
         self.setz_abs(0)
@@ -7696,6 +7706,7 @@ class sviewer(QMainWindow):
                 for r in range(ns):
                     i += 1
                     self.lines.add(d[i].strip())
+                    self.abs.lines[-1].setActive(bool=True)
 
             if 'fit_model' in d[i]:
                 self.plot.remove_pcRegion()
@@ -9319,12 +9330,12 @@ class sviewer(QMainWindow):
                 temp.calcTemp(n, calc='', plot=plot, verbose=1)
                 if E == None:
                     E = temp.E
-                elif isinstance(E, (float, int)):
+                elif isinstance(E, (float, int, np.floating)):
                     E = np.asarray([0, E])
                 elif isinstance(E, list):
                     E = np.asarray(E)
                 if ax is not None:
-                    if isinstance(temp.slope, (float, int, np.float)):
+                    if isinstance(temp.slope, (float, int, np.floating)):
                         ax.plot(E / 1.4388 * 1.5, temp.slope * E * 1.5 + temp.zero, '--k', lw=1.5)
                         text = [E[-1] / 1.4388 * 1.5, temp.slope * E[-1] * 1.5 + temp.zero,
                                 'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + "{:.1f}".format(temp.temp) + '$\,$K']
@@ -10355,6 +10366,8 @@ class sviewer(QMainWindow):
         s.cont.n = len(s.cont.y)
         s.cont_mask = np.logical_not(np.isnan(s.spec.raw.x))
         s.spec.normalize()
+        s.mask.normalize()
+
 
         if lyaforest > 0 or Av > 0 or lycutoff:
             y = s.spec.raw.y
@@ -10367,8 +10380,13 @@ class sviewer(QMainWindow):
             s.spec.set(y=y)
 
         if fit and len(self.fit.sys) > 0:
-            s.findFitLines(all=True, debug=False)
-            s.calcFit_fast(recalc=True, redraw=False)
+            self.s.prepareFit(all=True)
+            #s.findFitLines(all=all, debug=False)
+            self.s.calcFit(recalc=True, redraw=False, timer=False)
+            #s.calcFit(recalc=True, redraw=False)
+
+            #s.findFitLines(all=True, debug=False)
+            #s.calcFit_julia(recalc=True, redraw=False)
             s.fit.line.norm.interpolate(fill_value=1.0)
             s.spec.set(y=s.spec.raw.y * s.fit.line.norm.inter(s.spec.raw.x))
 

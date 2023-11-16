@@ -276,7 +276,7 @@ class ErositaWidget(QWidget):
             setattr(self, opt, func(self.parent.options(opt)))
 
         self.axis_list = ['z', 'DEC', 'RA', 'F_X_int', 'F_X', 'DET_LIKE_0', 'F_UV', 'u-b', 'r-i', 'FIRST_FLUX', 'R', 'Av_gal',
-                          'L_X', 'L_UV', 'L_UV_corr', #'L_UV_corr_host_photo',
+                          'L_X', 'L_UV', 'L_UV_corr', 'L_UV_ext', #'L_UV_corr_host_photo',
                           'bbb_slope', 'Av_int', 'Rv', 'Abump', 'EBV', 'FeII',
                           # 'Av_int_host', 'Av_int_photo', 'Av_int_host_photo',
                           #'chi2_av', 'chi2_av_host', 'chi2_av_photo', 'chi2_av_host_photo',
@@ -284,7 +284,7 @@ class ErositaWidget(QWidget):
                           'r_host', 'host_tg', 'host_tau', #'f_host', 'f_host_photo',
                           'L_host', #'L_host_photo',
                           'SDSS_photo_scale', 'SDSS_photo_slope', 'SDSS_var', 'alpha_SDSS', 'slope_SDSS', 'lnL',
-                          'F_OIII', 'FWHM_OIII',
+                          #'F_OIII', 'FWHM_OIII',
                           ]
         self.axis_info = {'z': [lambda x: x, 'z'],
                           'DEC': [lambda x: x, 'DEC'],
@@ -330,8 +330,8 @@ class ErositaWidget(QWidget):
                           'SDSS_var': [lambda x: np.log10(x), 'log Variability at 2500A from SDSS'],
                           'alpha_SDSS': [lambda x: x, 'Scale for SDSS photometry'],
                           'slope_SDSS': [lambda x: x, 'Slope for SDSS photometry'],
-                          'F_OIII': [lambda x: np.log10(x), 'log F(OIII), in 1e14 erg/s/cm^2'],
-                          'FWHM_OIII': [lambda x: x, 'FWHM OIII, km/s'],
+                          #'F_OIII': [lambda x: np.log10(x), 'log F(OIII), in 1e14 erg/s/cm^2'],
+                          #'FWHM_OIII': [lambda x: x, 'FWHM OIII, km/s'],
                           }
         self.df = None
         self.ind = None
@@ -487,9 +487,9 @@ class ErositaWidget(QWidget):
         calcExtGal.setFixedSize(100, 30)
         calcExtGal.clicked.connect(self.calc_Av_gal)
 
-        calcExt = QPushButton('Calc Ext:')
+        calcExt = QPushButton('Calc SED:')
         calcExt.setFixedSize(80, 30)
-        calcExt.clicked.connect(self.calc_ext)
+        calcExt.clicked.connect(partial(self.calc_ext, calc=True))
 
         self.method = QComboBox(self)
         self.method.addItems(['leastsq', 'least_squares', 'nelder', 'annealing', 'emcee'])
@@ -499,6 +499,10 @@ class ErositaWidget(QWidget):
         self.numSteps = QLineEdit()
         self.numSteps.setFixedSize(80, 30)
         self.numSteps.setText("100")
+
+        postExt = QPushButton('Post:')
+        postExt.setFixedSize(80, 30)
+        postExt.clicked.connect(partial(self.calc_ext, calc=False))
 
         self.plotExt = QCheckBox("plot")
         self.plotExt.setChecked(True)
@@ -514,6 +518,7 @@ class ErositaWidget(QWidget):
         l.addWidget(self.method)
         l.addWidget(QLabel('steps:'))
         l.addWidget(self.numSteps)
+        l.addWidget(postExt)
         l.addWidget(self.plotExt)
         l.addWidget(self.saveFig)
         l.addStretch()
@@ -592,7 +597,7 @@ class ErositaWidget(QWidget):
         return widget
 
     def loadTable(self, recalc=False):
-        self.df = pd.read_csv(self.parent.ErositaFile)
+        self.df = pd.read_csv(self.parent.ErositaFile)[:25]
         try:
             self.df.rename(columns={'Z': 'z', 'ML_FLUX_0_ero': 'F_X_int'}, inplace=True)
         except:
@@ -635,7 +640,7 @@ class ErositaWidget(QWidget):
 
             if self.ero_c_axis in self.df.columns:
                 self.c_lambda = self.axis_info[self.ero_c_axis][0]
-                if self.ero_y_axis in self.df.columns:
+                if self.ero_c_axis in self.df.columns:
                     self.c = self.c_lambda(self.df[self.ero_c_axis])
             else:
                 self.c = None
@@ -738,6 +743,7 @@ class ErositaWidget(QWidget):
             self.filters[-1][1] = pg.ScatterPlotItem(x=[f.l_eff], y=[f.flux], size=10, pen=pg.mkPen(width=2, color='w'), brush=pg.mkBrush(*f.color))
             self.parent.plot.vb.addItem(self.filters[-1][0])
             self.parent.plot.vb.addItem(self.filters[-1][1])
+        self.parent.photo = self.filters[:]
 
     def select_points(self, x1, y1, x2, y2, remove=False, add=False):
         x1, x2, y1, y2 = np.min([x1, x2]), np.max([x1, x2]), np.min([y1, y2]), np.max([y1, y2])
@@ -1053,13 +1059,19 @@ class ErositaWidget(QWidget):
         for attr in ['_mcmc', '_post', '_spec']:
             if os.name == 'nt':
                 print(os.path.dirname(self.parent.ErositaFile) + '/QC/plots/' + self.df['SDSS_NAME'][ind] + attr + '.png')
-                os.startfile(os.path.dirname(self.parent.ErositaFile) + '/QC/plots/' + self.df['SDSS_NAME'][ind] + attr + '.png')
+                try:
+                    os.startfile(os.path.dirname(self.parent.ErositaFile) + '/QC/plots/' + self.df['SDSS_NAME'][ind] + attr + '.png')
+                except:
+                    print("there is no proceeded data")
+                    self.parent.sendMessage(f"There is no proceeded data for {self.df['SDSS_NAME'][ind]}")
 
-    def calc_ext(self):
+
+    def calc_ext(self, calc=True):
+        print('calc:', calc)
         self.QSOSEDfit.plot, self.QSOSEDfit.save = self.plotExt.isChecked(), self.saveFig.isChecked()
-        self.QSOSEDfit.mcmc_steps, self.QSOSEDfit.anneal_steps = int(self.numSteps.text()), int(int(self.numSteps.text()) / 10)
+        self.QSOSEDfit.mcmc_steps, self.QSOSEDfit.anneal_steps = int(self.numSteps.text()), 100 #int(int(self.numSteps.text()) / 10)
         if self.QSOSEDfit.prepare(self.ind):
-            res = self.QSOSEDfit.fit(self.ind, method='emcee')
+            res = self.QSOSEDfit.fit(self.ind, method='emcee', calc=calc)
             print(res)
         if self.saveFig.isChecked():
             attr = {'Av': 'Av_int', 'host_tau': 'host_tau', 'host_tg': 'host_tg', 'host_Av': 'Av_host', 'L_host': 'L_host',
@@ -1077,7 +1089,7 @@ class ErositaWidget(QWidget):
                         self.df.loc[self.ind, av + '_u'] = np.inf
             self.updateData()
             self.save_data()
-        plt.show()
+        #plt.show()
 
     def correlate(self):
         self.corr_status = 1 - self.corr_status

@@ -457,7 +457,7 @@ class distr2d():
         ax1.plot(dy.inter(dy.x), dy.x, '-', color=color_marg, lw=lw + 0.5)
         if stats:
             dy.stats()
-            ax1.text(0.05, 0.95, dy.latex(f=stats), rotation=-90, transform=ax1.transAxes, va='top', ha='left')
+            ax1.text(0.05, 0.95, dy.latex(f=int(stats)), rotation=-90, transform=ax1.transAxes, va='top', ha='left')
             mask = np.logical_and(dy.x >= dy.interval[0], dy.x <= dy.interval[1])
             ax1.fill_betweenx(dy.x[mask], dy.inter(dy.x)[mask], facecolor=color_marg, alpha=0.3, interpolate=True)
         ax1.set_ylim(y)
@@ -470,7 +470,7 @@ class distr2d():
         ax2.plot(dx.x, dx.inter(dx.x), '-', color=color_marg, lw=lw + 0.5)
         if stats:
             dx.stats()
-            ax2.text(0.05, 0.05, dx.latex(f=stats), transform=ax2.transAxes, va='bottom', ha='left')
+            ax2.text(0.05, 0.05, dx.latex(f=int(stats)), transform=ax2.transAxes, va='bottom', ha='left')
             mask = np.logical_and(dx.x >= dx.interval[0], dx.x <= dx.interval[1])
             ax2.fill_between(dx.x[mask], dx.inter(dx.x)[mask], facecolor=color_marg, alpha=0.3, interpolate=True)
         ax2.set_xlim(x)
