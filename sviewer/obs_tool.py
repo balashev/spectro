@@ -11,7 +11,7 @@ from astroplan import AirmassConstraint, AtNightConstraint
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz, Angle
 from astropy.time import Time
 from collections import OrderedDict
-from PyQt5.QtGui import QFont
+from PyQt6.QtGui import QFont
 from pytz import timezone
 
 from .graphics import gline

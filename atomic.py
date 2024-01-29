@@ -681,6 +681,7 @@ class atomicData(OrderedDict):
         x = x[:,mask]
         x = np.transpose(x)
         fout = open(self.folder + r'/data/H2/lines.dat', 'w')
+        fout.write("band name vl jl vu ju lambda     f        g")
         for xi in x:
             nu_l, j_l = int(xi[0]), int(xi[1])
             name = 'H2' + 'j' +  str(j_l)
@@ -704,9 +705,31 @@ class atomicData(OrderedDict):
                     self[name].lines.append(line(name, l, f, g, ref='Abgrall', j_l=j_l, nu_l=nu_l, j_u=j_u, nu_u=nu_u))
                     self[name].lines[-1].band = note
                     if j_l >= 0:
-                        fout.write("{:8s} {:2d} {:2d} {:2d} {:2d} {:10.5f} {:.2e} {:.2e} \n".format(str(self[name].lines[-1]).split()[1], nu_l, j_l, nu_u, j_u, l, f, g))
+                        fout.write("{:2s} {:6s} {:2d} {:2d} {:2d} {:2d} {:10.5f} {:.2e} {:.2e} \n".format(str(self[name].lines[-1]).split()[1][0], str(self[name].lines[-1]).split()[1][1:], nu_l, j_l, nu_u, j_u, l, f, g))
                         #print(str(self[name].lines[-1]), nu_l, j_l, nu_u, j_u, l, f, g)
 
+        fout.close()
+    def writeH2(self, nu=0, j=[0,1], energy=None):
+        x = np.genfromtxt(self.folder + r'/data/H2/energy_X.dat', comments='#', unpack=True)
+        if energy is None:
+            if isinstance(j, int) or isinstance(j, float):
+                mask = np.logical_and(x[0] <= nu, x[1] == j)
+            if isinstance(j, (list, np.ndarray)):
+                mask = np.logical_and(x[0] <= nu, np.logical_and(x[1] >= j[0], x[1] <= j[-1]))
+        else:
+            mask = x[2] < energy
+        x = x[:,mask]
+        x = np.transpose(x)
+        fout = open(self.folder + r'/data/H2/H2_lines.dat', 'w')
+        fout.write("band name vl jl vu ju lambda     f        g \n")
+        for xi in x:
+            nu_l, j_l = int(xi[0]), int(xi[1])
+            name = 'H2' + 'j' +  str(j_l)
+            if xi[0] > 0:
+                name += 'v' + str(nu_l)
+            if name in self.keys():
+                for line in self.list(name):
+                    fout.write("{:2s} {:6s} {:2d} {:2d} {:2d} {:2d} {:10.5f} {:.2e} {:.2e} \n".format(str(line).split()[1][0], str(line).split()[1][1:], line.nu_l, line.j_l, line.nu_u, line.j_u, line.l(), line.f(), line.g()))
         fout.close()
 
     def compareH2(self):
@@ -743,6 +766,54 @@ class atomicData(OrderedDict):
                                 #out.write(line[:54] + '{0:12.10f}   {1:6.1e} '.format(l1.f, l1.g) + line[77:])
                                 out.write(line[:-1] + '{0:12.8f}   {1:6.1e}  {2:6.2f}  {3:6.2f}\n'.format(l1.f(), l1.g(), l1.f()/float(m[8]), l1.g() / float(m[9])))
             out.close()
+
+    def read_maleccat(self, n=-1):
+        """
+        read Malec calalogue 2010 data for H2
+        WARNING !!!!!:  This data is bad for J=7 levels and osciallator strenghts for Werner transitions !!!!!
+        parameters:
+            - n    : if list - specify rotational levels to read
+                     if int - read J_l <= n
+        """
+        with open(self.folder + r'/data/H2/H2MalecCat.dat', newline='') as f:
+            f.readline()
+            data = f.readlines()
+        for d in data:
+            words = d.split()
+            if words[4] != '7':
+                if (isinstance(n, list) and int(words[4]) in n) or (
+                            isinstance(n, int) and int(words[4]) <= n) or n == -1:
+                    l = line('H2j' + str(int(words[4])), words[5], words[8], words[9])
+                    l.band = words[1]
+                    l.nu_u = int(words[2])
+                    l.nu_l = 0
+                    l.rot = words[3]
+                    l.j_l = int(words[4])
+                    l.set_Ju()
+                    self['H2j'+words[4]].lines.append(l)
+
+    def read_ubachscomp(self, n=-1):
+        """
+        read Ubachs compilation 2019 data for H2
+
+        parameters:
+            - n    : if list - specify rotational levels to read
+                     if int - read J_l<=n
+        """
+        data = np.genfromtxt(self.folder + r'/data/H2/H2UbachsComp.dat', comments='#', dtype=str)
+        for words in data:
+            d = re.split('(\d+)', words[0])
+            print(d)
+            if (isinstance(n, list) and int(d[3]) in n) or (isinstance(n, int) and int(d[3]) <= n) or n == -1:
+                l = line('H2j' + str(int(d[3])), words[1], words[4], words[5])
+                l.band = d[0]
+                l.nu_u = int(d[1])
+                l.nu_l = 0
+                l.rot = d[2]
+                l.j_l = int(d[3])
+                l.set_Ju()
+
+                self['H2j'+d[3]].lines.append(l)
 
     def readHD(self):
         HD = np.genfromtxt(self.folder + r'/data/molec/HD.dat', skip_header=1, usecols=[0,1,2,3,4,5,6], names=True, dtype=None)
@@ -785,6 +856,28 @@ class atomicData(OrderedDict):
         self['HF'] = e('HF')
         for l in HF:
             self['HF'].lines.append(line(l[4].decode('UTF-8'), l[6], l[7], l[8], ref='', j_l=l[0], nu_l=l[1], j_u=l[2], nu_u=l[3]))
+
+    def read_Molecular(self):
+        with open(self.folder + r'/data/Molecular_data.dat', newline='') as f:
+            for i in range(3):
+                f.readline()
+            data = f.readlines()
+        for d in data:
+            words = d.split()
+            if words[0] not in self:
+                self[words[0]] = e(words[0])
+            self[words[0]].lines.append(line(words[0], words[1], words[2], words[3], descr=' '.join(words[4:])))
+
+    def read_EmissionSF(self):
+        with open(self.folder + r'/data/EmissionSFLines.dat', newline='') as f:
+            for i in range(3):
+                f.readline()
+            data = f.readlines()
+        for d in data:
+            words = d.split()
+            if words[0] not in self:
+                self[words[0]] = e(words[0])
+            self[words[0]].lines.append(line(words[0], words[1], words[2], words[3], descr=' '.join(words[4:])))
 
     def readBAL(self):
         BAL = np.genfromtxt(self.folder + r'/data/BAL.dat', skip_header=1, names=True, dtype=None, comments='-')
@@ -846,7 +939,7 @@ class atomicData(OrderedDict):
         self.fromNIST()
         self.readH2(j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
         self.readH2(nu=1, j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        self.readH2(nu=2, j=[0, 1, 2, 3])
+        #self.readH2(nu=2, j=[0, 1, 2, 3])
         self.readHD()
         self.readCO()
         #self.readHF()
@@ -896,76 +989,6 @@ class atomicData(OrderedDict):
         with h5py.File(self.folder + r'/data/atomic.hdf5', 'r') as f:
             for el in f.keys():
                 self[el] = e(el)
-
-    def read_maleccat(self, n=-1):
-        """
-        read Malec calalogue 2010 data for H2
-        WARNING !!!!!:  This data is bad for J=7 levels and osciallator strenghts for Werner transitions !!!!!
-        parameters:
-            - n    : if list - specify rotational levels to read
-                     if int - read J_l <= n
-        """
-        with open(self.folder + r'/data/H2/H2MalecCat.dat', newline='') as f:
-            f.readline()
-            data = f.readlines()
-        for d in data:
-            words = d.split()
-            if words[4] != '7':
-                if (isinstance(n, list) and int(words[4]) in n) or (
-                            isinstance(n, int) and int(words[4]) <= n) or n == -1:
-                    l = line('H2j' + str(int(words[4])), words[5], words[8], words[9])
-                    l.band = words[1]
-                    l.nu_u = int(words[2])
-                    l.nu_l = 0
-                    l.rot = words[3]
-                    l.j_l = int(words[4])
-                    l.set_Ju()
-                    self['H2j'+words[4]].lines.append(l)
-
-    def read_ubachscomp(self, n=-1):
-        """
-        read Ubachs compilation 2019 data for H2
-
-        parameters:
-            - n    : if list - specify rotational levels to read
-                     if int - read J_l<=n
-        """
-        data = np.genfromtxt(self.folder + r'/data/H2/H2UbachsComp.dat', comments='#', dtype=str)
-        for words in data:
-            d = re.split('(\d+)', words[0])
-            if (isinstance(n, list) and int(d[3]) in n) or (isinstance(n, int) and int(d[3]) <= n) or n == -1:
-                l = line('H2j' + str(int(d[3])), words[1], words[4], words[5])
-                l.band = d[0]
-                l.nu_u = int(d[1])
-                l.nu_l = 0
-                l.rot = d[2]
-                l.j_l = int(d[3])
-                l.set_Ju()
-
-                self['H2j'+d[3]].lines.append(l)
-
-    def read_Molecular(self):
-        with open(self.folder + r'/data/Molecular_data.dat', newline='') as f:
-            for i in range(3):
-                f.readline()
-            data = f.readlines()
-        for d in data:
-            words = d.split()
-            if words[0] not in self:
-                self[words[0]] = e(words[0])
-            self[words[0]].lines.append(line(words[0], words[1], words[2], words[3], descr=' '.join(words[4:])))
-
-    def read_EmissionSF(self):
-        with open(self.folder + r'/data/EmissionSFLines.dat', newline='') as f:
-            for i in range(3):
-                f.readline()
-            data = f.readlines()
-        for d in data:
-            words = d.split()
-            if words[0] not in self:
-                self[words[0]] = e(words[0])
-            self[words[0]].lines.append(line(words[0], words[1], words[2], words[3], descr=' '.join(words[4:])))
-
 
     def Molecular_list(self):
         data = np.genfromtxt(self.folder + r'/data/Molecular_data.dat', skip_header=3, usecols=(0), dtype=(str))
@@ -1578,6 +1601,27 @@ def mean_molecular_weight(f=1, Z=0):
 
 if __name__ == '__main__':
     if 0:
+        A = atomicData()
+        # A.getfromNIST('MnII', 3)
+        A.makedatabase()
+        # A.readdatabase()
+
+    if 1:
+        A = atomicData()
+        A.readdatabase()
+        #A.writeH2(energy=3000)
+        #A.toascii('sviewer/data/H2/H2cat.dat', els=[f'H2j{i}' for i in range(8)])
+        #A.toascii('sviewer/data/H2/H2cat.dat', els=[f'H2j{i}' for i in range(13)] + [f'H2j{i}v1' for i in range(7)])
+
+    if 0:
+        A = atomicData()
+        A.readH2Abgrall(j=[0,1,2,3,4,5,6,7])
+        #A.readH2new(j=[0])
+        #print(A.keys())
+        #A.readH2(j=[0,1,2,3,4,5,6,7])
+        A.compareH2()
+
+    if 0:
         d = DLAlist.DLA_SDSS()
         d = DLAlist()
         print(d)    
@@ -1600,25 +1644,6 @@ if __name__ == '__main__':
         HI = a('19.88^{+0.01}_{-0.01}', 'l')
         me = a('-1.2^{+0.1}_{-0.1}', 'l')
         print(abundance('OI', HI, me))
-
-    if 1:
-        A = atomicData()
-        #A.getfromNIST('MnII', 3)
-        A.makedatabase()
-        #A.readdatabase()
-
-    if 0:
-        A = atomicData()
-        A.readdatabase()
-        A.toascii('sviewer/data/H2/H2cat.dat', els=[f'H2j{i}' for i in range(13)]+[f'H2j{i}v1' for i in range(7)])
-
-    if 0:
-        A = atomicData()
-        A.readH2Abgrall(j=[0,1,2,3,4,5,6,7])
-        #A.readH2new(j=[0])
-        #print(A.keys())
-        #A.readH2(j=[0,1,2,3,4,5,6,7])
-        A.compareH2()
 
     if 0:
         print(oscill_strength(0.122, 2.509e12))

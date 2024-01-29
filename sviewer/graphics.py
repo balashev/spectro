@@ -8,17 +8,18 @@ import astropy.constants as ac
 from astropy.convolution import convolve, Gaussian1DKernel, Gaussian2DKernel
 from astropy.io import fits
 from astropy.modeling.models import Moffat1D
-#from ccdproc import cosmicray_lacosmic
+from ccdproc import cosmicray_lacosmic
 import itertools
 from matplotlib import cm
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.lib.stride_tricks import as_strided
 import os
+import pandas as pd
 import pyqtgraph as pg
-from PyQt5.QtCore import Qt, QRectF
-from PyQt5.QtGui import QFont, QTransform
-from PyQt5.QtWidgets import QApplication
+from PyQt6.QtCore import Qt, QRectF
+from PyQt6.QtGui import QFont, QTransform
+from PyQt6.QtWidgets import QApplication
 import re
 from scipy.interpolate import interp1d, interp2d, splrep, splev
 from scipy.integrate import cumtrapz
@@ -460,7 +461,7 @@ class gline():
             #print(np.exp(-np.power(np.multiply(d, np.transpose(self.x / resolution)), 2) / 2))
 
     def copy(self):
-        return gline(x=self.x[:], y=self.y[:], err=self.err[:])
+        return gline(x=np.copy(self.x), y=np.copy(self.y), err=np.copy(self.err))
 
 class plotLineSpectrum(pg.PlotCurveItem):
     """
@@ -502,8 +503,8 @@ class plotLineSpectrum(pg.PlotCurveItem):
         return self.generatePath(self.xData, self.yData, path=False)
 
     def mouseDragEvent(self, ev):
-        if QApplication.keyboardModifiers() in [Qt.ShiftModifier, Qt.ControlModifier]:
-            if ev.button() != Qt.RightButton:
+        if QApplication.keyboardModifiers() in [Qt.KeyboardModifier.ShiftModifier, Qt.KeyboardModifier.ControlModifier]:
+            if ev.button() != Qt.MouseButton.RightButton:
                 ev.ignore()
                 return
 
@@ -513,9 +514,9 @@ class plotLineSpectrum(pg.PlotCurveItem):
                 self.start = None
                 return
             else:
-                if QApplication.keyboardModifiers() == Qt.ShiftModifier:
+                if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier:
                     self.shift(start=self.start, finish=self.parent.parent.vb.mapSceneToView(ev.pos()))
-                if QApplication.keyboardModifiers() == Qt.ControlModifier:
+                if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier:
                     self.rescale(start=self.start, finish=self.parent.parent.vb.mapSceneToView(ev.pos()))
                 self.start = self.parent.parent.vb.mapSceneToView(ev.pos())
                 if self.start is None:
@@ -540,7 +541,7 @@ class plotLineSpectrum(pg.PlotCurveItem):
         self.parent.redraw()
 
     #def mouseClickEvent(self, ev):
-    #    if QApplication.keyboardModifiers() == Qt.Key_I and ev.button() == Qt.LeftButton:
+    #    if QApplication.keyboardModifiers() == Qt.Key.Key_I and ev.button() == Qt.MouseButton.LeftButton:
     #        self.parent.remove()
 
 class fitLineProfile(pg.PlotCurveItem):
@@ -550,8 +551,8 @@ class fitLineProfile(pg.PlotCurveItem):
 
     def mouseDragEvent(self, ev):
 
-        if QApplication.keyboardModifiers() == Qt.ShiftModifier:
-            if ev.button() != Qt.LeftButton:
+        if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier:
+            if ev.button() != Qt.MouseButton.LeftButton:
                 ev.ignore()
                 return
 
@@ -745,7 +746,7 @@ class image():
             self.y = np.arange(z.shape[1])
 
         self.pos = [self.x[0] - (self.x[1] - self.x[0]) / 2, self.y[0] - (self.y[1] - self.y[0]) / 2]
-        self.scale = [(self.x[-1] - self.x[0]) / (self.x.shape[0]-1), (self.y[-1] - self.y[0]) / (self.y.shape[0]-1)]
+        self.scale = [(self.x[-1] - self.x[0]) / (self.x.shape[0] - 1), (self.y[-1] - self.y[0]) / (self.y.shape[0]-1)]
         for attr in ['z', 'err']:
             self.getQuantile(attr=attr)
             self.setLevels(attr=attr)
@@ -777,15 +778,26 @@ class image():
         else:
             return None
 
-    def collapse(self, axis='x', rect=None):
+    def collapse(self, axis='x', rect=None, stats='sum', mask=None):
         if rect is None:
             rect = [[self.x[0], self.x[-1]], [self.y[0], self.y[-1]]]
         self.y_imin, self.y_imax = np.searchsorted(self.y, rect[1][0]), np.searchsorted(self.y, rect[1][1])
         self.x_imin, self.x_imax = np.searchsorted(self.x, rect[0][0]), np.searchsorted(self.x, rect[0][1])
         s_axis = 'y' if axis == 'x' else 'x'
         ind = 1 if axis == 'x' else 0
-        return getattr(self, s_axis)[getattr(self, s_axis + '_imin'):getattr(self, s_axis + '_imax')], \
-               np.sum(self.z[self.y_imin:self.y_imax, self.x_imin:self.x_imax], axis=ind)
+
+        if mask is None:
+            mask = np.ones_like(self.z, dtype=bool)
+        collapse = np.ma.MaskedArray(self.z[self.y_imin:self.y_imax, self.x_imin:self.x_imax], mask[self.y_imin:self.y_imax, self.x_imin:self.x_imax])
+        if stats == 'sum':
+            collapse = collapse.sum(axis=ind)
+        if stats == 'mean':
+            collapse = collapse.mean(axis=ind)
+        elif stats == 'median':
+            collapse = np.ma.median(collapse, axis=ind)
+
+        return getattr(self, s_axis)[getattr(self, s_axis + '_imin'):getattr(self, s_axis + '_imax')], collapse
+
 
     def add_mask(self, rect=None, add=True):
         if self.mask is None:
@@ -821,16 +833,24 @@ class spec2d():
         elif name == 'mask':
             image.setImage(self.raw.mask.T)
         elif name == 'cr':
+            print(self.cr.mask.T)
+            print(np.unique(self.cr.mask))
+            print(np.sum(self.cr.mask))
             image.setImage(self.cr.mask.T)
         elif name == 'sky':
             image.setImage(self.sky.z.T)
         #image.translate(self.raw.pos[0], self.raw.pos[1])
         #image.transformOriginPoint(QPoint(int(self.raw.pos[0]), int(self.raw.pos[1])))
         #image.scale(self.raw.scale[0], self.raw.scale[1])
-        print(name, self.raw.z.T)
-        tr = QTransform()  # prepare ImageItem transformation:
-        tr.scale(int(self.raw.scale[0]), int(self.raw.scale[1]))  # scale horizontal and vertical axes
-        tr.translate(int(self.raw.pos[0]), int(self.raw.pos[1]))
+        print(name) #, self.raw.z.T)
+        print(image)
+        #print('scale:', self.raw.scale)
+        # prepare ImageItem transformation:
+        tr = QTransform()
+        #print(self.raw.scale[0], self.raw.scale[1])
+        #print(self.raw.pos[0], self.raw.pos[1])
+        tr.translate(self.raw.pos[0], self.raw.pos[1])
+        tr.scale(self.raw.scale[0], self.raw.scale[1])  # scale horizontal and vertical axes
         image.setTransform(tr)
         #image.setLookupTable(colormap)
         #image.setLevels(self.raw.levels)
@@ -849,7 +869,9 @@ class spec2d():
             self.cr.mask = np.logical_or(self.cr.mask, mask[4:-4])
         print(update, np.sum(self.cr.mask.flatten()))
 
-    def expand_mask(self, exp_pixel=1):
+    def expand_mask(self, exp_pixel=1, mask=None):
+        if mask is None:
+            mask = np.ones_like(self.raw.z, dtype=bool)
         m = np.copy(self.cr.mask)
         for p in itertools.product(np.linspace(-exp_pixel, exp_pixel, 2*exp_pixel+1).astype(int), repeat=2):
             m1 = np.copy(self.cr.mask)
@@ -862,11 +884,13 @@ class spec2d():
             if p[1] > 0:
                 m1 = np.insert(m1[:, p[1]:], [m1.shape[1]-p[1]]*p[1], 0, axis=1)
             m = np.logical_or(m, m1)
-        self.cr.mask = m
+        self.cr.mask[mask] = m[mask]
 
-    def neighbour_count(self):
+    def neighbour_count(self, mask=None):
+        if mask is None:
+            mask = np.ones_like(self.raw.z, dtype=bool)
         m = np.copy(self.cr.mask)
-        c = np.zeros_like(self.cr.mask, dtype=int)
+        c = np.zeros_like(self.cr.mask[mask], dtype=int)
         for p in itertools.product(np.linspace(-1, 1, 3).astype(int), repeat=2):
             m1 = np.copy(self.cr.mask)
             if p[0] < 0:
@@ -877,25 +901,30 @@ class spec2d():
                 m1 = np.insert(m1[:, :p[1]], [0] * np.abs(p[1]), 0, axis=1)
             if p[1] > 0:
                 m1 = np.insert(m1[:, p[1]:], [m1.shape[1] - p[1]] * p[1], 0, axis=1)
-            c = np.add(c, m1)
+            c = np.add(c, m1[mask])
         return c
 
-    def intelExpand(self, exp_factor=3, exp_pixel=1):
+    def intelExpand(self, exp_factor=3, exp_pixel=1, pixel=None):
+        if pixel is None:
+            mask = np.ones_like(self.raw.z, dtype=bool)
+        else:
+            mask = np.zeros_like(self.raw.z, dtype=bool)
+            x, y = (np.abs(self.raw.x - pixel[0])).argmin(), (np.abs(self.raw.y - pixel[1])).argmin()
+            mask[max(0, y-5):min(mask.shape[0], y+5), max(0, x-5):min(mask.shape[1], x+5)] = True
         z_saved, mask_saved = np.copy(self.raw.z), np.copy(self.cr.mask)
-        self.expand_mask(exp_pixel=exp_pixel)
-        self.extrapolate(inplace=True)
-        self.cr.mask = np.logical_or(mask_saved, np.logical_and(np.abs((self.raw.z - z_saved) / self.raw.err) > exp_factor, self.cr.mask))
-        neighbour = self.neighbour_count()
-        self.cr.mask = np.logical_or(np.logical_and(self.cr.mask, neighbour>2), neighbour>6)
-        if 1:
+        self.expand_mask(exp_pixel=exp_pixel, mask=mask)
+        self.extrapolate(inplace=True, mask=mask)
+        self.cr.mask[mask] = np.logical_or(mask_saved[mask], np.logical_and(np.abs((self.raw.z[mask] - z_saved[mask]) / self.raw.err[mask]) > exp_factor, self.cr.mask[mask]))
+        neighbour = self.neighbour_count(mask=mask)
+        self.cr.mask[mask] = np.logical_or(np.logical_and(self.cr.mask[mask], neighbour>2), neighbour>6)
+        if pixel is None:
             self.parent.parent.s.append(Spectrum(self.parent.parent, 'delta'))
             self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=(self.raw.z - z_saved) / self.raw.err)
             self.parent.parent.s[-1].spec2d.raw.setLevels(-exp_factor, exp_factor)
-        if 1:
             self.parent.parent.s.append(Spectrum(self.parent.parent, 'neighbours'))
             self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=neighbour)
             self.parent.parent.s[-1].spec2d.raw.setLevels(0, np.max(neighbour.flatten()))
-        self.raw.z = z_saved
+        self.raw.z = z_saved[:]
 
     def clean(self):
         mask_saved = np.copy(self.cr.mask)
@@ -919,7 +948,9 @@ class spec2d():
         self.parent.parent.s.append(Spectrum(self.parent.parent, 'clean'))
         self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=z, err=self.raw.err, mask=self.cr.mask)
 
-    def extrapolate(self, inplace=False, extr_width=1, extr_height=1, sky=1):
+    def extrapolate(self, inplace=False, extr_width=1, extr_height=1, sky=1, mask=None):
+        if mask is None:
+            mask = np.ones_like(self.raw.z, dtype=bool)
         z = np.copy(self.raw.z)
         if sky and self.sky is not None:
             z -= self.sky.z
@@ -939,7 +970,7 @@ class spec2d():
             if self.trace is not None:
                 self.parent.parent.s[-1].spec2d.trace = np.copy(self.trace)
         else:
-            self.raw.z = z1
+            self.raw.z[mask] = z1[mask]
 
     def moffat_grid(self, gamma=1.0):
         g = np.linspace(gamma*0.5, gamma*2, 100)
@@ -958,24 +989,30 @@ class spec2d():
             plt.show()
 
     def moffat_fit_integ(self, x, a=1, x_0=0, gamma=1.0, c=0.0):
-        dx = np.median(np.diff(x)) / 2
-        x = np.append(x - dx, x[-1] + dx)
+        #dx = np.median(np.diff(x)) / 2
+        #x = np.append(x - dx, x[-1] + dx)
         if self.moffat_kind == 'cdf':
             y = self.moffat.cdf(x, loc=x_0, scale=gamma)
             return a * np.diff(y) + c
         elif self.moffat_kind == 'pdf':
-            y = self.moffat.pdf(x, loc=x_0, scale=gamma)
-            return a * (y[:-1] + np.diff(y)/2) + c
+            bins = 10
+            xbin = np.concatenate([[x[0] - (x[1] - x[0]) / 2], (x[:-1] + x[1:]) / 2, [x[-1] + (x[-1] - x[-2]) / 2]])
+            xt = np.concatenate([np.linspace(xbin[i], xbin[i + 1], bins if bins % 2 else bins + 1)[:-1]+0.0001 for i in range(len(xbin) - 1)] + [[xbin[-1]]])
+
+            f = a * self.moffat.pdf(xt, loc=x_0, scale=gamma) + c
+            s = np.diff(cumtrapz(f, x=xt, initial=0)[np.concatenate([[0], np.where(np.diff(np.digitize(xt, xbin, right=True)))[0] + 1, [len(xt) - 1]])]) / np.diff(xbin)
+            return s
+
         elif self.moffat_kind == 'inter' and self.moffat_inter is not None:
             if gamma > self.moffat_inter.y[0] and gamma < self.moffat_inter.y[-1]:
                 y = self.moffat_inter(x - x_0, np.ones_like(x)*gamma)
             else:
                 y = self.moffat.cdf(x, loc=x_0, scale=gamma)
-            return a * np.diff(y[0,:]) + c
+            return a * np.diff(y[0, :]) + c
 
     def profile(self, xmin, xmax, ymin, ymax, x_0=None, slit=None, plot=False, kind='pdf'):
         self.moffat_kind = kind
-        x, y = self.raw.collapse(rect=[[xmin, xmax], [ymin, ymax]])
+        x, y = self.raw.collapse(rect=[[xmin, xmax], [ymin, ymax]], stats='median', mask=self.cr.mask if self.cr is not None else None)
         if x_0 is None:
             x_0 = x[np.argmax(y)]
         c = np.median(np.append(y[:int(len(y) / 4)], y[int(3 * len(y) / 4)]))
@@ -992,6 +1029,7 @@ class spec2d():
                 pass
             fig, ax = plt.subplots()
             ax.plot(x, y, '-r')
+
 
         popt, pcov = curve_fit(self.moffat_fit_integ, x, y, p0=[a, x_0, gamma, c])
 
@@ -1019,6 +1057,7 @@ class spec2d():
 
     def fit_trace(self, shape='poly'):
         pos, trace, width = np.transpose(np.asarray(self.slits))
+        print(pos, trace, width, shape)
         if shape == 'poly':
             p = np.polyfit(pos, trace, 3)
             trace_pos = np.polyval(p, self.parent.cont2d.x)
@@ -1033,13 +1072,18 @@ class spec2d():
             self.parent.s.redraw()
         else:
             self.trace = [self.parent.cont2d.x[:], trace_pos, trace_width]
-
+        print('trace', self.trace)
     def set_trace(self):
+        for attr in ['trace_pos', 'trace_width']:
+            try:
+                self.parent.spec2dPanel.vb.removeItem(getattr(self, attr))
+            except:
+                pass
         self.trace_pos = pg.PlotCurveItem(x=self.trace[0], y=self.trace[1], pen=pg.mkPen(255, 255, 255, width=3))
         self.parent.parent.spec2dPanel.vb.addItem(self.trace_pos)
         self.trace_width = pg.PlotCurveItem(x=np.concatenate((self.trace[0], np.array([np.inf]), self.trace[0])),
                                             y=np.concatenate((self.trace[1] + self.trace[2] / 2, np.array([np.inf]), self.trace[1] - self.trace[2] / 2)),
-                                            connect="finite", pen=pg.mkPen(255, 255, 255, width=3, style=Qt.DashLine))
+                                            connect="finite", pen=pg.mkPen(255, 255, 255, width=3, style=Qt.PenStyle.DashLine))
         self.parent.parent.spec2dPanel.vb.addItem(self.trace_width)
 
     def sky_model(self, xmin, xmax, border=0, slit=None, mask_type='moffat', model='median', window=0, poly=3, conf=0.03, smooth=0, smooth_coef=0.3, inplace=True, plot=0):
@@ -1058,6 +1102,7 @@ class spec2d():
             inds = np.where(np.logical_and(self.parent.cont_mask2d, np.logical_and(self.raw.x >= xmin, self.raw.x <= xmax)))[0]
         else:
             inds = []
+        #print('sky trace', self.trace, xmin, xmax, xmin==xmax, inds)
 
         def fun(p, x, y):
             return np.polyval(p, x) - y
@@ -1066,7 +1111,7 @@ class spec2d():
             return np.polyval(p[:-3], x) + (p[-1] * np.sin(p[-3] * x + p[-2])) - y
 
         for k, i in enumerate(inds):
-            print(self.raw.x[i])
+            print(i, self.raw.x[i])
             if mask_type == 'moffat':
                 if self.trace is None and slit is not None:
                     x_0, gamma = self.parent.cont2d.y[k], self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
@@ -1075,39 +1120,60 @@ class spec2d():
                     x_0 = self.trace[1][ind]
                     gamma = self.trace[2][ind] * 2 / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
                 m = self.moffat.ppf([conf, 1-conf], loc=x_0, scale=gamma)
+                #print(m)
                 mask_sky = np.logical_or(self.raw.y < m[0], self.raw.y > m[1])
             elif slit is not None:
                 mask_sky = 1 / (np.exp(-40 * (np.abs(self.raw.y - self.parent.cont2d.y[k]) - slit * 2)) + 1)
             mask_sky[:border] = 0
             mask_sky[-border:] = 0
             mask_reg = np.zeros_like(self.raw.mask, dtype=bool)
-            mask_reg[:, i - window:i + window + 1] = True
+            imin, imax = max(i - window, inds[0]), min(i + window + 1, inds[-1])
+            if imin == imax:
+                imax = imin + 1
+            #print(imin, imax)
+            mask_reg[:, imin:imax] = True
+            #print(np.sum(mask_reg))
             #print(self.cr.mask,  mask_reg * mask_sky[:, np.newaxis])
             mask = np.logical_and(np.logical_not(self.cr.mask), mask_reg * mask_sky[:, np.newaxis])
+            #print((mask_reg * mask_sky[:, np.newaxis]).shape)
+            #print(np.sum(mask_reg * mask_sky[:, np.newaxis]))
             self.sky.mask[:, i] = mask[:, i]
             if window > 0:
-                y = np.mean(self.raw.z[mask], axis=0)
+                y = np.ma.MaskedArray(self.raw.z, np.logical_not(mask))
+                y = y.mean(axis=1).flatten()[mask[:, i]] #, np.mean(np.where(mask, self.raw.z, 0), axis=1)
             else:
                 y = self.raw.z[mask]
-
             if len(y) > poly + 2:
                 if model == 'median':
                     sky = np.median(y) * np.ones_like(self.raw.y)
                 elif model == 'mean':
                     sky = np.mean(y) * np.ones_like(self.raw.y)
                 elif model == 'polynomial':
-                    p = np.polyfit(self.raw.y[mask[:,i]], y, poly)
+                    p = np.polyfit(self.raw.y[mask[:, i]], y, poly)
                     sky = np.polyval(p, self.raw.y)
+                    if plot:
+                        self.parent.parent.fig, self.parent.parent.ax = plt.subplots()
+                        #print('plotting', self.parent.parent.ax)
+                        self.parent.parent.ax.plot(self.raw.y[mask[:, i]], y, 'ok')
+                        self.parent.parent.ax.plot(self.raw.y, np.polyval(p, self.raw.y), '--r')
+                        plt.show()
+                        plotfile = os.path.dirname(os.path.realpath(__file__)) + '/output/sky.png'
+                        self.parent.parent.fig.savefig(plotfile, dpi=self.parent.parent.fig.dpi)
+                        os.startfile(plotfile)
                 elif model == 'robust':
                     p = np.polyfit(self.raw.y[mask[:, i]], y, poly)
                     res_robust = least_squares(fun, p, loss='soft_l1', f_scale=0.02, args=(self.raw.y[mask[:,i]], y))
                     sky = np.polyval(res_robust.x, self.raw.y)
                     if plot:
-                        fig, ax = plt.subplots()
-                        ax.plot(self.raw.y[mask[:, i]], y, 'ok')
-                        ax.plot(self.raw.y, np.polyval(p, self.raw.y), '--r')
-                        ax.plot(self.raw.y, sky, '-r')
+                        self.parent.parent.fig, self.parent.parent.ax = plt.subplots()
+                        self.parent.parent.ax.plot(self.raw.y[mask[:, i]], y, 'ok')
+                        self.parent.parent.ax.plot(self.raw.y, np.polyval(p, self.raw.y), '--r')
+                        self.parent.parent.ax.plot(self.raw.y, sky, '-r')
                         plt.show()
+                        plotfile = os.path.dirname(os.path.realpath(__file__)) + '/output/sky.png'
+                        self.parent.parent.fig.savefig(plotfile, dpi=self.parent.parent.fig.dpi)
+                        os.startfile(plotfile)
+
                 elif model == 'wavy':
                     p = np.polyfit(self.raw.y[mask[:, i]], y, poly)
                     periods = np.linspace(0.5, 8, 100)
@@ -1116,21 +1182,25 @@ class spec2d():
                     guess_period = periods[np.argmax(pgram)]
                     guess_amp = np.std(y - np.polyval(p, self.raw.y[mask[:, i]])) * 2. ** 0.5
                     #print('guess:', guess_period, guess_amp)
-                    p = np.append(p, [2 *np.pi / guess_period, 0, guess_amp])
+                    p = np.append(p, [2 * np.pi / guess_period, 0, guess_amp])
                     res_robust = least_squares(fun_wavy, p, loss='linear', f_scale=0.003, args=(self.raw.y[mask[:, i]], y))
                     #print('fit:', 2 * np.pi / res_robust.x[-3], res_robust.x[-1])
                     sky = np.polyval(res_robust.x[:-3], self.raw.y) + (res_robust.x[-1] * np.sin(res_robust.x[-3] * self.raw.y + res_robust.x[-2]))
                     if plot:
-                        fig, ax = plt.subplots()
-                        ax.plot(self.raw.y[mask[:, i]], y, 'ok')
-                        ax.plot(self.raw.y, np.polyval(res_robust.x[:-3], self.raw.y), '--r')
-                        ax.plot(self.raw.y, sky, '-r')
+                        self.parent.parent.fig, self.parent.parent.ax = plt.subplots()
+                        #print('plotting', self.parent.parent.ax)
+                        self.parent.parent.ax.plot(self.raw.y[mask[:, i]], y, 'ok')
+                        self.parent.parent.ax.plot(self.raw.y, np.polyval(res_robust.x[:-3], self.raw.y), '--r')
+                        self.parent.parent.ax.plot(self.raw.y, sky, '-r')
                         plt.show()
+                        plotfile = os.path.dirname(os.path.realpath(__file__)) + '/output/sky.png'
+                        self.parent.parent.fig.savefig(plotfile, dpi=self.parent.parent.fig.dpi)
+                        os.startfile(plotfile)
 
             else:
                 sky = 0
 
-            self.sky.z[:,i] = sky
+            self.sky.z[:, i] = sky
 
         if smooth > 0 and len(inds) > 30:
             smooth = smooth + 1 if smooth % 2 == 0 else smooth
@@ -1186,61 +1256,100 @@ class spec2d():
 
         self.sky.z[:, :] = np.ma.median(np.ma.array(self.raw.z, mask=np.logical_and(mask, self.cr.mask)), axis=0)[np.newaxis, :]
 
-    def extract(self, xmin, xmax, slit=None, mask_type='moffat', helio=None, airvac=True, inplace=False, kind='pdf'):
+    def extract(self, xmin, xmax, slit=0, profile_type='moffat', helio=None, airvac=True, inplace=False, kind='pdf', resolution=None):
+        print('slit:', slit)
         self.moffat_kind = 'pdf'
         if self.cr is None:
             self.cr = image(x=self.raw.x, y=self.raw.y, mask=np.zeros_like(self.raw.z))
 
-        if self.trace is not None:
-            inds = np.searchsorted(self.raw.x, self.trace[0][(self.trace[0] >= xmin) * (self.trace[0] <= xmax)])
-        elif slit is not None:
+        if slit > 0:
             inds = np.where(np.logical_and(self.parent.cont_mask2d, np.logical_and(self.raw.x >= xmin, self.raw.x <= xmax)))[0]
+        elif self.trace is not None:
+            inds = np.searchsorted(self.raw.x, self.trace[0][(self.trace[0] >= xmin) * (self.trace[0] <= xmax)])
         else:
             inds = []
         if self.sky is not None:
-            sky = self.sky.raw.z
+            sky = self.sky.z
         else:
             sky = np.zeros_like(self.raw.z)
-        y, err = np.zeros(len(inds)), np.zeros(len(inds))
-        for k, i in enumerate(inds):
-            print(k, self.raw.x[i])
-            if mask_type == 'moffat':
-                if self.trace is None and slit is not None:
-                    x_0, gamma = self.parent.cont2d.y[k], self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+        f, err = np.zeros(len(inds)), np.zeros(len(inds))
+        print('extract with: ', profile_type)
+        data = self.raw.z[:, :] - sky[:, :]
+        if profile_type == 'optimal':
+            imin = np.argmin(np.abs(np.min([(self.parent.cont2d.y[k] - 1.5 * slit) for k, i in enumerate(inds)]) - self.raw.y)) - 1
+            imax = np.argmin(np.abs(np.max([(self.parent.cont2d.y[k] + 1.5 * slit) for k, i in enumerate(inds)]) - self.raw.y)) + 1
+            if 1:
+                hdu = fits.HDUList()
+                hdu.append(fits.ImageHDU(self.raw.z[imin:imax, inds]))
+                hdu.append(fits.ImageHDU(sky[imin:imax, inds]))
+                hdu.append(fits.ImageHDU(self.raw.err[imin:imax, inds]))
+                hdu.append(fits.ImageHDU(self.cr.mask[imin:imax, inds]))
+                hdu.writeto('temp/extract.fits', overwrite=True)
+
+            d = pd.DataFrame(self.raw.z[imin:imax, inds])
+            s = pd.DataFrame(sky[imin:imax, inds])
+            e = pd.DataFrame(self.raw.err[imin:imax, inds])
+            cr = pd.DataFrame(np.asarray(self.cr.mask[imin:imax, inds], dtype=bool))
+            f = d - s
+            f1 = f.mask(cr)
+            for it in range(3):
+                tr = f1.rolling(window=200, axis=1, min_periods=1).mean()
+                tr = tr.mask(tr < 0, 0)
+                tr = tr / tr.sum(axis=0)
+                f = ((tr * (d - s)).mask(cr) / e.pow(1.0)).sum(axis=0) / ((tr * tr / e.pow(1.0)).mask(cr)).sum(axis=0)
+                err = (tr.mask(cr).sum(axis=0) / (tr * tr / e.pow(2.0)).mask(cr).sum(axis=0)).pow(0.5)
+                cr = cr.mask((d - s - f * tr) / e > 5, True)
+        else:
+            for k, i in enumerate(inds):
+                print(k, self.raw.x[i])
+                if profile_type == 'moffat':
+                    if slit > 0:
+                        x_0, gamma = self.parent.cont2d.y[k], slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+                    else:
+                        ind = np.searchsorted(self.trace[0], self.raw.x[i])
+                        x_0 = self.trace[1][ind]
+                        gamma = self.trace[2][ind] / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
+                    profile = self.moffat_fit_integ(self.raw.y, a=1, x_0=x_0, gamma=gamma, c=0)
+                elif profile_type == 'rectangular':
+                    profile = 1 / (np.exp(-40 * (np.abs(self.raw.y - self.parent.cont2d.y[k]) - slit)) + 1)
+                elif profile_type == 'gaussian':
+                    profile = np.exp(-0.5 * (np.abs(self.raw.y - self.parent.cont2d.y[k]) / (slit / 2.35482)) ** 2)
+
+                #self.raw.err[:, i] = 1
+                if resolution is None:
+                    v = np.sum((1 - self.cr.mask[:, i]) * profile) #/ self.raw.err[:, i]**2)
+                    flux = np.sum((self.raw.z[:, i] - sky[:, i]) * profile * (1 - self.cr.mask[:, i])) # / self.raw.err[:, i]**2)
+                    errs = np.sum((1 - self.cr.mask[:, i]) * profile * self.raw.err[:, i] ** 2)
                 else:
-                    ind = np.searchsorted(self.trace[0], self.raw.x[i])
-                    x_0 = self.trace[1][ind]
-                    gamma = self.trace[2][ind] / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
-                profile = self.moffat_fit_integ(self.raw.y, a=1, x_0=x_0, gamma=gamma, c=0)
-            elif mask_type == 'rectangular':
-                profile = 1 / (np.exp(-40 * (np.abs(self.raw.y - self.parent.cont2d.y[k]) - self.extr_slit)) + 1)
-            elif mask_type == 'gaussian':
-                profile = np.exp(-(np.abs(self.raw.y - self.parent.cont2d.y[k]) / self.extr_slit / 2.35482) ** 2)
+                    imin, imax = np.searchsorted(self.raw.x, self.raw.x[i] * (1 - 3.0 / resolution)), np.searchsorted(self.raw.x, self.raw.x[i] * (1 + 3.0 / resolution))
+                    #print(imin, imax)
+                    v, flux, errs = 0, 0, 0
+                    for ind in range(imin, imax):
+                        v += np.sum((1 - self.cr.mask[:, ind]) * profile) * g
+                        flux += np.sum((self.raw.z[:, ind] - sky[:, ind]) * profile * (1 - self.cr.mask[:, ind])) * g
+                        if self.raw.err is not None:
+                            errs += np.sum((1 - self.cr.mask[:, ind]) * profile * self.raw.err[:, ind] ** 2) * g
 
-            #self.raw.err[:, i] = 1
-            v = np.sum((1 - self.cr.mask[:, i]) * profile) #/ self.raw.err[:, i]**2)
-            flux = np.sum((self.raw.z[:, i] - sky[:, i]) * profile * (1 - self.cr.mask[:, i])) # / self.raw.err[:, i]**2)
-
-            if v is not np.nan:
-                y[k] = flux / v
+                f[k] = flux / v
                 if self.raw.err is not None:
-                    err[k] = np.sqrt(np.sum((1 - self.cr.mask[:, i]) * profile * self.raw.err[:, i] ** 2) / v)
+                    err[k] = np.sqrt(errs) / v
 
         if inplace:
             pass
         else:
             if self.raw.err is not None:
-                data = self.raw.x[inds], np.asarray(y), np.asarray(err)
+                data = self.raw.x[inds], np.asarray(f), np.asarray(err)
             else:
-                data = self.raw.x[inds], np.asarray(y)
-            self.parent.parent.s.append(Spectrum(self.parent.parent, 'extracted', data=data))
+                data = self.raw.x[inds], np.asarray(f)
+            print('append:', data)
+            self.parent.parent.s.append(Spectrum(self.parent.parent, f'extracted_{profile_type}', data=data))
             if helio is not None:
                 self.parent.parent.s[-1].helio_vel = helio
                 self.parent.parent.s[-1].apply_shift(helio)
 
             if airvac:
                 self.parent.parent.s[-1].airvac()
-            self.parent.parent.s[-1].spec2d.set(x=self.parent.parent.s[-1].spec.x(), y=self.raw.y,
+            self.parent.parent.s[-1].spec2d.set(x=self.parent.parent.s[-1].spec.raw.x, y=self.raw.y,
                                          z=self.raw.z[:, inds] - sky[:, inds])
 
 class Spectrum():
@@ -1318,7 +1427,9 @@ class Spectrum():
             self.fit_pixels_pen = pg.mkPen(145, 180, 29, width=4)
             self.colormap = pg.colormap.getFromMatplotlib('viridis')
             self.maskcolormap = pg.ColorMap(np.linspace(0, 1, 2), [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 0.0]], mode='rgb')
-            self.cr_maskcolormap = pg.ColorMap(np.linspace(0, 1, 2), [[1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.0]], mode='rgb')
+            self.cr_maskcolormap = pg.ColorMap(np.linspace(0, 1, 2), [pg.mkColor([0, 0, 0, 0]), pg.mkColor([255, 255, 255, 255])], mode='rgb')
+            #self.cr_maskcolormap = pg.colormap.getFromMatplotlib('Greys')
+            #self.cr_maskcolormap = pg.ColorMap(np.linspace(0, 1, 2), [[0.0, 0.0, 1.0, 1.0], [0.0, 0.0, 0.0, 0.0]], mode='rgb')
         else:
             if self.parent.showinactive:
                 self.view = self.parent.specview.replace('err', '')
@@ -1326,7 +1437,7 @@ class Spectrum():
                 self.brush = pg.mkBrush(66, 90, 113, 255)
                 self.points_brush = pg.mkBrush(81, 122, 136)
                 self.points_size = 8 if self.parent.normview else 3
-                self.sm_pen = pg.mkPen(105, 30, 30, style=Qt.DashLine)
+                self.sm_pen = pg.mkPen(105, 30, 30, style=Qt.PenStyle.DashLine)
                 self.bad_brush = pg.mkBrush(252, 58, 38, 10)
                 self.region_brush = pg.mkBrush(72, 112, 202, 40)
                 self.fit_pixels_pen = pg.mkPen(70, 100, 20, width=0)
@@ -1401,7 +1512,7 @@ class Spectrum():
             self.construct_g_fit_comps()
 
         if self.parent.normview:
-            self.normline = pg.InfiniteLine(pos=1, angle=0, pen=pg.mkPen(color=self.cont_pen.color(), style=Qt.DashLine))
+            self.normline = pg.InfiniteLine(pos=1, angle=0, pen=pg.mkPen(color=self.cont_pen.color(), style=Qt.PenStyle.DashLine))
             self.parent.vb.addItem(self.normline)
         else:
             if len(self.parent.s) == 0 or self.active():
@@ -1414,7 +1525,7 @@ class Spectrum():
                 self.parent.vb.addItem(self.g_spline)
 
         # >>> plot chebyshev continuum:
-        self.g_cheb = pg.PlotCurveItem(x=[], y=[], pen=pg.mkPen(color=self.cont_pen.color(), style=Qt.DashLine, width=3))
+        self.g_cheb = pg.PlotCurveItem(x=[], y=[], pen=pg.mkPen(color=self.cont_pen.color(), style=Qt.PenStyle.DashLine, width=3))
         self.g_cheb.setZValue(4)
         self.parent.vb.addItem(self.g_cheb)
 
@@ -1448,17 +1559,22 @@ class Spectrum():
         if self.parent.show_2d and (len(self.parent.s) == 0 or self.active()):
             if self.spec2d.raw.z is not None and self.spec2d.raw.z.shape[0] > 0 and self.spec2d.raw.z.shape[1] > 0:
                 self.image2d = self.spec2d.set_image('raw', self.colormap)
-                print("levels:", self.spec2d.raw.z_levels)
+                #print("levels:", self.spec2d.raw.z_levels)
                 self.image2d.setLevels(self.spec2d.raw.z_levels)
                 self.parent.spec2dPanel.vb.addItem(self.image2d)
                 self.parent.spec2dPanel.vb.removeItem(self.parent.spec2dPanel.cursorpos)
                 self.parent.spec2dPanel.vb.addItem(self.parent.spec2dPanel.cursorpos, ignoreBounds=True)
+
                 if self.spec2d.raw.err is not None:
                     self.err2d = self.spec2d.set_image('err', self.colormap)
                 if self.spec2d.raw.mask is not None:
                     self.mask2d = self.spec2d.set_image('mask', self.maskcolormap)
+                #print(self.spec2d.cr is not None, self.spec2d.cr.mask is not None)
                 if self.spec2d.cr is not None and self.spec2d.cr.mask is not None:
                     self.cr_mask2d = self.spec2d.set_image('cr', self.cr_maskcolormap)
+                    #self.cr_mask2d.setLevels([0, 1])
+                    print(self.cr_maskcolormap.map(False), self.cr_maskcolormap.map(True))
+                    print(self.cr_mask2d)
                     self.parent.spec2dPanel.vb.addItem(self.cr_mask2d)
                 if self.spec2d.trace is not None:
                     self.spec2d.set_trace()
@@ -1466,6 +1582,8 @@ class Spectrum():
                     self.spec2d.addSlits()
                 if self.spec2d.sky is not None:
                     self.sky2d = self.spec2d.set_image('sky', self.colormap)
+
+            print('2d:', self.parent.show_2d, len(self.parent.s) == 0, self.active())
             if len(self.parent.s) == 0 or self.active():
                 self.g_cont2d = pg.PlotCurveItem(x=self.cont2d.x, y=self.cont2d.y, pen=self.cont_pen)
                 self.parent.spec2dPanel.vb.addItem(self.g_cont2d)
@@ -1524,7 +1642,7 @@ class Spectrum():
         except:
             pass
 
-        attrs = ['image2d', 'mask2d', 'g_cont2d', 'g_spline2d', 'trace_pos', 'trace_width']
+        attrs = ['image2d', 'err2d', 'sky2d', 'mask2d', 'cr_mask2d', 'g_cont2d', 'g_spline2d', 'trace_pos', 'trace_width']
         for attr in attrs:
             try:
                 self.parent.spec2dPanel.vb.removeItem(getattr(self, attr))
@@ -1549,6 +1667,7 @@ class Spectrum():
 
     def set_data(self, data=None, mask=None):
         if data is not None:
+            print('lendata:', len(data), data[1])
             if len(data) >= 3:
                 if mask is not None:
                     mask = np.logical_and(mask, np.logical_and(data[1] != 0, data[2] != 0))
@@ -1563,6 +1682,7 @@ class Spectrum():
             else:
                 mask = data[1] != np.NaN
         self.spec.raw.interpolate()
+        print(self.spec.raw.y)
         self.wavelmin, self.wavelmax = self.spec.raw.x[0], self.spec.raw.x[-1]
         self.mask.set(x=np.zeros_like(self.spec.raw.x, dtype=bool))
         self.bad_mask.set(x=np.isnan(self.spec.raw.y))
@@ -1586,7 +1706,6 @@ class Spectrum():
 
     def set_fit(self, x, y, attr='fit'):
         if self.cont.n > 0: # and self.active():
-            print(x, y)
             getattr(self, attr).line.norm.set_data(x=x, y=y)
             getattr(self, attr).line.norm.interpolate(fill_value=1)
             if not self.parent.normview:
@@ -1657,7 +1776,7 @@ class Spectrum():
             self.g_fit_comp = []
             for i, c in enumerate(self.fit_comp):
                 if self.parent.comp_view == 'one' and self.parent.comp == i or self.parent.comp_view == 'all':
-                    style = Qt.DashLine if self.parent.comp_view == 'all' and self.parent.comp != i else Qt.SolidLine
+                    style = Qt.PenStyle.DashLine if self.parent.comp_view == 'all' and self.parent.comp != i else Qt.PenStyle.SolidLine
                     color = pg.mkPen(50, 115, 235, width=1.0) if self.parent.comp_view == 'all' and self.parent.comp != i else self.fit_comp_pen.color()
                     pen = color = pg.mkPen(50, 115, 235, width=1.0) if self.parent.comp_view == 'all' and self.parent.comp != i else self.fit_comp_pen
                     self.g_fit_comp.append(pg.PlotCurveItem(x=c.line.x(), y=c.line.y(), pen=pen)) #pg.mkPen(color=color, style=style)))
@@ -1710,7 +1829,6 @@ class Spectrum():
 
         coeff, var_matrix = curve_fit(gauss, self.kde.x, self.kde.y, p0=p0)
 
-        print(coeff)
         # Get the fitted curve
         self.kde_fit.setData(x=-self.kde.x, y=gauss(self.kde.x, *coeff))
 
@@ -2071,6 +2189,7 @@ class Spectrum():
         """
         if timer:
             t = Timer(str(ind))
+
         if self.spec.norm.n > 0 and self.cont.n > 0:
 
             # >>> calculate the intrinsic absorption line spectrum
@@ -2086,7 +2205,7 @@ class Spectrum():
             # >>> set fit graphics
             if comp == -1:
                 self.set_fit(x=x, y=flux, attr='fit')
-                if len(binned) > 0:
+                if binned is not None and len(binned) > 0:
                     y = np.ones_like(self.spec.y()) * np.NaN
                     if len(y) > 0:
                         y[self.fit_mask.x()] = binned
@@ -2380,6 +2499,7 @@ class Spectrum():
         if self.spec_factor < 1:
             self.spec_factor = 1
         self.spec_factor = int(self.spec_factor)
+
         if self.spec_factor == 1:
             y, err = self.spec_save.y, self.spec_save.err
         else:
@@ -2388,7 +2508,7 @@ class Spectrum():
             y = (cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / float(self.spec_factor)
             cumsum = np.cumsum(np.r_[np.zeros((int(self.spec_factor / 2),)), self.spec_save.err, np.zeros(int(self.spec_factor / 2))])
             err = (cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / float(self.spec_factor) / np.sqrt(float(self.spec_factor))
-        self.set_data([self.spec.raw.x, y, err])
+        self.set_data([self.spec_save.x[0::self.spec_factor], y[0::self.spec_factor], err[0::self.spec_factor]])
         self.redraw()
 
         if 0:
@@ -2492,7 +2612,7 @@ class Spectrum():
     def mouseDragEvent(self, ev):
         
         if self.parent.plot.e_status:
-            if ev.button() != Qt.LeftButton:
+            if ev.button() != Qt.MouseButton.LeftButton:
                 ev.ignore()
                 return
             
@@ -2579,12 +2699,12 @@ class regionItem(pg.LinearRegionItem):
         self.active = False
 
         self.activeBrush = brush
-        self.activeBrush.setStyle(Qt.SolidPattern)
+        self.activeBrush.setStyle(Qt.BrushStyle.SolidPattern)
         self.activePen = pg.mkPen(brush.color())
 
-        self.inactivePen = pg.mkPen(150, 150, 150, 255, style=Qt.DashLine)
+        self.inactivePen = pg.mkPen(150, 150, 150, 255, style=Qt.PenStyle.DashLine)
         self.inactiveBrush = pg.mkBrush(100, 100, 100, 255)
-        self.inactiveBrush.setStyle(Qt.Dense5Pattern)
+        self.inactiveBrush.setStyle(Qt.BrushStyle.Dense5Pattern)
 
         self.updateLines()
         self.addinfo = addinfo
@@ -2606,9 +2726,9 @@ class regionItem(pg.LinearRegionItem):
             self.setSpan(0.9, 1)
 
     def hoverEvent(self, ev):
-        self.lines[0].setMovable((QApplication.keyboardModifiers() == Qt.ShiftModifier))
-        self.lines[1].setMovable((QApplication.keyboardModifiers() == Qt.ShiftModifier))
-        #if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
+        self.lines[0].setMovable((QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier))
+        self.lines[1].setMovable((QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier))
+        #if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier):
         #    super(regionItem).hoverEvent(ev)
 
     def setMouseHover(self, hover):
@@ -2625,15 +2745,15 @@ class regionItem(pg.LinearRegionItem):
         self.update()
 
     def mouseDragEvent(self, ev):
-        if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
+        if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier):
             super().mouseDragEvent(ev)
 
     def mouseClickEvent(self, ev):
 
-        if ev.double(): # and (QApplication.keyboardModifiers() == Qt.ShiftModifier):
+        if ev.double(): # and (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier):
             self.active = not self.active
             if 0:
-                self.setMovable(self.active) # and (QApplication.keyboardModifiers() == Qt.ShiftModifier))
+                self.setMovable(self.active) # and (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier))
                 if self.active:
                     self.setBrush(self.activeBrush)
                     self.setRegion(self.size_full)
@@ -2644,8 +2764,8 @@ class regionItem(pg.LinearRegionItem):
             self.updateLines()
             #self.parent.parent.updateRegions()
 
-        if ev.button() == Qt.LeftButton:
-            if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+        if ev.button() == Qt.MouseButton.LeftButton:
+            if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
                 self.parent.remove(self)
 
     #def __eq__(self, other):
@@ -2909,7 +3029,7 @@ class CompositeSpectrum():
         if self.type == 'QSO':
             self.qso_names = ['X-shooter', 'SDSS', 'HST', 'power', 'power+FeII']
             if self.parent.compositeQSO_status == 1:
-                self.spec = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
+                self.spec = np.genfromtxt('data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
                 self.spec = self.spec[:, np.logical_or(self.spec[1] != 0, self.spec[1] != 0)]
                 self.spec[1] = smooth(self.spec[1], mode='same')
                 if 0:
@@ -2986,7 +3106,7 @@ class CompositeSpectrum():
         del self
 
     def lineClicked(self):
-        if QApplication.keyboardModifiers() == Qt.ControlModifier:
+        if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier:
             self.remove()
 
 class CompositeGraph(pg.PlotCurveItem):
@@ -2996,8 +3116,8 @@ class CompositeGraph(pg.PlotCurveItem):
         self.setZValue(5)
 
     def mouseDragEvent(self, ev):
-        if QApplication.keyboardModifiers() in [Qt.ShiftModifier, Qt.AltModifier]:
-            if ev.button() != Qt.LeftButton:
+        if QApplication.keyboardModifiers() in [Qt.KeyboardModifier.ShiftModifier, Qt.KeyboardModifier.AltModifier]:
+            if ev.button() != Qt.MouseButton.LeftButton:
                 ev.ignore()
                 return
 
@@ -3016,18 +3136,18 @@ class CompositeGraph(pg.PlotCurveItem):
             ev.accept()
 
 
-    def redraw_pos(self, start, finish, modifier=Qt.ShiftModifier):
-        if modifier == Qt.ShiftModifier:
+    def redraw_pos(self, start, finish, modifier=Qt.KeyboardModifier.ShiftModifier):
+        if modifier == Qt.KeyboardModifier.ShiftModifier:
             self.parent.z = finish.x() / start.x() * (1 + self.parent.z) - 1
             self.parent.f = self.parent.f * finish.y() / start.y()
-        elif modifier == Qt.AltModifier:
+        elif modifier == Qt.KeyboardModifier.AltModifier:
             self.parent.av = self.parent.av + (1 - finish.y() / start.y())
             self.parent.parent.statusBar.setText('Av={0:5.2}'.format(self.parent.av))
         self.parent.redraw()
 
     def mouseClickEvent(self, ev):
 
-        if QApplication.keyboardModifiers() == Qt.ControlModifier and ev.button() == Qt.LeftButton:
+        if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier and ev.button() == Qt.MouseButton.LeftButton:
             self.parent.remove()
 
 

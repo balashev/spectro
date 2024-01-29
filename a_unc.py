@@ -324,7 +324,7 @@ class a:
             self.val = np.log10(self.val)
             self.repr = 'log'
         return self
-    
+
     def default(self, fmt=None):
         """
         Print (if fmt in not specified) or set (if fmt is specified) default format
@@ -508,10 +508,16 @@ class a:
                     return -0.5 * (np.log(1 + alpha / gamma) / np.log(beta)) ** 2
                 # two parabola
                 if ind == 2:
-                    if alpha > 0:
-                        return -0.5 * (alpha / self.plus) ** 2
+                    if isinstance(alpha, (int, float)):
+                        if alpha > 0:
+                            return -0.5 * (alpha / self.plus) ** 2
+                        else:
+                            return -0.5 * (alpha / self.minus) ** 2
                     else:
-                        return -0.5 * (alpha / self.minus) ** 2
+                        ret = np.zeros_like(alpha)
+                        ret[alpha>=0] = -0.5 * (alpha[alpha>=0] / self.plus) ** 2
+                        ret[alpha<0] = -0.5 * (alpha[alpha<0] / self.minus) ** 2
+                        return ret
                 # Another from Barlow arXiv:physics/0406120
                 if ind == 3:
                     return -0.5 * (alpha * (self.plus + self.minus) / (2 * self.plus * self.minus + (self.plus - self.minus) * alpha)) ** 2
@@ -565,8 +571,8 @@ class distr(rv_continuous):
     def _pdf(self, x):
         return 1 / self.norm[0] * self.y.L(x)
 
-if __name__ == '__main__':        
-    
+if __name__ == '__main__':
+
     print("Running tests ...")
 
     #print(a(2,4,4, 'd').log())
@@ -648,8 +654,12 @@ if __name__ == '__main__':
         print(m.latex(f=3, base=0))
         print(u * m, u * u, m * u, l * m)
 
+    if 0:
+        print('hmmm')
+        print(a(14.26, 0.02, 0.02) + a(14.02, 0.02, 0.02) + a(13.10, 0.02, 0.02))
     if 1:
-        x = a(13.29, 0.18, 0.07, 'l')
-        tot = a(13.86, 0.11, 0.11, 'l')
-        print(x / tot)
+        b = a(0.38, 0.06, 'd') / a(42.01, 0.13, 'd')
+        print(b, (1.6 - b.val) / b.plus)
+        b = a(35.27, 0.06, 'd') / a(17.89, 0.04, 'd')
+        print(b, (1.502 - b.val) / b.plus)
 

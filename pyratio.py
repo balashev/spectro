@@ -2297,7 +2297,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check SiII collisions
-    if 0:
+    if 1:
         pr = pyratio(z=2.65)
         pr.set_pars(['T', 'n', 'f'])
         pr.pars['T'].range = [1, 6]
@@ -2309,7 +2309,7 @@ if __name__ == '__main__':
         num = 20
         if 1:
             n = np.linspace(0, 5, num)
-            T = np.linspace(2, 5, num)
+            T = np.linspace(1.5, 5, num)
             X, Y = np.meshgrid(n, T)
             z = np.zeros_like(X)
             for i, ni in enumerate(n):

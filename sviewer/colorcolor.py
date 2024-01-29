@@ -4,9 +4,9 @@ import pyqtgraph as pg
 from collections import OrderedDict
 from functools import partial
 from itertools import combinations
-from PyQt5.QtCore import QLocale
-from PyQt5.QtGui import QDoubleValidator
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit,
+from PyQt6.QtCore import QLocale
+from PyQt6.QtGui import QDoubleValidator
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit,
                              QLabel, QCheckBox, QGridLayout, QFrame, QTextEdit)
 from scipy.stats import gaussian_kde
 

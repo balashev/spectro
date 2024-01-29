@@ -26,14 +26,14 @@ import pickle
 import pyGPs
 import os
 import platform
-from PyQt5.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget,
+from PyQt6.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget,
                              QFileDialog, QTextEdit, QVBoxLayout, QFontComboBox,
                              QSplitter, QFrame, QLineEdit, QLabel, QPushButton, QCheckBox,
                              QGridLayout, QTabWidget, QFormLayout, QHBoxLayout, QRadioButton,
                              QTreeWidget, QComboBox, QTreeWidgetItem, QAbstractItemView,
                              QStatusBar, QMenu, QButtonGroup, QMessageBox, QToolButton, QColorDialog)
-from PyQt5.QtCore import Qt, QPoint, QRectF, QEvent, QUrl, QTimer, pyqtSignal, QObject, QPropertyAnimation, QDir
-from PyQt5.QtGui import QDesktopServices, QPainter, QFont, QColor, QIcon
+from PyQt6.QtCore import Qt, QPointF, QRectF, QEvent, QUrl, QTimer, pyqtSignal, QObject, QPropertyAnimation, QDir
+from PyQt6.QtGui import QDesktopServices, QPainter, QFont, QColor, QIcon
 from scipy.interpolate import interp1d, UnivariateSpline
 from scipy.signal import argrelextrema
 from scipy.special import erf
@@ -190,22 +190,22 @@ class plotSpectrum(pg.PlotWidget):
 
         if not event.isAutoRepeat():
 
-            if event.key() == Qt.Key_Down or event.key() == Qt.Key_Right:
+            if event.key() == Qt.Key.Key_Down or event.key() == Qt.Key.Key_Right:
                 if self.e_status:
                     self.parent.s.setSpec(self.parent.s.ind + 1)
 
                 if self.p_status:
                     self.parent.fitPoly(np.max([0, self.parent.polyDeg-1]))
 
-            if event.key() == Qt.Key_Up or event.key() == Qt.Key_Left:
+            if event.key() == Qt.Key.Key_Up or event.key() == Qt.Key.Key_Left:
                 if self.e_status:
                     self.parent.s.setSpec(self.parent.s.ind - 1)
 
                 if self.p_status:
                     self.parent.fitPoly(self.parent.polyDeg + 1)
 
-            if event.key() == Qt.Key_A:
-                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+            if event.key() == Qt.Key.Key_A:
+                if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
                     self.parent.fit.delSys(self.parent.comp)
                     try:
                         self.parent.fitModel.tab.removeTab(self.parent.comp)
@@ -226,16 +226,16 @@ class plotSpectrum(pg.PlotWidget):
                     self.vb.rbScaleBox.hide()
                     self.a_status = True
 
-            if event.key() == Qt.Key_B:
+            if event.key() == Qt.Key.Key_B:
                 if not self.parent.normview:
                     self.vb.setMouseMode(self.vb.RectMode)
                     self.b_status = True
                     self.mouse_moved = False
                     self.parent.statusBar.setText('B-spline mode' )
             
-            if event.key() == Qt.Key_C:
+            if event.key() == Qt.Key.Key_C:
 
-                if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
+                if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier):
                     l = ['all', 'one', 'none']
                     ind = l.index(self.parent.comp_view)
                     ind += 1
@@ -251,13 +251,13 @@ class plotSpectrum(pg.PlotWidget):
                     self.vb.setMouseMode(self.vb.RectMode)
                     self.vb.rbScaleBox.hide()
 
-            if event.key() == Qt.Key_D:
+            if event.key() == Qt.Key.Key_D:
                 self.vb.setMouseMode(self.vb.RectMode)
                 self.d_status = True
                 self.parent.statusBar.setText('Points selection mode')
 
-            if event.key() == Qt.Key_E:
-                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+            if event.key() == Qt.Key.Key_E:
+                if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
                     self.parent.s.remove(self.parent.s.ind)
 
                 if self.w_region is not None and not event.isAutoRepeat():
@@ -269,58 +269,58 @@ class plotSpectrum(pg.PlotWidget):
                     self.vb.setMouseMode(self.vb.RectMode)
                     self.e_status = True
 
-            if event.key() == Qt.Key_F:
-                if (QApplication.keyboardModifiers() != Qt.ControlModifier):
-                    if QApplication.keyboardModifiers() == Qt.ShiftModifier:
+            if event.key() == Qt.Key.Key_F:
+                if (QApplication.keyboardModifiers() != Qt.KeyboardModifier.ControlModifier):
+                    if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier:
                         self.showfullfit = True
                     else:
                         self.showfullfit = False
                     self.parent.showFit(all=self.showfullfit)
 
-            if event.key() == Qt.Key_G:
+            if event.key() == Qt.Key.Key_G:
                 self.g_status = True
                 self.parent.fitGauss()
 
-            if event.key() == Qt.Key_H:
+            if event.key() == Qt.Key.Key_H:
                 self.h_status = True
 
-            if event.key() == Qt.Key_J:
+            if event.key() == Qt.Key.Key_J:
                 self.j_status = True
                 self.parent.s[self.parent.s.ind].set_fit_disp(show=True)
 
-            if event.key() == Qt.Key_K:
+            if event.key() == Qt.Key.Key_K:
                 self.k_status = True
 
-            if event.key() == Qt.Key_I:
-                if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
+            if event.key() == Qt.Key.Key_I:
+                if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier):
                     print('initial', self.parent.s[self.parent.s.ind].g_line)
                     self.parent.s[self.parent.s.ind].g_line.initial()
                 else:
                     self.i_status = True
                     self.parent.statusBar.setText('Estimate the width of Instrument function')
 
-            if event.key() == Qt.Key_L:
+            if event.key() == Qt.Key.Key_L:
                 self.l_status = True
                 self.parent.statusBar.setText('Lya select')
 
-            if event.key() == Qt.Key_M:
-                if (QApplication.keyboardModifiers() != Qt.ControlModifier):
+            if event.key() == Qt.Key.Key_M:
+                if (QApplication.keyboardModifiers() != Qt.KeyboardModifier.ControlModifier):
                     self.m_status = True
                     self.parent.statusBar.setText('Rebin mode')
 
-            if event.key() == Qt.Key_N:
+            if event.key() == Qt.Key.Key_N:
                 self.parent.normalize(not self.parent.panel.normalize.isChecked())
 
-            if event.key() == Qt.Key_P:
+            if event.key() == Qt.Key.Key_P:
                 self.p_status = True
                 self.parent.statusBar.setText('Add partial coverage region')
 
-            if event.key() == Qt.Key_R:
-                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+            if event.key() == Qt.Key.Key_R:
+                if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
                     pass
                     #self.parent.showResiduals.toggle()
                     #self.parent.showResidualsPanel()
-                elif (QApplication.keyboardModifiers() == Qt.ShiftModifier):
+                elif (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier):
                     self.restframe = 1 - self.restframe
                     if self.restframe:
                         self.parent.abs.set_reference()
@@ -334,36 +334,36 @@ class plotSpectrum(pg.PlotWidget):
                     self.parent.statusBar.setText('Set region mode')
                     #self.vb.removeItem(self.w_label)
                
-            if event.key() == Qt.Key_S:
+            if event.key() == Qt.Key.Key_S:
                 self.vb.setMouseMode(self.vb.RectMode)
                 self.s_status = True
                 self.parent.statusBar.setText('Points selection mode')
 
-            if event.key() == Qt.Key_T:
-                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+            if event.key() == Qt.Key.Key_T:
+                if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
                     if self.parent.fitResults is None:
                         self.parent.showFitResults()
                     else:
                         self.parent.fitResults.close()
 
-            if event.key() == Qt.Key_Q:
-                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+            if event.key() == Qt.Key.Key_Q:
+                if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
                     pass
                 else:
                     self.parent.calc_cont()
 
-            if event.key() == Qt.Key_U:
+            if event.key() == Qt.Key.Key_U:
                 self.u_status += 1
                 self.parent.statusBar.setText('Find doublet mode')
 
-            if event.key() == Qt.Key_V:
+            if event.key() == Qt.Key.Key_V:
                 self.parent.s[self.parent.s.ind].remove()
                 sl = ['step', 'steperr', 'line', 'lineerr', 'point', 'pointerr']
                 self.parent.specview = sl[(sl.index(self.parent.specview)+1)*int((sl.index(self.parent.specview)+1) < len(sl))]
                 self.parent.options('specview', self.parent.specview)
                 self.parent.s[self.parent.s.ind].initGUI()
                 
-            if event.key() == Qt.Key_W:
+            if event.key() == Qt.Key.Key_W:
                 if self.w_region is not None and not event.isAutoRepeat():
                     for attr in ['w_region', 'w_label']:
                         if hasattr(self, attr):
@@ -373,16 +373,16 @@ class plotSpectrum(pg.PlotWidget):
                     self.vb.setMouseMode(self.vb.RectMode)
                     self.w_status = True
 
-            if event.key() == Qt.Key_X:
+            if event.key() == Qt.Key.Key_X:
                 self.vb.setMouseMode(self.vb.RectMode)
                 self.x_status = True
                 self.parent.statusBar.setText('Select bad pixels mode')
 
-            if event.key() == Qt.Key_Y:
+            if event.key() == Qt.Key.Key_Y:
                 self.y_status = True
 
-            if event.key() == Qt.Key_Z:
-                if (QApplication.keyboardModifiers() != Qt.ControlModifier):
+            if event.key() == Qt.Key.Key_Z:
+                if (QApplication.keyboardModifiers() != Qt.KeyboardModifier.ControlModifier):
                     self.vb.setMouseMode(self.vb.RectMode)
                     self.z_status = True
                     self.parent.statusBar.setText('Zooming mode')
@@ -399,15 +399,15 @@ class plotSpectrum(pg.PlotWidget):
                 #vb = self.plot.getPlotItem(self).getViewBox()
                 #vb.setMouseMode(ViewBox.RectMode)
         else:
-            if event.key() == Qt.Key_C:
+            if event.key() == Qt.Key.Key_C:
                 if self.c_status == 2:
                     self.vb.setMouseMode(self.vb.RectMode)
                     self.vb.rbScaleBox.hide()
 
-        if event.key() in [Qt.Key_Right, Qt.Key_Left]:
+        if event.key() in [Qt.Key.Key_Right, Qt.Key.Key_Left]:
             if not self.e_status and not self.p_status:
-                self.parent.setz_abs(self.parent.z_abs + (-1 + 2 * (event.key() == Qt.Key_Right))
-                                     * (self.viewRange()[0][-1] - self.viewRange()[0][0]) / (np.sum(self.viewRange()[0]) / 2) / 3000 * (1 + 9 * (QApplication.keyboardModifiers() == Qt.ShiftModifier))
+                self.parent.setz_abs(self.parent.z_abs + (-1 + 2 * (event.key() == Qt.Key.Key_Right))
+                                     * (self.viewRange()[0][-1] - self.viewRange()[0][0]) / (np.sum(self.viewRange()[0]) / 2) / 3000 * (1 + 9 * (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier))
                                      * (self.parent.z_abs + 1))
 
 
@@ -415,72 +415,72 @@ class plotSpectrum(pg.PlotWidget):
 
         if not event.isAutoRepeat():
 
-            if event.key() == Qt.Key_Left:
+            if event.key() == Qt.Key.Key_Left:
                 if self.c_status:
                     self.switch_component(-1)
                     self.c_status = 2
 
-            if event.key() == Qt.Key_Right:
+            if event.key() == Qt.Key.Key_Right:
                 if self.c_status:
                     self.switch_component(1)
                     self.c_status = 2
 
-            if event.key() == Qt.Key_A:
+            if event.key() == Qt.Key.Key_A:
                 self.a_status = False
 
-            if event.key() == Qt.Key_B:
+            if event.key() == Qt.Key.Key_B:
                 self.b_status = False
                 if not self.mouse_moved:
                     self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y())
 
-            if event.key() == Qt.Key_C:
-                if (QApplication.keyboardModifiers() != Qt.ShiftModifier):
+            if event.key() == Qt.Key.Key_C:
+                if (QApplication.keyboardModifiers() != Qt.KeyboardModifier.ShiftModifier):
                     if self.c_status == 1:
                         self.switch_component(1)
                     self.c_status = False
 
-            if event.key() == Qt.Key_D:
+            if event.key() == Qt.Key.Key_D:
                 self.d_status = False
 
-            if event.key() == Qt.Key_E:
+            if event.key() == Qt.Key.Key_E:
                 self.e_status = False
 
-            if event.key() == Qt.Key_H:
+            if event.key() == Qt.Key.Key_H:
                 self.h_status = False
 
-            if event.key() == Qt.Key_I:
+            if event.key() == Qt.Key.Key_I:
                 self.i_status = False
 
-            if event.key() == Qt.Key_K:
+            if event.key() == Qt.Key.Key_K:
                 self.k_status = False
 
-            if event.key() == Qt.Key_J:
+            if event.key() == Qt.Key.Key_J:
                 self.parent.s[self.parent.s.ind].set_fit_disp(show=False)
                 self.j_status = False
 
-            if event.key() == Qt.Key_L:
+            if event.key() == Qt.Key.Key_L:
                 self.l_status = False
 
-            if event.key() == Qt.Key_M:
+            if event.key() == Qt.Key.Key_M:
                 self.m_status = False
 
-            if event.key() == Qt.Key_O:
+            if event.key() == Qt.Key.Key_O:
                 self.parent.UVESSetup_status += 1
                 if self.parent.UVESSetup_status > len(self.parent.UVESSetups):
                     self.parent.UVESSetup_status = 0
                 self.parent.chooseUVESSetup()
 
-            if event.key() == Qt.Key_R:
+            if event.key() == Qt.Key.Key_R:
                 self.r_status = False
                 self.regions.sortit()
 
-            if event.key() == Qt.Key_S:
+            if event.key() == Qt.Key.Key_S:
                 self.s_status = False
 
-            if event.key() == Qt.Key_P:
+            if event.key() == Qt.Key.Key_P:
                 self.p_status = False
 
-            if event.key() == Qt.Key_U:
+            if event.key() == Qt.Key.Key_U:
                 if self.u_status:
                     if len(self.doublets) == 0 or self.doublets[-1].temp is None:
                         self.doublets.append(Doublet(self))
@@ -490,19 +490,19 @@ class plotSpectrum(pg.PlotWidget):
                         self.doublets.update()
                 self.u_status = False
 
-            if event.key() == Qt.Key_W:
+            if event.key() == Qt.Key.Key_W:
                 self.w_status = False
 
-            if event.key() == Qt.Key_X:
+            if event.key() == Qt.Key.Key_X:
                 self.x_status = False
 
-            if event.key() == Qt.Key_Y:
+            if event.key() == Qt.Key.Key_Y:
                 self.y_status = False
 
-            if event.key() == Qt.Key_Z:
+            if event.key() == Qt.Key.Key_Z:
                 self.z_status = False
         
-            if any([event.key() == getattr(Qt, 'Key_'+s) for s in 'ABCDERSWXZ']):
+            if any([event.key() == getattr(Qt.Key, 'Key_'+s) for s in 'ABCDERSWXZ']):
                 self.vb.removeItem(self.vb.rbScaleBox)
                 self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
@@ -511,7 +511,7 @@ class plotSpectrum(pg.PlotWidget):
             super(plotSpectrum, self).keyReleaseEvent(event)
 
     def mouseClickEvent(self, event):
-        if event.button() == Qt.RightButton and self.menuEnabled():
+        if event.button() == Qt.MouseButton.RightButton and self.menuEnabled():
             event.accept()
             self.raiseContextMenu(event)
 
@@ -524,7 +524,7 @@ class plotSpectrum(pg.PlotWidget):
     def mousePressEvent(self, event):
         super(plotSpectrum, self).mousePressEvent(event)
 
-        self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
+        self.mousePoint_saved = self.vb.mapSceneToView(event.position())
 
         if self.r_status:
             self.r_status = 2
@@ -535,7 +535,7 @@ class plotSpectrum(pg.PlotWidget):
             self.vb.removeItem(self.vb.rbScaleBox)
             self.vb.setMouseMode(self.vb.PanMode)
         else:
-            if event.button() == Qt.RightButton and self.menuEnabled() and self.customMenu:
+            if event.button() == Qt.MouseButton.RightButton and self.menuEnabled() and self.customMenu:
                 if self.mousePoint == self.mousePoint_saved:
                     self.raiseContextMenu(event)
                     event.accept()
@@ -557,13 +557,13 @@ class plotSpectrum(pg.PlotWidget):
                     self.a_status = True
                     self.parent.sendMessage("Select a reference absorption line")
         if self.b_status:
-            if event.button() == Qt.LeftButton:
+            if event.button() == Qt.MouseButton.LeftButton:
                 if self.mousePoint == self.mousePoint_saved:
                     self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y())
                 else:
                     self.parent.s[self.parent.s.ind].del_spline(self.mousePoint_saved.x(), self.mousePoint_saved.y(), self.mousePoint.x(), self.mousePoint.y())
 
-            if event.button() == Qt.RightButton:
+            if event.button() == Qt.MouseButton.RightButton:
                 ind = self.parent.s[self.parent.s.ind].spline.find_nearest(self.mousePoint.x(), self.mousePoint.y())
                 self.parent.s[self.parent.s.ind].del_spline(arg=ind)
                 event.accept()
@@ -631,8 +631,8 @@ class plotSpectrum(pg.PlotWidget):
 
         if self.s_status or self.d_status:
             for s in self.parent.s:
-                #if QApplication.keyboardModifiers() == Qt.ShiftModifier or i == self.parent.s.ind:
-                if QApplication.keyboardModifiers() == Qt.ShiftModifier or s.active():
+                #if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier or i == self.parent.s.ind:
+                if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier or s.active():
                     s.add_points(self.mousePoint_saved.x(), self.mousePoint_saved.y(), self.mousePoint.x(), self.mousePoint.y(), remove=self.d_status, redraw=False)
                     #self.parent.s[i].add_points(self.mousePoint_saved.x(), self.mousePoint_saved.y(), self.mousePoint.x(), self.mousePoint.y(), remove=False)
                     s.set_fit_mask()
@@ -665,7 +665,7 @@ class plotSpectrum(pg.PlotWidget):
                 curve1 = plotLineSpectrum(parent=s, view='step', name='EW', x=s.spec.x()[mask], y=s.spec.y()[mask], pen=pg.mkPen())
                 x, y = curve1.returnPathData()
                 if len(s.cont.x) > 0 and s.cont.x[0] < x[0] and s.cont.x[-1] > x[-1]:
-                    if QApplication.keyboardModifiers() != Qt.ShiftModifier:
+                    if QApplication.keyboardModifiers() != Qt.KeyboardModifier.ShiftModifier:
                         if self.parent.normview:
                             cont = interp1d(x, np.ones_like(x), fill_value=1)
                         else:
@@ -726,20 +726,20 @@ class plotSpectrum(pg.PlotWidget):
                     self.vb.addItem(self.w_label)
 
         if self.x_status:
-            self.parent.s[self.parent.s.ind].add_points(self.mousePoint_saved.x(), self.mousePoint_saved.y(), self.mousePoint.x(), self.mousePoint.y(), remove=(QApplication.keyboardModifiers() == Qt.ShiftModifier), bad=True)
+            self.parent.s[self.parent.s.ind].add_points(self.mousePoint_saved.x(), self.mousePoint_saved.y(), self.mousePoint.x(), self.mousePoint.y(), remove=(QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier), bad=True)
 
         if event.isAccepted():
             super(plotSpectrum, self).mouseReleaseEvent(event)
             
     def mouseMoveEvent(self, event):
         super(plotSpectrum, self).mouseMoveEvent(event)
-        self.mousePoint = self.vb.mapSceneToView(event.pos())
+        self.mousePoint = self.vb.mapSceneToView(event.position())
         self.mouse_moved = True
         self.cursorpos.setText('x={0:.3f}, y={1:.2f}, rest={2:.3f}'.format(self.mousePoint.x(), self.mousePoint.y(), self.mousePoint.x()/(1+self.parent.z_abs)))
         #self.cursorpos.setText("<span style='font-size: 12pt'>x={0:.3f}, <span style='color: red'>y={1:.2f}</span>".format(mousePoint.x(),mousePoint.y()))
         pos = self.vb.sceneBoundingRect()
-        self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(int(pos.left()+10), int(pos.bottom()-10))))
-        self.specname.setPos(self.vb.mapSceneToView(QPoint(int(pos.right()-10), int(pos.bottom()-10))))
+        self.cursorpos.setPos(self.vb.mapSceneToView(QPointF(int(pos.left()+10), int(pos.bottom()-10))))
+        self.specname.setPos(self.vb.mapSceneToView(QPointF(int(pos.right()-10), int(pos.bottom()-10))))
         if self.r_status == 2 and event.type() == QEvent.MouseMove:
             self.regions[-1].setRegion([self.mousePoint_saved.x(), self.mousePoint.x()])
         if any([getattr(self, s + '_status') for s in 'acr']) and event.type() == QEvent.MouseMove:
@@ -774,12 +774,12 @@ class plotSpectrum(pg.PlotWidget):
         else:
             super(plotSpectrum, self).wheelEvent(event)
             pos = self.vb.sceneBoundingRect()
-            self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(int(pos.left()+10), int(pos.bottom()-10))))
-            self.specname.setPos(self.vb.mapSceneToView(QPoint(int(pos.right()-10), int(pos.bottom()-10))))
+            self.cursorpos.setPos(self.vb.mapSceneToView(QPointF(int(pos.left()+10), int(pos.bottom()-10))))
+            self.specname.setPos(self.vb.mapSceneToView(QPointF(int(pos.right()-10), int(pos.bottom()-10))))
 
     def mouseDragEvent(self, ev):
         
-        if ev.button() == Qt.RightButton:
+        if ev.button() == Qt.MouseButton.RightButton:
             ev.ignore()
         else:
             pg.ViewBox.mouseDragEvent(self, ev)
@@ -787,12 +787,12 @@ class plotSpectrum(pg.PlotWidget):
         ev.accept() 
         pos = ev.pos()
         
-        if ev.button() == Qt.RightButton:
+        if ev.button() == Qt.MouseButton.RightButton:
             self.updateScaleBox(ev.buttonDownPos(), ev.pos())
             
             if ev.isFinish():  
                 self.rbScaleBox.hide()
-                ax = QRectF(QPoint(ev.buttonDownPos(ev.button())), QPoint(pos))
+                ax = QRectF(QPointF(ev.buttonDownPos(ev.button())), QPointF(pos))
                 ax = self.childGroup.mapRectFromParent(ax) 
                 MouseRectCoords =  ax.getCoords()  
                 self.dataSelection(MouseRectCoords)      
@@ -887,7 +887,7 @@ class residualsWidget(pg.PlotWidget):
         #self.getAxis('right').setLabel('axis2', color='#0000ff')
 
     def addLines(self):
-        #self.addItem(pg.InfiniteLine(0.0, 0, pen=pg.mkPen(color=(100, 100, 100), width=1, style=Qt.DashLine)))
+        #self.addItem(pg.InfiniteLine(0.0, 0, pen=pg.mkPen(color=(100, 100, 100), width=1, style=Qt.PenStyle.DashLine)))
         self.region = pg.LinearRegionItem([-1, 1], orientation=pg.LinearRegionItem.Horizontal, brush=pg.mkBrush(182, 232, 182, 20))
         self.region.setMovable(False)
         for l in self.region.lines:
@@ -898,8 +898,8 @@ class residualsWidget(pg.PlotWidget):
         colors = [(100, 100, 100), (100, 100, 100), (100, 100, 100)]
         widths = [1.5, 1.0, 0.5]
         for l, color, width in zip(levels, colors, widths):
-            self.addItem(pg.InfiniteLine(l, 0, pen=pg.mkPen(color=color, width=width, style=Qt.DashLine)))
-            self.addItem(pg.InfiniteLine(-l, 0, pen=pg.mkPen(color=color, width=width, style=Qt.DashLine)))
+            self.addItem(pg.InfiniteLine(l, 0, pen=pg.mkPen(color=color, width=width, style=Qt.PenStyle.DashLine)))
+            self.addItem(pg.InfiniteLine(-l, 0, pen=pg.mkPen(color=color, width=width, style=Qt.PenStyle.DashLine)))
 
     def struct(self, x=None, y=None, clear=False):
         if clear:
@@ -926,12 +926,12 @@ class residualsWidget(pg.PlotWidget):
 
     def mouseMoveEvent(self, event):
         super(residualsWidget, self).mouseMoveEvent(event)
-        self.mousePoint = self.vb.mapSceneToView(event.pos())
+        self.mousePoint = self.vb.mapSceneToView(event.position())
 
     def mouseReleaseEvent(self, event):
         super(residualsWidget, self).mouseReleaseEvent(event)
-        if event.button() == Qt.RightButton and self.menuEnabled() and self.customMenu:
-            if self.mousePoint == self.vb.mapSceneToView(event.pos()):
+        if event.button() == Qt.MouseButton.RightButton and self.menuEnabled() and self.customMenu:
+            if self.mousePoint == self.vb.mapSceneToView(event.position()):
                 self.raiseContextMenu(event)
         #event.accept()
         #pass
@@ -1013,7 +1013,7 @@ class spec2dWidget(pg.PlotWidget):
         self.mouse_moved = False
 
     def addLines(self):
-        # self.addItem(pg.InfiniteLine(0.0, 0, pen=pg.mkPen(color=(100, 100, 100), width=1, style=Qt.DashLine)))
+        # self.addItem(pg.InfiniteLine(0.0, 0, pen=pg.mkPen(color=(100, 100, 100), width=1, style=Qt.PenStyle.DashLine)))
         self.region = pg.LinearRegionItem([-1, 1], orientation=pg.LinearRegionItem.Horizontal,
                                           brush=pg.mkBrush(182, 232, 182, 20))
         self.region.setMovable(False)
@@ -1025,8 +1025,8 @@ class spec2dWidget(pg.PlotWidget):
         colors = [(100, 100, 100), (100, 100, 100), (100, 100, 100)]
         widths = [1.5, 1.0, 0.5]
         for l, color, width in zip(levels, colors, widths):
-            self.addItem(pg.InfiniteLine(l, 0, pen=pg.mkPen(color=color, width=width, style=Qt.DashLine)))
-            self.addItem(pg.InfiniteLine(-l, 0, pen=pg.mkPen(color=color, width=width, style=Qt.DashLine)))
+            self.addItem(pg.InfiniteLine(l, 0, pen=pg.mkPen(color=color, width=width, style=Qt.PenStyle.DashLine)))
+            self.addItem(pg.InfiniteLine(-l, 0, pen=pg.mkPen(color=color, width=width, style=Qt.PenStyle.DashLine)))
 
     def viewRangeChanged(self, view, range):
         self.sigRangeChanged.emit(self, range)
@@ -1037,21 +1037,21 @@ class spec2dWidget(pg.PlotWidget):
 
         if not event.isAutoRepeat():
 
-            if event.key() == Qt.Key_Down or event.key() == Qt.Key_Right:
+            if event.key() == Qt.Key.Key_Down or event.key() == Qt.Key.Key_Right:
                 if self.e_status:
                     self.parent.s.setSpec(self.parent.s.ind + 1)
 
-            if event.key() == Qt.Key_Up or event.key() == Qt.Key_Left:
+            if event.key() == Qt.Key.Key_Up or event.key() == Qt.Key.Key_Left:
                 if self.e_status:
                     self.parent.s.setSpec(self.parent.s.ind - 1)
 
-            if event.key() == Qt.Key_B:
+            if event.key() == Qt.Key.Key_B:
                 self.vb.setMouseMode(self.vb.RectMode)
                 self.b_status = True
                 self.mouse_moved = False
 
-            if event.key() == Qt.Key_E:
-                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+            if event.key() == Qt.Key.Key_E:
+                if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
                     self.parent.s.remove(self.parent.s.ind)
                 else:
                     self.e_status = True
@@ -1059,40 +1059,40 @@ class spec2dWidget(pg.PlotWidget):
                         self.parent.s[self.parent.s.ind].err2d.setLevels(self.parent.s[self.parent.s.ind].spec2d.raw.err_levels)
                         self.vb.addItem(self.parent.s[self.parent.s.ind].err2d)
 
-            if event.key() == Qt.Key_M:
+            if event.key() == Qt.Key.Key_M:
                 if self.parent.s[self.parent.s.ind].mask2d is not None:
                     self.vb.addItem(self.parent.s[self.parent.s.ind].mask2d)
 
-            if event.key() == Qt.Key_R:
+            if event.key() == Qt.Key.Key_R:
                 self.r_status = True
                 self.vb.setMouseMode(self.vb.RectMode)
 
-            if event.key() == Qt.Key_S:
+            if event.key() == Qt.Key.Key_S:
                 self.s_status = True
                 self.vb.setMouseEnabled(x=False, y=False)
 
-            if event.key() == Qt.Key_T:
+            if event.key() == Qt.Key.Key_T:
                 self.t_status = True
                 self.vb.setMouseMode(self.vb.RectMode)
-                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+                if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
                     for s in self.slits:
                         self.vb.removeItem(s[0])
                         self.vb.removeItem(s[1])
                     self.slits = []
 
-            if event.key() == Qt.Key_Q:
+            if event.key() == Qt.Key.Key_Q:
                 self.q_status = True
                 if self.parent.s[self.parent.s.ind].sky2d is not None:
-                    self.parent.s[self.parent.s.ind].sky2d.setLevels(self.parent.s[self.parent.s.ind].spec2d.sky.z_levels)
+                    self.parent.s[self.parent.s.ind].sky2d.setLevels(self.parent.s[self.parent.s.ind].spec2d.raw.z_levels)
                     self.vb.addItem(self.parent.s[self.parent.s.ind].sky2d)
 
-            if event.key() == Qt.Key_X:
+            if event.key() == Qt.Key.Key_X:
                 self.x_status = True
                 self.vb.setMouseMode(self.vb.RectMode)
                 s = self.parent.s[self.parent.s.ind].spec2d
                 if s.cr is None:
-                    s.cr = image(x=s.raw.x, y=s.raw.y, mask=np.zeros_like(s.raw.z))
-                if (QApplication.keyboardModifiers() == Qt.ShiftModifier):
+                    self.parent.s[self.parent.s.ind].spec2d.cr = image(x=s.raw.x, y=s.raw.y, mask=np.zeros_like(s.raw.z))
+                if (QApplication.keyboardModifiers() == Qt.AltModifier):
                     self.vb.removeItem(self.parent.s[self.parent.s.ind].cr_mask2d)
 
 
@@ -1101,47 +1101,45 @@ class spec2dWidget(pg.PlotWidget):
 
         if not event.isAutoRepeat():
 
-            if event.key() == Qt.Key_B:
+            if event.key() == Qt.Key.Key_B:
                 self.b_status = False
                 if not self.mouse_moved:
                     self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y(), name='2d')
                 print('keyRelease', self.b_status)
 
-            if event.key() == Qt.Key_E:
+            if event.key() == Qt.Key.Key_E:
                 self.e_status = False
-                print(self.parent.s[self.parent.s.ind].err2d)
                 if self.parent.s[self.parent.s.ind].err2d is not None:
                     self.vb.removeItem(self.parent.s[self.parent.s.ind].err2d)
 
-            if event.key() == Qt.Key_M:
+            if event.key() == Qt.Key.Key_M:
                 if self.parent.s[self.parent.s.ind].mask2d is not None:
                     self.vb.removeItem(self.parent.s[self.parent.s.ind].mask2d)
 
-            if event.key() == Qt.Key_R:
+            if event.key() == Qt.Key.Key_R:
                 self.r_status = False
                 self.parent.regions.sortit()
 
-            if event.key() == Qt.Key_S:
+            if event.key() == Qt.Key.Key_S:
                 self.s_status = False
 
-            if event.key() == Qt.Key_T:
+            if event.key() == Qt.Key.Key_T:
                 self.t_status = False
 
-            if event.key() == Qt.Key_Q:
+            if event.key() == Qt.Key.Key_Q:
                 self.q_status = False
                 if self.parent.s[self.parent.s.ind].sky2d is not None:
                     self.vb.removeItem(self.parent.s[self.parent.s.ind].sky2d)
 
-            if event.key() == Qt.Key_X:
+            if event.key() == Qt.Key.Key_X:
                 self.x_status = False
                 #self.vb.addItem(self.parent.s[self.parent.s.ind].cr_mask2d)
                 self.parent.s.redraw()
 
-
-            if any([event.key() == getattr(Qt, 'Key_'+s) for s in ['S']]):
+            if any([event.key() == getattr(Qt.Key, 'Key_'+s) for s in ['S']]):
                 self.vb.setMouseEnabled(x=True, y=True)
 
-            if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'BRSTX']):
+            if any([event.key() == getattr(Qt.Key, 'Key_' + s) for s in 'BRSTX']):
                 self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
 
@@ -1155,14 +1153,14 @@ class spec2dWidget(pg.PlotWidget):
             self.s_status = 2
 
         if any([getattr(self, s + '_status') for s in 'brtsx']):
-            self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
+            self.mousePoint_saved = self.vb.mapSceneToView(event.position())
 
         if self.t_status:
             self.t_status = 1
 
         if self.q_status:
             self.q_status = False
-            self.mousePoint = self.vb.mapSceneToView(event.pos())
+            self.mousePoint = self.vb.mapSceneToView(event.position())
             s = self.parent.s[self.parent.s.ind].spec2d
             x = s.raw.x[np.argmin(np.abs(self.mousePoint.x() - s.raw.x))]
             if self.parent.extract2dwindow is not None:
@@ -1173,44 +1171,48 @@ class spec2dWidget(pg.PlotWidget):
             else:
                 border, poly, model, conf = 5, 3, 'median', 0.03
             s.sky_model(x, x, border=border, poly=poly, model=model, conf=conf, plot=1, smooth=0)
+
             self.parent.spec2dPanel.vb.removeItem(s.parent.sky2d)
             s.parent.sky2d = s.set_image('sky', s.parent.colormap)
             self.parent.spec2dPanel.vb.addItem(s.parent.sky2d)
 
         if self.x_status:
-            self.parent.s[self.parent.s.ind].spec2d.raw.add_mask(
-                rect=[[np.min([self.mousePoint_saved.x(), self.mousePoint_saved.x()]),
-                       np.max([self.mousePoint_saved.x(), self.mousePoint_saved.x()])],
-                      [np.min([self.mousePoint_saved.y(), self.mousePoint_saved.y()]),
-                       np.max([self.mousePoint_saved.y(), self.mousePoint_saved.y()])]
-                      ], add=(QApplication.keyboardModifiers() != Qt.ControlModifier))
+            self.mousePoint_saved = self.vb.mapSceneToView(event.position())
+            #if (self.mousePoint_saved.x() == self.mousePoint.x()) and (self.mousePoint_saved.y() == self.mousePoint.y())
+            if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier) and (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
+                self.parent.s[self.parent.s.ind].spec2d.raw.add_mask(
+                    rect=[[np.min([self.mousePoint_saved.x(), self.mousePoint_saved.x()]),
+                           np.max([self.mousePoint_saved.x(), self.mousePoint_saved.x()])],
+                          [np.min([self.mousePoint_saved.y(), self.mousePoint_saved.y()]),
+                           np.max([self.mousePoint_saved.y(), self.mousePoint_saved.y()])]
+                          ], add=(QApplication.keyboardModifiers() != Qt.KeyboardModifier.ControlModifier))
             self.parent.spec2dPanel.vb.removeItem(self.parent.s[self.parent.s.ind].cr_mask2d)
             self.parent.s[self.parent.s.ind].cr_mask2d = self.parent.s[self.parent.s.ind].spec2d.set_image('cr', self.parent.s[self.parent.s.ind].cr_maskcolormap)
             self.parent.spec2dPanel.vb.addItem(self.parent.s[self.parent.s.ind].cr_mask2d)
 
     def mouseReleaseEvent(self, event):
         if any([getattr(self, s+'_status') for s in 'brtx']):
+            self.vb.removeItem(self.vb.rbScaleBox)
             self.vb.setMouseMode(self.vb.PanMode)
-            self.vb.rbScaleBox.hide()
 
         if any([getattr(self, s + '_status') for s in 's']):
-            self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
+            self.mousePoint_saved = self.vb.mapSceneToView(event.position())
 
         if self.b_status:
-            if event.button() == Qt.LeftButton:
+            if event.button() == Qt.MouseButton.LeftButton:
                 if self.mousePoint == self.mousePoint_saved:
                     self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y(), name='2d')
                 else:
                     self.parent.s[self.parent.s.ind].del_spline(self.mousePoint_saved.x(), self.mousePoint_saved.y(),
                                                                 self.mousePoint.x(), self.mousePoint.y(), name='2d')
 
-            if event.button() == Qt.RightButton:
+            if event.button() == Qt.MouseButton.RightButton:
                 ind = self.parent.s[self.parent.s.ind].spline2d.find_nearest(self.mousePoint.x(), self.mousePoint.y())
                 self.parent.s[self.parent.s.ind].del_spline(arg=ind, name='2d')
                 event.accept()
 
         if self.t_status:
-            self.mousePoint = self.vb.mapSceneToView(event.pos())
+            self.mousePoint = self.vb.mapSceneToView(event.position())
 
             if self.t_status == 1:
                 spec2d = self.parent.s[self.parent.s.ind].spec2d
@@ -1230,12 +1232,21 @@ class spec2dWidget(pg.PlotWidget):
                                                                 plot=True)
 
         if self.x_status:
-            self.parent.s[self.parent.s.ind].spec2d.cr.add_mask(
-                rect=[[np.min([self.mousePoint_saved.x(), self.mousePoint.x()]),
-                       np.max([self.mousePoint_saved.x(), self.mousePoint.x()])],
-                      [np.min([self.mousePoint_saved.y(), self.mousePoint.y()]),
-                       np.max([self.mousePoint_saved.y(), self.mousePoint.y()])]
-                      ], add=(QApplication.keyboardModifiers() != Qt.ControlModifier))
+            if (QApplication.keyboardModifiers() != Qt.KeyboardModifier.ShiftModifier) and (QApplication.keyboardModifiers() != Qt.KeyboardModifier.ControlModifier):
+                self.parent.s[self.parent.s.ind].spec2d.cr.add_mask(
+                    rect=[[np.min([self.mousePoint_saved.x(), self.mousePoint.x()]),
+                           np.max([self.mousePoint_saved.x(), self.mousePoint.x()])],
+                          [np.min([self.mousePoint_saved.y(), self.mousePoint.y()]),
+                           np.max([self.mousePoint_saved.y(), self.mousePoint.y()])]
+                          ], add=True)
+                self.parent.s[self.parent.s.ind].spec2d.intelExpand(exp_factor=2, exp_pixel=1, pixel=(self.mousePoint_saved.x(), self.mousePoint_saved.y()))
+            else:
+                self.parent.s[self.parent.s.ind].spec2d.cr.add_mask(
+                    rect=[[np.min([self.mousePoint_saved.x(), self.mousePoint.x()]),
+                           np.max([self.mousePoint_saved.x(), self.mousePoint.x()])],
+                          [np.min([self.mousePoint_saved.y(), self.mousePoint.y()]),
+                           np.max([self.mousePoint_saved.y(), self.mousePoint.y()])]
+                          ], add=(QApplication.keyboardModifiers() != Qt.KeyboardModifier.ControlModifier))
             #self.parent.s.redraw()
 
         if event.isAccepted():
@@ -1243,7 +1254,7 @@ class spec2dWidget(pg.PlotWidget):
 
     def mouseMoveEvent(self, event):
         super(spec2dWidget, self).mouseMoveEvent(event)
-        self.mousePoint = self.vb.mapSceneToView(event.pos())
+        self.mousePoint = self.vb.mapSceneToView(event.position())
         self.mouse_moved = True
         s = 'x={0:.3f}, y={1:.2f}'.format(self.mousePoint.x(), self.mousePoint.y())
         if len(self.parent.s) > 0 and self.parent.s[self.parent.s.ind].spec2d.raw.z is not None and len(self.parent.s[self.parent.s.ind].spec2d.raw.z.shape) == 2:
@@ -1253,7 +1264,7 @@ class spec2dWidget(pg.PlotWidget):
         self.cursorpos.setText(s)
 
         pos = self.vb.sceneBoundingRect()
-        self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(int(pos.left() + 10), int(pos.bottom() - 10))))
+        self.cursorpos.setPos(self.vb.mapSceneToView(QPointF(int(pos.left() + 10), int(pos.bottom() - 10))))
         if self.s_status == 2 and event.type() == QEvent.MouseMove:
             range = self.vb.getState()['viewRange']
             delta = ((self.mousePoint.x() - self.mousePoint_saved.x()) / (range[0][1] - range[0][0]),
@@ -1267,7 +1278,7 @@ class spec2dWidget(pg.PlotWidget):
             im.setLevels(self.parent.s[self.parent.s.ind].spec2d.raw.z_levels)
             self.levels.setText("levels: {:.4f} {:.4f}".format(levels[0], levels[1]))
 
-        self.levels.setPos(self.vb.mapSceneToView(QPoint(int(pos.right() - 10), int(pos.bottom() - 10))))
+        self.levels.setPos(self.vb.mapSceneToView(QPointF(int(pos.right() - 10), int(pos.bottom() - 10))))
         if self.t_status:
             self.t_status = 2
 
@@ -1278,11 +1289,11 @@ class spec2dWidget(pg.PlotWidget):
     def wheelEvent(self, event):
         super(spec2dWidget, self).wheelEvent(event)
         pos = self.vb.sceneBoundingRect()
-        self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(int(pos.left() + 10), int(pos.bottom() - 10))))
+        self.cursorpos.setPos(self.vb.mapSceneToView(QPointF(int(pos.left() + 10), int(pos.bottom() - 10))))
 
     def mouseDragEvent(self, ev):
 
-        if ev.button() == Qt.RightButton:
+        if ev.button() == Qt.MouseButton.RightButton:
             ev.ignore()
         else:
             pg.ViewBox.mouseDragEvent(self, ev)
@@ -1290,12 +1301,12 @@ class spec2dWidget(pg.PlotWidget):
         ev.accept()
         pos = ev.pos()
 
-        if ev.button() == Qt.RightButton:
+        if ev.button() == Qt.MouseButton.RightButton:
             self.updateScaleBox(ev.buttonDownPos(), ev.pos())
 
             if ev.isFinish():
                 self.rbScaleBox.hide()
-                ax = QRectF(QPoint(ev.buttonDownPos(ev.button())), QPoint(pos))
+                ax = QRectF(QPointF(ev.buttonDownPos(ev.button())), QPointF(pos))
                 ax = self.childGroup.mapRectFromParent(ax)
                 MouseRectCoords = ax.getCoords()
                 self.dataSelection(MouseRectCoords)
@@ -1529,7 +1540,7 @@ class preferencesWidget(QWidget):
         self.parent.fit_method = self.fitmethod.currentText()
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_F11:
+        if event.key() == Qt.Key.Key_F11:
             self.close()
 
     def closeEvent(self, event):
@@ -2124,7 +2135,7 @@ class showLinesWidget(QWidget):
         self.file.setText(fname)
 
     def chooseOverFile(self):
-        fname = QFileDialog.getExistingDirectory(self, 'Select overplot file...', self.parent.plot_set_folder)
+        fname = QFileDialog.getSaveFileName(self, 'Select overplot file...', self.parent.plot_set_folder)
         self.over_file.setText(fname)
 
     def showPlot(self, savefig=True):
@@ -2240,9 +2251,17 @@ class showLinesWidget(QWidget):
                 p.y_formatter = self.y_formatter
 
                 p.plot_line()
-                
+
                 def conv(x):
                     return (x / p.wavelength / (1 + self.ps.z_ref) - 1) * 299794.26
+
+                if over is not None:
+                    if p.vel_scale:
+                        x = conv(over[0])
+                    else:
+                        x = over[0]
+                    p.ax.plot(x, over[1], ls='-', color=to_hex(tuple(c / 255 for c in self.over_color.to_bytes(4, byteorder='big'))), lw=self.fit_lw, zorder=12)
+
 
                 if self.show_cont:
 
@@ -2317,7 +2336,6 @@ class showLinesWidget(QWidget):
                 regions = self.lines.toPlainText().splitlines()
                 #regions = self.parent.plot.regions
                 st = str(regions[i]).split()
-                print(st)
                 p.x_min, p.x_max = (float(s) for s in st[0].split('..'))
                 #p.y_formater = '%.1f'
                 ind = self.parent.s.ind
@@ -2330,7 +2348,6 @@ class showLinesWidget(QWidget):
                         p.label = str(s[5:])
                     if 'nofit' in s:
                         p.show_fit = False
-                print(ind)
                 s = self.parent.s[ind]
 
                 if self.corr_cheb and self.parent.fit.cont_fit:
@@ -2405,7 +2422,6 @@ class showLinesWidget(QWidget):
                                 levels = [sp for sp in self.parent.fit.list_species() if sp.startswith(speci)]
                             else:
                                 levels = [(speci + "j") * l.isdigit() + l for l in self.show_H2.split()]
-                            print(levels)
                             p.showLineLabels(levels=levels, pos=self.pos_H2, kind='full', only_marks=self.only_marks, show_comps=self.all_comps_marks)
                     
                 if self.show_cont:
@@ -2505,8 +2521,8 @@ class showLinesWidget(QWidget):
         key = event.key()
 
         if not event.isAutoRepeat():
-            if event.key() == Qt.Key_F7:
-                #if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+            if event.key() == Qt.Key.Key_F7:
+                #if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
                 self.parent.showlines.close()
 
     def closeEvent(self, ev):
@@ -2684,7 +2700,7 @@ class fitMCMCWidget(QWidget):
 
     def initGUI(self):
         layout = QHBoxLayout()
-        splitter = QSplitter(Qt.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
 
         h = QHBoxLayout()
         grid = QGridLayout()
@@ -3622,8 +3638,8 @@ class fitMCMCWidget(QWidget):
         key = event.key()
 
         if not event.isAutoRepeat():
-            if event.key() == Qt.Key_F5:
-                #if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+            if event.key() == Qt.Key.Key_F5:
+                #if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
                 self.parent.MCMC.close()
 
     def closeEvent(self, event):
@@ -3645,13 +3661,13 @@ class fitExtWidget(QWidget):
         l = QHBoxLayout()
         l.addWidget(QLabel('Template:'))
         temp_group = QButtonGroup(self)
-        self.smooth_template = {'VandenBerk': 7, 'HST': 7, 'Slesing': 7, 'power': None, 'composite': 7}
-        for template in ['VandenBerk', 'HST', 'Slesing', 'composite', 'power']:
+        self.smooth_template = {'VandenBerk': 7, 'HST': 7, 'Selsing': 7, 'power': None, 'composite': 7}
+        for template in ['VandenBerk', 'HST', 'Selsing', 'composite', 'power']:
             setattr(self, template, QRadioButton(template))
             temp_group.addButton(getattr(self, template))
             l.addWidget(getattr(self, template))
             getattr(self, template).toggled.connect(partial(self.set, 'template', template))
-        self.Slesing.setChecked(True)
+        self.Selsing.setChecked(True)
         self.slope = -1.7
         self.slopeField = QLineEdit()
         self.slopeField.setFixedSize(70, 30)
@@ -3773,7 +3789,7 @@ class fitExtWidget(QWidget):
         return frame
 
     def load_template(self, x=None, z_em=0, smooth_window=None):
-        if self.template in ['VandenBerk', 'HST', 'Slesing', 'power']:
+        if self.template in ['VandenBerk', 'HST', 'Selsing', 'power']:
             if self.template == 'VandenBerk':
                 data = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
                 data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
@@ -3783,8 +3799,8 @@ class fitExtWidget(QWidget):
                 data = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
                 data[0] *= (1 + z_em)
                 fill_value = 'extrapolate'
-            elif self.template == 'Slesing':
-                data = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
+            elif self.template == 'Selsing':
+                data = np.genfromtxt('data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
                 data[0] *= (1 + z_em)
                 fill_value = 'extrapolate'
             elif self.template == 'power':
@@ -3795,7 +3811,7 @@ class fitExtWidget(QWidget):
                 data[0] *= (1 + z_em)
                 fill_value = 'extrapolate'
             elif self.template == 'composite':
-                data = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
+                data = np.genfromtxt('data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
                 data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
                 if 0:
                     x = data[0][-1] + np.arange(1, int((25000 - data[0][-1]) / 0.4)) * 0.4
@@ -3924,7 +3940,7 @@ class fitExtWidget(QWidget):
         self.showExt(True, norm=result.params['norm'].value)
 
     def keyPressEvent(self, qKeyEvent):
-        if qKeyEvent.key() == Qt.Key_Return:
+        if qKeyEvent.key() == Qt.Key.Key_Return:
             self.showExt(True)
 
 class extract2dWidget(QWidget):
@@ -3954,7 +3970,7 @@ class extract2dWidget(QWidget):
             ('sky_poly', ['skyPoly', int, 3]),
             ('sky_smooth', ['skySmooth', int, 0]),
             ('sky_smooth_coef', ['skySmoothCoef', float, 0.3]),
-            ('helio_corr', ['helioCorr', float, 20.682]),
+            ('helio_corr', ['helioCorr', float, -20.894]),
             ('rescale_window', ['rescaleWindow', int, 30]),
         ])
         for opt in self.opts.keys():
@@ -3997,7 +4013,7 @@ class extract2dWidget(QWidget):
         frame = QFrame(self)
         layout = QVBoxLayout()
         self.input = QTextEdit()
-        self.input.setText('sigclip=4.5\nsigfrac=0.3\nobjlim=5.\npssl=0.0\ngain=1.0\nreadnoise=6.5\nsatlevel=65535.0\nniter=4\nsepmed=1\ncleantype=meanmask\nfsmode=median\npsffwhm=2.5\npsfsize=7\npsfk=None\npsfbeta=4.765')
+        self.input.setText('sigclip=2.0\nsigfrac=0.3\nobjlim=1.\npssl=0.0\ngain=10.0\nreadnoise=1.5\nsatlevel=65535.0\nniter=10\nsepmed=1\ncleantype=meanmask\nfsmode=median\npsffwhm=2.5\npsfsize=7\npsfk=None\npsfbeta=4.765')
         layout.addWidget(QLabel('cosmicray_lacosmic arguments:'))
         layout.addWidget(self.input)
         hl = QHBoxLayout()
@@ -4119,7 +4135,20 @@ class extract2dWidget(QWidget):
         layout.addWidget(line)
 
         hl = QHBoxLayout()
-        hl.addWidget(QLabel('Slit:'))
+        hl.addWidget(QLabel('Profile:'))
+        self.extrProfile = QComboBox(self)
+        self.extrProfile.addItems(['optimal', 'moffat', 'gaussian', 'rectangular'])
+        self.extrProfile.setFixedSize(80, 30)
+        #self.extrProfile.setCurrentText(self.extr_prof)
+        hl.addWidget(self.extrProfile)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        self.slit = QCheckBox('Slit:')
+        self.slit.setFixedSize(80, 30)
+        self.slit.setChecked(True)
+        hl.addWidget(self.slit)
         self.extrSlit = QLineEdit()
         self.extrSlit.setFixedSize(40, 30)
         self.extrSlit.textChanged.connect(partial(self.edited, 'extr_slit'))
@@ -4366,12 +4395,12 @@ class extract2dWidget(QWidget):
     def trace(self):
         s = self.parent.s[self.exp_ind]
         inds = np.where(s.cont_mask2d)[0]
-
+        print(inds)
         s.spec2d.moffat_grid(2.35482 * self.extr_slit / 2 / np.sqrt(2 ** (1 / 4.765) - 1))
         for k, i in zip(np.arange(len(inds))[:-self.trace_step:self.trace_step], inds[:-self.trace_step:self.trace_step]):
             try:
                 print(k)
-                s.spec2d.profile(s.spec2d.raw.x[i+int(self.trace_step/2)-4], s.spec2d.raw.x[i+int(self.trace_step/2)+4],
+                s.spec2d.profile(s.spec2d.raw.x[i+int(self.trace_step * 0.7)-4], s.spec2d.raw.x[i+int(self.trace_step * 0.7)+4],
                                  s.spec2d.raw.y[self.extr_border], s.spec2d.raw.y[-self.extr_border],
                                  x_0=s.cont2d.y[k], slit=self.extr_slit)
             except:
@@ -4412,7 +4441,8 @@ class extract2dWidget(QWidget):
         self.helio_corr = float(self.helioCorr.text()) if self.helio.isChecked() else None
 
         s = self.parent.s[self.exp_ind]
-        s.spec2d.extract(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], slit=self.extr_slit, airvac=self.airVac.isChecked(), helio=self.helio_corr)
+        s.spec2d.extract(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], slit=self.airVac.isChecked() * self.extr_slit,
+                         profile_type = self.extrProfile.currentText(), airvac=self.airVac.isChecked(), helio=self.helio_corr)
 
         self.updateExpChoose()
         self.parent.s.redraw(len(self.parent.s)-1)
@@ -4448,14 +4478,13 @@ class extract2dWidget(QWidget):
         key = event.key()
 
         if not event.isAutoRepeat():
-            if event.key() == Qt.Key_D:
-                if (QApplication.keyboardModifiers() == Qt.ControlModifier):
+            if event.key() == Qt.Key.Key_D:
+                if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
                     self.parent.extract2dwindow.close()
 
     def closeEvent(self, event):
         self.parent.extract2dwindow = None
         event.accept()
-
 
 class fitContWidget(QWidget):
     def __init__(self, parent):
@@ -4754,7 +4783,7 @@ class loadSDSSwidget(QWidget):
         
     def initUI(self):      
 
-        splitter = QSplitter(Qt.Vertical)
+        splitter = QSplitter(Qt.Orientation.Vertical)
 
         layout = QVBoxLayout(self)
         l = QHBoxLayout(self)
@@ -5066,7 +5095,7 @@ class loadSDSSwidget(QWidget):
             self.parent.SDSSlist.setdata(self.parent.SDSSdata)
 
     def keyPressEvent(self, qKeyEvent):
-        if qKeyEvent.key() == Qt.Key_Return:
+        if qKeyEvent.key() == Qt.Key.Key_Return:
             self.loadspectrum()
 
 class SDSSPhotWidget(QWidget):
@@ -5622,6 +5651,8 @@ class ExportDataWidget(QWidget):
             np.savetxt(self.filename, np.c_[s.spec.x()[mask] / unit, s.spec.y()[mask] * np.power(cheb(s.spec.x()[mask]), -self.parent.normview), s.spec.err()[mask]], **kwargs)
         if self.cont.isChecked():
             np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x[cont_mask] / unit, s.cont.y[cont_mask] * np.power(cheb(s.cont.x[cont_mask]), 1 - 2 * self.parent.normview)], **kwargs)
+            if len(s.cheb.disp[0].norm.x > 0):
+                np.savetxt('_cont_disp.'.join(self.filename.rsplit('.', 1)), np.c_[s.cheb.disp[0].norm.x[fit_mask] / unit, s.cheb.disp[0].norm.y[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview), s.cheb.disp[1].norm.y[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview)], **kwargs)
         if self.fit.isChecked():
             np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x()[fit_mask] / unit, s.fit.y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview)], **kwargs)
             if len(s.fit.disp[0].norm.x > 0):
@@ -5827,9 +5858,9 @@ class combineWidget(QWidget):
 
         print('x: ', len(x), x)
         # calculate combined spectrum:
-        comb = np.empty([len(slist), len(x)], dtype=np.float)
+        comb = np.empty([len(slist), len(x)], dtype=float)
         comb.fill(np.nan)
-        e_comb = np.empty([len(slist), len(x)], dtype=np.float)
+        e_comb = np.empty([len(slist), len(x)], dtype=float)
         e_comb.fill(np.nan)
 
         for i, s in enumerate(slist):
@@ -5851,7 +5882,7 @@ class combineWidget(QWidget):
                 mask_s = (s.spec.err() != 0)
                 mask = (x > s.spec.x()[mask_s][2]) * (x < s.spec.x()[mask_s][-3])
                 comb[i][mask], e_comb[i][mask] = spectres.spectres(s.spec.x()[mask_s], s.spec.y()[mask_s], x[mask], spec_errs=s.spec.err()[mask_s])
-                e_comb[i][s.bad_mask.x()] = np.nan
+                e_comb[i][np.searchsorted(x, s.spec.x()[np.where(s.bad_mask.x())[0]])] = np.nan
 
         print(comb, e_comb)
 
@@ -5970,7 +6001,7 @@ class rebinWidget(QWidget):
     def addParent(self, parent, text, checkable=False, expanded=False):
         item = QTreeWidgetItem(parent, [text])
         if checkable:
-            item.setCheckState(0, Qt.Unchecked)
+            item.setCheckState(0, pUnchecked)
         else:
             #item.setFlags(item.flags() | Qt.ItemIsEditable)
             item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
@@ -6124,7 +6155,7 @@ class GenerateAbsWidget(QWidget):
 
     def initGUI(self):
         layout = QVBoxLayout()
-        splitter = QSplitter(Qt.Vertical)
+        splitter = QSplitter(Qt.Orientation.Vertical)
         grid = QGridLayout()
 
         validator = QDoubleValidator()
@@ -6159,7 +6190,7 @@ class GenerateAbsWidget(QWidget):
             grid.addWidget(b, v[0], v[1])
 
         self.template = QComboBox(self)
-        self.templist = ['Slesing', 'VanDenBerk', 'HST', 'const', 'spectrum']
+        self.templist = ['Selsing', 'VanDenBerk', 'HST', 'const', 'spectrum']
         self.template.addItems(self.templist)
         ind = self.templist.index(self.gen_template) if self.gen_template in self.templist else 0
         self.template.setCurrentIndex(ind)
@@ -6273,6 +6304,7 @@ class GenerateAbsWidget(QWidget):
                 m = s.fit.y() < np.exp(-self.gen_tau)
                 m[0] = False
                 m[-1] = False
+                print(np.sum(m))
                 regions = []
                 regs = np.argwhere(np.abs(np.diff(m)))
                 for r in range(0, len(regs), 2):
@@ -6281,6 +6313,7 @@ class GenerateAbsWidget(QWidget):
                         if xmin < line.line.l() * (1 + self.parent.fit.sys[0].z.val) < xmax:
                             regions.append([xmin, xmax])
 
+            print(regions)
             s = self.parent.s[self.parent.s.ind]
             for r in regions:
                 s.add_points(r[0], 1.5, r[1], -0.5, remove=False, redraw=False)
@@ -6314,24 +6347,36 @@ class GenerateAbsWidget(QWidget):
             names = [name.replace('_', ' ') for name in pickle.load(f)]
             res = np.asarray(pickle.load(f))
             lnprobs = np.asarray(pickle.load(f))
+            print(res, lnprobs)
 
-        c = ChainConsumer()
-        c.add_chain(res, parameters=names)
-        c.configure(smooth=True,
-                    colors=['g'],
-                    # cmap='Reds',
-                    # marker_size=2,
-                    cloud=True,
-                    shade=True,
-                    sigmas=[0, 1, 2, 3],
-                    )
-        c.configure_truth(ls='--', lw=1., c='black')  # c='darkorange')
+        if 0:
+            c = ChainConsumer()
+            c.add_chain(res, parameters=names)
+            c.configure(smooth=True,
+                        colors=['g'],
+                        # cmap='Reds',
+                        # marker_size=2,
+                        cloud=True,
+                        shade=True,
+                        sigmas=[0, 1, 2, 3],
+                        )
+            c.configure_truth(ls='--', lw=1., c='black')  # c='darkorange')
 
-        fig = c.plotter.plot(figsize=(20, 20),
-                             # filename="output/fit.png",
-                             display=True,
-                             truth=[self.parent.fit.getValue(str(p)) for p in self.parent.fit.list_fit()],
-                             )
+            fig = c.plotter.plot(figsize=(20, 20),
+                                 # filename="output/fit.png",
+                                 display=True,
+                                 truth=[self.parent.fit.getValue(str(p)) for p in self.parent.fit.list_fit()],
+                                 )
+        else:
+            print(res.shape)
+            print(res.reshape(-1, res.shape[-1]))
+            fig = corner.corner(res.reshape(-1, res.shape[-1]),
+                                labels=names,
+                                show_titles=True,
+                                plot_contours=True,
+                                truths=[self.parent.fit.getValue(str(p)) for p in self.parent.fit.list_fit()],
+                                )
+            plt.show()
 
     def closeEvent(self, ev):
         for opt, func in self.opts.items():
@@ -6378,8 +6423,8 @@ class messageWindow(QWidget):
     def __init__(self, parent, text='', timer=2000):
         super().__init__(parent=None)
         # make the window frameless
-        self.setWindowFlags(Qt.FramelessWindowHint)
-        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.parent = parent
         self.text = text
 
@@ -6388,7 +6433,7 @@ class messageWindow(QWidget):
             l.addWidget(QLabel(text))
             self.setLayout(l)
 
-        self.pos = [QApplication.desktop().screenGeometry().width() / 2, QApplication.desktop().screenGeometry().height() / 2]
+        self.pos = [QApplication.screens()[0].geometry().width() / 2, QApplication.screens()[0].geometry().height() / 2]
         self.resize(400 + len(self.text) * 12, 50)
         self.move(int(self.pos[0] - self.size().width() / 2), int(self.pos[1] - self.size().height() / 2))
 
@@ -6611,6 +6656,7 @@ class sviewer(QMainWindow):
         self.regions = []
         self.show_residuals = self.options('show_residuals')
         self.show_2d = self.options('show_2d')
+        self.bary, self.heli = 0, 0
         self.save_opt = ['cont', 'points', 'fit', 'others', 'fit_results']
         self.export_opt = ['cont', 'fit']
         self.export2d_opt = ['spectrum', 'err', 'mask', 'cr', 'sky', 'trace']
@@ -6658,16 +6704,16 @@ class sviewer(QMainWindow):
         #self.plot.setFrameShape(QFrame.StyledPanel)
         
         self.panel = buttonpanel(self)
-        self.panel.setFrameShape(QFrame.StyledPanel)
+        self.panel.setFrameShape(QFrame.Shape.StyledPanel)
 
-        self.splitter = QSplitter(Qt.Vertical)
-        self.splitter_plot = QSplitter(Qt.Vertical)
+        self.splitter = QSplitter(Qt.Orientation.Vertical)
+        self.splitter_plot = QSplitter(Qt.Orientation.Vertical)
         self.splitter_plot.addWidget(self.plot)
-        self.splitter_fit = QSplitter(Qt.Horizontal)
+        self.splitter_fit = QSplitter(Qt.Orientation.Horizontal)
         self.splitter_fit.addWidget(self.splitter_plot)
         self.splitter.addWidget(self.splitter_fit)
 
-        splitter_2 = QSplitter(Qt.Horizontal)
+        splitter_2 = QSplitter(Qt.Orientation.Horizontal)
         splitter_2.addWidget(self.panel)
         self.console = Console(self)
         splitter_2.addWidget(self.console)
@@ -6686,7 +6732,7 @@ class sviewer(QMainWindow):
         
         # >>> create status bar
         self.statusBarWidget = QStatusBar()
-        splitter = QSplitter(Qt.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
         self.setStatusBar(self.statusBarWidget)
         self.statusBar = QLabel()
         splitter.addWidget(self.statusBar)
@@ -7430,7 +7476,7 @@ class sviewer(QMainWindow):
 
     def dropEvent(self, event):
         if event.mimeData().hasUrls:
-            event.setDropAction(Qt.CopyAction)
+            event.setDropAction(Qt.DropAction.CopyAction)
             event.accept()
             # Workaround for OSx dragging and dropping
 
@@ -7454,7 +7500,7 @@ class sviewer(QMainWindow):
     
     def draw(self):
         # >>> add zero line level
-        self.zeroline = pg.InfiniteLine(0.0, 0, pen=pg.mkPen(color=(148, 103, 189), width=1, style=Qt.DashLine))
+        self.zeroline = pg.InfiniteLine(0.0, 0, pen=pg.mkPen(color=(148, 103, 189), width=1, style=Qt.PenStyle.DashLine))
         if 0:
             self.zeroline.setMovable(1)
             self.zeroline.setHoverPen(color=(214, 39, 40), width=3)
@@ -8123,7 +8169,7 @@ class sviewer(QMainWindow):
                     f = h5py.File(filename, 'r')
                     for l in ['wavelength', 'wave', 'x']:
                         if l in f.keys():
-                            wave = np.asarray(f[l][:], dtype=np.float)
+                            wave = np.asarray(f[l][:], dtype=float)
                     for l in ['flux', 'f', 'y']:
                         if l in f.keys():
                             flux = f[l][:]
@@ -8145,7 +8191,10 @@ class sviewer(QMainWindow):
                 elif filename.endswith('.csv') and 'MALS' in filename:
                     data = np.genfromtxt(filename, comments='#', skip_header=1, unpack=True, usecols=(1, 2), delimiter=',')
                     s.set_data([data[0] / 1e9, data[1]])
-
+                elif filename.endswith('.dat') and ',' in open(filename, 'r').readline():
+                    data = np.genfromtxt(filename, comments='#', unpack=True, delimiter=',')
+                    print(data[0], data[1], data[2])
+                    s.set_data([data[0], data[1], data[2]])
                 else:
                     # >>>> other ascii data, e.g. .dat, .txt, etc
                     try:
@@ -8205,7 +8254,7 @@ class sviewer(QMainWindow):
                                 k = 10
                         else:
                              k = 1
-                        print(k, 'CUNIT1' in hdulist[0].header)
+                        #print(k, 'CUNIT1' in hdulist[0].header)
                         x = np.linspace(hdulist[0].header['CRVAL1'] * k,
                                         (hdulist[0].header['CRVAL1'] + hdulist[0].header['CDELT1'] *
                                         (hdulist[0].header['NAXIS1']-1)) * k,
@@ -8214,7 +8263,13 @@ class sviewer(QMainWindow):
                                         hdulist[0].header['CRVAL2'] + hdulist[0].header['CDELT2'] *
                                         (hdulist[0].header['NAXIS2']-1),
                                         hdulist[0].header['NAXIS2'])
-                        print(x)
+
+                        for k in ['BARY', 'HELI']:
+                            inds = [k in h for h in hdulist[0].header.keys()]
+                            if any(inds):
+                                setattr(self, k.lower(), hdulist[0].header[np.where(inds)[0][0]])
+                                #print(x)
+                        #print('ORIGIN' in hdulist[0].header, 'sviewer' in hdulist[0].header['ORIGIN'])
                         if 'INSTRUME' in hdulist[0].header and 'XSHOOTER' in hdulist[0].header['INSTRUME']:
                             err, mask = None, None
                             for h in hdulist[1:]:
@@ -8222,6 +8277,7 @@ class sviewer(QMainWindow):
                                     err = h.data * 1e17
                                 elif h.header['EXTNAME'].strip() == 'QUAL':
                                     mask = h.data.astype(bool)
+                            #print(err, mask)
                             s.spec2d.set(x=x, y=y, z=hdulist[0].data * 1e17, err=err, mask=mask)
 
                         elif 'INSTRUME' in hdulist[0].header and hdulist[0].header['INSTRUME'] == 'SCORPIO-2':
@@ -8234,6 +8290,7 @@ class sviewer(QMainWindow):
                         if 'ORIGIN' in hdulist[0].header and 'sviewer' in hdulist[0].header['ORIGIN']:
                             err, mask, cr, sky, sky_mask, trace = None, None, None, None, None, None
                             for h in hdulist[1:]:
+                                print(h.header['EXTNAME'])
                                 if h.header['EXTNAME'].strip() == 'err':
                                     err = h.data
                                 if h.header['EXTNAME'].strip() == 'mask':
@@ -8246,7 +8303,6 @@ class sviewer(QMainWindow):
                                     sky_mask = h.data
                                 if h.header['EXTNAME'].strip() == 'trace':
                                     trace = h.data
-                                    print(trace)
                             s.spec2d.set(x=x, y=y, z=hdulist[0].data, err=err, mask=mask)
                             if cr is not None:
                                 s.spec2d.cr = image(x=x, y=y, mask=cr)
@@ -8309,6 +8365,9 @@ class sviewer(QMainWindow):
         hdr['CRVAL2'] = s.raw.y[0]
         hdr['CDELT2'] = s.raw.y[1] - s.raw.y[0]
         hdr['CTYPE2'] = 'LINEAR'
+        hdr['BARY'] = self.bary
+        hdr['HELI'] = self.heli
+
         hdr_c = fits.Header()
         for opt in opts:
             hdr['EXTNAME'] = opt
@@ -8728,7 +8787,7 @@ class sviewer(QMainWindow):
         plt.show()
 
     def fitLM(self):
-        QApplication.setOverrideCursor(Qt.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         self.panel.fitbutton.setChecked(True)
         if self.chiSquare.text().strip() == '':
             print('showFit')
@@ -9097,11 +9156,11 @@ class sviewer(QMainWindow):
             n = np.sum(s.mask.x())
             if n > 0:
                 mean = self.abs.reference.line.l() * (1 + self.z_abs)
-                x, y, err = np.array(s.spec.x()[s.mask.x()], dtype=np.float), np.array(s.spec.y()[s.mask.x()], dtype=np.float), np.array(s.spec.err()[s.mask.x()], dtype=np.float)
+                x, y, err = np.array(s.spec.x()[s.mask.x()], dtype=float), np.array(s.spec.y()[s.mask.x()], dtype=float), np.array(s.spec.err()[s.mask.x()], dtype=float)
                 if self.normview:
-                    cont = np.zeros_like(x, dtype=np.float)
+                    cont = np.zeros_like(x, dtype=float)
                 else:
-                    cont = np.array(s.cont.y[s.mask.x()[s.cont_mask]], dtype=np.float)
+                    cont = np.array(s.cont.y[s.mask.x()[s.cont_mask]], dtype=float)
                 ymax = np.max(y - cont)
                 m = y - cont > ymax / 2
                 if len(x[m]) > 1:
@@ -9723,7 +9782,7 @@ class sviewer(QMainWindow):
         xmin, xmax = mean - 1 * std, mean + 3 * std
         m = (xmin < f) * (f < xmax)
         kde = gaussian_kde(f[m])
-        x = np.linspace(xmin, xmax, np.sqrt(len(f[m])))
+        x = np.linspace(xmin, xmax, int(np.sqrt(len(f[m]))))
         fig, ax = plt.subplots()
         ax.plot(x, kde(x), '-r')
 
@@ -9924,7 +9983,7 @@ class sviewer(QMainWindow):
 
     def show_H2_cand(self):
         self.mw = MatplotlibWidget(size=(200, 100), dpi=100)
-        self.mw.move(QPoint(100, 100))
+        self.mw.move(QPointF(100, 100))
         self.mw.show()
         figure = self.mw.getFigure()
         self.s[self.s.ind].calc_norm()
@@ -10337,10 +10396,10 @@ class sviewer(QMainWindow):
 
         if self.normview:
             self.normalize(False)
-        if template in ['Slesing', 'VanDenBerk', 'HST', 'const']:
+        if template in ['Selsing', 'VanDenBerk', 'HST', 'const']:
             s = Spectrum(self, name='mock')
-            if template == 'Slesing':
-                data = np.genfromtxt('data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
+            if template == 'Selsing':
+                data = np.genfromtxt('data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
                 fill_value = 'extrapolate'
             if template == 'VanDenBerk':
                 data = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)

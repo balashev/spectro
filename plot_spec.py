@@ -356,6 +356,7 @@ class plotline():
         self.yticklabels = None
         self.xticklabels = None
         self.ylabel = None
+        self.ylabel = None
         self.xlabel = None
         self.label = None
         self.x_min, self.x_max, self.y_min, self.y_max = 0, 0, 0, 0
@@ -641,10 +642,10 @@ class plotline():
         self.ax.axis([self.x_min, self.x_max, self.y_min, self.y_max])
 
         # >>> set ticks labels:
-        if self.yticklabels is None:
-            self.ax.set_yticklabels([])
         if self.xticklabels is None:
             self.ax.set_xticklabels([])
+        if self.yticklabels is None:
+            self.ax.set_yticklabels([])
 
         # >>> specify ticks:
         self.ax.xaxis.set_minor_locator(self.x_minorLocator)
@@ -668,7 +669,10 @@ class plotline():
         if self.ylabel is not None:
             self.ax.set_ylabel(self.ylabel, fontsize=self.font_size, fontname=self.font)
             if self.ylabel_pos is not None:
-                self.ax.yaxis.set_label_coords(self.ylabel_pos)
+                tr = self.ax.yaxis.label.get_transform()
+                self.ax.yaxis.set_label_coords(self.ax.yaxis.label.get_position()[0], self.ylabel_pos)
+                self.ax.yaxis._autolabelpos = True
+                self.ax.yaxis.label.set_transform(tr)
         if self.xlabel is not None:
             self.ax.set_xlabel(self.xlabel, fontsize=self.font_size, fontname=self.font, labelpad=-4)
 
@@ -776,14 +780,12 @@ class plotline():
         if len(x[mask]) > 0:
             base = (self.spec.x[mask] - self.spec.x[mask][0]) * 2 / (self.spec.x[mask][-1] - self.spec.x[mask][0]) - 1
             corr[mask] = np.polynomial.chebyshev.chebval(base, self.cont)
-        print(corr)
 
         sum_cont = np.zeros(len(self.spec.x))
         for k in range(len(data[0])):
             for l in range(len(self.cont)):
                 sum_cont[k] = sum_cont[k] + self.cont[l] * np.cos((l) * np.arccos(
                     -1 + (self.spec.x[k] - self.cont_range[0]) / (self.cont_range[1] - self.cont_range[0]) * 2))
-        print(sum_cont - corr)
         self.spec.y = self.spec.y / sum_cont
         self.spec.err = self.spec.err / sum_cont
 
@@ -847,7 +849,6 @@ class plotline():
             color = self.parent.color_total
         #z_ref, z_col = [], []
         if show_comps:
-            #print(self.z, self.parent.color)
             #print([self.parent.color[np.argmin(np.abs(self.z - self.parent.z_ref))]])
             z_ref, z_col = np.append([self.z], [self.parent.z_ref]), self.parent.color + [self.parent.color[np.argmin(np.abs(self.z - self.parent.z_ref))]]
             #z_col.append(self.parent.color[np.argmin(np.abs(self.z - self.parent.z_ref))])

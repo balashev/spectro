@@ -1,21 +1,21 @@
-high H2j6
-high H2j7
-set cont 1
-x 3000 9000
-x 3500 6500
-x 3500 6500
-x 3600 5500
-hide H2
-show H2 0 1 2 3 4 5
-HeI
-hide H2
-show H2 0 1 2
-show H2j8
-high H2j0
-high H2j7
-high H2j8
-high H2j7
+rescale 9.7
 stats
+stats
+rescale 10
+rescale 2
+show FeI
+show LiI
+show LiI6
+show LiI7
+stats
+LiI
+FeI
+stats
+stats
+stats
+rescale err 0.675
+show LiI
+high H2j0
 show H2 0 1
-high NI
-NI
+show CO
+show CO

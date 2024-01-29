@@ -3,9 +3,9 @@ from collections import OrderedDict
 from functools import partial
 from io import StringIO
 import numpy as np
-from PyQt5.QtCore import Qt, QSize, QLocale
-from PyQt5.QtGui import QIcon, QDoubleValidator
-from PyQt5.QtWidgets import (QApplication, QAction, QCheckBox, QComboBox, QFrame,
+from PyQt6.QtCore import Qt, QSize, QLocale
+from PyQt6.QtGui import QIcon, QDoubleValidator, QAction
+from PyQt6.QtWidgets import (QApplication, QCheckBox, QComboBox, QFrame,
                              QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton,
                              QTabBar, QTabWidget, QTextEdit, QTreeWidget,
                              QTreeWidgetItem, QScrollArea, QVBoxLayout,
@@ -312,7 +312,7 @@ class fitModelWidget(QWidget):
 
         self.cont_m = QTreeWidgetItem(self.cont)
         self.cont_m.name = 'cont_m'
-        self.cont_m.setTextAlignment(3, Qt.AlignRight)
+        self.cont_m.setTextAlignment(3, Qt.AlignmentFlag.AlignRight)
         self.cont_m.setText(3, 'reg num: ')
         self.cont_num = FLineEdit(self, str(self.parent.fit.cont_num))
         self.cont_num.setFixedSize(30, 30)
@@ -332,7 +332,7 @@ class fitModelWidget(QWidget):
         self.iso_p = self.addParent(self.treeWidget, 'Isotopic', expanded=hasattr(self.parent.fit, 'iso'))
         self.iso_p.name = 'iso'
         self.iso_m = QTreeWidgetItem(self.iso_p)
-        self.iso_m.setTextAlignment(2, Qt.AlignRight)
+        self.iso_m.setTextAlignment(2, Qt.AlignmentFlag.AlignRight)
         self.iso_m.setText(2, 'Ratio: ')
         self.iso_type = QComboBox(self)
         self.iso_type.setFixedSize(100, 30)
@@ -350,7 +350,7 @@ class fitModelWidget(QWidget):
         self.me.name = 'me'
 
         self.me_m = QTreeWidgetItem(self.me)
-        self.me_m.setTextAlignment(3, Qt.AlignRight)
+        self.me_m.setTextAlignment(3, Qt.AlignmentFlag.AlignRight)
         self.me_m.setText(3, 'num: ')
         self.me_num = FLineEdit(self, str(self.parent.fit.me_num))
         self.me_num.setFixedSize(30, 30)
@@ -363,7 +363,7 @@ class fitModelWidget(QWidget):
         self.res.name = 'res'
 
         self.res_m = QTreeWidgetItem(self.res)
-        self.res_m.setTextAlignment(3, Qt.AlignRight)
+        self.res_m.setTextAlignment(3, Qt.AlignmentFlag.AlignRight)
         self.res_m.setText(3, 'num: ')
         self.res_num = FLineEdit(self, str(self.parent.fit.res_num))
         self.res_num.setFixedSize(30, 30)
@@ -382,7 +382,7 @@ class fitModelWidget(QWidget):
         self.cf.name = 'cf'
 
         self.cf_m = QTreeWidgetItem(self.cf)
-        self.cf_m.setTextAlignment(3, Qt.AlignRight)
+        self.cf_m.setTextAlignment(3, Qt.AlignmentFlag.AlignRight)
         self.cf_m.setText(3, 'num: ')
         self.cf_num = FLineEdit(self, str(self.parent.fit.cf_num))
         self.cf_num.setFixedSize(30, 30)
@@ -396,7 +396,7 @@ class fitModelWidget(QWidget):
         self.disp.name = 'disp'
 
         self.disp_m = QTreeWidgetItem(self.disp)
-        self.disp_m.setTextAlignment(3, Qt.AlignRight)
+        self.disp_m.setTextAlignment(3, Qt.AlignmentFlag.AlignRight)
         self.disp_m.setText(3, 'num: ')
         self.disp_num = FLineEdit(self, str(self.parent.fit.disp_num))
         self.disp_num.setFixedSize(30, 30)
@@ -410,7 +410,7 @@ class fitModelWidget(QWidget):
         self.stack = self.addParent(self.treeWidget, 'Stack', expanded=self.parent.fit.stack_num > 0)
         self.stack.name = 'stack'
         self.stack_m = QTreeWidgetItem(self.stack)
-        self.stack_m.setTextAlignment(3, Qt.AlignRight)
+        self.stack_m.setTextAlignment(3, Qt.AlignmentFlag.AlignRight)
         self.stack_m.setText(3, 'num: ')
         self.stack_num = FLineEdit(self, str(self.parent.fit.stack_num))
         self.stack_num.setFixedSize(30, 30)
@@ -439,23 +439,23 @@ class fitModelWidget(QWidget):
         if not hasattr(self.parent.fit, 'cont_' + str(ind) + '_0'):
             self.parent.fit.add('cont_' + str(ind) + '_0')
         item.cont_m = QTreeWidgetItem(item)
-        item.cont_m.setTextAlignment(3, Qt.AlignRight)
+        item.cont_m.setTextAlignment(3, Qt.AlignmentFlag.AlignRight)
         item.cont_m.setText(3, 'poly num: ')
         item.cont_num = FLineEdit(self, str(self.parent.fit.cont[ind].num))
         item.cont_num.setFixedSize(30, 30)
         item.cont_num.returnPressed.connect(partial(self.numContRegionChanged, ind))
         self.treeWidget.setItemWidget(item.cont_m, 4, item.cont_num)
-        item.cont_m.setTextAlignment(5, Qt.AlignRight)
+        item.cont_m.setTextAlignment(5, Qt.AlignmentFlag.AlignRight)
         item.cont_m.setText(5, 'range: ')
         item.cont_left = FLineEdit(self, '{0:6.1f}'.format(self.parent.fit.cont[ind].left).strip())
         item.cont_left.textEdited.connect(partial(self.contRange, ind))
         self.treeWidget.setItemWidget(item.cont_m, 6, item.cont_left)
-        item.cont_m.setTextAlignment(7, Qt.AlignRight)
+        item.cont_m.setTextAlignment(7, Qt.AlignmentFlag.AlignRight)
         item.cont_m.setText(7, '...')
         item.cont_right = FLineEdit(self, '{0:6.1f}'.format(self.parent.fit.cont[ind].right).strip())
         item.cont_right.textEdited.connect(partial(self.contRange, ind))
         self.treeWidget.setItemWidget(item.cont_m, 8, item.cont_right)
-        item.cont_m.setTextAlignment(9, Qt.AlignRight)
+        item.cont_m.setTextAlignment(9, Qt.AlignmentFlag.AlignRight)
         item.cont_m.setText(9, 'disp: ')
         item.cont_disp = FLineEdit(self, '{0:5.3f}'.format(self.parent.fit.cont[ind].disp).strip())
         item.cont_disp.textEdited.connect(partial(self.contDisp, ind))
@@ -488,8 +488,8 @@ class fitModelWidget(QWidget):
                 self.parent.fit.setValue('hcont', 0, 'vary')
         setattr(self, name, QTreeWidgetItem(getattr(self, parent)))
         for i in [1, 3, 5, 9]:
-            getattr(self, name).setTextAlignment(i, Qt.AlignRight)
-        getattr(self, name).setTextAlignment(7, Qt.AlignCenter)
+            getattr(self, name).setTextAlignment(i, Qt.AlignmentFlag.AlignRight)
+        getattr(self, name).setTextAlignment(7, Qt.AlignmentFlag.AlignCenter)
         for k in range(4):
             if 'cf' not in name or k < 3:
                 getattr(self, name).setText(2 * k + 3, sign[k])
@@ -1119,8 +1119,8 @@ class fitModelWidget(QWidget):
         pass
 
     def keyPressEvent(self, event):
-        #if event.key() == Qt.Key_F and QApplication.keyboardModifiers() == Qt.ControlModifier:
-        if event.key() == Qt.Key_F3:
+        #if event.key() == Qt.Key.Key_F and QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier:
+        if event.key() == Qt.Key.Key_F3:
             self.close()
             #
         super(fitModelWidget, self).keyPressEvent(event)
@@ -1180,7 +1180,7 @@ class fitModelSysWidget(QFrame):
                 if not Ncons_vary:
                     self.fit.sys[self.ind].add(s)
             for i in [1, 3, 5, 7, 9]:
-                item.setTextAlignment(i, Qt.AlignRight)
+                item.setTextAlignment(i, Qt.AlignmentFlag.AlignRight)
             for k in range(4):
                 item.setText(2 * k + 3, sign[k].replace('val', name))
                 var = s if attr[k] == 'val' else None
@@ -1198,18 +1198,18 @@ class fitModelSysWidget(QFrame):
             if s == 'z':
                 item = QTreeWidgetItem(getattr(self, s))
                 item.setText(3, 'v shift: ')
-                item.setTextAlignment(3, Qt.AlignRight)
+                item.setTextAlignment(3, Qt.AlignmentFlag.AlignRight)
                 self.vshift = FLineEdit(self.parent, var='v')
                 self.vshift.returnPressed.connect(self.zshift)
                 self.treeWidget.setItemWidget(item, 4, self.vshift)
                 item.setText(5, 'v range: ')
-                item.setTextAlignment(5, Qt.AlignRight)
+                item.setTextAlignment(5, Qt.AlignmentFlag.AlignRight)
                 self.vrange = FLineEdit(self.parent)
                 self.vrange.textEdited[str].connect(self.zrange)
                 self.treeWidget.setItemWidget(item, 6, self.vrange)
 
                 item.setText(9, 'v step: ')
-                item.setTextAlignment(9, Qt.AlignRight)
+                item.setTextAlignment(9, Qt.AlignmentFlag.AlignRight)
                 self.vstep = FLineEdit(self.parent)
                 self.vstep.textEdited[str].connect(self.zstep)
                 self.treeWidget.setItemWidget(item, 10, self.vstep)
@@ -1228,7 +1228,7 @@ class fitModelSysWidget(QFrame):
 
     def addParent(self, parent, text, checkable=False, expanded=False, checked=False):
         item = QTreeWidgetItem(parent, [text])
-        item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
+        item.setChildIndicatorPolicy(QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator)
         item.setExpanded(expanded)
         return item
 
@@ -1256,7 +1256,7 @@ class fitModelSysWidget(QFrame):
 
                 name = 'b: ' if s == 'b' else 'logN: '
                 for i in [1, 3, 5, 7, 9]:
-                    item.setTextAlignment(i, Qt.AlignRight)
+                    item.setTextAlignment(i, Qt.AlignmentFlag.AlignRight)
                 for k in range(4):
                     item.setText(2 * k + 3, sign[k].replace('val', name))
                     sp = species + '_' + s + '_' + attr[k]
@@ -1688,7 +1688,15 @@ class fitResultsWidget(QWidget):
             inds = []
             for el in ['H2', 'CO', 'HD', 'CI', 'SiII']:
                 if any([el in sp for sp in sps.keys()]):
-                    ind = [[int(sp[sp.index('j')+1:]), i] for i, sp in enumerate(sps.keys()) if el in sp]
+                    ind = []
+                    for i, sp in enumerate(sps.keys()):
+                        if el == sp:
+                            ind.append([0, i])
+                        elif el in sp:
+                            if 'v' not in sp:
+                                ind.append([int(sp[sp.index('j')+1:]), i])
+                            else:
+                                ind.append([int(sp[sp.index('j')+1:sp.index('v')]) + 20 * int(sp[sp.index('v')+1:]), i])
                     print(ind)
                     inds += [ind[i][1] for i in np.argsort([i[0] for i in ind])]
             sps_new = OrderedDict()
@@ -1906,7 +1914,7 @@ class fitResultsWidget(QWidget):
         key = event.key()
 
         if not event.isAutoRepeat():
-            if event.key() == Qt.Key_F6:
+            if event.key() == Qt.Key.Key_F6:
                 self.parent.fitResults.close()
 
     def closeEvent(self, event):
@@ -1971,8 +1979,8 @@ class chooseFitParsWidget(QWidget):
             self.scroll.deleteLater()
 
         self.scroll = QScrollArea()
-        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll.setWidgetResizable(True)
         #self.scroll.setMaximumHeight(self.height()-150)
         self.scrollContent = QWidget(self.scroll)
@@ -2058,8 +2066,8 @@ class chooseShowParsWidget(QWidget):
             self.scroll.deleteLater()
 
         self.scroll = QScrollArea()
-        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll.setWidgetResizable(True)
         #self.scroll.setMaximumHeight(self.height()-150)
         self.scrollContent = QWidget(self.scroll)

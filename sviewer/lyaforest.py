@@ -4,7 +4,7 @@ import numpy as np
 from numpy.lib.stride_tricks import as_strided
 import os
 import pickle
-from PyQt5.QtCore import Qt
+from PyQt6.QtCore import Qt
 import pyqtgraph as pg
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit, minimize

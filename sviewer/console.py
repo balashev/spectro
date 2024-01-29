@@ -1,9 +1,10 @@
 from astropy.cosmology import Planck15
+from astropy.io import fits
 from mendeleev import element
 import numpy as np
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import (QFont, QTextCursor)
-from PyQt5.QtWidgets import (QTextEdit)
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import (QFont, QTextCursor)
+from PyQt6.QtWidgets import (QTextEdit)
 import pyqtgraph as pg
 from statsmodels.stats.weightstats import DescrStatsW
 
@@ -18,7 +19,7 @@ class Console(QTextEdit):
         self.parent = parent
         QTextEdit.__init__(self)
         font = QFont("courier new", 8)
-        font.setStyleHint(QFont.TypeWriter)
+        font.setStyleHint(QFont.StyleHint.TypeWriter)
         self.document().setDefaultFont(font)
         self.displayPrompt()
         self.initStyle()
@@ -40,25 +41,25 @@ class Console(QTextEdit):
         # get the current format
         format = self.textCursor().charFormat()
         # modify it
-        format.setBackground(Qt.red)
-        format.setForeground(Qt.blue)
+        format.setBackground(Qt.GlobalColor.red)
+        format.setForeground(Qt.GlobalColor.blue)
         # apply it
         self.textCursor().setCharFormat(format)
         prompt = '>>> '
         self.append(prompt)
 
-        self.moveCursor(QTextCursor.End)
+        self.moveCursor(QTextCursor.MoveOperation.End)
         self.promptBlockNumber = self.textCursor().blockNumber()
         self.promptColumnNumber = self.textCursor().columnNumber()
         self.promptPosition = self.textCursor().position()
 
     def clear(self):
         cursor = self.textCursor()
-        cursor.select(QTextCursor.LineUnderCursor)
+        cursor.select(QTextCursor.SelectionType.LineUnderCursor)
         cursor.removeSelectedText()
-        cursor.movePosition(QTextCursor.Up, QTextCursor.MoveAnchor, 1)
-        cursor.movePosition(QTextCursor.EndOfLine)
-        cursor.movePosition(QTextCursor.Down, QTextCursor.KeepAnchor, 1)
+        cursor.movePosition(QTextCursor.MoveOperation.Up, QTextCursor.MoveMode.MoveAnchor, 1)
+        cursor.movePosition(QTextCursor.MoveOperation.EndOfLine)
+        cursor.movePosition(QTextCursor.MoveOperation.Down, QTextCursor.MoveMode.KeepAnchor, 1)
         cursor.removeSelectedText()
         self.setTextCursor(cursor)
         self.displayPrompt()
@@ -97,7 +98,7 @@ class Console(QTextEdit):
 
     def keyPressEvent(self, event):
         # Run the command if enter was pressed.
-        if event.key() == Qt.Key_Enter or event.key() == Qt.Key_Return:
+        if event.key() == Qt.Key.Key_Enter or event.key() == Qt.Key.Key_Return:
             event.accept()
             command = self.getCurrentCommand()
             self.addhistory(command)
@@ -118,7 +119,7 @@ class Console(QTextEdit):
             self.displayPrompt()
             return
 
-        if event.key() == Qt.Key_Backspace:
+        if event.key() == Qt.Key.Key_Backspace:
             event.accept()
             if not self.isInEditionZone():
                 self.moveCursor(QTextCursor.End)
@@ -129,7 +130,7 @@ class Console(QTextEdit):
                 self.textCursor().deletePreviousChar()
             return
 
-        if event.key() == Qt.Key_Left:
+        if event.key() == Qt.Key.Key_Left:
             event.accept()
             if not self.isInEditionZone():
                 self.moveCursor(QTextCursor.End)
@@ -137,31 +138,31 @@ class Console(QTextEdit):
                 return
             if self.promptColumnNumber < self.textCursor().columnNumber():
                 mode = QTextCursor.MoveAnchor
-                if event.modifiers() & Qt.ShiftModifier:
+                if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
                     mode = QTextCursor.KeepAnchor
                 self.moveCursor(QTextCursor.Left, mode)
             return
 
-        if event.key() == Qt.Key_Right:
+        if event.key() == Qt.Key.Key_Right:
             event.accept()
             if not self.isInEditionZone():
                 self.moveCursor(QTextCursor.End)
                 # First backspace just moves the cursor.
                 return
             mode = QTextCursor.MoveAnchor
-            if event.modifiers() & Qt.ShiftModifier:
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
                 mode = QTextCursor.KeepAnchor
             self.moveCursor(QTextCursor.Right, mode)
             return
 
-        if event.key() == Qt.Key_Up:
+        if event.key() == Qt.Key.Key_Up:
             event.accept()
             self.hist_pos -= 1
             self.hist_pos = max(0, self.hist_pos)
             self.clear()
             self.textCursor().insertText(self.history[self.hist_pos])
 
-        if event.key() == Qt.Key_Down:
+        if event.key() == Qt.Key.Key_Down:
             event.accept()
             self.hist_pos += 1
             self.hist_pos = min(len(self.history)-1, self.hist_pos)
@@ -607,6 +608,34 @@ class Console(QTextEdit):
                     if args[2] == 'sky':
                         s.sky.setLevels(float(args[3]), float(args[4]))
             self.parent.s.redraw()
+
+        elif args[0] == 'header':
+            try:
+                print(len(args))
+                with fits.open(self.parent.s[self.parent.s.ind].filename) as hdul:
+                    print(hdul[0])
+                    if len(args) == 1:
+                        return repr(hdul[0].header)
+                    elif len(args) == 2:
+                        if args[1].strip() in hdul[0].header:
+                            return hdul[0].header[args[1].strip()]
+                        elif args[1].isdigit():
+                            return repr(hdul[int(args[1])].header)
+                        else:
+                            return f"There is no {args[1].strip()} in the header"
+                    elif len(args) == 3:
+                        if args[1].isdigit():
+                            num, kw = int(args[1]), args[2].strip()
+                        elif args[2].isdigit():
+                            num, kw = int(args[2]), args[1].strip()
+                        else:
+                            return 'invalid arguments'
+                        if kw in hdul[0].header:
+                            return hdul[num].header[kw]
+                        else:
+                            return f"There is no {args[1].strip()} in the header"
+            except:
+                return f"Can't open {self.parent.s[self.parent.s.ind].filename} as a fits file"
 
         elif args[0] == 'Tkin':
             levels = [0, 1]

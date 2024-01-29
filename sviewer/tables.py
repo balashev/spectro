@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pyqtgraph as pg
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QHeaderView
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QHeaderView
 from scipy.interpolate import interp1d
 import sys
 
@@ -118,13 +118,13 @@ class expTableWidget(TableWidget):
         super(TableWidget, self).keyPressEvent(event)
         key = event.key()
 
-        if key == Qt.Key_Up or key == Qt.Key_Down:
+        if key == Qt.Key.Key_Up or key == Qt.Key.Key_Down:
             self.row_clicked()
 
-        if key == Qt.Key_F3:
+        if key == Qt.Key.Key_F3:
             self.close()
 
-        if key == Qt.Key_Delete:
+        if key == Qt.Key.Key_Delete:
             self.parent.s.remove(self.parent.s.ind)
 
     def row_clicked(self):
@@ -173,7 +173,7 @@ class expTableWidget(TableWidget):
         self.parent.s.rearrange(inds)
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key_F2:
+        if event.key() == Qt.Key.Key_F2:
             self.close()
         super(expTableWidget, self).keyPressEvent(event)
 
@@ -246,7 +246,7 @@ class QSOlistTable(pg.TableWidget):
         self.cellPressed.connect(self.editCell)
         self.edit_item = [-1, -1]
         self.previous_item = None
-        self.verticalHeader().setDefaultAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+        self.verticalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
 
         if 'SDSS' in self.cat:
             self.contextMenu.addAction('Save spectra').triggered.connect(self.saveSpectra)
@@ -926,7 +926,7 @@ class IGMspecTable(pg.TableWidget):
         self.show()
         self.setWindowTitle(self.cat)
         self.cellDoubleClicked.connect(self.row_clicked)
-        self.verticalHeader().setDefaultAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+        self.verticalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter)
 
         self.data = self.parent.IGMspec[self.cat]
 

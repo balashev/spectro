@@ -173,7 +173,7 @@ class par:
                     #return '${0:.{3}f}^{{+{1:.{3}f}}}_{{-{2:.{3}f}}}$'.format(self.unc.val, self.unc.plus, self.unc.minus, dec)
             elif classview:
                 if self.name in ['z']:
-                    return 'co = sy({0:.{2}f}, {1:d})'.format(self.unc.val, int(np.sqrt(self.unc.plus**2 + self.unc.minus**2) * 10 ** dec), dec)
+                    return 'co = sy(q, {0:.{2}f}, {1:d})'.format(self.unc.val, int(np.sqrt(self.unc.plus**2 + self.unc.minus**2) * 10 ** dec), dec)
                 elif self.name in ['N']:
                     return "co.el('{0}', {1:.{4}f}, {2:.{4}f}, {3:.{4}f})".format(self.parent.name, self.unc.val, self.unc.plus, self.unc.minus, dec)
             elif aview:

@@ -6,7 +6,10 @@ import astropy.units as u
 from bisect import bisect
 from collections import OrderedDict
 import corner
+from copy import copy
 from chainconsumer import ChainConsumer
+import dynesty
+from dynesty import plotting as dyplot
 import emcee
 from functools import partial
 import json
@@ -21,6 +24,7 @@ import pickle
 from scipy.integrate import cumtrapz
 from scipy.interpolate import interp1d, CubicSpline
 from scipy.special import gamma, gammainc
+from scipy import stats as st
 import sys
 #import zeus
 
@@ -534,15 +538,15 @@ class sed_template():
     def load_data(self, smooth_window=None, xmin=None, xmax=None, z=0, x=None, y=None):
 
         if x is None and y is None:
-            if self.name in ['VandenBerk', 'HST', 'Slesing', 'power', 'composite']:
+            if self.name in ['VandenBerk', 'HST', 'Selsing', 'power', 'composite']:
                 self.type = 'qso'
 
                 if self.name == 'VandenBerk':
                     self.x, self.y = np.genfromtxt(self.parent.path + r'/data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
                 elif self.name == 'HST':
                     self.x, self.y = np.genfromtxt(self.parent.path + r'/data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
-                elif self.name == 'Slesing':
-                    self.x, self.y = np.genfromtxt(self.parent.path + r'/data/SDSS/Slesing2016.dat', skip_header=0, unpack=True, usecols=(0, 1))
+                elif self.name == 'Selsing':
+                    self.x, self.y = np.genfromtxt(self.parent.path + r'/data/SDSS/Selsing2016.dat', skip_header=0, unpack=True, usecols=(0, 1))
                 elif self.name == 'power':
                     self.x = np.linspace(500, 25000, 1000)
                     self.y = np.power(self.x / 2500, -1.9)
@@ -552,7 +556,7 @@ class sed_template():
                         self.x, self.y = np.genfromtxt(self.parent.path + r'/data/SDSS/QSO_composite.dat', skip_header=0, unpack=True)
                         self.x, self.y = self.x[self.x > 0], self.y[self.x > 0]
                     else:
-                        self.template_qso = np.genfromtxt(self.parent.path + r'/data/SDSS/Slesing2016.dat', skip_header=0, unpack=True)
+                        self.template_qso = np.genfromtxt(self.parent.path + r'/data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
                         self.template_qso = self.template_qso[:,
                                             np.logical_or(self.template_qso[1] != 0, self.template_qso[2] != 0)]
                         if 0:
@@ -742,7 +746,7 @@ class QSOSEDfit():
         self.ext = {}
         self.filters = {}
         self.fig = None
-        self.iters = 100
+        self.iters = 1000
 
         self.template_name_qso = 'composite'
         self.filter_names = "FUV NUV u g r i z Y J H K W1 W2 W3 W4"
@@ -883,7 +887,7 @@ class QSOSEDfit():
         return Av * (k / Rv + 1)
 
     def extinction_Pervot(self, x, params, z_ext=0):
-        return 10 ** (-0.4 * params.valuesdict()['Av'] * (1.39 * (1e4 / np.asarray(x, dtype=np.float64) * (1 + z_ext)) ** 1.2 - 0.38) / 2.74)
+        return 10 ** (-0.4 * params['Av'].value * (1.39 * (1e4 / np.asarray(x, dtype=np.float64) * (1 + z_ext)) ** 1.2 - 0.38) / 2.74)
 
     def extinction_MW(self, x, Av=0):
         #return 10 ** (-0.4 * extinction.Fitzpatrick99(3.1 * 1.0)(np.asarray(x, dtype=np.float64), Av))
@@ -900,19 +904,19 @@ class QSOSEDfit():
 
         Returns: extinction
         """
-        Rv = 2.71 if 'Rv' not in params.keys() else params.valuesdict()['Rv']
-        #c3 = 0.389 if 'c3' not in params.keys() else params.valuesdict()['c3']
-        c3 = 0.389 if 'Abump' not in params.keys() else params.valuesdict()['Abump'] * 2 * 0.922 / params.valuesdict()['EBV'] / np.pi
-        c3 = 0.0 if 'Abump' not in params.keys() else params.valuesdict()['Abump'] * 2 * 0.922 / params.valuesdict()['EBV'] / np.pi
+        Rv = 2.71 if 'Rv' not in params.keys() else params['Rv'].value
+        #c3 = 0.389 if 'c3' not in params.keys() else params['c3'].value
+        c3 = 0.389 if 'Abump' not in params.keys() else params['Abump'].value * 2 * 0.922 / params['EBV'].value / np.pi
+        c3 = 0.0 if 'Abump' not in params.keys() else params['Abump'].value * 2 * 0.922 / params['EBV'].value / np.pi
         #s = time.time()
         #self.extinction_Pervot(wave, params, z_ext=z_ext)
         #print('t_Pervot:', time.time() - s)
         #s = time.time()
-        #10 ** (-0.4 * self.ext_fm07(wave * (1 + z_ext), Av=params.valuesdict()['Av'], Rv=Rv, c1=-4.959, c2=2.264, c3=0.389, c4=0.319, c5=6.097, x0=4.592, gamma=0.922))
+        #10 ** (-0.4 * self.ext_fm07(wave * (1 + z_ext), Av=params['Av'].value, Rv=Rv, c1=-4.959, c2=2.264, c3=0.389, c4=0.319, c5=6.097, x0=4.592, gamma=0.922))
         #print('t_FM07:', time.time() - s)
         #return self.extinction_Pervot(wave, params, z_ext=z_ext)
-        #print(self.ext_fm07(wave * (1 + z_ext), Av=params.valuesdict()['EBV'] * Rv, Rv=Rv, c1=-4.959, c2=2.264, c3=c3, c4=0.319, c5=6.097, x0=4.592, gamma=0.922))
-        return 10 ** (-0.4 * self.ext_fm07(wave * (1 + z_ext), Av=params.valuesdict()['EBV'] * Rv, Rv=Rv, c1=-4.959, c2=2.264, c3=c3, c4=0.319, c5=6.097, x0=4.592, gamma=0.922))
+        #print(self.ext_fm07(wave * (1 + z_ext), Av=params['EBV'].value * Rv, Rv=Rv, c1=-4.959, c2=2.264, c3=c3, c4=0.319, c5=6.097, x0=4.592, gamma=0.922))
+        return 10 ** (-0.4 * self.ext_fm07(wave * (1 + z_ext), Av=params['EBV'].value * Rv, Rv=Rv, c1=-4.959, c2=2.264, c3=c3, c4=0.319, c5=6.097, x0=4.592, gamma=0.922))
 
     def loadSDSS(self, plate, fiber, mjd, Av_gal=np.nan, rebin=11):
         filename = os.path.dirname(self.catalog) + '/spectra/spec-{0:04d}-{2:05d}-{1:04d}.fits'.format(int(plate), int(fiber), int(mjd))
@@ -938,13 +942,13 @@ class QSOSEDfit():
     def model(self, params, x, dtype, mtype='total'):
         model = np.zeros_like(self.models['bbb'].data[dtype][0])
         if mtype in ['total', 'bbb']:
-            model = self.models['bbb'].data[dtype][0] * params.valuesdict()['bbb_norm'] * self.extinction(x / (1 + self.d['z']), params)
-        if mtype in ['total', 'tor'] and params.valuesdict()['tor_type'] > -1:
-            model += self.models['tor'].data[dtype][self.models['tor'].get_model_ind(params)] * params.valuesdict()['tor_norm']
-        if mtype in ['total', 'gal'] and params.valuesdict()['host_tau'] > -1 and params.valuesdict()['host_tg'] > -1:
-            model += self.models['gal'].data[dtype][self.models['gal'].get_model_ind(params)] * params.valuesdict()['host_norm'] * self.extinction_MW(x / (1 + self.d['z']), Av=params.valuesdict()['host_Av'])
-        #if params.valuesdict()['host_type'] > -1:
-        #    model += self.models['host'].data[kind][params.valuesdict()['host_type']] * params.valuesdict()['host_norm'] * self.extinction(x / (1 + d['z']), Av=params.valuesdict()['host_Av'])
+            model = self.models['bbb'].data[dtype][0] * 10 ** params['bbb_norm'].value * self.extinction(x / (1 + self.d['z']), params)
+        if mtype in ['total', 'tor'] and params['tor_type'].value > -1:
+            model += self.models['tor'].data[dtype][self.models['tor'].get_model_ind(params)] * 10 ** params['tor_norm'].value
+        if mtype in ['total', 'gal'] and params['host_tau'].value > -1 and params['host_tg'].value > -1:
+            model += self.models['gal'].data[dtype][self.models['gal'].get_model_ind(params)] * 10 ** params['host_norm'].value * self.extinction_MW(x / (1 + self.d['z']), Av=params['host_Av'].value)
+        #if params['host_type'].value > -1:
+        #    model += self.models['host'].data[kind][params['host_type'].value] * 10 ** params['host_norm'].value * self.extinction(x / (1 + d['z']), Av=params['host_Av'].value)
         return model
 
     def model_emcee_old(self, params, x, dtype, mtype='total'):
@@ -956,18 +960,18 @@ class QSOSEDfit():
             alpha *= (x / (1 + self.d['z']) / 2500) ** params['bbb_slope'].value
         model = np.zeros_like(self.models['bbb'].data[dtype][0])
         if mtype in ['total', 'bbb']:
-            model += self.models['bbb'].data[dtype][0] * alpha * params['bbb_norm'].value
+            model += self.models['bbb'].data[dtype][0] * alpha * 10 ** params['bbb_norm'].value
         if mtype in ['total', 'Fe']:
-            model += self.models['Fe'].data[dtype][0] * params['Fe_norm'].value * params['bbb_norm'].value
+            model += self.models['Fe'].data[dtype][0] * params['Fe_norm'].value * 10 ** params['bbb_norm'].value
         if mtype in ['total', 'bbb', 'Fe']:
             model *= self.extinction(x / (1 + self.d['z']), params)
         if mtype in ['total', 'tor'] and params['tor_type'].value > -1:
-            model += self.models['tor'].data[dtype][self.models['tor'].get_model_ind(params)] * params['tor_norm'].value
+            model += self.models['tor'].data[dtype][self.models['tor'].get_model_ind(params)] * 10 ** params['tor_norm'].value
         if mtype in ['total', 'gal'] and params['host_tau'].value > -1 and params['host_tg'].value > -1:
-            model += self.models['gal'].data[dtype][self.models['gal'].get_model_ind(params)] * params['host_norm'].value * self.extinction_MW(x / (1 + self.d['z']), Av=params['host_Av'].value)
+            model += self.models['gal'].data[dtype][self.models['gal'].get_model_ind(params)] * 10 ** params['host_norm'].value * self.extinction_MW(x / (1 + self.d['z']), Av=params['host_Av'].value)
 
-        #if params.valuesdict()['host_type'] > -1:
-        #    model += self.models['host'].data[kind][params.valuesdict()['host_type']] * params.valuesdict()['host_norm'] * self.extinction(x / (1 + d['z']), Av=params.valuesdict()['host_Av'])
+        #if params['host_type'].value > -1:
+        #    model += self.models['host'].data[kind][params['host_type'].value] * 10 ** params['host_norm'].value * self.extinction(x / (1 + d['z']), Av=params['host_Av'].value)
         return model
 
     def model_emcee(self, params, x, dtype, mtype='total'):
@@ -979,18 +983,18 @@ class QSOSEDfit():
             alpha *= (x / (1 + self.d['z']) / 2500) ** params['bbb_slope'].value
         model = np.zeros_like(self.models['bbb'].data[dtype][0])
         if mtype in ['total', 'bbb']:
-            model += self.models['bbb'].data[dtype][0] * alpha * params['bbb_norm'].value
+            model += self.models['bbb'].data[dtype][0] * alpha * 10 ** params['bbb_norm'].value
         if mtype in ['total', 'Fe']:
-            model += self.models['Fe'].data[dtype][0] * params['Fe_norm'].value * params['bbb_norm'].value
+            model += self.models['Fe'].data[dtype][0] * params['Fe_norm'].value * 10 ** params['bbb_norm'].value
         if mtype in ['total', 'bbb', 'Fe']:
             model *= 10 ** (-0.4 * params['EBV'].value * (self.models['ext'].data[dtype][0] + params['Rv'].value))
         if mtype in ['total', 'tor'] and params['tor_type'].value > -1:
-            model += self.models['tor'].data[dtype][self.models['tor'].get_model_ind(params)] * params['tor_norm'].value
+            model += self.models['tor'].data[dtype][self.models['tor'].get_model_ind(params)] * 10 ** params['tor_norm'].value
         if mtype in ['total', 'gal'] and params['host_tau'].value > -1 and params['host_tg'].value > -1:
-            model += self.models['gal'].data[dtype][self.models['gal'].get_model_ind(params)] * params['host_norm'].value * 10 ** (-0.4 * params['host_Av'].value * (self.models['ext_gal'].data[dtype][0] / 2.7 + 1))
+            model += self.models['gal'].data[dtype][self.models['gal'].get_model_ind(params)] * 10 ** params['host_norm'].value * 10 ** (-0.4 * params['host_Av'].value * (self.models['ext_gal'].data[dtype][0] / 2.7 + 1))
 
-        #if params.valuesdict()['host_type'] > -1:
-        #    model += self.models['host'].data[kind][params.valuesdict()['host_type']] * params.valuesdict()['host_norm'] * self.extinction(x / (1 + d['z']), Av=params.valuesdict()['host_Av'])
+        #if params['host_type'].value > -1:
+        #    model += self.models['host'].data[kind][params['host_type'].value] * 10 ** params['host_norm'].value * self.extinction(x / (1 + d['z']), Av=params['host_Av'].value)
         return model
 
     def model_emcee_slope(self, params, x, dtype, mtype='total'):
@@ -1005,19 +1009,19 @@ class QSOSEDfit():
         #print(alpha.shape)
         model = np.zeros_like(alpha)
         if mtype in ['total', 'bbb']:
-            model += params['bbb_norm'].value * self.models['bbb'].data[dtype][0][:, np.newaxis] * alpha
+            model += 10 ** params['bbb_norm'].value * self.models['bbb'].data[dtype][0][:, np.newaxis] * alpha
         if mtype in ['total', 'Fe']:
-            model += self.models['Fe'].data[dtype][0][:, np.newaxis] * params['Fe_norm'].value * params['bbb_norm'].value
+            model += self.models['Fe'].data[dtype][0][:, np.newaxis] * params['Fe_norm'].value * 10 ** params['bbb_norm'].value
         if mtype in ['total', 'bbb', 'Fe']:
             model *= 10 ** (-0.4 * params['EBV'].value * (self.models['ext'].data[dtype][0][:, np.newaxis] + params['Rv'].value))
         if mtype in ['total', 'tor'] and params['tor_type'].value > -1:
-            model += self.models['tor'].data[dtype][self.models['tor'].get_model_ind(params)][:, np.newaxis] * params['tor_norm'].value
+            model += self.models['tor'].data[dtype][self.models['tor'].get_model_ind(params)][:, np.newaxis] * 10 ** params['tor_norm'].value
         if mtype in ['total', 'gal'] and params['host_tau'].value > -1 and params['host_tg'].value > -1:
-            model += self.models['gal'].data[dtype][self.models['gal'].get_model_ind(params)][:, np.newaxis] * params['host_norm'].value * 10 ** (-0.4 * params['host_Av'].value * (self.models['ext_gal'].data[dtype][0][:, np.newaxis] / 2.7 + 1))
+            model += self.models['gal'].data[dtype][self.models['gal'].get_model_ind(params)][:, np.newaxis] * 10 ** params['host_norm'].value * 10 ** (-0.4 * params['host_Av'].value * (self.models['ext_gal'].data[dtype][0][:, np.newaxis] / 2.7 + 1))
 
         #print(model.shape)
-        #if params.valuesdict()['host_type'] > -1:
-        #    model += self.models['host'].data[kind][params.valuesdict()['host_type']] * params.valuesdict()['host_norm'] * self.extinction(x / (1 + d['z']), Av=params.valuesdict()['host_Av'])
+        #if params['host_type'].value > -1:
+        #    model += self.models['host'].data[kind][params['host_type'].value] * 10 ** params['host_norm'].value * self.extinction(x / (1 + d['z']), Av=params['host_Av'].value)
         return model
 
     def calc_host_lum(self, params, wave=1700):
@@ -1031,12 +1035,11 @@ class QSOSEDfit():
 
         """
         if isinstance(wave, (int, float)):
-            lum = self.models['gal'].models[self.models['gal'].get_model_ind(params)].flux(wave) * \
-                         params.valuesdict()['host_norm'] * self.extinction_MW(wave, Av=params.valuesdict()['host_Av']) * \
+            lum = self.models['gal'].models[self.models['gal'].get_model_ind(params)].flux(wave) * 10 ** params['host_norm'].value * self.extinction_MW(wave, Av=params['host_Av'].value) * \
                          1e-17 * 4 * np.pi * Planck15.luminosity_distance(self.d['z']).to('cm').value ** 2
         elif wave in ['bol', 'total']:
             wave = self.models['gal'].models[self.models['gal'].get_model_ind(params)].x
-            lum = np.trapz(self.models['gal'].models[self.models['gal'].get_model_ind(params)].y * params.valuesdict()['host_norm'] * self.extinction_MW(wave, Av=params.valuesdict()['host_Av']),
+            lum = np.trapz(self.models['gal'].models[self.models['gal'].get_model_ind(params)].y * 10 ** params['host_norm'].value * self.extinction_MW(wave, Av=params['host_Av'].value),
                          x=self.models['gal'].models[self.models['gal'].get_model_ind(params)].x)
             lum *= 1e-17 * 4 * np.pi * Planck15.luminosity_distance(self.d['z']).to('cm').value ** 2
         return lum
@@ -1050,30 +1053,76 @@ class QSOSEDfit():
                 chi = np.append(chi, [f.weight / f.err * (f.value - f.get_value(x=f.x, y=self.model(params, f.x, k)))])
         return chi
 
-    def fcn2min_mcmc(self, params):
+    def fcn2min_mcmc(self, pars):
         #print(params)
-        pars = self.set_params(params)
+        params = self.set_params(pars)
         #print(pars)
         #params['host_L'].value = self.calc_host_lum(params)[0]
-        lp = self.ln_priors(pars)
+        lp = self.ln_priors(params)
         if not np.isfinite(lp):
             return -np.inf
         #print(lp, np.sum(np.power(self.ln_like(pars), 2)))
-        return lp - .5 * np.sum(np.power(self.ln_like(pars), 2))
+        return lp - .5 * np.sum(np.power(self.ln_like(params), 2))
+        #return lp -.5 * np.sum(np.power(self.ln_like_slope(pars), 2))
+
+    def lnlike_nest(self, pars):
+        #print(pars)
+        params = self.set_params(pars)
+        #print(- .5 * np.sum(np.power(self.ln_like(params), 2)))
+        if not np.isfinite(- .5 * np.sum(np.power(self.ln_like(params), 2))):
+            print([[p.name, pars[i]] for i, p in enumerate(self.params.values())])
+            input()
+        return - .5 * np.sum(np.power(self.ln_like(params), 2))
+        #return lp -.5 * np.sum(np.power(self.ln_like_slope(pars), 2))
+
+    def ptform(self, u):
+        #print(self.params)
+        x = np.array(u)
+        for i, p in enumerate(self.params.values()):
+            if p.name == 'bbb_slope':
+                x[i] = st.norm.ppf(u[i], loc=-0.1, scale=0.3)
+            elif p.name == 'Fe_norm':
+                x[i] = st.norm.ppf(u[i], loc=0.0, scale=0.2)
+            elif p.name == 'host_tau':
+                x[i] = st.expon.ppf(u[i])
+            elif p.name == 'host_tg':
+                x[i] = p.max - st.expon.ppf(u[i])
+            elif p.name == 'host_Av':
+                x[i] = st.expon.ppf(u[i])
+            elif p.name == 'Rv':
+                x[i] = st.norm.ppf(u[i], loc=2.71, scale=0.2)
+            elif p.name == 'EBV':
+                x[i] = st.expon.ppf(u[i])
+            elif 'alpha' in p.name:
+                x[i] = st.norm.ppf(u[i], loc=0.0, scale=0.3)
+            elif 'slope' in p.name:
+                x[i] = st.norm.ppf(u[i], loc=0.0, scale=0.3)
+            elif p.name == 'sigma':
+                x[i] = st.norm.ppf(u[i], loc=0.2, scale=0.05)
+            elif 'norm' in p.name:
+                x[i] = st.norm.ppf(u[i], loc=p.value, scale=p.stderr*2)
+                #print(print(p.name, p.value, p.stderr, u[i], x[i]))
+            else:
+                x[i] = p.min + (p.max - p.min) * u[i]
+                #print(p.name, p.min, p.max, u[i], x[i])
+            #print(p.name, prior)
+        #print([[p.name, x[i]] for i, p in enumerate(self.params.values())])
+        #input()
+        return x
         #return lp -.5 * np.sum(np.power(self.ln_like_slope(pars), 2))
 
     def anneal_priors(self, params):
         prior = 100 * self.lum_prior(params, kind='anneal') + 50 * self.agn_host_prior(params)
         #print(prior)
         if all([p in params.keys() for p in ['bbb_slope', 'EBV']]):
-            prior += 1 - 10 ** (-3 * params.valuesdict()['bbb_slope'] * params.valuesdict()['EBV'] * 3.1)
-        #print(params.valuesdict()['bbb_slope'], params.valuesdict()['EBV'], prior)
+            prior += 1 - 10 ** (-3 * params['bbb_slope'].value * params['EBV'].value * 3.1)
+        #print(params['bbb_slope'].value, params['EBV'].value, prior)
         #print(self.lum_prior(params), self.agn_host_prior(params), params)
         return 100 * self.lum_prior(params, kind='anneal') + 50 * self.agn_host_prior(params)
 
     def agn_host_prior(self, params):
-        host = self.models['gal'].models[self.models['gal'].get_model_ind(params)].flux(1400) * params.valuesdict()['host_norm'] * self.extinction_MW(1400, Av=params.valuesdict()['host_Av'])
-        agn = self.models['bbb'].models[0].flux(1400) * params.valuesdict()['bbb_norm'] * self.extinction(1400, params)
+        host = self.models['gal'].models[self.models['gal'].get_model_ind(params)].flux(1400) * 10 ** params['host_norm'].value * self.extinction_MW(1400, Av=params['host_Av'].value)
+        agn = self.models['bbb'].models[0].flux(1400) * 10 ** params['bbb_norm'].value * self.extinction(1400, params)
         #print(host, agn, - host / agn)
         return - host / agn
 
@@ -1081,7 +1130,7 @@ class QSOSEDfit():
         alpha, tmin = -1.2, 0.0001
         C = (alpha + 1) / (gamma(alpha + 2) * (1 - gammainc(alpha + 2, tmin)) - (tmin) ** (alpha + 1) * np.exp(-tmin))
         M_UVs = -20.9 - 1.1 * (self.d['z'] - 1)
-        #f = self.models['gal'].models[self.models['gal'].get_model_ind(params)].flux(1700) * params.valuesdict()['host_norm'] * self.extinction(1700, Av=params.valuesdict()['host_Av'])
+        #f = self.models['gal'].models[self.models['gal'].get_model_ind(params)].flux(1700) * 10 ** params['host_norm'].value * self.extinction(1700, Av=params['host_Av'].value)
         f = self.calc_host_lum(params, wave=1700)
         #print('f:', f)
         if f == 0 or -2.5 * np.log10(f * 9.64e-13) + 51.6 > M_UVs + 10:
@@ -1181,55 +1230,56 @@ class QSOSEDfit():
         return lnlike
 
     def set_params(self, x):
-        params = self.params
+        params = copy(self.params)
         for p, v in zip(params.keys(), x):
             params[p].value = v
             #print(p, v, params[p].value)
         return params
 
-    def mcmc(self, params=None, tvary=True, stat=1, method='zeus', calc=1, nsteps=200):
-        # import os
-        # os.environ["OMP_NUM_THREADS"] = "1"
-        # from multiprocessing import Pool
-
-        #print(self.photo)
+    def prepare_params(self, params=None, tvary=True):
 
         new = True if params is None else False
 
         if new:
-            norm_bbb = np.nanmean(self.sm[1]) / np.nanmean(self.models['bbb'].data['spec'])
+            norm_bbb = np.log10(np.nanmean(self.sm[1]) / np.nanmean(self.models['bbb'].data['spec']))
             params = lmfit.Parameters()
-            params.add('bbb_norm', value=norm_bbb, min=0, max=1e10)
+            params.add('bbb_norm', value=norm_bbb, min=-3, max=3)
             params.add('bbb_slope', value=0, min=-2, max=2)
             params.add('EBV', value=0.0, min=0.0, max=10)
+            print("tor_types:", self.models['tor'].n - 1)
             params.add('tor_type', value=10, vary=True, min=0, max=self.models['tor'].n - 1)
-            params.add('tor_norm', value=norm_bbb / np.max(self.models['bbb'].data['spec'][0]) * np.max(self.models['tor'].data['spec'][params.valuesdict()['tor_type']]), min=0, max=1e10)
+            params.add('tor_norm', value=np.log10(norm_bbb / np.max(self.models['bbb'].data['spec'][0]) * np.max(self.models['tor'].data['spec'][params['tor_type'].value])), min=-3, max=2)
             params.add('host_tau', value=0.3, vary=True, min=self.models['gal'].tau[0].value, max=3)
-            params.add('host_tg', value=np.log10(Planck15.age(self.d['z']).to('yr').value) - 1, vary=True, min=np.log10(self.models['gal'].tg[0].value), max=np.log10(Planck15.age(self.d['z']).to('yr').value))
-            #print('age:', np.log10(Planck15.age(self.d['z']).to('yr').value))
-            params.add('host_norm', value=np.nanmean(self.sm[1]) / np.nanmean(self.models['gal'].data['spec'][self.models['gal'].get_model_ind(params)]), min=0, max=1e10)
+            params.add('host_tg', value=np.log10(Planck15.age(self.d['z']).to('yr').value) - 1, vary=True,
+                       min=np.log10(self.models['gal'].tg[0].value),
+                       max=np.log10(Planck15.age(self.d['z']).to('yr').value))
+            # print('age:', np.log10(Planck15.age(self.d['z']).to('yr').value))
+            params.add('host_norm', value=np.log10(np.nanmean(self.sm[1]) / np.nanmean(
+                self.models['gal'].data['spec'][self.models['gal'].get_model_ind(params)])), min=-4, max=2)
             params.add('host_Av', value=0.1, min=0, max=5.0)
 
-        if params['host_norm'].value < params['bbb_norm'].value / 1000:
-            params['host_norm'].value = params['bbb_norm'].value / 1000
+        if params['host_norm'].value < params['bbb_norm'].value - 2:
+            params['host_norm'].value = params['bbb_norm'].value - 2
 
-        #print(self.extinction(2500, Av=params['Av'].value), np.log(self.extinction(1000, Av=params['Av'].value) / self.extinction(2500, Av=params['Av'].value)) / np.log(0.4))
+        # print(self.extinction(2500, Av=params['Av'].value), np.log(self.extinction(1000, Av=params['Av'].value) / self.extinction(2500, Av=params['Av'].value)) / np.log(0.4))
         if params['EBV'].value < 0:
-            params['bbb_norm'].value *= self.extinction(2500, params)
-            params['bbb_slope'].value = np.log(self.extinction(1000, params) / self.extinction(2500, params)) / np.log(0.4)
+            params['bbb_norm'].value -= np.log10(self.extinction(2500, params))
+            params['bbb_slope'].value = np.log(self.extinction(1000, params) / self.extinction(2500, params)) / np.log(
+                0.4)
             params['EBV'].value = 0.01
 
-        cov_range = {'bbb_norm': [params['bbb_norm'].value / 5, params['bbb_norm'].value / 5], 'bbb_slope': [0.1, 0.1],
-                     'EBV': [0.01, 0.3], 'Rv': [0.2, 0.2], # 'c3': [0.05, 0.3],
-                     'tor_type': [1, 5], 'tor_norm': [params['tor_norm'].value / 10, params['tor_norm'].value / 2],
-                     'host_tau': [0.05, 0.5], 'host_tg': [0.1, 1],
-                     'host_norm': [params['host_norm'].value / 30, params['host_norm'].value / 2], 'host_Av': [0.01, 0.3]
+        cov_range = {'bbb_norm': [0.1, 0.1], 'bbb_slope': [0.1, 0.1],
+                     'EBV': [0.01, 0.1], 'Rv': [0.2, 0.2],  # 'c3': [0.05, 0.3],
+                     'tor_type': [1, 5], 'tor_norm': [0.1, 0.1],
+                     'host_tau': [0.05, 0.1], 'host_tg': [0.1, 0.5],
+                     'host_norm': [0.1, 0.1],
+                     'host_Av': [0.01, 0.2]
                      }
 
         if not new:
             cov = {}
             params['host_Av'].max = 5
-            #params['host_tau'].value = 0.1
+            # params['host_tau'].value = 0.1
             for k in cov_range.keys():
                 params[k].vary = True
                 if params[k].stderr is None:
@@ -1239,23 +1289,23 @@ class QSOSEDfit():
 
         if 'Fe_norm' in params.keys():
             params['Fe_norm'].vary = True
-            cov['Fe_norm'] = 0.2 #cov['bbb_norm'] / 3
+            cov['Fe_norm'] = 0.2  # cov['bbb_norm'] / 3
 
         if 'Abump' in params.keys():
             params['Abump'].vary = True
             cov['Abump'] = 0.2
 
-        #print(cov)
-        #params.add('host_L', value=0, min=0, max=100, vary=False)
-        #cov['host_L'] = 0.1
+        # print(cov)
+        # params.add('host_L', value=0, min=0, max=100, vary=False)
+        # cov['host_L'] = 0.1
 
         if tvary:
             params.add('sigma', value=0.2, min=0.01, max=3)
             cov['sigma'] = 0.02
-            #params.add('alpha_spec', value=0.0, min=-3, max=3)
-            #cov['alpha_spec'] = params['sigma'].value / 10
-            #print(self.filters)
-            #print(self.photo.items())
+            # params.add('alpha_spec', value=0.0, min=-3, max=3)
+            # cov['alpha_spec'] = params['sigma'].value / 10
+            # print(self.filters)
+            # print(self.photo.items())
             for p in set([v for k, v in self.photo.items() if self.filters[k].fit]):
                 if p != 'WISE':
                     if np.sum([p == self.photo[k] and self.filters[k].fit for k in self.filters.keys()]) > 1:
@@ -1270,29 +1320,42 @@ class QSOSEDfit():
                             res = scipy.stats.linregress(x, y)
                             params['alpha_' + p].value = res.intercept
                             params['slope_' + p].value = res.slope
-                            cov['alpha_' + p] = res.intercept_stderr if res.intercept_stderr != 0 else params['sigma'].value
+                            cov['alpha_' + p] = res.intercept_stderr if res.intercept_stderr != 0 else params[
+                                'sigma'].value
                             cov['slope_' + p] = res.stderr if res.stderr != 0 else 0.02
                     else:
                         params.add('alpha_' + p, value=0, min=-3, max=3)
                         params.add('slope_' + p, value=0, min=-3, max=3)
                         for k, f in self.filters.items():
                             if p == self.photo[k] and self.filters[k].fit:
-                                params['alpha_' + p].value = np.log10(f.get_value(x=f.x, y=self.model_emcee(params, f.x, k)) / f.value)
+                                params['alpha_' + p].value = np.log10(
+                                    f.get_value(x=f.x, y=self.model_emcee(params, f.x, k)) / f.value)
                         cov['alpha_' + p] = 0.2
                         cov['slope_' + p] = 0.02
-                    #cov['alpha_' + p] = params['sigma'].value
-                    #cov['slope_' + p] = 0.02
+                    # cov['alpha_' + p] = params['sigma'].value
+                    # cov['slope_' + p] = 0.02
 
-            #for p in set(self.photo.values()):
-            #    if p != 'WISE':
-            #        chi = []
-            #        for k, f in self.filters.items():
-            #            if self.photo[k] == p and self.filters[k].fit:
-            #                chi.append([f.value, f.get_value(x=f.x, y=self.model_emcee(params, f.x, k))])
-            #        if len(chi) > 0:
-            #            params['alpha_' + p].value = -(np.sum(np.asarray(chi), axis=0)[0] - np.sum(np.asarray(chi), axis=0)[1]) / len(np.sum(np.asarray(chi), axis=0)) / 2.5
-        #print(params)
-        #print(cov)
+        # for p in set(self.photo.values()):
+        #    if p != 'WISE':
+        #        chi = []
+        #        for k, f in self.filters.items():
+        #            if self.photo[k] == p and self.filters[k].fit:
+        #                chi.append([f.value, f.get_value(x=f.x, y=self.model_emcee(params, f.x, k))])
+        #        if len(chi) > 0:
+        #            params['alpha_' + p].value = -(np.sum(np.asarray(chi), axis=0)[0] - np.sum(np.asarray(chi), axis=0)[1]) / len(np.sum(np.asarray(chi), axis=0)) / 2.5
+        # print(params)
+        # print(cov)
+
+        return params, cov
+
+    def mcmc(self, params=None, stat=1, method='zeus', calc=1, nsteps=200):
+        # import os
+        # os.environ["OMP_NUM_THREADS"] = "1"
+        # from multiprocessing import Pool
+
+        #print(self.photo)
+
+        params, cov = self.prepare_params(params=params)
 
         if calc:
             nwalkers, ndims = 100, len(params)
@@ -1314,9 +1377,9 @@ class QSOSEDfit():
             else:
                 self.params = params
                 if method == 'emcee':
-                    sampler = emcee.EnsembleSampler(nwalkers, ndims, self.fcn2min_mcmc, moves=[(emcee.moves.DESnookerMove(), 0.5), (emcee.moves.StretchMove(), 0.5)])
+                    sampler = emcee.EnsembleSampler(nwalkers, ndims, self.fcn2min_mcmc, moves=[(emcee.moves.DEMove(), 0.3), (emcee.moves.StretchMove(), 0.7)])
 
-                    subiters = 3
+                    subiters = 5
                     #try:
                     for i in range(subiters):
                         # We'll track how the average autocorrelation time estimate changes
@@ -1351,15 +1414,26 @@ class QSOSEDfit():
                             lnL = sampler.get_last_sample().log_prob
                             pos = sampler.get_last_sample().coords
                             inds = np.argwhere(lnL < np.quantile(lnL, 0.5) + 1.0 * (np.quantile(lnL, 0.5) - np.max(lnL)))
+                            #print("st:", np.max(lnL), len(inds), len(lnL))
+                            for i in range(50):
+                                inds = np.argwhere(lnL < np.max(lnL) - (np.max(lnL) - np.quantile(lnL, 0.9)) * (1.0 + i * 0.2))
+                                #print("st:", i, len(inds), len(lnL), np.max(lnL))
+                                if len(inds) < 0.5 * len(lnL):
+                                    break
                             #print(np.quantile(lnL, 0.7) + 1.0 * (np.quantile(lnL, 0.7) - np.max(lnL)), len(inds))
+                            #print("st:", np.max(lnL), len(inds), len(lnL))
                             if len(inds) > 0:
                                 mask = np.ones(lnL.shape, dtype=bool)
                                 mask[inds] = False
-                                mpos = np.mean(pos[mask], axis=0)
-                                for ind in inds[0]:
-                                    pos[ind, :] = mpos + (mpos - pos[mask, :][np.random.randint(np.sum(mask))]) * (0.5 * np.random.random(len(mpos)))
+                                #mpos = np.mean(pos[mask], axis=0)
+                                mpos = pos[np.argmax(lnL)]
+                                for ind in inds:
+                                    pos[ind[0], :] = mpos + (mpos - pos[mask, :][np.random.randint(np.sum(mask))]) * (0.5 * np.random.random(len(mpos)))
                                     for k, p in enumerate(params.values()):
-                                        pos[ind, k] = np.max([p.min, np.min([p.max, pos[ind, k]])])
+                                        pos[ind[0], k] = np.max([p.min, np.min([p.max, pos[ind[0], k]])])
+                                    #if np.any(np.isnan(pos[ind[0], :])):
+                                    #    print("OOOOOOOOO:", np.argmax(lnL), mpos, pos[mask, :])
+                            #print(pos)
                     #except:
                     #    print(self.ind, i, len(inds))
                     #    print(mpos)
@@ -1469,6 +1543,7 @@ class QSOSEDfit():
                     if p not in ['M_UV', 'L_host', 'Av', 'L_UV_ext', 'L_UV_corr']:
                         d = distr1d(flat_sample[:, i].flatten())
                     else:
+                        print(p)
                         s = []
                         for l in range(flat_sample.shape[0]):
                             for j, p1 in enumerate(params.keys()):
@@ -1481,18 +1556,22 @@ class QSOSEDfit():
                                 s.append(params['EBV'].value * params['Rv'].value)
                             elif p == 'L_UV_ext':
                                 s.append(np.log10((self.d['L_UV'] + np.random.randn() * self.d['L_UV_err']) / self.extinction(2500, params)))
+                                #print(self.d['L_UV'], np.log10(self.d['L_UV'] + np.random.randn() * self.d['L_UV_err']), self.extinction(2500, params), s[-1])
                             elif p == 'L_UV_corr':
                                 sind = np.argmin(np.abs(self.sm[0] - 2500 * (1 + self.d['z'])))
                                 scaling = (1e-17 * u.erg / u.cm ** 2 / u.AA / u.s).to(u.erg / u.cm ** 2 / u.s / u.Hz, equivalencies=u.spectral_density(2500 * u.AA * (1 + self.d['z']))).value
-                                s.append(np.log10(self.models['bbb'].data['spec'][0][sind] * params['bbb_norm'].value * 0.85 * scaling * 4 * np.pi * Planck15.luminosity_distance(self.d['z']).to('cm').value ** 2 / (1 + self.d['z'])))
+                                s.append(np.log10(self.models['bbb'].data['spec'][0][sind] * 10 ** params['bbb_norm'].value * 0.85 * scaling * 4 * np.pi * Planck15.luminosity_distance(self.d['z']).to('cm').value ** 2 / (1 + self.d['z'])))
+                        print(s)
                         if np.sum(np.isfinite(s)) > 0:
                             d = distr1d(np.asarray(s)[np.isfinite(s)])
                         else:
                             d = None
+                    print(p, d)
                     if d is not None:
                         d.dopoint()
                         d.dointerval()
                         res[p] = a(d.point, d.interval[1] - d.point, d.point - d.interval[0])
+                        #print(p, res[p])
                         f = np.asarray([res[p].plus, res[p].minus])
                         f = int(np.round(np.abs(np.log10(np.min(f[np.nonzero(f)])))) + 1)
                         #print(d.interval[0], x[1], d.interval[1], x[-2])
@@ -1529,91 +1608,99 @@ class QSOSEDfit():
 
         return flat_sample, ln_max, params, res
 
-    def anneal_fit(self, params=None, anneal_steps=None, slope=True):
+    def objective(self, best, anneal_pars, params):
+        for i, (p, f) in enumerate(anneal_pars.items()):
+            params[p].value = best[i]
+
+        # print(params)
+        minner = lmfit.Minimizer(self.fcn2min, params, nan_policy='propagate', calc_covar=True, max_nfev=100)
+        result = minner.minimize(method='leastsq')
+        # lmfit.report_fit(result)
+        chi = self.fcn2min(result.params)
+        # print(np.sum(chi ** 2) / (len(chi) - len(result.params)))
+        # print(np.sum(chi ** 2), 100 * self.lum_prior(result.params, kind='anneal'), self.anneal_priors(result.params))
+        return (np.sum(chi ** 2) - self.anneal_priors(
+            result.params)), result  # / (len(chi) - len(result.params)), result
+
+    def simulated_annealing(self, params, anneal_pars, n_iterations=100, temp=1000):
+        # generate an initial point
+        best = [f[0](params[p].value) for p, f in anneal_pars.items()]
+        # evaluate the initial point
+        best_eval, res = self.objective(best, anneal_pars, params)
+        if self.verbose:
+            print(best, best_eval)
+        # current working solution
+        curr, curr_eval = best, best_eval
+        # run the algorithm
+        for i in range(n_iterations):
+            # if i > n_iterations / 2:
+            #    params['bbb_slope'].vary = True
+            # print(i)
+            # take a step
+            # candidate = curr + randn(len(bounds)) * step_size
+            candidate = [f[0](params[p].value + np.random.randn() * f[1]) for p, f in anneal_pars.items()]
+            candidate = [p.min * (c < p.min) + p.max * (c > p.max) + c * ((c >= p.min) * (c <= p.max)) for c, p in
+                         zip(candidate, [params[p] for p in anneal_pars.keys()])]
+            # evaluate candidate point
+            candidate_eval, res = self.objective(candidate, anneal_pars, params)
+            # check for new best solution
+            if candidate_eval < best_eval:
+                # store new best point
+                best, best_eval = candidate, candidate_eval
+                # report progress
+                if self.verbose:
+                    print('>%d f(%s) = %.5f' % (i, best, best_eval))
+            # difference between candidate and current point evaluation
+            diff = candidate_eval - curr_eval
+            # calculate temperature for current epoch
+            t = temp / float((i + 1) / 100)
+            # calculate metropolis acceptance criterion
+            metropolis = np.exp(-diff / t)
+            # print(diff, t, metropolis)
+            # check if we should keep the new point
+            if diff < 0 or np.random.rand() < metropolis:
+                # store the new current point
+                curr, curr_eval = candidate, candidate_eval
+        # print('best:', best)
+        return self.objective(best, anneal_pars, params)
+    def anneal_fit(self, params=None, anneal_steps=None, slope=True, vary={}):
 
         if anneal_steps == None:
             anneal_steps = self.anneal_steps
         #print(self.models['gal'].tg)
         #print(self.models['gal'].tau)
+        var = {'bbb_norm': True, 'bbb_slope': False, 'Fe_norm': False,
+             'EBV': True, 'Rv': False, 'tor_type': False, 'tor_norm': True, 'host_type': True,
+             'host_tau': True, 'host_tg': True, 'host_norm': True, 'host_Av': True,
+             }
+        for k, v in vary.items():
+            var[k] = v
         if params is None:
-            norm_bbb = np.nanmean(self.sm[1]) / np.nanmean(self.models['bbb'].data['spec'][0])
+            norm_bbb = np.log10(np.nanmean(self.sm[1]) / np.nanmean(self.models['bbb'].data['spec'][0]))
             params = lmfit.Parameters()
-            params.add('bbb_norm', value=norm_bbb, min=0, max=1e10)
-            params.add('bbb_slope', value=-0.1, min=-2, max=2, vary=False)
-            params.add('Fe_norm', value=0, min=-1, max=100, vary=False)
-            params.add('EBV', value=0.01, min=0.0, max=10)
-            params.add('Rv', value=2.74, min=0.5, max=6.0, vary=False)
+            params.add('bbb_norm', value=norm_bbb, min=-3, max=3, vary=var['bbb_norm'])
+            params.add('bbb_slope', value=-0.1, min=-2, max=2, vary=var['bbb_slope'])
+            params.add('Fe_norm', value=0, min=-1, max=100, vary=var['Fe_norm'])
+            params.add('EBV', value=0.01, min=0.0, max=10, vary=var['EBV'])
+            params.add('Rv', value=2.74, min=0.5, max=6.0, vary=var['Rv'])
             #if self.d['z'] > 0.70:
             #    params.add('Abump', value=0.01, min=0.0, max=100.0, vary=False)
-            params.add('tor_type', value=10, vary=False, min=0, max=self.models['tor'].n - 1)
-            params.add('tor_norm', value=norm_bbb / 100 * self.models['bbb'].data['spec'][0][-1] * np.max(self.models['tor'].data['spec'][params.valuesdict()['tor_type']]), min=0, max=1e10)
+            params.add('tor_type', value=10, min=0, max=self.models['tor'].n - 1, vary=var['tor_type'])
+            params.add('tor_norm', value=norm_bbb - 2 + np.log10(self.models['bbb'].data['spec'][0][-1] * np.max(self.models['tor'].data['spec'][params['tor_type'].value])), min=-3, max=2, vary=var['tor_norm'])
             if 0:
-                params.add('host_type', value=0, vary=False, min=0, max=self.models['host'].n - 1)
+                params.add('host_type', value=0, min=0, max=self.models['host'].n - 1, vary=var['host_type'])
             else:
                 #print('age:', np.log10(Planck15.age(self.d['z']).to('yr').value))
-                params.add('host_tau', value=0.2, vary=False, min=self.models['gal'].tau[0].value, max=3)
-                params.add('host_tg', value=np.log10(Planck15.age(self.d['z']).to('yr').value), vary=False, min=np.log10(self.models['gal'].tg[0].value), max=np.log10(Planck15.age(self.d['z']).to('yr').value))
-            norm_gal = np.nanmean(self.sm[1]) / np.nanmean(self.models['gal'].data['spec'][233])
-            params.add('host_norm', value=norm_gal, min=0, max=1e10)
-            params.add('host_Av', value=0.1, min=0, max=1.0)
+                params.add('host_tau', value=0.2, min=self.models['gal'].tau[0].value, max=3, vary=var['host_tau'])
+                params.add('host_tg', value=np.log10(Planck15.age(self.d['z']).to('yr').value), min=np.log10(self.models['gal'].tg[0].value), max=np.log10(Planck15.age(self.d['z']).to('yr').value), vary=var['host_tg'])
+            norm_gal = np.log10(np.nanmean(self.sm[1]) / np.nanmean(self.models['gal'].data['spec'][233]))
+            params.add('host_norm', value=norm_gal, min=-3, max=2, vary=var['host_norm'])
+            params.add('host_Av', value=0.5, min=0, max=5.0, vary=var['host_Av'])
 
         anneal_pars = OrderedDict([('tor_type', [int, 5])]) #, ('host_tau', [float, 0.5])]) #, ('host_tg', [float, 0.5])])
         #self.ln_like(params, plot=1)
-        def objective(best, anneal_pars, params):
-            for i, (p, f) in enumerate(anneal_pars.items()):
-                params[p].value = best[i]
 
-            #print(params)
-            minner = lmfit.Minimizer(self.fcn2min, params, nan_policy='propagate', calc_covar=True, max_nfev=100)
-            result = minner.minimize(method='nelder')
-            #lmfit.report_fit(result)
-            chi = self.fcn2min(result.params)
-            #print(np.sum(chi ** 2) / (len(chi) - len(result.params)))
-            #print(np.sum(chi ** 2), 100 * self.lum_prior(result.params, kind='anneal'), self.anneal_priors(result.params))
-            return (np.sum(chi ** 2) - self.anneal_priors(result.params)), result #/ (len(chi) - len(result.params)), result
-
-        def simulated_annealing(objective, params, anneal_pars, n_iterations=anneal_steps, temp=1000):
-            # generate an initial point
-            best = [f[0](params[p].value) for p, f in anneal_pars.items()]
-            # evaluate the initial point
-            best_eval, res = objective(best, anneal_pars, params)
-            if self.verbose:
-                print(best, best_eval)
-            # current working solution
-            curr, curr_eval = best, best_eval
-            # run the algorithm
-            for i in range(n_iterations):
-                if i > n_iterations / 2:
-                    params['bbb_slope'].vary = True
-                #print(i)
-                # take a step
-                #candidate = curr + randn(len(bounds)) * step_size
-                candidate = [f[0](params[p].value + np.random.randn() * f[1]) for p, f in anneal_pars.items()]
-                candidate = [p.min * (c < p.min) + p.max * (c > p.max) + c * ((c >= p.min) * (c <= p.max)) for c, p in zip(candidate, [params[p] for p in anneal_pars.keys()])]
-                # evaluate candidate point
-                candidate_eval, res = objective(candidate, anneal_pars, params)
-                # check for new best solution
-                if candidate_eval < best_eval:
-                    # store new best point
-                    best, best_eval = candidate, candidate_eval
-                    # report progress
-                    if self.verbose:
-                        print('>%d f(%s) = %.5f' % (i, best, best_eval))
-                # difference between candidate and current point evaluation
-                diff = candidate_eval - curr_eval
-                # calculate temperature for current epoch
-                t = temp / float((i + 1) / 100)
-                # calculate metropolis acceptance criterion
-                metropolis = np.exp(-diff / t)
-                #print(diff, t, metropolis)
-                # check if we should keep the new point
-                if diff < 0 or np.random.rand() < metropolis:
-                    # store the new current point
-                    curr, curr_eval = candidate, candidate_eval
-            #print('best:', best)
-            return objective(best, anneal_pars, params)
-
-        chi2_min, result = simulated_annealing(objective, params, anneal_pars)
+        chi2_min, result = self.simulated_annealing(params, anneal_pars, n_iterations=anneal_steps)
         #print(result.params)
         if self.verbose:
             print(chi2_min, lmfit.report_fit(result))
@@ -1636,9 +1723,38 @@ class QSOSEDfit():
             if self.plot:
                 self.plot_spec(params=result.params)
 
+        elif method in ['nested', 'nested_dyn']:
+            result, chi2_min = self.anneal_fit(anneal_steps=30, vary={'host_norm': True, 'host_tau': False, 'host_tg': False, 'host_Av': False})
+            #result, chi2_min = self.anneal_fit(anneal_steps=30)
+            params, cov = self.prepare_params(result.params)
+            print(params, cov)
+            print(len([p for p in params.values() if p.vary]))
+            self.params = params
+            ndim = len([p for p in params.values() if p.vary])
+            if 'dyn' in method:
+                sampler = dynesty.DynamicNestedSampler(self.lnlike_nest, self.ptform, ndim, nlive=2000, bound='balls')
+            else:
+                sampler = dynesty.NestedSampler(self.lnlike_nest, self.ptform, ndim, nlive=2000, bound='balls')
+            sampler.run_nested(maxiter=self.mcmc_steps) #, maxcall=500000)
+            results = sampler.results
+            # Plot a summary of the run.
+            rfig, raxes = dyplot.runplot(sampler.results)
+
+            plt.show()
+
+            # Plot traces and 1-D marginalized posteriors.
+            tfig, taxes = dyplot.traceplot(sampler.results)
+
+            plt.show()
+
+            # Plot the 2-D marginalized posteriors.
+            cfig, caxes = dyplot.cornerplot(sampler.results)
+
+            plt.show()
+
         elif method in ['emcee', 'zeus'] and self.hostExt and any([f in self.filters.keys() for f in ['J_UKIDSS', 'H_UKIDSS', 'K_UKIDSS', 'J', 'H', 'K', 'W1', 'W2']]): #and any([f in self.filters.keys() for f in ['W3', 'W4']]):
             if calc:
-                result, chi2_min = self.anneal_fit()
+                result, chi2_min = self.anneal_fit(vary={'host_norm': True, 'host_tau': False, 'host_tg': False, 'host_Av': False})
                 flat_sample, chi2_min, params, res = self.mcmc(params=result.params, method=method, nsteps=self.mcmc_steps)
             else:
                 result, chi2_min = self.anneal_fit(anneal_steps=1)
@@ -1668,13 +1784,13 @@ class QSOSEDfit():
                     #self.ln_like(params, plot=plot)
                     #plot = 0
                     s['total'].append(self.model_emcee(params, self.spec[0], 'spec_full', mtype='total'))
-                    s['bbb'].append(self.models['bbb'].models[0].y * params['bbb_norm'].value * (self.models['bbb'].models[0].x / 2500) ** params['bbb_slope'].value * self.extinction(self.models['bbb'].models[0].x, params))
+                    s['bbb'].append(self.models['bbb'].models[0].y * 10 ** params['bbb_norm'].value * (self.models['bbb'].models[0].x / 2500) ** params['bbb_slope'].value * self.extinction(self.models['bbb'].models[0].x, params))
                     #s['bbb'].append(self.models['bbb'].models[0].y * params['bbb_norm'].value * (self.models['bbb'].models[0].x / 2500) ** (-0.1) * self.extinction(self.models['bbb'].models[0].x, params))
 
-                    s['tor'].append(self.models['tor'].models[self.models['tor'].get_model_ind(params)].y * params['tor_norm'].value)
+                    s['tor'].append(self.models['tor'].models[self.models['tor'].get_model_ind(params)].y * 10 ** params['tor_norm'].value)
                     if self.hostExt:
-                        s['host'].append(self.models['gal'].models[self.models['gal'].get_model_ind(params)].y * params['host_norm'].value * self.extinction_MW(self.models['gal'].models[self.models['gal'].get_model_ind(params)].x, Av=params['host_Av'].value))
-                        #s['total'][-1] += self.models['gal'].models[self.models['gal'].get_model_ind(params)].flux(self.spec[0] / (1 + self.d['z'])) * params['host_norm'].value * self.extinction(self.spec[0] / (1 + self.d['z']), Av=params['host_Av'].value)
+                        s['host'].append(self.models['gal'].models[self.models['gal'].get_model_ind(params)].y * 10 ** params['host_norm'].value * self.extinction_MW(self.models['gal'].models[self.models['gal'].get_model_ind(params)].x, Av=params['host_Av'].value))
+                        #s['total'][-1] += self.models['gal'].models[self.models['gal'].get_model_ind(params)].flux(self.spec[0] / (1 + self.d['z'])) * 10 ** params['host_norm'].value * self.extinction(self.spec[0] / (1 + self.d['z']), Av=params['host_Av'].value)
 
                     # >>> filters fluxes:
                     for k, f in self.filters.items():
@@ -1683,7 +1799,7 @@ class QSOSEDfit():
 
                 self.fig.axes[0].fill_between(self.models['bbb'].models[0].x, *np.quantile(np.asarray(s['bbb']), [0.05, 0.95], axis=0), lw=1, color='tab:blue', zorder=3, label='bbb', alpha=0.5)
                 self.fig.axes[0].fill_between(self.models['tor'].models[self.models['tor'].get_model_ind(params)].x, *np.quantile(np.asarray(s['tor']), [0.05, 0.95], axis=0), lw=1, color='tab:green', zorder=3, label='tor', alpha=0.5)
-                #ax.plot(tor.x, tor.y * params['tor_norm'].value, '--', color='tab:orange', zorder=2, label='composite', alpha=alpha)
+                #ax.plot(tor.x, tor.y * 10 ** params['tor_norm'].value, '--', color='tab:orange', zorder=2, label='composite', alpha=alpha)
                 if self.hostExt:
                     self.fig.axes[0].fill_between(self.models['gal'].models[self.models['gal'].get_model_ind(params)].x, *np.quantile(np.asarray(s['host']), [0.05, 0.95], axis=0), lw=1, color='tab:purple', zorder=2, label='host galaxy', alpha=0.5)
 
@@ -1695,7 +1811,7 @@ class QSOSEDfit():
                 self.fig.axes[0].fill_between(self.spec[0] / (1 + self.d['z']), *np.quantile(np.asarray(s['total']), [0.05, 0.95], axis=0), lw=1, color='tab:red', zorder=3, label='total', alpha=0.5)
 
                 print(ind, self.df.loc[ind, 'PLATE'], self.df.loc[ind, 'MJD'], self.df.loc[ind, 'FIBERID'])
-                title = "id={0:4d} {1:19s} ({2:5d} {3:5d} {4:4d}) z={5:5.3f} slope={6:4.2f} EBV={7:4.2f} chi2={8:4.2f}".format(ind, self.df.loc[ind, 'SDSS_NAME'], self.df.loc[ind, 'PLATE'], self.df.loc[ind, 'MJD'], self.df.loc[ind, 'FIBERID'], self.df.loc[ind, 'z'], params['bbb_slope'].value, params['EBV'].value, chi2_min) #params['bbb_slope'].value
+                title = "id={0:4d} {1:19s} ({2:5d} {3:5d} {4:4d}) z={5:5.3f} slope={6:s} EBV={7:s} chi2={8:4.2f}".format(ind, self.df.loc[ind, 'SDSS_NAME'], self.df.loc[ind, 'PLATE'], self.df.loc[ind, 'MJD'], self.df.loc[ind, 'FIBERID'], self.df.loc[ind, 'z'], str(res['bbb_slope']).replace('in log format', ''), str(res['EBV']).replace('in log format', ''), chi2_min) #params['bbb_slope'].value
                 if 0 and self.hostExt:
                     # title += " fgal={1:4.2f} {0:s}".format(self.models['host'].values[host_min], self.df['f_host' + '_photo' * self.addPhoto.isChecked()][i])
                     title += " fgal={2:4.2f} tau={0:4.2f} tg={1:4.2f}".format(self.models['gal'].values[host_min][0], self.models['gal'].values[host_min][1], self.df['f_host' + '_photo' * self.addPhoto][i])
@@ -1744,29 +1860,29 @@ class QSOSEDfit():
 
             # >>> plot templates:
             if alpha == 1:
-                ax.plot(bbb.x, bbb.y * params['bbb_norm'].value, '--', color='tab:blue', zorder=2, label='composite', alpha=alpha)
-            ax.plot(bbb.x, bbb.y * params['bbb_norm'].value * self.extinction(bbb.x, params),
+                ax.plot(bbb.x, bbb.y * 10 ** params['bbb_norm'].value, '--', color='tab:blue', zorder=2, label='composite', alpha=alpha)
+            ax.plot(bbb.x, bbb.y * 10 ** params['bbb_norm'].value * self.extinction(bbb.x, params),
                     '-', color='tab:blue', zorder=3, label='comp with ext', alpha=alpha)
-            ax.plot(tor.x, tor.y * params['tor_norm'].value, '--', color='tab:orange', zorder=2, label='composite', alpha=alpha)
+            ax.plot(tor.x, tor.y * 10 ** params['tor_norm'].value, '--', color='tab:orange', zorder=2, label='composite', alpha=alpha)
             if self.hostExt:
                 if alpha == 1:
-                    ax.plot(host.x, host.y * params['host_norm'].value, '--', color='tab:purple', zorder=2, label='host galaxy', alpha=alpha)
+                    ax.plot(host.x, host.y * 10 ** params['host_norm'].value, '--', color='tab:purple', zorder=2, label='host galaxy', alpha=alpha)
 
-                ax.plot(host.x, host.y * params['host_norm'].value * self.extinction_MW(host.x, Av=params['host_Av'].value), '-', color='tab:purple', zorder=2, label='host galaxy', alpha=alpha)
+                ax.plot(host.x, host.y * 10 ** params['host_norm'].value * self.extinction_MW(host.x, Av=params['host_Av'].value), '-', color='tab:purple', zorder=2, label='host galaxy', alpha=alpha)
 
             # >>> plot filters fluxes:
             for k, f in self.filters.items():
-                temp = bbb.flux(f.x / (1 + self.d['z'])) * self.extinction(f.x / (1 + self.d['z']), params) * params['bbb_norm'].value + tor.flux(f.x / (1 + self.d['z'])) * params['tor_norm'].value
+                temp = bbb.flux(f.x / (1 + self.d['z'])) * self.extinction(f.x / (1 + self.d['z']), params) * 10 ** params['bbb_norm'].value + tor.flux(f.x / (1 + self.d['z'])) * 10 ** params['tor_norm'].value
                 if self.hostExt:
-                    temp += host.flux(f.x / (1 + self.d['z'])) * params['host_norm'].value * self.extinction_MW(f.x / (1 + self.d['z']), Av=params['host_Av'].value)
+                    temp += host.flux(f.x / (1 + self.d['z'])) * 10 ** params['host_norm'].value * self.extinction_MW(f.x / (1 + self.d['z']), Av=params['host_Av'].value)
                 ax.plot(f.x / (1 + self.d['z']), temp, '-', color=[c / 255 for c in f.color], lw=2, zorder=3, alpha=alpha)
                 # ax.scatter(f.filter.l_eff, f.filter.get_value(x=f.x, y=temp * self.extinction(f.x * (1 + self.d['z']), Av=params['Av'].value) * params['norm'].value),
                 #           s=20, marker='o', c=[c/255 for c in f.filter.color])
 
             # >>> total profile:
-            temp = bbb.flux(self.spec[0] / (1 + self.d['z'])) * params['bbb_norm'].value * self.extinction(self.spec[0] / (1 + self.d['z']), params) + tor.flux(self.spec[0] / (1 + self.d['z'])) * params['tor_norm'].value
+            temp = bbb.flux(self.spec[0] / (1 + self.d['z'])) * 10 ** params['bbb_norm'].value * self.extinction(self.spec[0] / (1 + self.d['z']), params) + tor.flux(self.spec[0] / (1 + self.d['z'])) * 10 ** params['tor_norm'].value
             if self.hostExt:
-                temp += host.flux(self.spec[0] / (1 + self.d['z'])) * params['host_norm'].value * self.extinction_MW(self.spec[0] / (1 + self.d['z']), Av=params['host_Av'].value)
+                temp += host.flux(self.spec[0] / (1 + self.d['z'])) * 10 ** params['host_norm'].value * self.extinction_MW(self.spec[0] / (1 + self.d['z']), Av=params['host_Av'].value)
 
             ax.plot(self.spec[0] / (1 + self.d['z']), temp, '-', lw=2, color='tab:red', zorder=3, label='total profile', alpha=alpha)
             # print(np.sum(((temp - spec[1]) / spec[2])[mask] ** 2) / np.sum(mask))
@@ -1895,10 +2011,11 @@ class jsoncat():
 def worker_wrapper(arg):
     ind, catfile = arg
     return run_model(ind, catfile=catfile)
+
 def run_model(ind, catfile=None):
     print(ind)
 
-    qso = QSOSEDfit(catalog=catfile, plot=0, mcmc_steps=5000, anneal_steps=300, save=1, corr=30, verbose=0)
+    qso = QSOSEDfit(catalog=catfile, plot=1, mcmc_steps=10000, anneal_steps=300, save=1, corr=50, verbose=0)
     if qso.prepare(ind):
         res = qso.fit(ind, method='emcee')
     else:
@@ -1927,11 +2044,11 @@ if __name__ == "__main__":
         print(res)
     else:
         #pars = ['bbb_norm', 'Av', 'tor_type', 'tor_norm', 'host_tau', 'host_tg', 'host_norm', 'host_Av', 'sigma', 'alpha_GALEX', 'alpha_SDSS', 'alpha_2MASS', 'alpha_UKIDSS']
-        num = 25
+        num = 20
         calc = 1
         if calc:
             if 1:
-                for i in range(7975 // num + 1):
+                for i in range(2): # range(7975 // num + 1):
                         with Pool(num) as p:
                             res_new = p.map(worker_wrapper, [(k, catfile) for k in np.arange(i * num, min((i + 1) * num, 7975))]) #total number of AGNs 7975
                         print(res_new)

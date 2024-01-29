@@ -35,8 +35,8 @@ class distr1d():
         self.normalize()
         self.interpolate()
 
-    def kde(self):
-        kde = gaussian_kde(self.x)
+    def kde(self, bandwidth='scott'):
+        kde = gaussian_kde(self.x, bw_method=bandwidth)
         x = np.linspace(np.min(self.x), np.max(self.x), np.max([100, int(np.sqrt(len(self.x)))]))
         self.y = kde(x)
         self.x = x
@@ -56,7 +56,7 @@ class distr1d():
     def level(self, x, level):
         return self.inter(x) - level
 
-    def plot(self, x=None, conf=None, kind='center', color='orangered', ax=None, xlabel=None, ylabel=None, fontsize=16, alpha=0.3):
+    def plot(self, x=None, conf=None, kind='center', color='orangered', ax=None, xlabel=None, ylabel=None, fontsize=16, alpha=0.3, title=None):
         if ax is None:
             fig, ax = plt.subplots()
         if x is None:
@@ -71,6 +71,11 @@ class distr1d():
         ax.tick_params(axis='both', which='major', labelsize=fontsize - 2)
         if xlabel is not None:
             ax.set_xlabel(xlabel, fontsize=fontsize)
+
+        print('title: ', title)
+
+        if title is not None:
+            ax.set_title(title, fontsize=fontsize)
 
         if ylabel is None:
             ax.set_ylabel('pdf', fontsize=fontsize)
@@ -421,7 +426,7 @@ class distr2d():
             if ls is not None:
                 for c, s in zip(c.collections[:len(ls)], ls[::-1]):
                     c.set_dashes(s)
-        if color_point is not None:
+        if color_point != None:
             ax.scatter(self.point[0], self.point[1], s=200, color=color_point, edgecolors='k', marker='*', zorder=50)
         if colorbar:
             fig.colorbar(cs, ax=ax) #, shrink=0.9)

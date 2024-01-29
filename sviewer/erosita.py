@@ -14,10 +14,10 @@ import numpy.lib.recfunctions as rfn
 import lmfit
 from pyqtgraph.dockarea import *
 import pandas as pd
-from PyQt5.QtCore import QPoint, QUrl
-from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QMenu, QToolButton,
-                             QLabel, QCheckBox, QComboBox, QAction)
+from PyQt6.QtCore import QPoint, QUrl
+from PyQt6.QtGui import QDesktopServices, QAction
+from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QMenu, QToolButton,
+                             QLabel, QCheckBox, QComboBox)
 
 from scipy.stats import linregress
 
@@ -284,7 +284,7 @@ class ErositaWidget(QWidget):
                           'r_host', 'host_tg', 'host_tau', #'f_host', 'f_host_photo',
                           'L_host', #'L_host_photo',
                           'SDSS_photo_scale', 'SDSS_photo_slope', 'SDSS_var', 'alpha_SDSS', 'slope_SDSS', 'lnL',
-                          #'F_OIII', 'FWHM_OIII',
+                          'F_OIII', 'FWHM_OIII',
                           ]
         self.axis_info = {'z': [lambda x: x, 'z'],
                           'DEC': [lambda x: x, 'DEC'],
@@ -330,8 +330,8 @@ class ErositaWidget(QWidget):
                           'SDSS_var': [lambda x: np.log10(x), 'log Variability at 2500A from SDSS'],
                           'alpha_SDSS': [lambda x: x, 'Scale for SDSS photometry'],
                           'slope_SDSS': [lambda x: x, 'Slope for SDSS photometry'],
-                          #'F_OIII': [lambda x: np.log10(x), 'log F(OIII), in 1e14 erg/s/cm^2'],
-                          #'FWHM_OIII': [lambda x: x, 'FWHM OIII, km/s'],
+                          'F_OIII': [lambda x: np.log10(x), 'log F(OIII), in 1e14 erg/s/cm^2'],
+                          'FWHM_OIII': [lambda x: x, 'FWHM OIII, km/s'],
                           }
         self.df = None
         self.ind = None
@@ -492,13 +492,13 @@ class ErositaWidget(QWidget):
         calcExt.clicked.connect(partial(self.calc_ext, calc=True))
 
         self.method = QComboBox(self)
-        self.method.addItems(['leastsq', 'least_squares', 'nelder', 'annealing', 'emcee'])
+        self.method.addItems(['leastsq', 'least_squares', 'nelder', 'annealing', 'emcee', 'nested', 'nested_dyn'])
         self.method.setFixedSize(120, 30)
         self.method.setCurrentText('emcee')
 
         self.numSteps = QLineEdit()
         self.numSteps.setFixedSize(80, 30)
-        self.numSteps.setText("100")
+        self.numSteps.setText("1000")
 
         postExt = QPushButton('Post:')
         postExt.setFixedSize(80, 30)
@@ -597,7 +597,7 @@ class ErositaWidget(QWidget):
         return widget
 
     def loadTable(self, recalc=False):
-        self.df = pd.read_csv(self.parent.ErositaFile)[:25]
+        self.df = pd.read_csv(self.parent.ErositaFile)[:]
         try:
             self.df.rename(columns={'Z': 'z', 'ML_FLUX_0_ero': 'F_X_int'}, inplace=True)
         except:
@@ -716,7 +716,8 @@ class ErositaWidget(QWidget):
 
             self.set_filters(ind, clear=True)
             if x is None and self.plotExt.isChecked():
-                self.plot_sed(self.ind)
+                if 1:
+                    self.plot_sed(self.ind)
                 #self.calc_line_emission(ind=self.ind, line='OIII', plot=1)
                 #self.calc_ext(self.ind)
 
@@ -1071,7 +1072,7 @@ class ErositaWidget(QWidget):
         self.QSOSEDfit.plot, self.QSOSEDfit.save = self.plotExt.isChecked(), self.saveFig.isChecked()
         self.QSOSEDfit.mcmc_steps, self.QSOSEDfit.anneal_steps = int(self.numSteps.text()), 100 #int(int(self.numSteps.text()) / 10)
         if self.QSOSEDfit.prepare(self.ind):
-            res = self.QSOSEDfit.fit(self.ind, method='emcee', calc=calc)
+            res = self.QSOSEDfit.fit(self.ind, method=self.method.currentText(), calc=calc)
             print(res)
         if self.saveFig.isChecked():
             attr = {'Av': 'Av_int', 'host_tau': 'host_tau', 'host_tg': 'host_tg', 'host_Av': 'Av_host', 'L_host': 'L_host',

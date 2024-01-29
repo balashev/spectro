@@ -2,9 +2,9 @@ from functools import partial
 from itertools import combinations
 from matplotlib import cm
 import matplotlib.colors as mcolors
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import (QFont)
-from PyQt5.QtWidgets import (QWidget, QLabel, QGridLayout, QPushButton, QApplication,
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import (QFont)
+from PyQt6.QtWidgets import (QWidget, QLabel, QGridLayout, QPushButton, QApplication,
                              QHBoxLayout, QVBoxLayout, QComboBox)
 import pyqtgraph as pg
 from ..atomic import *
@@ -147,9 +147,9 @@ class LineLabel(pg.TextItem):
         if hasattr(self, 'arrow'):
             self.parent.parent.plot.vb.removeItem(self.arrow)
         if self.reference:
-            pen = pg.mkPen(color=(180, 190, 30, 255), width=1.5, style=Qt.SolidLine)
+            pen = pg.mkPen(color=(180, 190, 30, 255), width=1.5, style=Qt.PenStyle.SolidLine)
         else:
-            pen = pg.mkPen(color=self.saved_color, width=.5, style=Qt.SolidLine)
+            pen = pg.mkPen(color=self.saved_color, width=.5, style=Qt.PenStyle.SolidLine)
         if self.va == 'down':
             anchor, angle, tailLen, pos = [0.5, -2], 90, 30, (0, 5)
         elif self.va == 'up':
@@ -159,7 +159,7 @@ class LineLabel(pg.TextItem):
             self.arrow = pg.ArrowItem(angle=angle, headWidth=0, headLen=0, tailLen=tailLen, tailWidth=2,
                                       brush=pg.mkBrush(self.saved_color), pen=pg.mkPen(0, 0, 0, 0), pos=pos)
         elif self.graphicType == 'infinite':
-            self.arrow = pg.InfiniteLine(angle=90, pen=pen, label='') #style=Qt.DashLine
+            self.arrow = pg.InfiniteLine(angle=90, pen=pen, label='') #style=Qt.PenStyle.DashLine
         self.arrow.setParentItem(self)
 
     def setActive(self, bool=None):
@@ -239,8 +239,8 @@ class LineLabel(pg.TextItem):
 
     def mouseDragEvent(self, ev):
 
-        if QApplication.keyboardModifiers() == Qt.ShiftModifier:
-            if ev.button() != Qt.LeftButton:
+        if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier:
+            if ev.button() != Qt.MouseButton.LeftButton:
                 ev.ignore()
                 return
 
@@ -259,7 +259,7 @@ class LineLabel(pg.TextItem):
             self.parent.redraw()
             ev.accept()
 
-        elif QApplication.keyboardModifiers() == Qt.AltModifier or self.info:
+        elif QApplication.keyboardModifiers() == Qt.KeyboardModifier.AltModifier or self.info:
             self.showInfo()
             ev.accept()
     #def hoverEvent(self, ev):
@@ -280,17 +280,17 @@ class LineLabel(pg.TextItem):
                     self.parent.parent.lines.pop([' '.join(l.split()[:2]) for l in self.parent.parent.lines].index(str(self.line)))
             ev.accept()
         else:
-            if QApplication.keyboardModifiers() == Qt.ShiftModifier:
+            if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier:
                 self.parent.set_reference(self)
                 self.parent.parent.plot.restframe = False
                 self.parent.parent.plot.updateVelocityAxis()
                 ev.accept()
 
-            elif QApplication.keyboardModifiers() == Qt.ControlModifier:
+            elif QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier:
                 self.parent.remove(self.line)
                 del self
 
-            elif QApplication.keyboardModifiers() == Qt.AltModifier or self.info:
+            elif QApplication.keyboardModifiers() == Qt.KeyboardModifier.AltModifier or self.info:
                 self.showInfo()
                 ev.accept()
 
@@ -478,7 +478,7 @@ class Doublet():
         self.read_regular()
         self.active = False
         color = cm.terrain(1, bytes=True)[:3] + (200,)
-        self.pen = pg.mkPen(color=color, width=0.5, style=Qt.SolidLine)
+        self.pen = pg.mkPen(color=color, width=0.5, style=Qt.PenStyle.SolidLine)
         self.name = name
         self.z = z
         if lines is None and self.name in self.doublet.keys():
@@ -558,14 +558,14 @@ class Doublet():
         del self
 
     def draw_temp(self, x):
-        self.line_temp = pg.InfiniteLine(x, angle=90, pen=pg.mkPen(color=(44, 160, 44), width=2, style=Qt.SolidLine))
+        self.line_temp = pg.InfiniteLine(x, angle=90, pen=pg.mkPen(color=(44, 160, 44), width=2, style=Qt.PenStyle.SolidLine))
         self.parent.vb.addItem(self.line_temp)
         self.temp = []
         for lines in self.doublet.values():
             for d in combinations(lines, 2):
                 for i in [-1, 1]:
                     x = self.line_temp.value() * (d[0] / d[1])**i
-                    self.temp.append(doubletTempLine(self, x, angle=90, pen=pg.mkPen(color=(160, 80, 44), width=1, style=Qt.SolidLine)))
+                    self.temp.append(doubletTempLine(self, x, angle=90, pen=pg.mkPen(color=(160, 80, 44), width=1, style=Qt.PenStyle.SolidLine)))
                     self.parent.vb.addItem(self.temp[-1])
 
     def remove_temp(self):
@@ -676,8 +676,8 @@ class doubletLabel(pg.TextItem):
 
     def mouseDragEvent(self, ev):
 
-        if QApplication.keyboardModifiers() == Qt.ShiftModifier:
-            if ev.button() != Qt.LeftButton:
+        if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier:
+            if ev.button() != Qt.MouseButton.LeftButton:
                 ev.ignore()
                 return
 
@@ -690,10 +690,10 @@ class doubletLabel(pg.TextItem):
 
     def mouseClickEvent(self, ev):
 
-        if QApplication.keyboardModifiers() == Qt.AltModifier:
+        if QApplication.keyboardModifiers() == Qt.KeyboardModifier.AltModifier:
             self.parent.remove_line(self.parent.labels.index(self))
 
-        elif QApplication.keyboardModifiers() == Qt.ControlModifier:
+        elif QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier:
             self.parent.remove()
 
         elif ev.double():
@@ -792,7 +792,7 @@ class pcRegion():
         del self
 
     def lineClicked(self):
-        if QApplication.keyboardModifiers() == Qt.ControlModifier:
+        if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier:
             self.remove()
 
 class cfLabel(pg.TextItem):
@@ -808,8 +808,8 @@ class cfLabel(pg.TextItem):
 
     def mouseDragEvent(self, ev):
 
-        if QApplication.keyboardModifiers() == Qt.ShiftModifier:
-            if ev.button() != Qt.LeftButton:
+        if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier:
+            if ev.button() != Qt.MouseButton.LeftButton:
                 ev.ignore()
                 return
 
@@ -832,7 +832,7 @@ class cfLabel(pg.TextItem):
 
     def mouseClickEvent(self, ev):
 
-        if QApplication.keyboardModifiers() == Qt.ControlModifier:
+        if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier:
             self.parent.remove()
             ev.accept()
 

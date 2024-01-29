@@ -993,57 +993,54 @@ function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
         #else
         y_c = 1 .- y_c
         #end
-
-        if out == "old all"
-            return x, y_c
-
-        elseif out in ["all", "binned"]
-
-            #println("y_c:", y_c)
-            inds = searchsortedfirst.(Ref(x), spec.bins[spec.bin_mask])
-            #println("bins:", spec.bins[spec.bin_mask])
-            #println("indexes: ", inds, " ", size(inds))
-            cumsum = zeros(size(x))
-            #cumsum[1] = 0
-            @inbounds @fastmath for i in 2:size(x)[1] # not sure if @simd can do anything here
-                cumsum[i] = cumsum[i-1] + (x[i] - x[i-1]) * (2 - y_c[i] - y_c[i-1])
-            end
-            cumsum = cumsum .* 0.5
-            #println("cumsum:", cumsum)
-
-            #println(1 .- (cumsum[inds[2:end]] .- cumsum[inds[1:end-1]]) ./ (x[inds[2:end]] .- x[inds[1:end-1]]))
-
-            binned = zero(spec.x[spec.mask])
-            for (k, xi) in enumerate(spec.x[spec.mask])
-                ind = findmin(abs.(x .- xi))[2]
-                #println(xi, " ", ind)
-            #for (k, ind) in enumerate(searchsortedfirst.(Ref(x), spec.x[spec.mask] .* 1.000000001))
-                ind_min, ind_max = searchsortedlast(inds, ind), searchsortedfirst(inds, ind)
-                #println(xi, " ", ind, " ",  ind_max, " ", ind_min, " ", x[inds[ind_max]], " ", x[inds[ind_min]])
-                for i in inds[ind_min]+1:inds[ind_max]
-                    binned[k] += (x[i] - x[i-1]) * (2 - y_c[i] - y_c[i-1])
-                end
-
-                binned[k] = 1 - binned[k] / (x[inds[ind_max]] - x[inds[ind_min]]) / 2
-            end
-            #println("binned:", binned)
-            #println("specmask: ", spec.x[spec.mask])
-
-            if out == "all"
-                return x, y_c, spec.x[spec.mask], binned #1 .- (cumsum[inds[2:end]] .- cumsum[inds[1:end-1]]) ./ (x[inds[2:end]] .- x[inds[1:end-1]])
-            elseif out == "binned"
-                return binned
-            end
-            #println("all done ", sum(y_c[x_mask]))
-            #return y_c[x_mask]
-
-        end
     else
-        if out == "all"
-            return x, y
-        elseif out == "init"
-            return y[x_mask]
+        y_c = y
+    end
+
+    if out == "old all"
+        return x, y_c
+
+    elseif out in ["all", "binned", "init"]
+
+        #println("y_c:", y_c)
+        inds = searchsortedfirst.(Ref(x), spec.bins[spec.bin_mask])
+        #println("bins:", spec.bins[spec.bin_mask])
+        #println("indexes: ", inds, " ", size(inds))
+        #cumsum = zeros(size(x))
+        #@inbounds @fastmath for i in 2:size(x)[1] # not sure if @simd can do anything here
+        #    cumsum[i] = cumsum[i-1] + (x[i] - x[i-1]) * (2 - y_c[i] - y_c[i-1])
+        #end
+        #cumsum = cumsum .* 0.5
+        #println("cumsum:", cumsum)
+
+        #println(1 .- (cumsum[inds[2:end]] .- cumsum[inds[1:end-1]]) ./ (x[inds[2:end]] .- x[inds[1:end-1]]))
+
+        binned = zero(spec.x[spec.mask])
+        for (k, xi) in enumerate(spec.x[spec.mask])
+            ind = findmin(abs.(x .- xi))[2]
+            #println(xi, " ", ind)
+        #for (k, ind) in enumerate(searchsortedfirst.(Ref(x), spec.x[spec.mask] .* 1.000000001))
+            ind_min, ind_max = searchsortedlast(inds, ind), searchsortedfirst(inds, ind)
+            #println(xi, " ", ind, " ",  ind_max, " ", ind_min, " ", x[inds[ind_max]], " ", x[inds[ind_min]])
+            for i in inds[ind_min]+1:inds[ind_max]
+                binned[k] += (x[i] - x[i-1]) * (2 - y_c[i] - y_c[i-1])
+            end
+
+            binned[k] = 1 - binned[k] / (x[inds[ind_max]] - x[inds[ind_min]]) / 2
         end
+        #println("binned:", binned)
+        #println("specmask: ", spec.x[spec.mask])
+
+        if out == "all"
+            return x, y_c, spec.x[spec.mask], binned #1 .- (cumsum[inds[2:end]] .- cumsum[inds[1:end-1]]) ./ (x[inds[2:end]] .- x[inds[1:end-1]])
+        elseif out == "binned"
+            return binned
+        elseif out == "init"
+            return y_c[spec.mask] #x_mask
+        end
+        #println("all done ", sum(y_c[x_mask]))
+        #return y_c[x_mask]
+
     end
 end
 
