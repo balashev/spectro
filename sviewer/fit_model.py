@@ -29,7 +29,7 @@ class FLineEdit(QLineEdit):
             locale = QLocale('C')
             #locale.RejectGroupSeparator = 1
             validator.setLocale(locale)
-            validator.ScientificNotation
+            validator.Notation.ScientificNotation
             if self.name[:1] == 'z':
                 validator.setDecimals(8)
             if self.name[:1] in ['b', 'N', 'd', 'm', 'c', 'r', 'l', 's']:
@@ -98,7 +98,7 @@ class chooseSystemPC(QToolButton):
         self.update()
         self.setText(self.currentText())
         self.setMenu(self.toolmenu)
-        self.setPopupMode(QToolButton.InstantPopup)
+        self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
 
     def update(self):
         try:
@@ -197,7 +197,7 @@ class fitModelWidget(QWidget):
         self.chooseSpecies = QComboBox()
         self.chooseSpecies.setFixedSize(80, 30)
         self.chooseSpecies.addItems(['choose...'] + list(self.parent.atomic.keys()))
-        self.chooseSpecies.activated[str].connect(self.selectSpecies)
+        self.chooseSpecies.currentTextChanged.connect(self.selectSpecies)
         speciesbox.addWidget(self.chooseSpecies)
 
         self.addall = QCheckBox('add to all')
@@ -426,14 +426,14 @@ class fitModelWidget(QWidget):
 
     def addParent(self, parent, text, checkable=False, expanded=False, checked=False):
         item = QTreeWidgetItem(parent, [text])
-        item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
+        item.setChildIndicatorPolicy(QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator)
         item.setExpanded(expanded)
         #item.name = text
         return item
 
     def addContParent(self, parent, text, checkable=False, expanded=True, checked=False):
         item = QTreeWidgetItem(parent, [text])
-        item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
+        item.setChildIndicatorPolicy(QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator)
         item.name = text
         ind = int(text.split('_')[1])
         if not hasattr(self.parent.fit, 'cont_' + str(ind) + '_0'):

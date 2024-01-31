@@ -66,7 +66,7 @@ class Console(QTextEdit):
 
     def set(self, s):
         self.append(str(s))
-        self.moveCursor(QTextCursor.End)
+        self.moveCursor(QTextCursor.MoveOperation.End)
         self.displayPrompt()
 
     def addhistory(self, command=None):
@@ -115,14 +115,14 @@ class Console(QTextEdit):
                 except Exception as error:
                     result = str(error)
                 self.append(str(result))
-                self.moveCursor(QTextCursor.End)
+                self.moveCursor(QTextCursor.MoveOperation.End)
             self.displayPrompt()
             return
 
         if event.key() == Qt.Key.Key_Backspace:
             event.accept()
             if not self.isInEditionZone():
-                self.moveCursor(QTextCursor.End)
+                self.moveCursor(QTextCursor.MoveOperation.End)
                 # First backspace just moves the cursor.
                 return
             # If there is something to be deleted, delete it.
@@ -133,26 +133,26 @@ class Console(QTextEdit):
         if event.key() == Qt.Key.Key_Left:
             event.accept()
             if not self.isInEditionZone():
-                self.moveCursor(QTextCursor.End)
+                self.moveCursor(QTextCursor.MoveOperation.End)
                 # First backspace just moves the cursor.
                 return
             if self.promptColumnNumber < self.textCursor().columnNumber():
-                mode = QTextCursor.MoveAnchor
+                mode = QTextCursor.MoveMode.MoveAnchor
                 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
-                    mode = QTextCursor.KeepAnchor
-                self.moveCursor(QTextCursor.Left, mode)
+                    mode = QTextCursor.MoveMode.KeepAnchor
+                self.moveCursor(QTextCursor.MoveOperation.Left, mode)
             return
 
         if event.key() == Qt.Key.Key_Right:
             event.accept()
             if not self.isInEditionZone():
-                self.moveCursor(QTextCursor.End)
+                self.moveCursor(QTextCursor.MoveOperation.End)
                 # First backspace just moves the cursor.
                 return
-            mode = QTextCursor.MoveAnchor
+            mode = QTextCursor.MoveMode.MoveAnchor
             if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
-                mode = QTextCursor.KeepAnchor
-            self.moveCursor(QTextCursor.Right, mode)
+                mode = QTextCursor.MoveMode.KeepAnchor
+            self.moveCursor(QTextCursor.MoveOperation.Right, mode)
             return
 
         if event.key() == Qt.Key.Key_Up:
@@ -172,7 +172,7 @@ class Console(QTextEdit):
         if len(event.text()) > 0:
             event.accept()
             if not self.isInEditionZone():
-                self.moveCursor(QTextCursor.End)
+                self.moveCursor(QTextCursor.MoveOperation.End)
             self.textCursor().insertText(event.text())
 
     def exec_command(self, command):

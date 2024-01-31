@@ -159,7 +159,7 @@ class plotSpectrum(pg.PlotWidget):
         Raise the context menu
         """
         menu = self.getMenu()
-        menu.popup(ev.screenPos().toPoint())
+        menu.popup(ev.globalPosition().toPoint())
 
     def getMenu(self):
         """
@@ -740,9 +740,9 @@ class plotSpectrum(pg.PlotWidget):
         pos = self.vb.sceneBoundingRect()
         self.cursorpos.setPos(self.vb.mapSceneToView(QPointF(int(pos.left()+10), int(pos.bottom()-10))))
         self.specname.setPos(self.vb.mapSceneToView(QPointF(int(pos.right()-10), int(pos.bottom()-10))))
-        if self.r_status == 2 and event.type() == QEvent.MouseMove:
+        if self.r_status == 2 and event.type() == QEvent.Type.MouseMove:
             self.regions[-1].setRegion([self.mousePoint_saved.x(), self.mousePoint.x()])
-        if any([getattr(self, s + '_status') for s in 'acr']) and event.type() == QEvent.MouseMove:
+        if any([getattr(self, s + '_status') for s in 'acr']) and event.type() == QEvent.Type.MouseMove:
             self.vb.rbScaleBox.hide()
 
 
@@ -1092,7 +1092,7 @@ class spec2dWidget(pg.PlotWidget):
                 s = self.parent.s[self.parent.s.ind].spec2d
                 if s.cr is None:
                     self.parent.s[self.parent.s.ind].spec2d.cr = image(x=s.raw.x, y=s.raw.y, mask=np.zeros_like(s.raw.z))
-                if (QApplication.keyboardModifiers() == Qt.AltModifier):
+                if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.AltModifier):
                     self.vb.removeItem(self.parent.s[self.parent.s.ind].cr_mask2d)
 
 
@@ -1265,7 +1265,7 @@ class spec2dWidget(pg.PlotWidget):
 
         pos = self.vb.sceneBoundingRect()
         self.cursorpos.setPos(self.vb.mapSceneToView(QPointF(int(pos.left() + 10), int(pos.bottom() - 10))))
-        if self.s_status == 2 and event.type() == QEvent.MouseMove:
+        if self.s_status == 2 and event.type() == QEvent.Type.MouseMove:
             range = self.vb.getState()['viewRange']
             delta = ((self.mousePoint.x() - self.mousePoint_saved.x()) / (range[0][1] - range[0][0]),
                      (self.mousePoint.y() - self.mousePoint_saved.y()) / (range[1][1] - range[1][0]))
@@ -1282,7 +1282,7 @@ class spec2dWidget(pg.PlotWidget):
         if self.t_status:
             self.t_status = 2
 
-        if self.s_status and event.type() == QEvent.MouseMove:
+        if self.s_status and event.type() == QEvent.Type.MouseMove:
             self.vb.rbScaleBox.hide()
 
 
@@ -1689,7 +1689,7 @@ class showLinesWidget(QWidget):
         self.chooseLine = QComboBox()
         self.chooseLine.setFixedSize(130, 30)
         self.chooseLine.addItems(['choose...'] + [str(l.line) for l in self.parent.abs.lines])
-        self.chooseLine.activated[str].connect(self.selectLine)
+        self.chooseLine.activated.connect(self.selectLine)
         l.addWidget(self.chooseLine)
         l.addStretch()
         hlayout.addLayout(l)
@@ -2843,14 +2843,14 @@ class fitMCMCWidget(QWidget):
         self.graph.addItems(['chainConsumer', 'corner'])
         self.graph.setFixedSize(120, 30)
         self.graph.setCurrentIndex(['chainConsumer', 'corner'].index(self.parent.options('MCMC_graph')))
-        self.graph.activated[str].connect(self.selectGraph)
+        self.graph.activated.connect(self.selectGraph)
         grid.addWidget(self.graph, 0, 1)
         grid.addWidget(QLabel('Truths:'), 2, 0)
         self.truths = QComboBox()
         self.truths.addItems(['None', 'Best Fit', 'Model', 'MAP'])
         self.truths.setFixedSize(120, 30)
         self.truths.setCurrentText(self.parent.options('MCMC_truths'))
-        self.truths.activated[str].connect(self.selectTruths)
+        self.truths.activated.connect(self.selectTruths)
         grid.addWidget(self.truths, 2, 1)
         self.smooth = QCheckBox('smooth')
         self.smooth.setChecked(bool(self.parent.options('MCMC_smooth')))
@@ -4130,7 +4130,7 @@ class extract2dWidget(QWidget):
         layout.addLayout(hl)
 
         line = QFrame()
-        line.setFrameShape(QFrame.HLine)
+        line.setFrameShape(QFrame.Shape.HLine)
         line.setStyleSheet("QFrame {border: 0.5px solid rgb(100,100,100);}")
         layout.addWidget(line)
 
@@ -4226,7 +4226,7 @@ class extract2dWidget(QWidget):
         self.skymodel.addItems(['median', 'polynomial', 'robust', 'wavy'])
         self.skymodeltype = 'wavy'
         self.skymodel.setCurrentText(self.skymodeltype)
-        self.skymodel.activated[str].connect(self.skyModel)
+        self.skymodel.activated.connect(self.skyModel)
         hl.addWidget(self.skymodel)
         hl.addStretch(0)
         layout.addLayout(hl)
@@ -4430,23 +4430,18 @@ class extract2dWidget(QWidget):
         self.parent.s.redraw()
 
     def sky_simple(self):
-
         s = self.parent.s[self.exp_ind]
         s.spec2d.sky_model_simple(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], border=self.extr_border, conf=self.extr_conf)
-
         self.parent.s.redraw()
 
     def extract(self):
-
         self.helio_corr = float(self.helioCorr.text()) if self.helio.isChecked() else None
-
         s = self.parent.s[self.exp_ind]
-        s.spec2d.extract(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], slit=self.airVac.isChecked() * self.extr_slit,
-                         profile_type = self.extrProfile.currentText(), airvac=self.airVac.isChecked(), helio=self.helio_corr)
+        s.spec2d.extract(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], slit=self.extrSlit.isChecked() * self.extr_slit,
+                         profile_type=self.extrProfile.currentText(), airvac=self.airVac.isChecked(), helio=self.helio_corr)
 
         self.updateExpChoose()
         self.parent.s.redraw(len(self.parent.s)-1)
-
 
     def dispersion(self):
         s = self.parent.s[self.exp_ind]
@@ -6455,7 +6450,7 @@ class messageWindow(QWidget):
     def paintEvent(self, event):
         qp = QPainter()
         qp.begin(self)
-        qp.setRenderHint(QPainter.Antialiasing, True)
+        qp.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         qp.setPen(self.penColor)
         qp.setBrush(self.fillColor)
         qp.drawRoundedRect(0, 0, self.size().width(), self.size().height(), 5, 5)
@@ -6701,7 +6696,7 @@ class sviewer(QMainWindow):
         self.plot = plotSpectrum(self)
         self.vb = self.plot.getPlotItem().getViewBox()
         self.s = Speclist(self)
-        #self.plot.setFrameShape(QFrame.StyledPanel)
+        #self.plot.setFrameShape(QFrame.Shape.StyledPanel)
         
         self.panel = buttonpanel(self)
         self.panel.setFrameShape(QFrame.Shape.StyledPanel)
@@ -10507,12 +10502,12 @@ class sviewer(QMainWindow):
         if 1:
             msgBox = QMessageBox(self)
             msgBox.setText("Are you sure want to quit?")
-            msgBox.setIcon(QMessageBox.Question)
-            msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msgBox.setIcon(QMessageBox.Icon.Question)
+            msgBox.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
             msgBox.setStyleSheet("QLabel{min-width:500 px; font-size: 22px;} QPushButton{width:200px; font-size:22px;}")
             msgBox.setBaseSize(QSize(900, 120))
             reply = msgBox.exec()
-            if reply == QMessageBox.Yes:
+            if reply == QMessageBox.StandardButton.Yes:
                 event.accept()
             else:
                 event.ignore()   

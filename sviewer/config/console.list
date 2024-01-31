@@ -1,6 +1,3 @@
-rescale 9.7
-stats
-stats
 rescale 10
 rescale 2
 show FeI
@@ -19,3 +16,6 @@ high H2j0
 show H2 0 1
 show CO
 show CO
+header
+show H2 0
+hide H2
