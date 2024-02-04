@@ -237,20 +237,22 @@ class a:
                 else:
                     s = "{0:{n}d}^{{+{1:{n}d}}}_{{-{2:{n}d}}}".format(int(val), int(plus), int(minus), b=base, n=r) + base * " \\times 10^{{{b}}}".format(b=base)
         else:
+            pre = None
             if (not np.isfinite(self.plus) and np.isfinite(self.minus)) or self.type == 'l':
                 pre, val = '>', round(self.val - self.minus, f)
             elif (np.isfinite(self.plus) and not np.isfinite(self.minus)) or self.type == 'u':
                 pre, val = '<', round(self.val + self.plus, f)
-            if self.repr == 'log':
-                #print(self.val, self.plus, self.minus, f)
-                s = "{0:s}{1:.{n}f}".format(pre, val, n=f)
-            if self.repr == 'dec':
-                if base == None:
-                    base = int(np.log10(abs(val)))
-                if base == 0:
-                    s = "{0:s}{1:.{n}f}".format(pre, val/10**base, n=f)
-                else:
-                    s = "{0:s}{1:.{n}f} \\times 10^{{{b}}}".format(pre, val/10**base, b=base, n=f)
+            if pre is not None:
+                if self.repr == 'log':
+                    #print(self.val, self.plus, self.minus, f)
+                    s = "{0:s}{1:.{n}f}".format(pre, val, n=f)
+                if self.repr == 'dec':
+                    if base == None:
+                        base = int(np.log10(abs(val)))
+                    if base == 0:
+                        s = "{0:s}{1:.{n}f}".format(pre, val/10**base, n=f)
+                    else:
+                        s = "{0:s}{1:.{n}f} \\times 10^{{{b}}}".format(pre, val/10**base, b=base, n=f)
 
         la = '$' if eqs == 1 else ''
         return la + s + la

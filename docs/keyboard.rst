@@ -5,7 +5,7 @@ Keyboard
 
 The keyboard provide the easy access to the GUI instruments. Most of the useful commands can be assessed form the keyboard.
 
-Keybord bindings
+Keyboard bindings
 ----------------
 
 * **F1**:  show help/Howto.
@@ -18,6 +18,7 @@ Keybord bindings
 * **F8**:  show/hide residuals panel.
 * **F9**:  show/hide 2d spectrum panel.
 * **F11**:  show/hide Preferences menu.
+* **F12**:  switch between fullscreen/maximized modes.
 
 * **a**: add component:
 

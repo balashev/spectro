@@ -1,6 +1,3 @@
-rescale 10
-rescale 2
-show FeI
 show LiI
 show LiI6
 show LiI7
@@ -19,3 +16,6 @@ show CO
 header
 show H2 0
 hide H2
+show H2j3
+show H2j9
+H2j1v1

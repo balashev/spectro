@@ -24,5 +24,5 @@ if __name__ == '__main__':
         else:
             screen = screens[0]
         ex.move(screen.geometry().left(), screen.geometry().top())
-        ex.showFullScreen()
+        action = ex.showFullScreen() if ex.fullscreen else ex.showMaximized()
     sys.exit(app.exec())

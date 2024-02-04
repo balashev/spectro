@@ -50,9 +50,11 @@ Regions (objects 6 and 7 in Figure) are convinient graphical object to select ce
 Composite spectrum
 ------------------
 
-Composite spectrum (object 8 in Figure) indicate a composite spectrum of QSO. Currently, there are 3 types of the composite spectrum that is shown one after another. Interactions: 
+Composite spectrum (object 8 in Figure) indicate a composite spectrum of QSO or Galaxy one. Currently, there are 3 types of the composite spectrum that is shown one after another. The spectrum will be displayed taking into account the redshift provided in the redshint panel. Interactions:
 
-* ``CTRL + q``: show/hide composite spectrum.
+* ``CTRL + q``: show/hide composite spectrum. There are different types, which are shown consequently.
+
+* ``CTRL + g``: show/hide galaxy spectrum. There are different types, which are shown consequently.
 
 * ``SHIFT + DRAG``: drag composite spectrum, during this its normalization and redshift is changed.
 

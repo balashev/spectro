@@ -1558,7 +1558,7 @@ class choosePC(QToolButton):
         self.setText('choose:')
 
         self.setMenu(self.toolmenu)
-        self.setPopupMode(QToolButton.InstantPopup)
+        self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
 
     def update(self):
         try:
@@ -2093,7 +2093,6 @@ class showLinesWidget(QWidget):
             self.numRegions.setText('Regions: ' + str(len(self.parent.plot.regions)))
         else:
             self.parent.lines.fromText(self.lines.toPlainText())
-            print(self.parent.lines)
             self.numLines.setText('Lines: '+str(len(self.parent.lines)))
 
     def selectLine(self, line):
@@ -2131,7 +2130,6 @@ class showLinesWidget(QWidget):
 
     def chooseFile(self):
         fname = QFileDialog.getExistingDirectory(self, 'Select export folder...', self.parent.plot_set_folder)
-        print(fname)
         self.file.setText(fname)
 
     def chooseOverFile(self):
@@ -2300,7 +2298,7 @@ class showLinesWidget(QWidget):
                                     else:
                                         p.ax.plot([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], [1 - cf.unc.val, 1 - cf.unc.val], '--', lw=0.5, color=color)
                                         p.ax.fill_between([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], 1 - cf.unc.val - cf.unc.plus, 1 - cf.unc.val + cf.unc.minus, ls=':', color=color, alpha=0.1)
-                                    if self.show_cf_value:
+                                    if self.show_cf_value and (cf.left < p.x_max) and (cf.right > p.x_min):
                                         p.ax.text(p.x_max - (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='right', va='bottom', fontsize=p.font_labels, fontname=p.font, color=color)
 
                 if i == 0 and self.show_title:
@@ -2411,9 +2409,9 @@ class showLinesWidget(QWidget):
                                     else:
                                         p.ax.plot([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], [1 - cf.unc.val, 1 - cf.unc.val], '--', lw=0.5, color=color)
                                         p.ax.fill_between([np.max([cf.left, p.x_min]), np.min([cf.right, p.x_max])], 1 - cf.unc.val - cf.unc.plus, 1 - cf.unc.val + cf.unc.minus, ls=':', color=color, alpha=0.1)
-                                    if self.show_cf_value:
+                                    if self.show_cf_value and (cf.left < p.x_max) and (cf.right > p.x_min):
                                         #p.ax.text(p.x_max - (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='right', va='bottom', fontsize=p.font_labels, color=color)
-                                        p.ax.text(p.x_min + (p.x_max - p.x_min) / 30, 1 - cf.unc.val, cf.fitres(latex=True), ha='left', va='bottom', fontsize=p.font_labels, fontname=p.font, color=color)
+                                        p.ax.text(max(cf.left, p.x_min + (p.x_max - p.x_min) / 30), 1 - cf.unc.val, cf.fitres(latex=True), ha='left', va='bottom', fontsize=p.font_labels, fontname=p.font, color=color)
 
                 if self.show_H2.strip() != '':
                     for speci in ['H2', 'CO', '13CO']:
@@ -2527,7 +2525,6 @@ class showLinesWidget(QWidget):
 
     def closeEvent(self, ev):
         for opt, func in self.opts.items():
-            print(opt, func(getattr(self, opt)))
             self.parent.options(opt, func(getattr(self, opt)))
         self.parent.showlines = None
         ev.accept()
@@ -2969,16 +2966,13 @@ class fitMCMCWidget(QWidget):
             if not line.startswith('#'):
                 line = line.replace('=', '')
                 words = line.split()
-                print(words)
                 if words[0] in self.parent.fit.pars():
                     if len(words) == 2:
                         self.priors[words[0]] = a(words[1], 'd')
-                        print(words[0], self.priors[words[0]])
                     elif len(words) == 3:
                         self.priors[words[0]] = a(float(words[1]), float(words[2]), 'd')
                     elif len(words) == 4:
                         self.priors[words[0]] = a(float(words[1]), float(words[2]), float(words[3]), 'd')
-        print(self.priors)
 
     def fitresChanged(self):
         for line in self.results.toPlainText().splitlines():
@@ -2986,12 +2980,11 @@ class fitMCMCWidget(QWidget):
                 words = line.split()
                 if words[0] in self.parent.fit.pars():
                     if len(words) == 3:
-                        print(words[2])
                         self.parent.fit.setValue(words[0], words[2], attr='unc')
 
     def setOpts(self, arg=None):
         setattr(self, 'MCMC_'+arg, getattr(self, arg).isChecked())
-        print(arg, getattr(self, arg).isChecked(), getattr(self, 'MCMC_'+arg))
+        #print(arg, getattr(self, arg).isChecked(), getattr(self, 'MCMC_'+arg))
         self.parent.options('MCMC_'+arg, getattr(self, 'MCMC_'+arg))
 
     def selectGraph(self, text):
@@ -3115,7 +3108,6 @@ class fitMCMCWidget(QWidget):
                                                        sampler=self.sampler.currentText(), prior=self.priors, nwalkers=nwalkers, nsteps=nsteps,
                                                        nthreads=nthreads, thinning=thinning, init=init, opts=opts)
 
-                print(chain)
                 if self.sampler.currentText() == 'UltraNest':
                     from ultranest.plot import cornerplot
                     cornerplot(chain)
@@ -3203,9 +3195,7 @@ class fitMCMCWidget(QWidget):
 
         for ind in range(-1, len(self.parent.fit.sys)):
             loc_pars = [str(i) for i in self.parent.fit.list(ind)]
-            print(loc_pars)
             mask = np.array([self.parent.fit.list()[[str(i) for i in self.parent.fit.list()].index(p)].fit and p in loc_pars for p in pars])
-            print(mask)
             if np.sum(mask) > 0:
                 self.showMC(mask=mask, pars=pars, samples=samples, lnprobs=lnprobs)
 
@@ -6685,6 +6675,7 @@ class sviewer(QMainWindow):
         self.compositeGal_status = False
         self.message = None
         self.ErositaWidget = None
+        self.fullscreen = bool(self.options('fullscreen'))
 
     def initUI(self):
         
@@ -6872,6 +6863,12 @@ class sviewer(QMainWindow):
         referenceAxis.setStatusTip('Switch top axis between velocity shift and restframe mode')
         referenceAxis.triggered.connect(self.switchReferenceAxis)
 
+        self.FullScreen = QAction('&Full screen', self, checkable=True)
+        self.FullScreen.setStatusTip('Switch to Fullscreen mode')
+        self.FullScreen.setShortcut('F12')
+        self.FullScreen.triggered.connect(self.switchFullScreen)
+        self.FullScreen.setChecked(self.fullscreen)
+
         viewMenu.addAction(exp)
         viewMenu.addAction(self.showResiduals)
         viewMenu.addAction(self.show2d)
@@ -6880,6 +6877,7 @@ class sviewer(QMainWindow):
         viewMenu.addAction(showLines)
         viewMenu.addAction(snapShot)
         viewMenu.addAction(referenceAxis)
+        viewMenu.addAction(self.FullScreen)
 
         # >>> create Line Menu items
         self.linesH2 = QAction('&H2 lines', self, checkable=True)
@@ -8539,6 +8537,13 @@ class sviewer(QMainWindow):
                 self.abs.set_reference()
         self.plot.updateVelocityAxis()
 
+    def switchFullScreen(self):
+        self.fullscreen = 1 - self.fullscreen
+        self.options('fullscreen', bool(self.fullscreen))
+        if self.fullscreen:
+            self.showFullScreen()
+        else:
+            self.showMaximized()
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
