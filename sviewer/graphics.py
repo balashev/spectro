@@ -461,7 +461,7 @@ class gline():
             #print(np.exp(-np.power(np.multiply(d, np.transpose(self.x / resolution)), 2) / 2))
 
     def copy(self):
-        return gline(x=np.copy(self.x), y=np.copy(self.y), err=np.copy(self.err))
+        return gline(x=np.copy(self.x), y=np.copy(self.y), err=np.copy(self.err), mask=np.copy(self.mask))
 
 class plotLineSpectrum(pg.PlotCurveItem):
     """
@@ -1667,7 +1667,6 @@ class Spectrum():
 
     def set_data(self, data=None, mask=None):
         if data is not None:
-            print('lendata:', len(data), data[1])
             if len(data) >= 3:
                 if mask is not None:
                     mask = np.logical_and(mask, np.logical_and(data[1] != 0, data[2] != 0))
@@ -1682,7 +1681,6 @@ class Spectrum():
             else:
                 mask = data[1] != np.NaN
         self.spec.raw.interpolate()
-        print(self.spec.raw.y)
         self.wavelmin, self.wavelmax = self.spec.raw.x[0], self.spec.raw.x[-1]
         self.mask.set(x=np.zeros_like(self.spec.raw.x, dtype=bool))
         self.bad_mask.set(x=np.isnan(self.spec.raw.y))
@@ -2492,23 +2490,41 @@ class Spectrum():
         #self.g_cont.setData(x=self.cont.x, y=self.cont.y)
 
     def rebinning(self, factor):
+        print(self.spec_factor)
         if self.spec_factor == 1:
             self.spec_save = self.spec.raw.copy()
+
         self.spec_factor *= factor
 
         if self.spec_factor < 1:
             self.spec_factor = 1
         self.spec_factor = int(self.spec_factor)
 
+        print(factor, self.spec_factor)
         if self.spec_factor == 1:
-            y, err = self.spec_save.y, self.spec_save.err
+            y, err, mask = self.spec_save.y, self.spec_save.err, self.spec_save.mask
         else:
             # y = np.convolve(self.spec.raw.y, np.ones((factor,)) / factor, mode='same')
+            err = self.spec_save.err
+            err[~np.isfinite(err)] = 0
             cumsum = np.cumsum(np.r_[np.zeros((int(self.spec_factor / 2),)), self.spec_save.y, np.zeros(int(self.spec_factor / 2))])
             y = (cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / float(self.spec_factor)
-            cumsum = np.cumsum(np.r_[np.zeros((int(self.spec_factor / 2),)), self.spec_save.err, np.zeros(int(self.spec_factor / 2))])
+            cumsum = np.cumsum(np.r_[np.zeros((int(self.spec_factor / 2),)), err, np.zeros(int(self.spec_factor / 2))])
             err = (cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / float(self.spec_factor) / np.sqrt(float(self.spec_factor))
-        self.set_data([self.spec_save.x[0::self.spec_factor], y[0::self.spec_factor], err[0::self.spec_factor]])
+            mask = []
+            if (self.spec_save.mask is not None) and (len(self.spec_save.mask) > 0):
+                cumsum = np.cumsum(np.r_[np.zeros((int(self.spec_factor / 2),)), self.spec_save.mask, np.zeros(int(self.spec_factor / 2))])
+                #plt.step(np.arange(len(cumsum)), cumsum / cumsum[-1])
+                plt.plot(self.spec_save.x, self.spec_save.mask)
+                plt.scatter(self.spec_save.x, self.spec_save.mask, marker='s')
+                mask = ((cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / self.spec_factor > 1 / (self.spec_factor+1))[0::self.spec_factor]
+                #plt.plot((cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / self.spec_factor)
+                plt.scatter(self.spec_save.x[0::self.spec_factor], mask)
+                plt.show()
+        if (self.spec_save.mask is None) or len(mask) == 0:
+            mask = None
+        print(mask)
+        self.set_data([self.spec_save.x[0::self.spec_factor], y[0::self.spec_factor], err[0::self.spec_factor]], mask=mask)
         self.redraw()
 
         if 0:
@@ -2607,8 +2623,6 @@ class Spectrum():
                     return
 
             #self.g_line.setPen(pg.mkPen(255, 255, 255))
-
-
     def mouseDragEvent(self, ev):
         
         if self.parent.plot.e_status:

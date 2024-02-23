@@ -25,11 +25,15 @@ function initJulia2(filename, self; fit=nothing, fit_list=nothing, parnames=noth
     serialize(filename, [spec, pars, add, parnames, sampler, priors, nwalkers, nsteps, thinning, init, opts])
 end
 
-function runMCMC(filename, nthreads; nstep=nothing, cont=false, last=false)
+function runMCMC(filename, nthreads; nstep=nothing, cont=false, last=false, sampler_type=nothing)
     spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = deserialize(filename)
     if nstep != nothing
         nsteps = parse(Int, nstep)
     end
+    if sampler_type != nothing
+        sampler = sampler_type
+    end
+    println("sampler: ", sampler)
     println("steps to go: ", nsteps)
     println(cont, " ", last)
     if cont
@@ -49,7 +53,7 @@ function runMCMC(filename, nthreads; nstep=nothing, cont=false, last=false)
 	#println(sampler, " ", parnames, " ", prior, " ", nwalkers, " ", nsteps, " ", thinning)
 	chain, llhoodvals = fitMCMC(spec, pars, add, parnames, sampler=sampler, prior=prior, nwalkers=nwalkers, nsteps=nsteps, nthreads=parse(Int, nthreads), thinning=thinning, init=init, opts=opts, filename=filename)
 	serialize(replace(filename, ".spj" => ".spr"), [parnames, chain, llhoodvals])
-	plotChain(filename)
+	#plotChain(filename)
 end
 
 function plotChain(filename) #(pars, chain, llhoodvals)
@@ -185,12 +189,25 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
 		# constraints for H2 on increasing b parameter with J level increase
 		if opts["b_increase"] == true
 			for (k, v) in pars
-				if occursin("H2j", k) & occursin("b_", k) & ~occursin("v", k) & (strip(v.addinfo) == "")
+				if occursin("H2j", k) & occursin("b_", k) & (strip(v.addinfo) == "")
+				    if ~occursin("v", k)
+				        j = parse(Int64, k[8:end])
+				    else
+				        j = parse(Int64, k[8:findfirst('v', k)-1])
+				    end
 					for (k1, v1) in pars
-						if occursin(k[1:7], k1) & ~occursin(k, k1) & ~occursin("v", k1) & (strip(v1.addinfo) == "")
-							j, j1 = parse(Int64, k[8:end]), parse(Int64, k1[8:end])
-							x = sign(j - j1) * (v.val / v1.val - 1) * 10
-							retval -= (x < 0 ? x : 0) ^ 2
+						if occursin(k[1:7], k1) & ~occursin(k, k1) & (strip(v1.addinfo) == "")
+						    if ~occursin("v", k1)
+                                j1 = parse(Int64, k1[8:end])
+                            else
+                                j1 = parse(Int64, k1[8:findfirst('v', k1)-1])
+							end
+							#j, j1 = parse(Int64, k[8:end]), parse(Int64, k1[8:end])
+							if (~occursin("v", k) & ~occursin("v", k1)) || (occursin("v", k) & occursin("v", k1))
+                                #println(j, " ", j1, " ", (~occursin("v", k) & ~occursin("v", k1)), " ", (occursin("v", k) & occursin("v", k1)))
+							    x = sign(j - j1) * (v.val / v1.val - 1) * 10
+                                retval -= (x < 0 ? x : 0) ^ 2
+                            end
 						end
 					end
 				end
@@ -200,29 +217,48 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
 		# constraints for H2 on on excitation diagram to be gradually increasing with J
 		if opts["H2_excitation"] == true
 			T = Dict()
-			E = [118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61, 9523.82, 10800.6, 12123.66, 13485.56] * 1.42879 #Energy difference in K
+			E = [[0, 118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61, 9523.82, 10800.6, 12123.66, 13485.56] * 1.42879,
+			     [4161.14, 4273.75, 4497.82, 4831.41, 5271.36, 5813.95, 6454.28, 7187.44, 8007.77, 8908.28, 9883.79, 10927.12, 12031.44, 13191.06] * 1.42879
+			    ]  #Energy difference in K
 			g = [(2 * level + 1) * ((level % 2) * 2 + 1) for level in 0:15]  #statweights
-			for (k, v) in pars
-				if occursin("H2j", k) & occursin("N_", k) & ~occursin("v", k)
-					j = parse(Int64, k[8:end])
-					if haskey(pars, k[1:7] * string(j+1))
-						if ~haskey(T, k[3])
-							T[k[3]] = Dict()
-						end
-						#println(j, " ", v.val, " ", E[j+1], " ", g[j+1])
-						T[k[3]][j] = E[j+1] / log(10^v.val / 10^pars[k[1:7] * string(j+1)].val * g[j+2] / g[j+1])
-					end
-				end
-			end
-			for (k, d) in T
-				#println(k, " ", d)
-				for (k, v) in d
-					if haskey(d, k+1)
-						#println(k, " ", v, " ", d[k+1], " ", (d[k+1] - v < 0 ? (d[k+1] - v) / 50 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2, " ", (d[k+1] - v < 0 ? (d[k+1] / v - 1) * 10 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2)
-						retval -= (d[k+1] - v < 0 ? (d[k+1] / v - 1) * 10 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2
-					end
-				end
-			end
+			nu = append!([0], unique([parse(Int, k[findfirst('v', k)+1]) for (k,v) in pars if occursin("v", k)]))
+			#println(nu)
+			for n in nu
+                for (k, v) in pars
+                    if occursin("H2j", k) & occursin("N_", k)
+                        nextlev = ""
+                        #println(k, " ", occursin("v", k), " ", findfirst('v', k))
+                        if ~occursin("v", k) & (n == 0)
+                            j = parse(Int64, k[8:end])
+                            nextlev = k[1:7] * string(j+2)
+                        elseif occursin("v", k)
+                            if n == parse(Int, k[findfirst('v', k)+1])
+                                j = parse(Int64, k[8:findfirst('v', k)-1])
+                                nextlev = k[1:findfirst('j', k)] * string(parse(Int, k[findfirst('j', k)+1:findfirst('v', k)-1]) + 2) * k[findfirst('v', k):end]
+                            end
+                        end
+                        if haskey(pars, nextlev)
+                            #println(j, " ", nextlev)
+                            #println(g[j+1], " ", E[n+1][j+1], " ", g[j+3], " ", E[n+1][j+3])
+                            if ~haskey(T, k[3])
+                                T[k[3]] = Dict()
+                            end
+                            #println(j, " ", v.val, " ", E[j+1], " ", g[j+1])
+                            T[k[3]][j] = (E[n+1][j+3] - E[n+1][j+1]) / log(10^v.val / 10^pars[nextlev].val * g[j+3] / g[j+1])
+                        end
+                    end
+                end
+                #println(n, " ", T)
+                for (k, d) in T
+                    #println(n, " ", k, " ", d)
+                    for (k, v) in d
+                        if haskey(d, k+2)
+                            #println(k, " ", v, " ", d[k+2], " ", (d[k+2] - v < 0 ? (d[k+2] - v) / 50 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2, " ", (d[k+2] - v < 0 ? (d[k+2] / v - 1) * 10 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2)
+                            retval -= (d[k+2] - v < 0 ? (d[k+2] / v - 1) * 10 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2
+                        end
+                    end
+                end
+            end
 			#println(T)
 		end
 

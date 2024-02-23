@@ -1,21 +1,21 @@
-show LiI
-show LiI6
-show LiI7
-stats
-LiI
-FeI
-stats
-stats
-stats
-rescale err 0.675
-show LiI
-high H2j0
+show CI
+show CIj1
+show CIj2
+show CI
 show H2 0 1
+show CI
+show CIj1
+show CIj2
+show CI
+show H2 0 1
+show CI
+show H2 0 1
+show CI
+show H2 0 1
+show CI
+show H2 0 1
+stats
+show CI 
+show H2 0 1
+show CII*
 show CO
-show CO
-header
-show H2 0
-hide H2
-show H2j3
-show H2j9
-H2j1v1

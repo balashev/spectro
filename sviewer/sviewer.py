@@ -306,7 +306,7 @@ class plotSpectrum(pg.PlotWidget):
             if event.key() == Qt.Key.Key_M:
                 if (QApplication.keyboardModifiers() != Qt.KeyboardModifier.ControlModifier):
                     self.m_status = True
-                    self.parent.statusBar.setText('Rebin mode')
+                    self.parent.statusBar.setText('Spectrum redin mode')
 
             if event.key() == Qt.Key.Key_N:
                 self.parent.normalize(not self.parent.panel.normalize.isChecked())
@@ -771,6 +771,7 @@ class plotSpectrum(pg.PlotWidget):
         elif self.m_status:
             #self.m_status =
             self.parent.s[self.parent.s.ind].rebinning(np.power(2.0, np.sign(event.angleDelta().y())))
+            self.parent.statusBar.setText(f'Spectrum rebinned by factor {self.parent.s[self.parent.s.ind].spec_factor}')
         else:
             super(plotSpectrum, self).wheelEvent(event)
             pos = self.vb.sceneBoundingRect()
@@ -2182,8 +2183,10 @@ class showLinesWidget(QWidget):
             for i, p in enumerate(self.ps):
                 p.name = ' '.join(self.parent.lines[self.ps.index(p)].split()[:2])
                 ind = self.parent.s.ind
+                print(self.parent.lines[self.ps.index(p)].split())
                 if len(self.parent.lines[self.ps.index(p)].split()) > 2:
                     for s in self.parent.lines[self.ps.index(p)].split()[2:]:
+                        print(s)
                         if 'exp' in s:
                             ind = int(s[4:])
                         if 'note' in s:
@@ -2395,8 +2398,8 @@ class showLinesWidget(QWidget):
 
                 if over is not None:
                     p.ax.plot(over[0], over[1], ls='-', color=to_hex(tuple(c / 255 for c in self.over_color.to_bytes(4, byteorder='big'))), lw=self.fit_lw, zorder=12)
-                    
-                if self.show_cf and self.parent.fit.cf_fit and p.show_fit:
+
+                if self.show_cf and p.show_fit:
                     for k in range(self.parent.fit.cf_num):
                         if self.cfs == 'all' or 'cf' + str(k) in self.cfs:
                             attr = 'cf_' + str(k)
@@ -4951,8 +4954,8 @@ class loadSDSSwidget(QWidget):
             self.scroll.deleteLater()
 
         self.scroll = QScrollArea()
-        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll.setWidgetResizable(True)
         #self.scroll.setMaximumHeight(self.height()-150)
         self.scrollContent = QWidget(self.scroll)

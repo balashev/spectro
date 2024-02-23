@@ -338,7 +338,6 @@ class LineLabel(pg.TextItem):
 
         self.setActive(self.active)
 
-
     def clicked(self, pts):
         print("clicked: %s" % pts)
 
@@ -369,7 +368,7 @@ class lineList(list):
 
     def add(self, line=None):
         if line is not None and self.check(line) is None:
-            self.append(' '.join(line.split()[0:2]))
+            self.append(' '.join(line.split()[0:]))
             self.setActive(line, active=True)
 
     def remove(self, line):
@@ -386,6 +385,7 @@ class lineList(list):
         for i in reversed(range(len(self))):
             self.remove(self[i])
         for line in text.splitlines():
+            print('fromText', line)
             self.add(line)
 
     def __contains__(self, item):

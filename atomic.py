@@ -1600,13 +1600,14 @@ def mean_molecular_weight(f=1, Z=0):
     return m / n
 
 if __name__ == '__main__':
-    if 0:
-        A = atomicData()
-        # A.getfromNIST('MnII', 3)
-        A.makedatabase()
-        # A.readdatabase()
-
     if 1:
+        A = atomicData()
+        A.getfromNIST('CI', 4)
+        A.getfromNIST('CI', 5)
+        A.makedatabase()
+        A.readdatabase()
+
+    if 0:
         A = atomicData()
         A.readdatabase()
         #A.writeH2(energy=3000)

@@ -7,7 +7,14 @@ if size(ARGS)[1] >= 3 || endswith(strip(ARGS[end]), "plot")
     if endswith(strip(ARGS[end]), "plot")
         plotChain(ARGS[1])
     else
-        runMCMC(ARGS[1], ARGS[2], nstep=ARGS[3], cont=Bool(sum([occursin("ontinue", a) for a in ARGS])), last=Bool(sum([occursin("last", a) for a in ARGS])))
+        sample_type = nothing
+        if Bool(sum([occursin("ESS", a) for a in ARGS]))
+            sampler_type = "ESS"
+        end
+        if Bool(sum([occursin("Affine", a) for a in ARGS]))
+            sampler_type = "Affine"
+        end
+        runMCMC(ARGS[1], ARGS[2], nstep=ARGS[3], cont=Bool(sum([occursin("ontinue", a) for a in ARGS])), last=Bool(sum([occursin("last", a) for a in ARGS])), sampler_type=sampler_type)
     end
 else
     println("provide an input in format: julia runMCMC.jl <filename> plot")
