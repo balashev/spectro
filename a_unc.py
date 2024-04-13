@@ -194,7 +194,7 @@ class a:
         """
 
         #print(self.val, self.plus, self.minus)
-        if base == None:
+        if base == None and self.repr == 'dec':
             base = int(np.log10(abs(self.val)))
 
         # >>> set automatical number of significant digits, called <f>

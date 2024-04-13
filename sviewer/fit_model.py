@@ -1717,12 +1717,10 @@ class fitResultsWidget(QWidget):
             for i in inds:
                 sps_new[list(sps.keys())[i]] = sps[list(sps.keys())[i]]
             sps = sps_new
-        if (self.showtotal.isChecked() or self.showme.isChecked() or self.showdep.isChecked()): #and self.res is None:
+        if (self.showtotal.isChecked() or (self.showme.isChecked() or self.showdep.isChecked())): #and self.res is None:
             self.res = self.parent.showMetalAbundance(species=sps.keys(), component=0, dep_ref=self.depref, HI=self.HI)
 
         #names = ['par'] + ['comp '+str(i+1) for i in range(len(fit.sys))]
-
-
 
         dec = int(self.digits.text()) if self.fixedformat.isChecked() else None
         if not self.extended.isChecked():
@@ -1816,61 +1814,105 @@ class fitResultsWidget(QWidget):
 
                 data.append(d)
 
-                for show, ind, name in zip(['showtotal', 'showme', 'showdep'], [0, 1, 2],
-                                           [r'$\log N_{\rm tot}$', r'$\rm [X/H]$', r'$\rm [X/' + self.depref + ']$']):
-                    if getattr(self, show).isChecked():
-                        if ind > 0 or (ind == 0 and len(self.parent.fit.sys) > 1):
-                            d = [name, '']
-                            for show in ['showv', 'showb', 'tiedN']:
-                                if getattr(self, show).isChecked():
-                                    d += ['']
-                            for sp in sps.keys():
-                                d.append(self.res[sp][ind].log().latex())
-                            print('total:', t)
-                            if t != '':
-                                if t not in fit.total.sp.keys():
-                                    n = a(0, 0, 0, 'd')
-                                    for sp in sps.keys():
-                                        n += self.res[sp][0].log()
-                                    d += [n.log().latex()]
-                                else:
-                                    d += [fit.total.sp[t].N.unc.latex()]
-                            data.append(d)
-                            print(d)
+            for show, ind, name in zip(['showtotal', 'showme', 'showdep'], [0, 1, 2],
+                                       [r'$\log N_{\rm tot}$', r'$\rm [X/H]$', r'$\rm [X/' + self.depref + ']$']):
+                if getattr(self, show).isChecked():
+                    if ind > 0 or (ind == 0 and len(self.parent.fit.sys) > 1):
+                        d = [name, '']
+                        for show in ['showv', 'showb']:
+                            if getattr(self, show).isChecked():
+                                d += ['']
+                        if self.tiedN.isChecked():
+                            d += ['', '', '']
+                        for sp in sps.keys():
+                            print(show, sp, self.res[sp][ind])
+                            d.append(self.res[sp][ind].log().latex())
+                        print('total:', t)
+                        print(fit.total.sp.keys())
+                        if t != '':
+                            if t not in fit.total.sp.keys():
+                                n = a(0, 0, 0, 'd')
+                                for sp in sps.keys():
+                                    n += self.res[sp][0].log()
+                                d += [n.log().latex()]
+                            else:
+                                d += [fit.total.sp[t].N.unc.latex()]
+                        data.append(d)
+                        if self.showLFR.isChecked() and self.parent.fit.cf_fit:
+                            d += ['']
+                        print(d)
+
         else:
             d = ['species'] + list(sps.keys())
             if self.showtotal.isChecked() and any([any([el in sp for sys in fit.sys for sp in sys.sp.keys()]) for el in ['H2', 'CO', 'HD', 'CI']]):
-                for el in [el for el in ['H2', 'CO', 'HD', 'CI'] if any([el for sp in sys.sp.keys() if el in sp])]:
-                    d += ['total {el}']
+                for el in [el for el in ['H2', 'CO', 'HD', 'CI'] if any([el for sys in fit.sys for sp in sys.sp.keys() if el in sp])]:
+                    d += [f'total {el}']
             data = [d]
 
+            print(d)
             for sys in fit.sys:
-                d = [r'$\log N [\rm cm^{-2}]$' + (len(fit.sys) > 1) * (fit.sys.index(sys) > 0) * f'_{fit.sys.index(sys)}']
-                for sp in sps:
-                    if sp in sys.sp.keys() and 'Ntot' not in sys.sp[sp].N.addinfo:
-                        sys.sp[sp].N.unc.log()
-                        d.append(sys.sp[sp].N.fitres(latex=True, dec=dec, showname=False))
-                    else:
-                        d.append(' ')
-                if self.showtotal.isChecked():
-                    print([el for el in ['H2', 'CO', 'HD', 'CI'] if any([el for sp in sys.sp.keys() if el in sp])])
-                    for el in [el for el in ['H2', 'CO', 'HD', 'CI'] if any([el for sp in sys.sp.keys() if el in sp])]:
-                        print(el, self.res[el][0].log().latex())
-                        d.append(self.res[el][0].log().latex())
-                data.append(d)
-                if self.showb.isChecked():
-                    d = [r'$b [\rm km/s]$' + (len(fit.sys) > 1) * (fit.sys.index(sys) > 0) * f'_{fit.sys.index(sys)}']
+                if any([el in sps for el in sys.sp.keys()]):
+                    d = [r'$\log N [\rm cm^{-2}]$' + (len(fit.sys) > 1) * (fit.sys.index(sys) > 0) * f'_{fit.sys.index(sys)}']
                     for sp in sps:
-                        if sp in sys.sp.keys():
-                            if '' in sys.sp[sp].b.addinfo:
-                                d.append(sys.sp[sp].b.fitres(latex=True, dec=dec, showname=False))
-                            else:
-                                d.append(f'tied to {sys.sp[sp].b.addinfo}')
+                        if sp in sys.sp.keys() and 'Ntot' not in sys.sp[sp].N.addinfo:
+                            sys.sp[sp].N.unc.log()
+                            d.append(sys.sp[sp].N.fitres(latex=True, dec=dec, showname=False))
                         else:
                             d.append(' ')
+                    if self.showtotal.isChecked():
+                        for el in ['H2', 'CO', 'HD', 'CI', 'SiII']:
+                            print('total keys:', sys.total.keys())
+                            if el in sys.total.keys():
+                                d.append(sys.total[el].N.fitres(latex=True, dec=dec, showname=False))
+                                t = el
+                            elif all([el in sp for sp in sys.sp.keys()]):
+                                n = a(0, 0, 0)
+                                for v in sys.sp.values():
+                                    n += v.N.unc
+                                sys.addSpecies(el + 't')
+                                sys.sp[el + 't'].N.set(n.val)
+                                sys.sp[el + 't'].N.set(n, attr='unc')
+                                d.append(sys.sp[el + 't'].N.fitres(latex=True, dec=dec, showname=False))
+                                del sys.sp[el + 't']
+                                t = el
+                            else:
+                                d.append(' ')
                     data.append(d)
+                    if self.showb.isChecked():
+                        d = [r'$b [\rm km/s]$' + (len(fit.sys) > 1) * (fit.sys.index(sys) > 0) * f'_{fit.sys.index(sys)}']
+                        for sp in sps:
+                            if sp in sys.sp.keys():
+                                if '' in sys.sp[sp].b.addinfo:
+                                    d.append(sys.sp[sp].b.fitres(latex=True, dec=dec, showname=False))
+                                else:
+                                    d.append(f'tied to {sys.sp[sp].b.addinfo}')
+                            else:
+                                d.append(' ')
+                        if self.showtotal.isChecked():
+                            d.append(' ')
+                        data.append(d)
+                        print(d)
 
+            for show, ind, name in zip(['showtotal', 'showme', 'showdep'], [0, 1, 2],
+                                       [r'$\log N_{\rm tot}$', r'$\rm [X/H]$', r'$\rm [X/' + self.depref + ']$']):
+                if getattr(self, show).isChecked():
+                    if ind > 0 or (ind == 0 and len(self.parent.fit.sys) > 1):
+                        d = [name]
+                        for sp in sps:
+                            if sp not in sys.total.keys():
+                                n = a(0, 0, 0, 'd')
+                                for sys in fit.sys:
+                                    if sp in sys.sp.keys():
+                                        n += sys.sp[sp].N.unc.log()
+                                d += [n.log().latex()]
+                            else:
+                                d += [fit.total[sp].N.fitres(latex=True, dec=dec, showname=False)]
+                        d.append(fit.total.sp[t + '_total'].N.fitres(latex=True, dec=dec, showname=False))
+                        data.append(d)
+                        print(d)
         print(data)
+        for d in data:
+            print(len(d), d)
         if view == 'widget':
             if hasattr(self, 'table') and self.table is not None:
                 self.table.close()

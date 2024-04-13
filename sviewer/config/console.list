@@ -1,21 +1,21 @@
 show CI
-show CIj1
-show CIj2
 show CI
+hide H2
+show CIIj1
+show DI
+show OI
+FeII
+CII
+FeII
+show FeII
+shiw H2 0 1
 show H2 0 1
-show CI
-show CIj1
-show CIj2
-show CI
-show H2 0 1
-show CI
-show H2 0 1
-show CI
-show H2 0 1
-show CI
-show H2 0 1
-stats
 show CI 
+hide H2
+show SiIIj1
 show H2 0 1
-show CII*
-show CO
+show H2 0 1
+show cI
+show CI
+show H2 0 1
+show H2 0 1

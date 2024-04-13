@@ -141,21 +141,24 @@ class ExcitationTemp():
         """
         if temp is None:
             if isinstance(self.temp, a):
-                return sum(self.g*np.exp(-self.E/self.temp.val))
+                return sum(self.g * np.exp(-self.E / self.temp.val))
             if isinstance(self.temp, (int, float)):
-                return sum(self.g*np.exp(-self.E/self.temp))
+                return sum(self.g * np.exp(-self.E / self.temp))
         else:
-            return sum(self.g * np.exp(-self.E/temp))
+            return sum(self.g * np.exp(-self.E / temp))
     
     def slope_to_temp(self, slope=None, zero=None):
         """
         transform slope and zero point to temp and total column density
         """
+        print('slope_to_temp:', slope)
         if slope is None:
-            self.temp = -np.log10(np.exp(1))/self.slope
+            self.temp = -np.log10(np.exp(1)) / self.slope
             self.Ntot = self.zero - np.log10(self.g[0]) + np.log10(self.Z())
         else:
-            temp = -np.log10(np.exp(1))/slope
+            temp = -np.log10(np.exp(1)) / slope
+            print(temp)
+            print(self.Z(temp=temp))
             Ntot = zero - np.log10(self.g[0]) + np.log10(self.Z(temp=temp))
             return temp, Ntot
         
@@ -291,11 +294,11 @@ class ExcitationTemp():
         else:
             self.slope = a('<{:.4f}'.format(min(slope)), 'd')
         self.zero = a(self.zero, max(zero) - self.zero, self.zero - min(zero), 'd')
+        print(self.slope)
         try:
             self.slope_to_temp()
         except:
-            pass
-        print(self.temp)
+            self.temp = a(np.inf, np.inf, np.inf, 'd')
 
         if self.plot:
             #plt.plot(y1,z)

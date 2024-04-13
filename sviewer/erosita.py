@@ -139,7 +139,7 @@ class dataPlot(pg.PlotWidget):
 
         if self.s_status or self.d_status:
             self.parent.select_points(self.mousePoint_saved.x(), self.mousePoint_saved.y(), self.mousePoint.x(),
-                                      self.mousePoint.y(), remove=self.d_status, add=QApplication.keyboardModifiers() == Qt.ShiftModifier)
+                                      self.mousePoint.y(), remove=self.d_status, add=QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier)
 
         if event.isAccepted():
             super(dataPlot, self).mouseReleaseEvent(event)
@@ -190,7 +190,7 @@ class ComboMultipleBox(QToolButton):
         self.toolmenu = QMenu(self)
         self.list = []
         self.setMenu(self.toolmenu)
-        self.setPopupMode(QToolButton.InstantPopup)
+        self.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
 
     def addItems(self, items):
         for item in items:

@@ -331,7 +331,6 @@ class gline():
     def set_data(self, *args, **kwargs):
         self.delete()
         self.add(**kwargs)
-
     def add(self, **kwargs):
         for k, v in kwargs.items():
             if v is not None:
@@ -340,9 +339,9 @@ class gline():
         self.sort()
         self.n = len(self.x)
 
-    def delete(self, arg=None, x=None, y=None, err=None):
-        if arg is None and x is None and y is None and err is None:
-            self.x, self.y, self.err = np.array([]), np.array([]), np.array([])
+    def delete(self, arg=None, x=None, y=None, err=None, mask=None):
+        if arg is None and x is None and y is None and err is None and mask is None:
+            self.x, self.y, self.err, self.mask = np.array([]), np.array([]), np.array([]), np.array([])
         else:
             if arg is None:
                 if x is not None:
@@ -353,6 +352,8 @@ class gline():
             self.y = np.delete(self.y, arg)
             if len(self.err) > 0:
                 self.err = np.delete(self.err, arg)
+            if len(self.mask) > 0:
+                self.mask = np.delete(self.mask, arg)
         self.n = len(self.x)
 
     def interpolate(self, err=False, fill_value=np.NaN):
@@ -387,14 +388,11 @@ class gline():
                 args = np.argsort(self.y)
         except:
             raise ValueError("Illegal axis argument")
-        if len(self.x) > 0:
-            self.x = self.x[args]
-        if len(self.y) > 0:
-            self.y = self.y[args]
-        if len(self.err) > 0:
-            self.err = self.err[args]
-        if len(self.mask) > 0:
-            self.mask = self.mask[args]
+        if not np.all(args[:-1] <= args[1:]):
+            print('not sorted', args)
+            for attr in ['x', 'y', 'err', 'mask']:
+                if len(getattr(self, attr)) > 0:
+                    setattr(self, attr, getattr(self, attr)[args])
 
     def find_nearest(self, x=None, y=None):
         if self.n > 0:
@@ -1669,14 +1667,14 @@ class Spectrum():
         if data is not None:
             if len(data) >= 3:
                 if mask is not None:
-                    mask = np.logical_and(mask, np.logical_and(data[1] != 0, data[2] != 0))
+                    mask = np.logical_or(mask, np.logical_or(data[1] == 0, data[2] == 0))
                 self.spec.raw.set_data(x=data[0], y=data[1], err=data[2], mask=mask)
                 if len(data) == 4:
                     self.cont.set_data(x=data[0], y=data[3])
                     self.cont_mask = np.ones_like(self.spec.x(), dtype=bool)
             elif len(data) == 2:
                 if mask is not None:
-                    mask = np.logical_and(mask, (data[1] != 0))
+                    mask = np.logical_or(mask, (data[1] == 0))
                 self.spec.raw.set_data(x=data[0], y=data[1], mask=mask)
             else:
                 mask = data[1] != np.NaN
@@ -2490,19 +2488,18 @@ class Spectrum():
         #self.g_cont.setData(x=self.cont.x, y=self.cont.y)
 
     def rebinning(self, factor):
-        print(self.spec_factor)
+        #print(self.spec_factor)
         if self.spec_factor == 1:
             self.spec_save = self.spec.raw.copy()
-
         self.spec_factor *= factor
 
         if self.spec_factor < 1:
             self.spec_factor = 1
         self.spec_factor = int(self.spec_factor)
 
-        print(factor, self.spec_factor)
+        #print(factor, self.spec_factor)
         if self.spec_factor == 1:
-            y, err, mask = self.spec_save.y, self.spec_save.err, self.spec_save.mask
+            y, err, mask = np.copy(self.spec_save.y), np.copy(self.spec_save.err), np.copy(self.spec_save.mask)
         else:
             # y = np.convolve(self.spec.raw.y, np.ones((factor,)) / factor, mode='same')
             err = self.spec_save.err
@@ -2514,16 +2511,9 @@ class Spectrum():
             mask = []
             if (self.spec_save.mask is not None) and (len(self.spec_save.mask) > 0):
                 cumsum = np.cumsum(np.r_[np.zeros((int(self.spec_factor / 2),)), self.spec_save.mask, np.zeros(int(self.spec_factor / 2))])
-                #plt.step(np.arange(len(cumsum)), cumsum / cumsum[-1])
-                plt.plot(self.spec_save.x, self.spec_save.mask)
-                plt.scatter(self.spec_save.x, self.spec_save.mask, marker='s')
-                mask = ((cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / self.spec_factor > 1 / (self.spec_factor+1))[0::self.spec_factor]
-                #plt.plot((cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / self.spec_factor)
-                plt.scatter(self.spec_save.x[0::self.spec_factor], mask)
-                plt.show()
+                mask = ((cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / self.spec_factor > 0)[0::self.spec_factor]
         if (self.spec_save.mask is None) or len(mask) == 0:
             mask = None
-        print(mask)
         self.set_data([self.spec_save.x[0::self.spec_factor], y[0::self.spec_factor], err[0::self.spec_factor]], mask=mask)
         self.redraw()
 

@@ -238,23 +238,24 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
                             end
                         end
                         if haskey(pars, nextlev)
-                            #println(j, " ", nextlev)
+                            #println(j, " ", nextlev, " ", k[3])
                             #println(g[j+1], " ", E[n+1][j+1], " ", g[j+3], " ", E[n+1][j+3])
                             if ~haskey(T, k[3])
                                 T[k[3]] = Dict()
                             end
-                            #println(j, " ", v.val, " ", E[j+1], " ", g[j+1])
                             T[k[3]][j] = (E[n+1][j+3] - E[n+1][j+1]) / log(10^v.val / 10^pars[nextlev].val * g[j+3] / g[j+1])
+                            #println(j, " ", v.val, " ", E[n+1][j+1], " ", g[j+1], " ", T[k[3]][j])
                         end
                     end
                 end
                 #println(n, " ", T)
+                op = 1
                 for (k, d) in T
                     #println(n, " ", k, " ", d)
                     for (k, v) in d
-                        if haskey(d, k+2)
+                        if haskey(d, k + op)
                             #println(k, " ", v, " ", d[k+2], " ", (d[k+2] - v < 0 ? (d[k+2] - v) / 50 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2, " ", (d[k+2] - v < 0 ? (d[k+2] / v - 1) * 10 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2)
-                            retval -= (d[k+2] - v < 0 ? (d[k+2] / v - 1) * 10 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2
+                            retval -= (d[k+op] - v < 0 ? (d[k+op] / v - 1) * 100 : 0) ^ 2 + (v < 0 ? v / 10 : 0) ^ 2
                         end
                     end
                 end
@@ -380,6 +381,7 @@ function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Intege
     Modified version of AffineInvariantMCMC by MADS (see copyright information in initial module)
     """
 	@assert length(size(x0)) == 2
+	print(filename)
 	#println(thinning)
 	#println("x0: ", x0)
 	x = copy(x0)
@@ -417,7 +419,7 @@ function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Intege
             x[imin, :], lastllhoodvals[imin] = x[ind, :], lastllhoodvals[ind]
         end
         if i % thinning == 0
-            serialize(replace(filename, ".spj" => ".spl"), chain[:, :, end])
+            serialize(replace(filename, ".spj" => ".spl"), chain[:, :, div(i, thinning)])
         end
 	end
 	return chain, llhoodvals

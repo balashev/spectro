@@ -3269,6 +3269,7 @@ class fitMCMCWidget(QWidget):
         print(truth)
         self.results.setText('')
 
+        print(t)
         if t == 'fit':
             mask = np.array([p.show for p in self.parent.fit.list_fit()])
             names = [str(p) for p in self.parent.fit.list_fit() if p.show]
@@ -3281,10 +3282,15 @@ class fitMCMCWidget(QWidget):
 
             fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
             k = 0
+
+            mask = lnprobs[burnin:, :] > -20000
+            print(lnprobs)
+            print(lnprobs.shape, lnprobs[burnin:, :].shape, np.sum(mask))
+
             for i, p in enumerate(pars):
                 print(i, p)
                 if p in names:
-                    s = samples[burnin:, :, i].flatten()
+                    s = samples[burnin:, :, i][mask].flatten()
                     print(np.min(s), np.max(s))
                     x = np.linspace(np.min(s), np.max(s), 100)
                     kde = gaussian_kde(s)
@@ -3363,7 +3369,6 @@ class fitMCMCWidget(QWidget):
                     values.append([p.val for p in self.parent.fit.list()])
 
             values = np.asarray(values)
-            print(t)
 
             if t == 'all':
                 k = len(self.parent.fit.list())  # samples.shape[1]
@@ -3397,7 +3402,7 @@ class fitMCMCWidget(QWidget):
                 species = set()
                 for i, sys in enumerate(self.parent.fit.sys):
                     for s in sys.sp.keys():
-                        if s not in species:
+                        if s not in species and sys.sp[s].N.fit:
                             species.add(s)
                     for el in ['H2', 'HD', 'CO', 'CI', 'CII', 'FeII']:
                         if any([el+'j' in s for s in sys.sp.keys()]):
@@ -3427,12 +3432,19 @@ class fitMCMCWidget(QWidget):
                             inds = np.where([str(s)[0] == 'N' and sp.split('_')[2] == str(s).split('_')[2] for s in self.parent.fit.list()])[0]
                     else:
                         inds = np.where([sp[2:] in str(s) and str(s)[0] == 'N' for s in self.parent.fit.list()])[0]
+                    print(inds)
                     if 1:
                         d = distr1d(np.log10(np.sum(10 ** values[:, inds], axis=1)))
                         d.dopoint()
                         d.dointerval()
                         res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0], v.form)
                         v.set(res, attr='unc')
+                        if 'total' in sp:
+                            self.parent.fit.total.sp['_'.join(sp.split('_')[2:])].N.set(res, attr='unc')
+                            print(self.parent.fit.total.sp['_'.join(sp.split('_')[2:])].N)
+                        else:
+                            self.parent.fit.sys[int(sp.split('_')[1])].total[sp.split('_')[2]].N.set(res, attr='unc')
+                            print(self.parent.fit.sys[int(sp.split('_')[1])].total[sp.split('_')[2]].N)
                         v.set(d.point)
                         f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
                         self.results.setText(self.results.toPlainText() + sp + ': ' + v.fitres(latex=True, dec=f, showname=False) + '\n')
@@ -3473,7 +3485,7 @@ class fitMCMCWidget(QWidget):
             for i, p in enumerate(pars):
                 if p.startswith('z'):
                     samples[:, :, i] = (samples[:, :, i] / np.mean(samples[:, :, i], axis=0) - 1) * 300000
-                print(i, p)
+                #print(i, p)
             fig, ax0 = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
             ax0[0, 0].hist(-lnprobs[nsteps-1, :][np.isfinite(lnprobs[nsteps-1, :])], 20, density=1, histtype='bar', color='crimson', label='$\chi^2$')
             ax0[0, 0].legend()
@@ -5362,8 +5374,8 @@ class ShowListImport(QWidget):
         self.move(400, 100)
         self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.table = QSOlistTable(self.parent, cat=cat, subparent=self, editable=False)
-        self.table.setSelectionMode(QAbstractItemView.MultiSelection)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
 
         self.loadallButton = QPushButton("Show all")
         self.loadallButton.setFixedSize(90, 30)
@@ -5409,8 +5421,8 @@ class ShowListCombine(QWidget):
 
         self.setStyleSheet(open(self.parent.parent.folder + 'config/styles.ini').read())
         self.table = QSOlistTable(self.parent.parent, cat=cat, subparent=self, editable=False)
-        self.table.setSelectionMode(QAbstractItemView.MultiSelection)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
 
         layout = QVBoxLayout()
         layout.addWidget(self.table)
@@ -5435,9 +5447,9 @@ class ShowListCombine(QWidget):
         data = np.delete(data, (0), axis=0)
         self.table.setdata(data)
         self.table.resizeColumnsToContents()
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         if self.setWidth is None:
             self.setWidth = 120 + self.table.verticalHeader().width() + self.table.autoScrollMargin() * 2.5
             self.setWidth += np.sum([self.table.columnWidth(c) for c in range(self.table.columnCount())])
@@ -8249,7 +8261,7 @@ class sviewer(QMainWindow):
                             elif 'nm' in hdulist[0].header['CUNIT1']:
                                 k = 10
                         else:
-                             k = 1
+                             k = 10
                         #print(k, 'CUNIT1' in hdulist[0].header)
                         x = np.linspace(hdulist[0].header['CRVAL1'] * k,
                                         (hdulist[0].header['CRVAL1'] + hdulist[0].header['CDELT1'] *
@@ -9429,34 +9441,36 @@ class sviewer(QMainWindow):
         num_sys = 0
         text = []
         species = ''
-        for sys in self.fit.sys:
+        for sys, color in zip(self.fit.sys, [c['color'] for c in plt.rcParams["axes.prop_cycle"]]):
             label = 'sys_'+str(self.fit.sys.index(sys)+1)
             label = 'z = '+str(sys.z.str(attr='val')[:8])
             if any(['H2' in name for name in sys.sp.keys()]):
                 species = 'H2'
                 num_sys += 1
-                x, y = [], []
-                for sp in sys.sp:
-                    if 'H2' in sp:
-                        if 'v' in sp:
-                            nu, j = int(sp[sp.index('v')+1:]), int(sp[sp.index('j')+1:sp.index('v')])
-                        else:
-                            nu, j = 0, int(sp[sp.index('j')+1:])
-                        m = np.logical_and(data_H2[0] == nu, data_H2[1] == j)
-                        x.append(float(data_H2[2][m]))
-                        #x.append(self.atomic[sp].energy)
-                        if sys.sp[sp].N.unc.val != 0:
-                            y.append(deepcopy(sys.sp[sp].N.unc).log()) # - np.log10(self.atomic[sp].statw()))
-                        else:
-                            y.append(a(sys.sp[sp].N.val, 0.2, 0.2, 'l')) # - np.log10(self.atomic[sp].statw()))
-                        y[-1].log()
-                        y[-1].val = sys.sp[sp].N.val - np.log10(self.atomic[sp].statw())
-                arg = np.argsort(x)
-                x = np.array(x)[arg]
-                y = np.array(y)[arg]
+                for nu, marker in zip([0, 1], ['o', 's']):
+                    x, y = [], []
+                    for sp in sys.sp:
+                        if 'H2' in sp:
+                            if 'v' in sp:
+                                v, j = int(sp[sp.index('v')+1:]), int(sp[sp.index('j')+1:sp.index('v')])
+                            else:
+                                v, j = 0, int(sp[sp.index('j')+1:])
+                            if v == nu:
+                                m = np.logical_and(data_H2[0] == v, data_H2[1] == j)
+                                x.append(float(data_H2[2][m]))
+                                #x.append(self.atomic[sp].energy)
+                                if sys.sp[sp].N.unc.val != 0:
+                                    y.append(deepcopy(sys.sp[sp].N.unc).log()) # - np.log10(self.atomic[sp].statw()))
+                                else:
+                                    y.append(a(sys.sp[sp].N.val, 0.2, 0.2, 'l')) # - np.log10(self.atomic[sp].statw()))
+                                y[-1].log()
+                                y[-1].val = sys.sp[sp].N.val - np.log10(self.atomic[sp].statw())
+                    arg = np.argsort(x)
+                    x = np.array(x)[arg]
+                    y = np.array(y)[arg]
 
-                p = ax.plot(x, [v.val for v in y], 'o', markersize=1) #, label='sys_' + str(self.fit.sys.index(sys)))
-                ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]],  fmt='o', color = p[0].get_color(), label=label)
+                    p = ax.plot(x, [v.val for v in y], marker, markersize=1, color=color) #, label='sys_' + str(self.fit.sys.index(sys)))
+                    ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]], fmt=marker, color=p[0].get_color(), label=label)
                 #temp = self.H2ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax)
                 text.append(self.ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax))
 
@@ -9505,7 +9519,7 @@ class sviewer(QMainWindow):
         self.statusBar.setText('Excitation diagram for {0:s} rotational level for {1:d} component is shown'.format(species, self.comp))
     def showMetalAbundance(self, species=[], component=1, dep_ref='ZnII', HI=a(21,0,0)):
         """
-        Show metal abundances, metallicity and depletions based on the fit
+        Show metal abundances, metallicity and depletion based on the fit
         """
         colors = ['royalblue', 'orangered', 'seagreen', 'darkmagenta', 'skyblue', 'paleviotelred', 'chocolate']
 
@@ -9516,78 +9530,81 @@ class sviewer(QMainWindow):
                     names.add(sp)
 
         refs = set(names)
-        for sys in self.fit.sys:
-            refs = refs & sys.sp.keys()
-        names = list(names)
-
         if 0:
+            for sys in self.fit.sys:
+                refs = refs & sys.sp.keys()
             inds = np.argsort([condens_temperature(name) for name in names])
             names = [names[i] for i in inds]
 
-        ref = list(refs)[0]
+        names = list(names)
+        print(names, refs)
 
-        print(names, refs, ref)
+        if len(refs) > 0:
+            ref = list(refs)[0]
 
-        for sys in self.fit.sys:
-            for sp in sys.sp.keys():
-                if sys.sp[sp].N.unc is None or sys.sp[sp].N.unc.val == 0:
-                    sys.sp[sp].N.unc = a(sys.sp[sp].N.val, 0, 0)
-
-        if component:
-            fig, ax = plt.subplots()
+            print(names, refs, ref)
 
             for sys in self.fit.sys:
-                color = colors[self.fit.sys.index(sys)]
-                m = metallicity(ref, sys.sp[ref].N.unc, 22.0)
-                for i, sp in enumerate(names):
-                    if sp in sys.sp.keys():
-                        y = metallicity(sp, sys.sp[ref].N.unc, 22.0) / m
-                        ax.scatter(i, y.val, c=color)
-                        ax.errorbar([i], [y.val], yerr=[[y.minus], [y.plus]], c=color)
-            ax.set_xticks(np.arange(len(names)))
-            ax.set_xticklabels(names)
-            plt.draw()
+                for sp in sys.sp.keys():
+                    if sys.sp[sp].N.unc is None or sys.sp[sp].N.unc.val == 0:
+                        sys.sp[sp].N.unc = a(sys.sp[sp].N.val, 0, 0)
 
-            fig, ax = plt.subplots()
+            if component:
+                fig, ax = plt.subplots()
 
-            for sys in self.fit.sys:
-                color = colors[self.fit.sys.index(sys)]
-                if dep_ref in sys.sp.keys():
-                    for k, v in sys.sp.items():
-                        y = depletion(k, v.N.unc, sys.sp[dep_ref].N.unc, ref=dep_ref)
-                        ax.scatter(names.index(k), y.val, c=color)
-                        ax.errorbar([names.index(k)], [y.val], yerr=[[y.minus], [y.plus]], c=color)
-
-            ax.set_xticks(np.arange(len(names)))
-            ax.set_xticklabels(names)
-            plt.show()
-
-        sp = {}
-        for name in names:
-            if name not in self.fit.total.sp.keys():
-                sp[name] = a(0, 0, 'd')
                 for sys in self.fit.sys:
-                    if name in sys.sp.keys():
-                        print(name, sys.sp[name].N.unc)
-                        sp[name] += sys.sp[name].N.unc
-                sp[name].log()
-                self.fit.total.addSpecies(name)
-                self.fit.total.sp[name].N.unc = sp[name]
-            else:
-                sp[name] = self.fit.total.sp[name].N.unc
+                    color = colors[self.fit.sys.index(sys)]
+                    m = metallicity(ref, sys.sp[ref].N.unc, 22.0)
+                    for i, sp in enumerate(names):
+                        if sp in sys.sp.keys():
+                            y = metallicity(sp, sys.sp[ref].N.unc, 22.0) / m
+                            ax.scatter(i, y.val, c=color)
+                            ax.errorbar([i], [y.val], yerr=[[y.minus], [y.plus]], c=color)
+                ax.set_xticks(np.arange(len(names)))
+                ax.set_xticklabels(names)
+                plt.draw()
 
-        res = {}
-        for k, v in sp.items():
-            try:
-                if dep_ref == '':
-                    res[k] = [v, metallicity(k, v, HI)]
+                fig, ax = plt.subplots()
+
+                for sys in self.fit.sys:
+                    color = colors[self.fit.sys.index(sys)]
+                    if dep_ref in sys.sp.keys():
+                        for k, v in sys.sp.items():
+                            y = depletion(k, v.N.unc, sys.sp[dep_ref].N.unc, ref=dep_ref)
+                            ax.scatter(names.index(k), y.val, c=color)
+                            ax.errorbar([names.index(k)], [y.val], yerr=[[y.minus], [y.plus]], c=color)
+
+                ax.set_xticks(np.arange(len(names)))
+                ax.set_xticklabels(names)
+                plt.show()
+
+            sp = {}
+            for name in names:
+                print(name, name not in self.fit.total.sp.keys())
+                if name not in self.fit.total.sp.keys():
+                    sp[name] = a(0, 0, 'd')
+                    for sys in self.fit.sys:
+                        if name in sys.sp.keys():
+                            print(name, sys.sp[name].N.unc)
+                            sp[name] += sys.sp[name].N.unc
+                    sp[name].log()
+                    self.fit.total.addSpecies(name)
+                    self.fit.total.sp[name].N.unc = sp[name]
                 else:
-                    res[k] = [v, metallicity(k, v, HI), depletion(k, v, sp[dep_ref], ref=dep_ref)]
-                print('SMA', k, res[k])
-            except:
-                res[k] = [v]
+                    sp[name] = self.fit.total.sp[name].N.unc
 
-        return res
+            res = {}
+            for k, v in sp.items():
+                try:
+                    if dep_ref == '':
+                        res[k] = [v, metallicity(k, v, HI)]
+                    else:
+                        res[k] = [v, metallicity(k, v, HI), depletion(k, v, sp[dep_ref], ref=dep_ref)]
+                    print('SMA', k, res[k])
+                except:
+                    res[k] = [v]
+
+            return res
 
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
