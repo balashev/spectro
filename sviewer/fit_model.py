@@ -48,7 +48,7 @@ class FLineEdit(QLineEdit):
     def calcFit(self):
         if self.var in ['N', 'b', 'z', 'kin', 'turb', 'v', 'c', 'Ntot', 'logn', 'logT', 'rad', 'CMB']:
             self.parent.parent.s.reCalcFit() #self.parent.tab.currentIndex())
-        elif self.var in ['mu', 'iso'] or any([x in self.var for x in ['me', 'dispz', 'disps', 'res', 'st']]):
+        elif self.var in ['mu', 'zero', 'iso'] or any([x in self.var for x in ['me', 'dispz', 'disps', 'res', 'st']]):
             self.parent.parent.s.prepareFit()
             self.parent.parent.s.calcFit()
 
@@ -375,7 +375,7 @@ class fitModelWidget(QWidget):
             self.addChild('res', 'res_' + str(i), text_val='res ' + str(i))
         #self.res.setExpanded(self.parent.fit.res_fit)
 
-        for s, name in zip(['mu'], ['mp/me']):
+        for s, name in zip(['mu', 'zero'], ['mp/me', 'zero level']):
             setattr(self, s + '_p', self.addParent(self.treeWidget, name, expanded=hasattr(self.parent.fit, s)))
             getattr(self, s + '_p').name = s
             self.addChild(s + '_p', s)
@@ -515,7 +515,7 @@ class fitModelWidget(QWidget):
                 #getattr(self, name + '_applied').triggered.connect(partial(self.setApplied, name=name))
                 self.treeWidget.setItemWidget(getattr(self, name), 10, getattr(self, name + '_applied'))
 
-            if any([x in name for x in ['res', 'cf', 'dispz', 'sts']]) and k > 2:
+            if any([x in name for x in ['res', 'cf', 'zero', 'dispz', 'sts']]) and k > 2:
                 setattr(self, name + '_applied_exp', QComboBox(self))
                 combo = getattr(self, name + '_applied_exp')
                 combo.setFixedSize(70, 30)
@@ -623,6 +623,29 @@ class fitModelWidget(QWidget):
                             combo.setCurrentIndex(0)
                     except:
                         pass
+
+    def updateZero(self, excl=''):
+        for p in self.parent.fit.list():
+            if 'zero' in str(p):
+                try:
+                    names = ['val', 'max', 'min']
+                    for attr in names:
+                        if str(p) + '_' + attr != excl:
+                            getattr(self, str(p) + '_' + attr).setText(str(getattr(p, attr)))
+                except:
+                    pass
+                try:
+                    combo = getattr(self, str(p) + '_applied_exp')
+                    combo.clear()
+                    sp = list(['exp_' + str(i) for i in range(len(self.parent.s))])
+                    combo.addItems(sp)
+                    s = getattr(p, 'addinfo')
+                    if s != '' and s in sp:
+                        combo.setCurrentText(s)
+                    else:
+                        combo.setCurrentIndex(0)
+                except:
+                    pass
 
     def updateDisp(self, excl=''):
         try:
@@ -821,7 +844,7 @@ class fitModelWidget(QWidget):
             self.refresh('varyChanged')
 
     def stateChanged(self, item):
-        if item.name in ['mu']:
+        if item.name in ['mu', 'zero']:
             if item.isExpanded():
                 self.parent.fit.add(item.name)
             else:
@@ -1055,7 +1078,7 @@ class fitModelWidget(QWidget):
         self.parent.fit.cont[ind].update()
 
     def onChanged(self, s, attr):
-        if s in ['mu', 'iso'] or any([c in s for c in ['me', 'cont', 'res', 'cf', 'disp', 'sts', 'stNu', 'stNl']]):
+        if s in ['mu', 'iso', 'zero'] or any([c in s for c in ['me', 'cont', 'res', 'cf', 'disp', 'sts', 'stNu', 'stNl']]):
             print(s, attr, hasattr(self.parent.fit, s))
             if hasattr(self.parent.fit, s):
                 setattr(getattr(self.parent.fit, s), attr, float(getattr(self, s + '_' + attr).text()))
@@ -1070,7 +1093,7 @@ class fitModelWidget(QWidget):
     def refresh(self, excl='', refresh=None, ):
         #print('refresh:', self.refr)
         names = ['val', 'max', 'min', 'step']
-        for s in ['mu', 'iso']:
+        for s in ['mu', 'iso', 'zero']:
             if hasattr(self.parent.fit, s) and hasattr(self, s + '_vary'):
                 getattr(self, s + '_vary').setChecked(getattr(getattr(self.parent.fit, s), 'vary'))
                 for attr in names:
@@ -1080,6 +1103,7 @@ class fitModelWidget(QWidget):
                         getattr(self, s+'_'+attr).setEnabled(getattr(getattr(self.parent.fit, s), 'vary'))
         self.updateRes(excl=excl)
         self.updateCF(excl=excl)
+        #self.updateZero(excl=excl)
         self.updateDisp(excl=excl)
         self.updateCont(excl=excl)
         self.updateStack(excl=excl)

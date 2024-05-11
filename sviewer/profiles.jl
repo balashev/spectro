@@ -154,7 +154,7 @@ mutable struct par
 end
 
 function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
-    #println(p_pars)
+    println(p_pars)
     pars = OrderedDict{String, par}()
     if parnames != nothing
         for p in parnames
@@ -162,6 +162,7 @@ function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
         end
     else
         for p in p_pars
+            println(p)
             if occursin("z_", p.__str__()) * (z_ref == true)
                 pars[p.__str__()] = par(p.__str__(), 0.0, z_to_v(z=p.min, z_ref=p.val), z_to_v(z=p.max, z_ref=p.val), p.step, p.fit * p.vary, p.addinfo, "", p.val)
             else
@@ -170,7 +171,7 @@ function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
             if occursin("cf", p.__str__())
                 pars[p.__str__()].min, pars[p.__str__()].max = 0, 1
             end
-
+            println(p, " ", pars[p.__str__()])
         end
         for (k, v) in tieds
             pars[k].vary = false
@@ -967,6 +968,10 @@ function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
         y .*= correct_continuum(spec.cont, pars, x)
     end
 
+    if any([occursin("zero", p.first) for p in pars])
+        y .+= pars["zero"].val
+    end
+
     if spec.resolution != 0
         y = 1 .- y
         y_c = zero(y)
@@ -1084,7 +1089,7 @@ function fitLM(spec, p_pars, add; tieds=Dict())
     i = 1
     for (k, p) in pars
         if p.vary == true
-            if occursin("z", p.name)
+            if occursin("z_", p.name)
                 param[i] = z_to_v(v=param[i], z_ref=p.ref)
                 sigma[i] = z_to_v(v=sigma[i], z_ref=p.ref) - p.ref
             end

@@ -443,6 +443,11 @@ class Console(QTextEdit):
                 y = self.parent.s[i1].spec.y() - self.parent.s[i2].spec.inter(x)
                 self.parent.importSpectrum('{:}_subtracted_from_{:}'.format(i2, i1), spec=[x, y], append=True)
                 #self.parent.s[-1].normalize()
+            if len(args) == 2:
+                if self.parent.normview:
+                    self.parent[self.parent.s.ind].normalize()
+                self.parent.s[self.parent.s.ind].spec.raw.y -= float(args[1])
+                self.parent.s.redraw()
 
         elif args[0] == 'coscale':
             if len(args) == 2 and args[1] == 'cont':

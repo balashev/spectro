@@ -1,21 +1,21 @@
+show SiII
+show H2 0 1
 show CI
+SII
+SiII
+SiIIj1
+subtract 0.0781
+subtract 0.01
+
+subtract 0.02
+
+subtract -0.02
+subtract 0.081
+subtract 0.01
+subtract 0.09
+subtract 0.09
+subtract 0.09
+show H2 01 
+show H2 0 1 
 show CI
-hide H2
-show CIIj1
-show DI
-show OI
-FeII
-CII
-FeII
-show FeII
-shiw H2 0 1
-show H2 0 1
-show CI 
-hide H2
-show SiIIj1
-show H2 0 1
-show H2 0 1
-show cI
-show CI
-show H2 0 1
-show H2 0 1
+subtract 0.09

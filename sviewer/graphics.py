@@ -21,6 +21,7 @@ from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QFont, QTransform
 from PyQt6.QtWidgets import QApplication
 import re
+from skimage.filters.rank import median
 from scipy.interpolate import interp1d, interp2d, splrep, splev
 from scipy.integrate import cumtrapz
 from scipy.optimize import curve_fit, least_squares
@@ -50,10 +51,11 @@ class Speclist(list):
             if <ind> is provided then redraw only <current> and <ind> spectra.
         """
         if len(self) > 0:
-            if ind == None:
+            if ind is None:
                 for i, s in enumerate(self):
                     if i != self.ind:
                         s.redraw()
+                print(self.ind)
                 self[self.ind].redraw()
             else:
                 saved_ind = self.ind
@@ -887,7 +889,7 @@ class spec2d():
     def neighbour_count(self, mask=None):
         if mask is None:
             mask = np.ones_like(self.raw.z, dtype=bool)
-        m = np.copy(self.cr.mask)
+        #m = np.copy(self.cr.mask)
         c = np.zeros_like(self.cr.mask[mask], dtype=int)
         for p in itertools.product(np.linspace(-1, 1, 3).astype(int), repeat=2):
             m1 = np.copy(self.cr.mask)
@@ -900,6 +902,7 @@ class spec2d():
             if p[1] > 0:
                 m1 = np.insert(m1[:, p[1]:], [m1.shape[1] - p[1]] * p[1], 0, axis=1)
             c = np.add(c, m1[mask])
+            print('c', c.shape)
         return c
 
     def intelExpand(self, exp_factor=3, exp_pixel=1, pixel=None):
@@ -916,12 +919,15 @@ class spec2d():
         neighbour = self.neighbour_count(mask=mask)
         self.cr.mask[mask] = np.logical_or(np.logical_and(self.cr.mask[mask], neighbour>2), neighbour>6)
         if pixel is None:
-            self.parent.parent.s.append(Spectrum(self.parent.parent, 'delta'))
+            self.parent.parent.s.append(Spectrum(self.parent.parent, name='delta'))
             self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=(self.raw.z - z_saved) / self.raw.err)
             self.parent.parent.s[-1].spec2d.raw.setLevels(-exp_factor, exp_factor)
-            self.parent.parent.s.append(Spectrum(self.parent.parent, 'neighbours'))
-            self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=neighbour)
+            #print((self.raw.z - z_saved) / self.raw.err)
+            self.parent.parent.s.append(Spectrum(self.parent.parent, name='neighbours'))
+            self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=np.reshape(neighbour, self.cr.mask.shape))
             self.parent.parent.s[-1].spec2d.raw.setLevels(0, np.max(neighbour.flatten()))
+            #print(np.max(neighbour.flatten()))
+        #print(z_saved)
         self.raw.z = z_saved[:]
 
     def clean(self):
@@ -943,10 +949,10 @@ class spec2d():
             z[:, i] = z[:, i] - profile * flux
 
         self.cr.mask = mask_saved
-        self.parent.parent.s.append(Spectrum(self.parent.parent, 'clean'))
+        self.parent.parent.s.append(Spectrum(self.parent.parent, name='clean'))
         self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=z, err=self.raw.err, mask=self.cr.mask)
 
-    def extrapolate(self, inplace=False, extr_width=1, extr_height=1, sky=1, mask=None):
+    def extrapolate(self, kind='return', extr_width=1, extr_height=1, sky=1, mask=None):
         if mask is None:
             mask = np.ones_like(self.raw.z, dtype=bool)
         z = np.copy(self.raw.z)
@@ -955,19 +961,24 @@ class spec2d():
         self.cr.mask = self.cr.mask.astype(bool)
         z[self.cr.mask] = np.nan
         kernel = Gaussian2DKernel(x_stddev=extr_width, y_stddev=extr_height)
-        z = convolve(z, kernel)
+        z = convolve(z, kernel, nan_treatment='interpolate')
         z1 = np.copy(self.raw.z)
         z1[self.cr.mask] = z[self.cr.mask]
         if sky and self.sky is not None:
             z1[self.cr.mask] += self.sky.z[self.cr.mask]
-        if not inplace:
+
+        if kind == 'return':
+            return z1
+
+        elif kind == 'new':
             self.parent.parent.s.append(Spectrum(self.parent.parent, 'CR_removed'))
             self.parent.parent.s[-1].spec2d.set(x=self.raw.x, y=self.raw.y, z=z1, err=self.raw.err, mask=self.raw.mask)
             if sky and self.sky is not None:
                 self.parent.parent.s[-1].spec2d.sky = image(x=self.raw.x[:], y=self.raw.y[:], z=np.copy(self.sky.z), mask=np.copy(self.sky.mask))
             if self.trace is not None:
                 self.parent.parent.s[-1].spec2d.trace = np.copy(self.trace)
-        else:
+
+        elif kind == 'inplace':
             self.raw.z[mask] = z1[mask]
 
     def moffat_grid(self, gamma=1.0):
@@ -1254,7 +1265,7 @@ class spec2d():
 
         self.sky.z[:, :] = np.ma.median(np.ma.array(self.raw.z, mask=np.logical_and(mask, self.cr.mask)), axis=0)[np.newaxis, :]
 
-    def extract(self, xmin, xmax, slit=0, profile_type='moffat', helio=None, airvac=True, inplace=False, kind='pdf', resolution=None):
+    def extract(self, xmin, xmax, slit=0, profile_type='moffat', bary=None, airvac=True, removecr=False, inplace=False, kind='pdf', resolution=None, extr_width=3, extr_height=5):
         print('slit:', slit)
         self.moffat_kind = 'pdf'
         if self.cr is None:
@@ -1308,6 +1319,7 @@ class spec2d():
                         x_0 = self.trace[1][ind]
                         gamma = self.trace[2][ind] / 2 / np.sqrt(2 ** (1 / 4.765) - 1)
                     profile = self.moffat_fit_integ(self.raw.y, a=1, x_0=x_0, gamma=gamma, c=0)
+                    profile /= np.sum(profile)
                 elif profile_type == 'rectangular':
                     profile = 1 / (np.exp(-40 * (np.abs(self.raw.y - self.parent.cont2d.y[k]) - slit)) + 1)
                 elif profile_type == 'gaussian':
@@ -1315,9 +1327,10 @@ class spec2d():
 
                 #self.raw.err[:, i] = 1
                 if resolution is None:
-                    v = np.sum((1 - self.cr.mask[:, i]) * profile) #/ self.raw.err[:, i]**2)
+                    #print(profile, np.sum(profile * profile))
+                    v = np.sum(profile * profile * (1 - self.cr.mask[:, i])) #/ self.raw.err[:, i]**2)
                     flux = np.sum((self.raw.z[:, i] - sky[:, i]) * profile * (1 - self.cr.mask[:, i])) # / self.raw.err[:, i]**2)
-                    errs = np.sum((1 - self.cr.mask[:, i]) * profile * self.raw.err[:, i] ** 2)
+                    errs = np.sum(profile * profile * self.raw.err[:, i] ** 2 * (1 - self.cr.mask[:, i]))
                 else:
                     imin, imax = np.searchsorted(self.raw.x, self.raw.x[i] * (1 - 3.0 / resolution)), np.searchsorted(self.raw.x, self.raw.x[i] * (1 + 3.0 / resolution))
                     #print(imin, imax)
@@ -1341,14 +1354,24 @@ class spec2d():
                 data = self.raw.x[inds], np.asarray(f)
             print('append:', data)
             self.parent.parent.s.append(Spectrum(self.parent.parent, f'extracted_{profile_type}', data=data))
-            if helio is not None:
-                self.parent.parent.s[-1].helio_vel = helio
-                self.parent.parent.s[-1].apply_shift(helio)
+            if bary is not None:
+                self.parent.parent.s[-1].bary_vel = bary
+                self.parent.parent.s[-1].apply_shift(bary)
 
             if airvac:
                 self.parent.parent.s[-1].airvac()
-            self.parent.parent.s[-1].spec2d.set(x=self.parent.parent.s[-1].spec.raw.x, y=self.raw.y,
-                                         z=self.raw.z[:, inds] - sky[:, inds])
+                print(self.parent.parent.s[-1].spec.raw.x)
+
+            if removecr:
+                print('removecr')
+                data = self.extrapolate(extr_width=extr_width, extr_height=extr_height, sky=1)
+                print(data.shape)
+
+            data = data[:, inds] - sky[:, inds]
+            print(self.parent.parent.s[-1].spec.raw.x)
+            print(self.raw.y)
+            print(data.shape)
+            self.parent.parent.s[-1].spec2d.set(x=self.parent.parent.s[-1].spec.raw.x, y=self.raw.y, z=data)
 
 class Spectrum():
     """
@@ -1357,6 +1380,7 @@ class Spectrum():
     def __init__(self, parent, name=None, data=None, resolution=0):
         self.parent = parent
         self.filename = name
+        self.name = name
         self.resolution = resolution
         self.scaling_factor = 1
         self.date = ''
@@ -1571,8 +1595,6 @@ class Spectrum():
                 if self.spec2d.cr is not None and self.spec2d.cr.mask is not None:
                     self.cr_mask2d = self.spec2d.set_image('cr', self.cr_maskcolormap)
                     #self.cr_mask2d.setLevels([0, 1])
-                    print(self.cr_maskcolormap.map(False), self.cr_maskcolormap.map(True))
-                    print(self.cr_mask2d)
                     self.parent.spec2dPanel.vb.addItem(self.cr_mask2d)
                 if self.spec2d.trace is not None:
                     self.spec2d.set_trace()
@@ -1719,19 +1741,19 @@ class Spectrum():
     def set_fit_disp(self, show=True):
         if show:
             for i in [0, 1]:
-                self.fit.g_disp[i] = pg.PlotCurveItem(x=self.fit.disp[i].norm.x, y=self.fit.disp[i].norm.y, pen=self.fit_disp_pen)
+                self.fit.g_disp[i] = pg.PlotCurveItem(x=self.fit.disp[i].x(), y=self.fit.disp[i].y(), pen=self.fit_disp_pen)
                 self.parent.vb.addItem(self.fit.g_disp[i])
             self.fit.g_disp[2] = pg.FillBetweenItem(self.fit.g_disp[0], self.fit.g_disp[1], brush=pg.mkBrush(tuple(list(self.fit_disp_pen.color().getRgb()[:3]) + [200])))
             self.parent.vb.addItem(self.fit.g_disp[2])
             if self.parent.fit.cont_fit:
                 for i in [0, 1]:
-                    self.cheb.g_disp[i] = pg.PlotCurveItem(x=self.cheb.disp[i].norm.x, y=self.cheb.disp[i].norm.y, pen=self.cont_pen)
+                    self.cheb.g_disp[i] = pg.PlotCurveItem(x=self.cheb.disp[i].x(), y=self.cheb.disp[i].y(), pen=self.cont_pen)
                     self.parent.vb.addItem(self.cheb.g_disp[i])
                 self.cheb.g_disp[2] = pg.FillBetweenItem(self.cheb.g_disp[0], self.cheb.g_disp[1], brush=pg.mkBrush(tuple(list(self.cont_pen.color().getRgb()[:3]) + [200])))
                 self.parent.vb.addItem(self.cheb.g_disp[2])
             for k in range(len(self.fit_comp)):
                 for i in [0, 1]:
-                    self.fit_comp[k].g_disp[i] = pg.PlotCurveItem(x=self.fit_comp[k].disp[i].norm.x, y=self.fit_comp[k].disp[i].norm.y, pen=pg.mkPen(tuple(list(self.g_fit_comp[k].opts['pen'].color().getRgb()[:3]) + [100])))
+                    self.fit_comp[k].g_disp[i] = pg.PlotCurveItem(x=self.fit_comp[k].disp[i].x(), y=self.fit_comp[k].disp[i].y(), pen=pg.mkPen(tuple(list(self.g_fit_comp[k].opts['pen'].color().getRgb()[:3]) + [100])))
                     self.parent.vb.addItem(self.fit_comp[k].g_disp[i])
                 self.fit_comp[k].g_disp[2] = pg.FillBetweenItem(self.fit_comp[k].g_disp[0], self.fit_comp[k].g_disp[1], brush=pg.mkBrush(tuple(list(self.g_fit_comp[k].opts['pen'].color().getRgb()[:3]) + [50])))
                 self.parent.vb.addItem(self.fit_comp[k].g_disp[2])
@@ -1971,6 +1993,9 @@ class Spectrum():
             self.fit.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
             if not self.parent.normview:
                 self.fit.line.raw.interpolate()
+
+        if len(self.cheb.line.x()) > 0:
+            self.cheb.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
 
         self.mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
         self.bad_mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
@@ -2591,7 +2616,7 @@ class Spectrum():
         if len(self.fit.line.raw.x) > 0:
             print('shift fit')
             self.fit.line.raw.x *= factor
-        print('Converted to Heliocentric velocities, helio_vel:', vel)
+        print('Converted to BaryCentric velocities, bary_vel:', vel)
 
     def airvac(self):
         """

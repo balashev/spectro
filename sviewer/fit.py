@@ -19,6 +19,8 @@ class par:
             self.dec = 1
         elif 'cf' in self.name:
             self.dec = 3
+        elif 'zero' in self.name:
+            self.dec = 3
         elif 'dispz' in self.name:
             self.dec = 1
         elif 'disps' in self.name:
@@ -452,6 +454,8 @@ class fitPars:
             self.hcont = par(self, 'hcont', 1, 0, 10, 0.1)
         if 'cf' in name:
             setattr(self, name, par(self, name, 0.1, 0, 1, 0.01, addinfo='all', left=3000, right=9000))
+        if 'zero' in name:
+            setattr(self, name, par(self, name, 0.0, 0, 1, 0.01, addinfo='all'))
         if 'dispz' in name:
             setattr(self, name, par(self, name, 5000, 3000, 9000, 0.1, addinfo='exp_0'))
         if 'disps' in name:
@@ -465,7 +469,7 @@ class fitPars:
 
 
     def remove(self, name):
-        if name in ['mu', 'iso', 'hcont'] or any([x in name for x in ['me', 'res', 'cf', 'disp', 'sts', 'stNu', 'stNl']]):
+        if name in ['mu', 'iso', 'hcont'] or any([x in name for x in ['me', 'res', 'cf', 'zero', 'disp', 'sts', 'stNu', 'stNl']]):
             if hasattr(self, name):
                 delattr(self, name)
         if 'cont_' in name:
@@ -549,7 +553,7 @@ class fitPars:
                 self.add('iso', addinfo='D/H')
             res = getattr(self, 'iso').set(val, attr, check=check)
 
-        if s[0] in ['me', 'res', 'cf', 'dispz', 'disps', 'hcont', 'sts', 'stNl', 'stNu']:
+        if s[0] in ['me', 'res', 'cf', 'zero', 'dispz', 'disps', 'hcont', 'sts', 'stNl', 'stNu']:
             if not hasattr(self, name):
                 self.add(name)
             res = getattr(self, name).set(val, attr, check=check)
@@ -629,7 +633,7 @@ class fitPars:
             if hasattr(self, s[0]):
                 par = getattr(self, s[0])
 
-        if s[0] in ['me', 'cont', 'res', 'cf', 'dispz', 'disps', 'sts', 'stNl', 'stNu']:
+        if s[0] in ['me', 'cont', 'res', 'cf', 'zero', 'dispz', 'disps', 'sts', 'stNl', 'stNu']:
             if hasattr(self, name):
                 par = getattr(self, name)
 
@@ -679,7 +683,7 @@ class fitPars:
     def pars(self, ind=None):
         pars = OrderedDict()
         if ind in [None, -1]:
-            for attr in ['mu', 'iso', 'hcont']:
+            for attr in ['mu', 'iso', 'hcont', 'zero']:
                 if hasattr(self, attr):
                     p = getattr(self, attr)
                     pars[str(p)] = p

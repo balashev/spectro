@@ -769,7 +769,6 @@ class plotSpectrum(pg.PlotWidget):
                 self.c_status = 0
 
         elif self.m_status:
-            #self.m_status =
             self.parent.s[self.parent.s.ind].rebinning(np.power(2.0, np.sign(event.angleDelta().y())))
             self.parent.statusBar.setText(f'Spectrum rebinned by factor {self.parent.s[self.parent.s.ind].spec_factor}')
         else:
@@ -3483,7 +3482,7 @@ class fitMCMCWidget(QWidget):
 
         if any([s in qc for s in ['current', 'all']]):
             for i, p in enumerate(pars):
-                if p.startswith('z'):
+                if p.startswith('z_'):
                     samples[:, :, i] = (samples[:, :, i] / np.mean(samples[:, :, i], axis=0) - 1) * 300000
                 #print(i, p)
             fig, ax0 = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
@@ -3975,7 +3974,7 @@ class extract2dWidget(QWidget):
             ('sky_poly', ['skyPoly', int, 3]),
             ('sky_smooth', ['skySmooth', int, 0]),
             ('sky_smooth_coef', ['skySmoothCoef', float, 0.3]),
-            ('helio_corr', ['helioCorr', float, -20.894]),
+            ('bary_corr', ['baryCorr', float, -20.894]),
             ('rescale_window', ['rescaleWindow', int, 30]),
         ])
         for opt in self.opts.keys():
@@ -3990,8 +3989,8 @@ class extract2dWidget(QWidget):
         self.tab.setMinimumSize(550, 550)
         self.tab.setCurrentIndex(0)
         self.init_GUI_CosmicRays()
-        self.init_GUI_Extraction()
         self.init_GUI_Sky()
+        self.init_GUI_Extraction()
         self.init_GUI_Correction()
         layout.addWidget(self.tab)
         hl = QHBoxLayout()
@@ -4004,8 +4003,9 @@ class extract2dWidget(QWidget):
             self.expchoose.addItem(s.filename)
         if len(self.parent.s) > 0:
             self.exp_ind = self.parent.s.ind
-            self.expchoose.currentIndexChanged.connect(self.onExpChoose)
+            self.expchoose.activated.connect(self.onExpChoose)
             self.expchoose.setCurrentIndex(self.exp_ind)
+            self.onExpChoose(self.exp_ind)
         hl.addWidget(exposure)
         hl.addWidget(self.expchoose)
         hl.addStretch(0)
@@ -4151,33 +4151,41 @@ class extract2dWidget(QWidget):
 
         hl = QHBoxLayout()
         self.slit = QCheckBox('Slit:')
-        self.slit.setFixedSize(80, 30)
+        self.slit.setFixedSize(100, 30)
         self.slit.setChecked(True)
         hl.addWidget(self.slit)
         self.extrSlit = QLineEdit()
-        self.extrSlit.setFixedSize(40, 30)
+        self.extrSlit.setFixedSize(80, 30)
         self.extrSlit.textChanged.connect(partial(self.edited, 'extr_slit'))
         hl.addWidget(self.extrSlit)
         hl.addStretch(0)
         layout.addLayout(hl)
 
         hl = QHBoxLayout()
-        self.helio = QCheckBox('Helio. corr:')
-        self.helio.setFixedSize(80, 30)
-        self.helio.setChecked(True)
-        hl.addWidget(self.helio)
-        self.helioCorr = QLineEdit()
-        self.helioCorr.setFixedSize(60, 30)
-        self.helioCorr.textChanged.connect(partial(self.edited, 'helio_corr'))
-        hl.addWidget(self.helioCorr)
+        self.bary = QCheckBox('Bary. corr:')
+        self.bary.setFixedSize(100, 30)
+        self.bary.setChecked(True)
+        hl.addWidget(self.bary)
+        self.baryCorr = QLineEdit()
+        self.baryCorr.setFixedSize(80, 30)
+        self.baryCorr.textChanged.connect(partial(self.edited, 'bary_corr'))
+        hl.addWidget(self.baryCorr)
         hl.addStretch(0)
         layout.addLayout(hl)
 
         hl = QHBoxLayout()
         self.airVac = QCheckBox('Airvac. corr.')
-        self.airVac.setFixedSize(80, 30)
+        self.airVac.setFixedSize(100, 30)
         self.airVac.setChecked(True)
         hl.addWidget(self.airVac)
+        hl.addStretch(0)
+        layout.addLayout(hl)
+
+        hl = QHBoxLayout()
+        self.removeCR = QCheckBox('Remove cosmics')
+        self.removeCR.setFixedSize(100, 30)
+        self.removeCR.setChecked(False)
+        hl.addWidget(self.removeCR)
         hl.addStretch(0)
         layout.addLayout(hl)
 
@@ -4335,6 +4343,17 @@ class extract2dWidget(QWidget):
 
     def onExpChoose(self, index, name='exp_ind'):
         setattr(self, name, index)
+        if self.expchoose.currentText().endswith('.fits'):
+            try:
+                hdulist = fits.open(self.expchoose.currentText())
+                for hdu in hdulist:
+                    for attr in ['BARY', 'HIERARCH ESO QC VRAD BARYCOR']:
+                        if attr in hdu.header:
+                            self.baryCorr.setText("{:7.3f}".format(hdu.header[attr]).strip())
+                            print('Set barycentric velocity:', hdu.header[attr])
+
+            except:
+                pass
 
     def updateExpChoose(self):
         self.expchoose.clear()
@@ -4393,7 +4412,7 @@ class extract2dWidget(QWidget):
         self.updateExpChoose()
 
     def extrapolate(self, inplace=False):
-        self.parent.s[self.exp_ind].spec2d.extrapolate(inplace, self.extr_width, self.extr_height)
+        self.parent.s[self.exp_ind].spec2d.extrapolate(kind='new', extr_width=self.extr_width, extr_height=self.extr_height, sky=1)
         self.parent.s.redraw()
         self.updateExpChoose()
 
@@ -4440,10 +4459,11 @@ class extract2dWidget(QWidget):
         self.parent.s.redraw()
 
     def extract(self):
-        self.helio_corr = float(self.helioCorr.text()) if self.helio.isChecked() else None
+        self.bary_corr = float(self.baryCorr.text()) if self.bary.isChecked() else None
         s = self.parent.s[self.exp_ind]
-        s.spec2d.extract(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], slit=self.extrSlit.isChecked() * self.extr_slit,
-                         profile_type=self.extrProfile.currentText(), airvac=self.airVac.isChecked(), helio=self.helio_corr)
+        s.spec2d.extract(s.spec2d.raw.x[0], s.spec2d.raw.x[-1], slit=self.slit.isChecked() * self.extr_slit,
+                         profile_type=self.extrProfile.currentText(), airvac=self.airVac.isChecked(), bary=self.bary_corr,
+                         removecr=self.removeCR.isChecked(), extr_width=self.extr_width, extr_height=self.extr_height)
 
         self.updateExpChoose()
         self.parent.s.redraw(len(self.parent.s)-1)
@@ -5652,11 +5672,11 @@ class ExportDataWidget(QWidget):
         if self.cont.isChecked():
             np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x[cont_mask] / unit, s.cont.y[cont_mask] * np.power(cheb(s.cont.x[cont_mask]), 1 - 2 * self.parent.normview)], **kwargs)
             if len(s.cheb.disp[0].norm.x > 0):
-                np.savetxt('_cont_disp.'.join(self.filename.rsplit('.', 1)), np.c_[s.cheb.disp[0].norm.x[fit_mask] / unit, s.cheb.disp[0].norm.y[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview), s.cheb.disp[1].norm.y[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview)], **kwargs)
+                np.savetxt('_cont_disp.'.join(self.filename.rsplit('.', 1)), np.c_[s.cheb.disp[0].x()[fit_mask] / unit, s.cheb.disp[0].y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview), s.cheb.disp[1].y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview)], **kwargs)
         if self.fit.isChecked():
             np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x()[fit_mask] / unit, s.fit.y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview)], **kwargs)
             if len(s.fit.disp[0].norm.x > 0):
-                np.savetxt('_fit_disp.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.disp[0].norm.x[fit_mask] / unit, s.fit.disp[0].norm.y[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview), s.fit.disp[1].norm.y[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview)], **kwargs)
+                np.savetxt('_fit_disp.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.disp[0].x()[fit_mask] / unit, s.fit.disp[0].y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview), s.fit.disp[1].y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview)], **kwargs)
         #if self.fit.isChecked():
         #    np.savetxt('_fit_regions.'.join(self.filename.rsplit('.', 1)), np.c_[s.spec.x()[np.logical_and(mask, fit_mask)] / unit, (s.spec.y() / cheb(s.spec.x()))[np.logical_and(mask, fit_mask)]], **kwargs)
         if self.fit_comps.isChecked():
@@ -5671,7 +5691,7 @@ class ExportDataWidget(QWidget):
                         fit_mask = (c.disp[0].norm.x > self.parent.plot.vb.getState()['viewRange'][0][0]) * (c.disp[0].norm.x < self.parent.plot.vb.getState()['viewRange'][0][-1])
                     else:
                         fit_mask = np.ones_like(c.disp[0].norm.x, dtype=bool)
-                    np.savetxt(f'_fit_comps_{i}_disp.'.join(self.filename.rsplit('.', 1)), np.c_[c.disp[0].norm.x[fit_mask] / unit, c.disp[0].norm.y[fit_mask] * np.power(cheb(c.disp[0].norm.x[fit_mask]), -self.parent.normview), c.disp[1].norm.y[fit_mask] * np.power(cheb(c.disp[0].norm.x[fit_mask]), -self.parent.normview)], **kwargs)
+                    np.savetxt(f'_fit_comps_{i}_disp.'.join(self.filename.rsplit('.', 1)), np.c_[c.disp[0].x()[fit_mask] / unit, c.disp[0].y()[fit_mask] * np.power(cheb(c.disp[0].x()[fit_mask]), -self.parent.normview), c.disp[1].y()[fit_mask] * np.power(cheb(c.disp[0].x()[fit_mask]), -self.parent.normview)], **kwargs)
             #print([[len(c.x()), len(c.y())] for c in s.fit_comp])
             #print([c.y()[fit_mask] / cheb(s.fit.x()[fit_mask]) for c in s.fit_comp])
             #np.savetxt('_fit_comps.'.join(self.filename.rsplit('.', 1)), np.column_stack([s.fit.x()[fit_mask] / unit] + [c.y()[fit_mask] / cheb(s.fit.x()[fit_mask]) for c in s.fit_comp]), **kwargs)
@@ -5879,9 +5899,12 @@ class combineWidget(QWidget):
                 e_comb[i] = np.power(err(x), -1)
             else:
                 #print(spectres.spectres(s.spec.x(), s.spec.y(), x, spec_errs=s.spec.err()))
-                mask_s = (s.spec.err() != 0)
-                mask = (x > s.spec.x()[mask_s][2]) * (x < s.spec.x()[mask_s][-3])
-                comb[i][mask], e_comb[i][mask] = spectres.spectres(s.spec.x()[mask_s], s.spec.y()[mask_s], x[mask], spec_errs=s.spec.err()[mask_s])
+                if (len(x) == len(s.spec.x())) and (np.max(np.abs(x - s.spec.x())) < 0.01 * np.max(np.diff(x))):
+                    comb[i], e_comb[i] = s.spec.y()[:], s.spec.err()[:]
+                else:
+                    mask_s = (s.spec.err() != 0)
+                    mask = (x > s.spec.x()[mask_s][2]) * (x < s.spec.x()[mask_s][-3])
+                    comb[i][mask], e_comb[i][mask] = spectres.spectres(s.spec.x()[mask_s], s.spec.y()[mask_s], x[mask], spec_errs=s.spec.err()[mask_s])
                 e_comb[i][np.searchsorted(x, s.spec.x()[np.where(s.bad_mask.x())[0]])] = np.nan
 
         print(comb, e_comb)
@@ -6004,8 +6027,8 @@ class rebinWidget(QWidget):
             item.setCheckState(0, pUnchecked)
         else:
             #item.setFlags(item.flags() | Qt.ItemIsEditable)
-            item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
-        item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
+        item.setChildIndicatorPolicy(QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator)
         item.setExpanded(expanded)
         return item
         
@@ -8091,10 +8114,13 @@ class sviewer(QMainWindow):
                             prihdr = hdulist[1].data
                             s.set_data([prihdr['WAVE'], prihdr['FLUX'] * 1e17, prihdr['ERROR'] * 1e17])
 
+                        if '4MOST' in hdulist[0].header['INSTRUME']:
+                            prihdr = hdulist[1].data[0]
+                            s.set_data([prihdr[0], prihdr[1] * 1e17, prihdr[2] * 1e17])
                         try:
                             if corr:
-                                s.helio_vel = hdulist[0].header['HIERARCH ESO QC VRAD HELICOR']
-                                s.apply_shift(s.helio_vel)
+                                s.bary_vel = hdulist[0].header['HIERARCH ESO QC VRAD BARYCOR']
+                                s.apply_shift(s.bary_vel)
                                 s.airvac()
                                 s.spec.raw.interpolate()
                         except:
@@ -8260,8 +8286,10 @@ class sviewer(QMainWindow):
                                 k = 1
                             elif 'nm' in hdulist[0].header['CUNIT1']:
                                 k = 10
+                        elif 'ORIGIN' in hdulist[0].header and 'sviewer' in hdulist[0].header['ORIGIN']:
+                            k = 1
                         else:
-                             k = 10
+                            k = 10
                         #print(k, 'CUNIT1' in hdulist[0].header)
                         x = np.linspace(hdulist[0].header['CRVAL1'] * k,
                                         (hdulist[0].header['CRVAL1'] + hdulist[0].header['CDELT1'] *
@@ -8293,7 +8321,7 @@ class sviewer(QMainWindow):
                             s.spec2d.set(x=x, y=y, z=hdulist[0].data * 1e17, err=err, mask=mask)
 
                         if 'ORIGFILE' in hdulist[0].header and 'VANDELS' in hdulist[0].header['ORIGFILE']:
-                            s.spec2d.set(x=x, y=y[:-1], z=hdulist[0].data[:-1,:])
+                            s.spec2d.set(x=x, y=y[:-1], z=hdulist[0].data[:-1, :])
 
                         if 'ORIGIN' in hdulist[0].header and 'sviewer' in hdulist[0].header['ORIGIN']:
                             err, mask, cr, sky, sky_mask, trace = None, None, None, None, None, None
@@ -8406,7 +8434,6 @@ class sviewer(QMainWindow):
         fname = QFileDialog.getOpenFileName(self, 'Import list of spectra', self.work_folder)
 
         if fname[0]:
-            
             self.importListSpectra(fname[0])
             self.abs.redraw()
             self.statusBar.setText('Spectra are imported from list' + fname[0])

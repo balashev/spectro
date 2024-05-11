@@ -124,9 +124,9 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
     #COUNTERS["num"] = nwalkers
 
 	#println("init: ", init)
-	#println(parnames)
+	println(parnames)
     pars = make_pars(pars, parnames=parnames)
-	#println(pars)
+	println(pars)
 	println("pars length: ", length(pars))
     priors = make_priors(prior)
 	#println("priors: ", priors)
@@ -632,6 +632,9 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nt
             w, f = calc_spectrum(s, pars, comp=comp)
         else
             w, f = x, correct_continuum(s.cont, pars, x)
+            if any([occursin("zero", p.first) for p in pars])
+                f .+= pars["zero"].val
+            end
         end
         if size(f)[1] > 2
             return LinearInterpolation(w, f, extrapolation_bc=Flat())(x)
