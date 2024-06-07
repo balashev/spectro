@@ -154,7 +154,7 @@ mutable struct par
 end
 
 function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
-    println(p_pars)
+    #println(p_pars)
     pars = OrderedDict{String, par}()
     if parnames != nothing
         for p in parnames
@@ -162,7 +162,7 @@ function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
         end
     else
         for p in p_pars
-            println(p)
+            #println(p)
             if occursin("z_", p.__str__()) * (z_ref == true)
                 pars[p.__str__()] = par(p.__str__(), 0.0, z_to_v(z=p.min, z_ref=p.val), z_to_v(z=p.max, z_ref=p.val), p.step, p.fit * p.vary, p.addinfo, "", p.val)
             else
@@ -171,7 +171,7 @@ function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
             if occursin("cf", p.__str__())
                 pars[p.__str__()].min, pars[p.__str__()].max = 0, 1
             end
-            println(p, " ", pars[p.__str__()])
+            #println(p, " ", pars[p.__str__()])
         end
         for (k, v) in tieds
             pars[k].vary = false
@@ -1051,7 +1051,7 @@ end
 
 
 
-function fitLM(spec, p_pars, add; tieds=Dict())
+function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false)
 
     function cost(p)
         i = 1
@@ -1071,6 +1071,95 @@ function fitLM(spec, p_pars, add; tieds=Dict())
                 append!(res, (calc_spectrum(s, pars, out="binned") .- s.y[s.mask]) ./ s.unc[s.mask])
             end
         end
+
+        # add constraints to the fit set by opts parameter
+
+        # constraints for H2 on increasing b parameter with J level increase
+		if (haskey(opts, "b_increase"))
+		    if (opts["b_increase"] == true)
+		    retval = 0
+                for (k, v) in pars
+                    if occursin("H2j", k) & occursin("b_", k) & (strip(v.addinfo) == "")
+                        if ~occursin("v", k)
+                            j = parse(Int64, k[8:end])
+                        else
+                            j = parse(Int64, k[8:findfirst('v', k)-1])
+                        end
+                        for (k1, v1) in pars
+                            if occursin(k[1:7], k1) & ~occursin(k, k1) & (strip(v1.addinfo) == "")
+                                if ~occursin("v", k1)
+                                    j1 = parse(Int64, k1[8:end])
+                                else
+                                    j1 = parse(Int64, k1[8:findfirst('v', k1)-1])
+                                end
+                                #j, j1 = parse(Int64, k[8:end]), parse(Int64, k1[8:end])
+                                if (~occursin("v", k) & ~occursin("v", k1)) || (occursin("v", k) & occursin("v", k1))
+                                    #println(j, " ", j1, " ", (~occursin("v", k) & ~occursin("v", k1)), " ", (occursin("v", k) & occursin("v", k1)))
+                                    x = sign(j - j1) * (v.val / v1.val - 1) * 10
+                                    retval -= (x < 0 ? x : 0)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+			println("b_incr ", retval)
+			append!(res, retval)
+		end
+
+		# constraints for H2 on on excitation diagram to be gradually increasing with J
+		if (haskey(opts, "H2_excitation"))
+		    if (opts["H2_excitation"] == true)
+                retval = 0
+                T = Dict()
+                E = [[0, 118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61, 9523.82, 10800.6, 12123.66, 13485.56] * 1.42879,
+                     [4161.14, 4273.75, 4497.82, 4831.41, 5271.36, 5813.95, 6454.28, 7187.44, 8007.77, 8908.28, 9883.79, 10927.12, 12031.44, 13191.06] * 1.42879
+                    ]  #Energy difference in K
+                g = [(2 * level + 1) * ((level % 2) * 2 + 1) for level in 0:15]  #statweights
+                nu = append!([0], unique([parse(Int, k[findfirst('v', k)+1]) for (k,v) in pars if occursin("v", k)]))
+                #println(nu)
+                for n in nu
+                    for (k, v) in pars
+                        if occursin("H2j", k) & occursin("N_", k)
+                            nextlev = ""
+                            #println(k, " ", occursin("v", k), " ", findfirst('v', k))
+                            if ~occursin("v", k) & (n == 0)
+                                j = parse(Int64, k[8:end])
+                                nextlev = k[1:7] * string(j+2)
+                            elseif occursin("v", k)
+                                if n == parse(Int, k[findfirst('v', k)+1])
+                                    j = parse(Int64, k[8:findfirst('v', k)-1])
+                                    nextlev = k[1:findfirst('j', k)] * string(parse(Int, k[findfirst('j', k)+1:findfirst('v', k)-1]) + 2) * k[findfirst('v', k):end]
+                                end
+                            end
+                            if haskey(pars, nextlev)
+                                #println(j, " ", nextlev, " ", k[3])
+                                #println(g[j+1], " ", E[n+1][j+1], " ", g[j+3], " ", E[n+1][j+3])
+                                if ~haskey(T, k[3])
+                                    T[k[3]] = Dict()
+                                end
+                                T[k[3]][j] = (E[n+1][j+3] - E[n+1][j+1]) / log(10^v.val / 10^pars[nextlev].val * g[j+3] / g[j+1])
+                                #println(j, " ", v.val, " ", E[n+1][j+1], " ", g[j+1], " ", T[k[3]][j])
+                            end
+                        end
+                    end
+                    #println(n, " ", T)
+                    op = 1
+                    for (k, d) in T
+                        #println(n, " ", k, " ", d)
+                        for (k, v) in d
+                            if haskey(d, k + op)
+                                #println(k, " ", v, " ", d[k+op], " ", (d[k+op] - v < 0 ? (d[k+op] - v) / 50 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2, " ", (d[k+op] - v < 0 ? (d[k+op] / v - 1) * 10 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2)
+                                retval -= (d[k+op] - v < 0 ? (d[k+op] / v - 1) * 100 : 0) + (v < 0 ? v / 10 : 0)
+                            end
+                        end
+                    end
+                end
+            end
+			println("H2_exc ", retval)
+			append!(res, retval)
+		end
+
         return res
     end
 
@@ -1093,7 +1182,9 @@ function fitLM(spec, p_pars, add; tieds=Dict())
                 param[i] = z_to_v(v=param[i], z_ref=p.ref)
                 sigma[i] = z_to_v(v=sigma[i], z_ref=p.ref) - p.ref
             end
-            println(k, ": ", param[i], " ± ", sigma[i])
+            if !blindMode
+                println(k, ": ", param[i], " ± ", sigma[i])
+            end
             i += 1
         end
     end

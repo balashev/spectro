@@ -1310,7 +1310,7 @@ class pyratio():
                     pri += p.prior.lnL(p.value)
         return pri
     
-    def predict(self, name=None, level=0, logN=None, plot=None):
+    def predict(self, name=None, level=0, logN=None, plot=None, ax=None, color='k'):
         """
         predict column densities on levels
         parameters:
@@ -1336,20 +1336,24 @@ class pyratio():
             out = [np.log10(10 ** logN * x[i] / ref) for i in range(self.species[name].num)]
 
         if isinstance(logN, a):
-            out = [logN * x[i] / ref for i in range(self.species[name].num)]
+            out = [logN.dec() * x[i] / ref for i in range(self.species[name].num)]
 
         if plot is not None and plot.lower() in ['energy', 'levels']:
-            fig, ax = plt.subplots()
+
+            if ax == None:
+                fig, ax = plt.subplots()
+
             if plot.lower() == 'energy':
                  xi = self.species[name].E[:len(x)]
             if plot.lower() == 'levels':
                  xi = np.arange(len(x))
 
-            print(xi, self.species[name].g[:len(x)], out - self.species[name].g[:len(x)])
+            print(xi, x, self.species[name].g[:len(x)], out - np.log10(self.species[name].g[:len(x)]))
             if isinstance(logN, (int, float)):
-                ax.plot(xi, out - self.species[name].g[:len(x)], 'ok')
+                ax.plot(xi, out - np.log10(self.species[name].g[:len(x)]), 'o', color=color)
+
             if isinstance(logN, a):
-                ax.errorbar(xi, [o.val for o in out] - self.species[name].g[:len(x)], yerr=[[o.plus for o in out], [o.minus for o in out]])
+                ax.errorbar(xi, [o.val for o in out] - np.log10(self.species[name].g[:len(x)]), yerr=[[o.plus for o in out], [o.minus for o in out]], color=color)
 
         return out
 
@@ -2016,16 +2020,26 @@ if __name__ == '__main__':
         #plt.savefig('C:/Users/Serj/Desktop/{:}_comparison.pdf'.format(spec))
         plt.show()
 
-    if 0:
+    # >>> check CO populations
+    if 1:
+        fig, ax = plt.subplots(figsize=(14, 6))
         pr = pyratio(z=2.5)
-        pr.add_spec('CO', num=7)
-        d = {'T': 1.5, 'n': 5, 'f': 0}
+        pr.add_spec('CO', num=10)
+        d = {'T': 2, 'n': 3, 'f': 0}
         pr.set_pars(d.keys())
-        pr.pars['n'].range = [1, 5]
+        #pr.pars['n'].range = [1, 5]
         for d in d.items():
             pr.pars[d[0]].value = d[1]
-        print(pr.predict('CO', level=-1, logN=14., plot='levels'))
-        pr.calc_emission_CO(par='n', specific=1, coh2=4e-5)
+        print(pr.predict('CO', level=0, logN=1., plot='energy', ax=ax, color='k'))
+        pr.pars['n'].value = 2
+        print(pr.predict('CO', level=0, logN=1., plot='energy', ax=ax, color='tomato'))
+        pr.pars['n'].value = 1
+        print(pr.predict('CO', level=0, logN=1., plot='energy', ax=ax, color='dodgerblue'))
+        ax.set_ylabel("log (population of CO)")
+        ax.set_xlabel("Energy of level [cm$^{-1}$]")
+        fig.savefig("C:/science/students/Yuldashev/CO_populations.png", bbox_inches='tight')
+        #print(pr.predict('CO', level=-1, logN=14., plot='energy'))
+        #pr.calc_emission_CO(par='n', specific=1, coh2=4e-5)
         plt.show()
 
     if 0:
@@ -2297,7 +2311,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check SiII collisions
-    if 1:
+    if 0:
         pr = pyratio(z=2.65)
         pr.set_pars(['T', 'n', 'f'])
         pr.pars['T'].range = [1, 6]
@@ -2469,7 +2483,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> FeII calculations
-    if 1:
+    if 0:
         pr = pyratio(z=0.34, pumping='simple', radiation='simple', sed_type='AGN', agn={'filter': 'r', 'mag': 18})
         pr.set_pars(['T', 'rad', 'e'])
         pr.pars['T'].range = [3, 5]

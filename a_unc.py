@@ -459,7 +459,7 @@ class a:
                 #print(res.val, res.plus, res.minus)
                 res = self.mini(self.mul_lnL, other, res)
             else: 
-                res.val = self.val*other.val
+                res.val = self.val * other.val
                 if (self.type == 'l' and other.type == 'u') or (self.type == 'u' and other.type == 'l'):
                     raise TypeError('Value is unconstrained: lower limit is multiplied by upper limit')
                 else:

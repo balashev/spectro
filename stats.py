@@ -399,7 +399,7 @@ class distr2d():
             my_cmap = ListedColormap(my_cmap)
             if not isinstance(levels, int):
                 levels = np.sort([self.level(c) for c in levels] / self.zmax)
-            cs = ax.contourf(self.X, self.Y, self.z / self.zmax, levels, cmap=my_cmap, zorder=zorder, lw=0, antialiased=True)
+            cs = ax.contourf(self.X, self.Y, self.z / self.zmax, levels, cmap=my_cmap, zorder=zorder, lw=0, antialiased=True, alpha=alpha)
             #for c in cs.collections:
             #    c.set_edgecolor("face")
             #    c.set_linewidth(0.000000000001)
@@ -407,11 +407,12 @@ class distr2d():
         if color is not None:
             levels = [self.level(c) for c in conf_levels]
             if limits == None or limits == 0:
+                print("linewidths:", lw)
                 c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color,
-                               lw=lw, linestyles='-', zorder=zorder, label=label)
+                               lw=lw, linestyles='-', zorder=zorder, label=label, alpha=alpha)
             else:
                 c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color,
-                               lw=lw, linestyles='-', zorder=zorder, alpha=0)
+                               lw=lw, linestyles='-', zorder=zorder, alpha=alpha)
                 x, y = c.collections[0].get_segments()[0][:,0], c.collections[0].get_segments()[0][:, 1]
                 inter = interpolate.interp1d(x, y)
                 x = np.linspace(x[0], x[-1], 30)

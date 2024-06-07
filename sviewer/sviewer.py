@@ -279,7 +279,7 @@ class plotSpectrum(pg.PlotWidget):
 
             if event.key() == Qt.Key.Key_G:
                 self.g_status = True
-                self.parent.fitGauss()
+                self.parent.fitGauss(kind='integrate')
 
             if event.key() == Qt.Key.Key_H:
                 self.h_status = True
@@ -341,10 +341,13 @@ class plotSpectrum(pg.PlotWidget):
 
             if event.key() == Qt.Key.Key_T:
                 if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
-                    if self.parent.fitResults is None:
-                        self.parent.showFitResults()
+                    if self.parent.blindMode:
+                        if self.parent.fitResults is None:
+                            self.parent.showFitResults()
+                        else:
+                            self.parent.fitResults.close()
                     else:
-                        self.parent.fitResults.close()
+                        self.sendMessage("Blind mode is on. Disable it in Preference menu (F11)")
 
             if event.key() == Qt.Key.Key_Q:
                 if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
@@ -1463,6 +1466,12 @@ class preferencesWidget(QWidget):
             self.show_osc.stateChanged.connect(partial(self.setChecked, 'show_osc'))
             self.grid.addWidget(self.show_osc, ind, 0)
 
+            ind += 1
+            self.blindMode = QCheckBox('blindMode')
+            self.blindMode.setChecked(self.parent.blindMode)
+            self.blindMode.stateChanged.connect(partial(self.setChecked, 'blindMode'))
+            self.grid.addWidget(self.blindMode, ind, 0)
+
         layout.addLayout(self.grid)
         layout.addStretch()
         frame.setLayout(layout)
@@ -1521,6 +1530,8 @@ class preferencesWidget(QWidget):
         self.parent.options(attr, getattr(self, attr).isChecked())
         if attr == 'show_osc':
             self.parent.abs.redraw()
+        if self.parent.blindMode:
+            self.parent.sendMessage("Switch blind mode on. The fit results will be hidden.")
         self.parent.s.redraw()
 
     def setNumBetween(self):
@@ -2778,15 +2789,19 @@ class fitMCMCWidget(QWidget):
         h.addStretch(1)
         h.addWidget(self.chooseFit)
 
-        self.start_button = QPushButton("Start")
+        self.lmfit_button = QPushButton("LM fit")
+        self.lmfit_button.setCheckable(True)
+        self.lmfit_button.setFixedSize(60, 30)
+        self.lmfit_button.clicked[bool].connect(partial(self.LMfit, init=True, filename=None))
+        self.start_button = QPushButton("Start MCMC")
         self.start_button.setCheckable(True)
-        self.start_button.setFixedSize(120, 30)
+        self.start_button.setFixedSize(100, 30)
         self.start_button.clicked[bool].connect(partial(self.MCMC, init=True, filename=None))
-        self.continue_button = QPushButton("Continue")
-        self.continue_button.setFixedSize(120, 30)
+        self.continue_button = QPushButton("Continue MCMC")
+        self.continue_button.setFixedSize(100, 30)
         self.continue_button.clicked[bool].connect(self.continueMC)
         self.init_cluster_button = QPushButton("Init")
-        self.init_cluster_button.setFixedSize(90, 30)
+        self.init_cluster_button.setFixedSize(60, 30)
         self.init_cluster_button.clicked[bool].connect(partial(self.initCluster, init=True))
         self.continue_cluster_button = QPushButton("Continue")
         self.continue_cluster_button.setFixedSize(90, 30)
@@ -2795,6 +2810,7 @@ class fitMCMCWidget(QWidget):
         #self.cont_fit.setFixedSize(70, 30)
         #self.cont_fit.clicked[bool].connect(self.fitCont)
         hbox = QHBoxLayout()
+        hbox.addWidget(self.lmfit_button)
         hbox.addWidget(self.start_button)
         hbox.addWidget(self.continue_button)
         hbox.addWidget(QLabel('  Cluster:'))
@@ -2910,6 +2926,9 @@ class fitMCMCWidget(QWidget):
         self.loadres_button = QPushButton("Load")
         self.loadres_button.setFixedSize(120, 30)
         self.loadres_button.clicked[bool].connect(self.loadres)
+        self.export_button = QPushButton("Export")
+        self.export_button.setFixedSize(120, 30)
+        self.export_button.clicked[bool].connect(self.export)
 
         showlayout = QVBoxLayout()
         showlayout.addLayout(h)
@@ -2931,6 +2950,7 @@ class fitMCMCWidget(QWidget):
         hbox.addWidget(self.stats_ratios_button)
         hbox.addWidget(self.ratios_species)
         hbox.addStretch(1)
+        hbox.addWidget(self.export_button)
         showlayout.addLayout(hbox)
 
         hbox = QHBoxLayout()
@@ -2990,7 +3010,7 @@ class fitMCMCWidget(QWidget):
         self.parent.options('MCMC_'+arg, getattr(self, 'MCMC_'+arg))
 
     def selectGraph(self, text):
-        self.parent.options('MCMC_graph', text)
+        self.parent.options('MCMC_graph', ['chainConsumer', 'corner'][text])
         self.graph.setCurrentIndex(['chainConsumer', 'corner'].index(self.parent.options('MCMC_graph')))
 
     def selectTruths(self, text):
@@ -3052,6 +3072,11 @@ class fitMCMCWidget(QWidget):
 
     def continueMC(self):
         self.start(init=False, filename=None)
+
+    def LMfit(self, init=True, filename=None):
+        opts = {'b_increase': self.b_increase.isChecked(), 'H2_excitation': self.H2_excitation.isChecked(), 'hier_continuum': self.hier_continuum.isChecked()}
+
+        self.parent.fitJulia(opts=opts)
 
     def MCMC(self, init=True, filename=None):
         print(init, filename)
@@ -3229,6 +3254,8 @@ class fitMCMCWidget(QWidget):
             truth = np.insert(truth, 0, 0)
             mask = np.insert(mask, 0, True)
 
+        if self.parent.blindMode:
+            truth = None
 
         if burnin < samples.shape[0]:
             if self.parent.options('MCMC_graph') == 'chainConsumer':
@@ -3244,19 +3271,29 @@ class fitMCMCWidget(QWidget):
                             sigmas=[0, 1, 2, 3],
                             )
                 c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
-                fig = c.plotter.plot(figsize=(20, 20),
+                figure = c.plotter.plot(figsize=(20, 20),
                                         #filename="output/fit.png",
-                                        display=True,
+                                        display=not self.parent.blindMode,
                                         truth=truth,
                                         )
+                if self.parent.blindMode:
+                    for ax in figure.axes:
+                        ax.set_title('')
+
             if self.parent.options('MCMC_graph') == 'corner':
                 figure = corner.corner(samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]],
                                        labels=names,
-                                       show_titles=True,
+                                       show_titles= not self.parent.blindMode,
                                        plot_contours=self.parent.options('MCMC_smooth'),
                                        truths=truth,
                                        )
-                plt.show()
+            if self.parent.blindMode:
+                for ax in figure.axes:
+                    ax.get_xaxis().set_ticks([])
+                    ax.get_yaxis().set_ticks([])
+                self.parent.sendMessage("You are currently in blind mode. The actual values are not shown. Disable it in Preference menu (F11)")
+
+            plt.show()
 
     def stats(self, t='fit'):
         pars, samples, lnprobs = self.readChain()
@@ -3290,7 +3327,7 @@ class fitMCMCWidget(QWidget):
                 print(i, p)
                 if p in names:
                     s = samples[burnin:, :, i][mask].flatten()
-                    print(np.min(s), np.max(s))
+                    #print(np.min(s), np.max(s))
                     x = np.linspace(np.min(s), np.max(s), 100)
                     kde = gaussian_kde(s)
                     d = distr1d(x, kde(x))
@@ -3300,20 +3337,22 @@ class fitMCMCWidget(QWidget):
                     self.parent.fit.setValue(p, res, 'unc')
                     self.parent.fit.setValue(p, res.val)
                     self.parent.fit.setValue(p, (res.plus + res.minus) / 2, 'step')
-                    print(res.plus, res.minus)
-                    f = np.asarray([res.plus, res.minus])
-                    f = int(np.round(np.abs(np.log10(np.min(f[np.nonzero(f)])))) + 1)
-                    print(p, res.latex(f=f))
-                    self.results.setText(self.results.toPlainText() + p + ': ' + res.latex(f=f) + '\n')
-                    vert, hor = k // n_hor, k % n_hor
-                    k += 1
-                    d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
-                    if truth is not None:
-                        ax[vert, hor].axvline(truth[i], c='navy', ls='--', lw=1)
-                    ax[vert, hor].yaxis.set_ticklabels([])
-                    ax[vert, hor].yaxis.set_ticks([])
-                    ax[vert, hor].text(.05, .9, str(p).replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
-                    ax[vert, hor].text(.95, .9, self.parent.fit.getPar(p).fitres(latex=True, showname=False), ha='right', va='top', transform=ax[vert, hor].transAxes)
+                    if not self.parent.blindMode:
+                        f = np.asarray([res.plus, res.minus])
+                        f = int(np.round(np.abs(np.log10(np.min(f[np.nonzero(f)])))) + 1)
+                        print(p, res.latex(f=f))
+                        self.results.setText(self.results.toPlainText() + p + ': ' + res.latex(f=f) + '\n')
+                        vert, hor = k // n_hor, k % n_hor
+                        k += 1
+                        d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
+                        if truth is not None:
+                            ax[vert, hor].axvline(truth[i], c='navy', ls='--', lw=1)
+                        ax[vert, hor].yaxis.set_ticklabels([])
+                        ax[vert, hor].yaxis.set_ticks([])
+                        ax[vert, hor].text(.05, .9, str(p).replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
+                        ax[vert, hor].text(.95, .9, self.parent.fit.getPar(p).fitres(latex=True, showname=False), ha='right', va='top', transform=ax[vert, hor].transAxes)
+                    else:
+                        self.parent.sendMessage("You are currently in blind mode. The actual values are not shown. Disable it in Preference menu (F11)")
                     #ax[vert, hor].set_title(pars[i].replace('_', ' '))
 
         elif t == 'ratios':
@@ -3495,6 +3534,11 @@ class fitMCMCWidget(QWidget):
                 ax0[vert, hor].text(.1, .9, str(pars[i]).replace('_', ' '), ha='left', va='top',
                                    transform=ax0[vert, hor].transAxes)
 
+        if self.parent.blindMode:
+            for ax in fig.axes:
+                ax.get_xaxis().set_ticks([])
+                ax.get_yaxis().set_ticks([])
+
         plt.subplots_adjust(wspace=0)
         plt.tight_layout()
 
@@ -3523,6 +3567,11 @@ class fitMCMCWidget(QWidget):
                 ax[vert, hor].plot(np.arange(nsteps), SomeChain[:, i], color='b')
                 ax[vert, hor].text(.1, .9, str(pars[i]).replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
                 #ax[vert, hor].set_title(pars[i].replace('_', ' '))
+
+        if self.parent.blindMode:
+            for ax in fig.axes:
+                ax.get_xaxis().set_ticks([])
+                ax.get_yaxis().set_ticks([])
 
         plt.tight_layout()
         plt.subplots_adjust(hspace=0)
@@ -3636,6 +3685,27 @@ class fitMCMCWidget(QWidget):
             else:
                 self.parent.options('work_folder', os.path.dirname(fname[0]))
                 self.parent.MCMC_output = fname[0]
+
+    def export(self):
+        fname = QFileDialog.getSaveFileName(self, 'Export MCMC results', self.parent.work_folder)
+
+        if fname[0]:
+            if fname[0].endswith('.dat'):
+                pars, samples, lnprobs = self.readChain()
+                nsteps, nwalkers, = lnprobs.shape
+                burnin = int(self.parent.options('MCMC_burnin'))
+
+                mask = np.array([p.show for p in self.parent.fit.list_fit()])
+                #print(mask)
+                names = [str(p) for p in self.parent.fit.list_fit() if p.show]
+                print(names)
+
+                s = samples[burnin:, :, mask]
+                #print(s.shape)
+                s = s.reshape(-1, s.shape[-1])
+                #print(s.shape)
+                #np.save(fname[0], s)
+                np.savetxt(fname[0], s, header=','.join(names), fmt=','.join(['%s'] * s.shape[1]))
 
     def keyPressEvent(self, event):
         super(fitMCMCWidget, self).keyPressEvent(event)
@@ -6649,6 +6719,7 @@ class sviewer(QMainWindow):
             self.config = 'config/options_linux.ini'
         self.developer = os.path.isfile(self.folder + 'config/developer.ini')
         print(self.developer)
+        self.blindMode = self.options('blindMode', config=self.config)
         #self.developer = self.options('developerMode', config=self.config)
         self.SDSSfolder = self.options('SDSSfolder', config=self.config)
         self.SDSSDR14 = self.options('SDSSDR14', config=self.config)
@@ -7030,7 +7101,7 @@ class sviewer(QMainWindow):
 
         fitGauss = QAction('&Fit by gaussian line', self)
         fitGauss.setStatusTip('Fit gauss')
-        fitGauss.triggered.connect(self.fitGauss)
+        fitGauss.triggered.connect(partial(self.fitGauss, kind='integrate'))
 
         fitPower = QAction('&Power law fit', self)
         fitPower.setStatusTip('Fit by power law function')
@@ -8851,16 +8922,18 @@ class sviewer(QMainWindow):
         self.panel.fitbutton.setChecked(False)
         QApplication.restoreOverrideCursor()
 
-    def fitJulia(self):
+    def fitJulia(self, **kwargs):
 
         #self.reload_julia()
 
         self.s.prepareFit(all=False)
         #self.julia_spec = self.julia.prepare(self.s, self.julia_pars)
-        dof, res, unc = self.julia.fitLM(self.julia_spec, self.fit.list(), self.julia_add, tieds=self.fit.tieds)
-        s = self.fit.fromJulia(res, unc)
+        dof, res, unc = self.julia.fitLM(self.julia_spec, self.fit.list(), self.julia_add, tieds=self.fit.tieds, opts=kwargs, blindMode=self.blindMode)
 
-        self.console.set(s)
+        s = self.fit.fromJulia(res, unc)
+        if not self.blindMode:
+            self.console.set(s)
+
         self.showFit(all=False)
 
     def fitAbs(self, timer=True, redraw=True):
@@ -8920,7 +8993,7 @@ class sviewer(QMainWindow):
         #final = data + result.residual
 
         # write error report
-        report_fit(result)
+
         #ci = conf_interval(minner, result)
         #printfuncs.report_ci(ci)
 
@@ -8928,7 +9001,10 @@ class sviewer(QMainWindow):
 
         self.fit.fromLMfit(result)
 
-        self.console.set(fit_report(result))
+        if not self.blindMode:
+            report_fit(result)
+            self.console.set(fit_report(result))
+
         return fit_report(result)
 
     def fitMCMC(self):
@@ -8984,12 +9060,14 @@ class sviewer(QMainWindow):
         print(res)
 
     def showFitResults(self):
-
-        if self.fitResults is None:
-            self.fitResults = fitResultsWidget(self)
-            self.fitResults.show()
+        if not self.blindMode:
+            if self.fitResults is None:
+                self.fitResults = fitResultsWidget(self)
+                self.fitResults.show()
+            else:
+                self.fitResults.refresh()
         else:
-            self.fitResults.refresh()
+            self.sendMessage("Blind mode is on. Disable it in Preference menu (F11)")
 
     def resAnal(self):
         res = self.s[self.s.ind].res
@@ -9194,6 +9272,7 @@ class sviewer(QMainWindow):
         """
         fit spectrum with simple gaussian line (emission)
         """
+        print(kind)
         for s in self.s:
             n = np.sum(s.mask.x())
             if n > 0:
@@ -9212,7 +9291,7 @@ class sviewer(QMainWindow):
                 sigma = fwhm / 2 / np.sqrt(2 * np.log(2))
                 amp = ymax * np.sqrt(2 * np.pi) * sigma
                 mean = np.mean(x)
-                print(amp, sigma, mean, y - cont)
+                #print(amp, sigma, mean, y - cont)
 
                 def gaussian(x, amp, cen, disp):
                     """1-d gaussian: gaussian(x, amp, cen, disp)"""
@@ -9257,9 +9336,13 @@ class sviewer(QMainWindow):
                     sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[x_bin, y, err, cont])
                     sampler.run_mcmc(p0, nsteps)
                     samples = sampler.chain[:, int(nsteps/2):, :].reshape((-1, ndim))
+                    print('quantiles:', np.quantile(samples, [0.1, 0.5, 0.9], axis=0))
+                    print(samples.shape)
+                    samples = np.c_[samples, samples[:, 2] * 2 * np.sqrt(2 * np.log(2)) / samples[:, 1] * 299792.46]
+                    print(samples.shape)
                     samples[:, 2] = samples[:, 0] / (2 * np.pi)**0.5 / samples[:, 2]
                     c = ChainConsumer()
-                    names, truth = ['Area', 'Centroid', 'Amplitude'], [params['amp'].value, params['cen'].value, params['amp'].value / (2 * np.pi)**0.5 / params['disp'].value]
+                    names, truth = ['Area', 'Centroid', 'Amplitude', 'FWHM'], [params['amp'].value, params['cen'].value, params['amp'].value / (2 * np.pi)**0.5 / params['disp'].value, np.sqrt(2 * np.log(2)) * params['disp'].value * 2]
                     c.add_chain(samples, walkers=nwalkers, parameters=names)
                     c.configure(smooth=True,
                                 cloud=True,
@@ -9429,7 +9512,7 @@ class sviewer(QMainWindow):
                     if any([ni.val == 0 for ni in n]):
                         n = [a(sys.sp['COj' + str(x)].N.val, 0, 0) for x in levels]
                 temp.calcTemp(n, calc='', plot=plot, verbose=1)
-                if E == None:
+                if E is None:
                     E = temp.E
                 elif isinstance(E, (float, int, np.floating)):
                     E = np.asarray([0, E])
