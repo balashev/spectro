@@ -257,8 +257,10 @@ function update_pars(pars, spec, add)
             #println(pars[k].name, " ", pars[k].val, " ", parse(Int, pars[k].addinfo[5:end]))
             spec[parse(Int, pars[k].addinfo[5:end]) + 1].resolution = pars[k].val
         end
+        if occursin("displ", pars[k].name)
+            spec[parse(Int, split(pars[k].name, "_")[2]) + 1].displ = pars[k].val
+        end
         if occursin("disps", pars[k].name)
-            spec[parse(Int, split(pars[k].name, "_")[2]) + 1].disps = pars[k].val
             spec[parse(Int, split(pars[k].name, "_")[2]) + 1].disps = pars[k].val
         end
         if occursin("dispz", pars[k].name)
@@ -551,6 +553,7 @@ mutable struct spectrum
     mask::BitArray
     resolution::Float64
     lines::Vector{line}
+    displ::Float64
     disps::Float64
     dispz::Float64
     cont::Vector{Any}
@@ -563,7 +566,7 @@ function prepare(s, pars, add)
     #println(append!(c,  [cheb([], 0, 0, 0)]))
     spec = Vector(undef, size(s)[1])
     for (i, si) in enumerate(s)
-        spec[i] = spectrum(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.resolution, prepare_lines(si.fit_lines), 0, 0, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0))
+        spec[i] = spectrum(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0))
         spec[i].bins = (si.spec.norm.x[2:end] + si.spec.norm.x[1:end-1]) / 2
         spec[i].bin_mask = spec[i].mask[1:end-1] .|| spec[i].mask[2:end]
     end
@@ -747,9 +750,9 @@ function calc_spectrum_nonbinned(spec, pars; comp=0, regular=-1, regions="fit", 
     #    end
     #end
     #println(spec.dispz, " ", spec.disps)
-    if (spec.dispz != 0) & (spec.disps != 0)
+    if (~isnan(spec.displ)) & (~isnan(spec.disps)) & (~isnan(spec.dispz))
         inter = LinearInterpolation(x, y, extrapolation_bc=Flat())
-        y = inter(x .+ (x .- spec.dispz) .* spec.disps)
+        y = inter(x .+ (x .- spec.displ) .* spec.disps .+ spec.dispz)
     end
 
     if size(spec.cont)[1] > 0
@@ -959,9 +962,9 @@ function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
     #    end
     #end
     #println(spec.dispz, " ", spec.disps)
-    if (spec.dispz != 0) & (spec.disps != 0)
+    if (~isnan(spec.displ)) & (~isnan(spec.disps)) & (~isnan(spec.dispz))
         inter = LinearInterpolation(x, y, extrapolation_bc=Flat())
-        y = inter(x .+ (x .- spec.dispz) .* spec.disps)
+        y = inter(x .+ (x .- spec.displ) .* spec.disps .+ spec.dispz)
     end
 
     if size(spec.cont)[1] > 0
@@ -1178,7 +1181,7 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false)
     i = 1
     for (k, p) in pars
         if p.vary == true
-            if occursin("z_", p.name)
+            if startswith(p.name, "z_")
                 param[i] = z_to_v(v=param[i], z_ref=p.ref)
                 sigma[i] = z_to_v(v=sigma[i], z_ref=p.ref) - p.ref
             end

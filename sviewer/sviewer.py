@@ -696,7 +696,7 @@ class plotSpectrum(pg.PlotWidget):
                             dv90 = interp1d(dv/dv[-1], (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value, fill_value='extrapolate')
                             m = np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])) < -0.1
                             vx = (s.spec.x()[mask][m] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value
-                            text += ', log(w/l)={0:0.2f}, w_r = {1:0.5f}+/-{2:0.5f}, dv90 = {3:0.2f}'.format(np.log10(2 * w / (x[0]+x[-1])), w / (1+self.parent.z_abs), err_w / (1+self.parent.z_abs), dv90(0.95) - dv90(0.05))
+                            text += ', log(w/l)={0:0.2f}, w_r = {1:0.5f}+/-{2:0.5f}, dv90 = {3:0.2f}'.format(np.log10(2 * np.abs(w) / (x[0]+x[-1])), w / (1 + self.parent.z_abs), err_w / (1+self.parent.z_abs), dv90(0.95) - dv90(0.05))
                             if self.parent.s[self.parent.s.ind].resolution not in [0, None]:
                                 text += ', d90_c = {:0.2f}'.format(np.sqrt((dv90(0.95) - dv90(0.05))**2 - (1.4 * ac.c.to('km/s').value / self.parent.s[self.parent.s.ind].resolution)**2))
                             text += ', dv01={:0.2f}'.format(np.max(vx) - np.min(vx))
@@ -944,7 +944,7 @@ class residualsWidget(pg.PlotWidget):
         Raise the context menu
         """
         menu = self.getMenu()
-        menu.popup(ev.screenPos().toPoint())
+        menu.popup(ev.globalPosition().toPoint())
 
     def getMenu(self):
         """
@@ -1467,7 +1467,7 @@ class preferencesWidget(QWidget):
             self.grid.addWidget(self.show_osc, ind, 0)
 
             ind += 1
-            self.blindMode = QCheckBox('blindMode')
+            self.blindMode = QCheckBox('blind mode')
             self.blindMode.setChecked(self.parent.blindMode)
             self.blindMode.stateChanged.connect(partial(self.setChecked, 'blindMode'))
             self.grid.addWidget(self.blindMode, ind, 0)
@@ -3735,7 +3735,7 @@ class fitExtWidget(QWidget):
         l = QHBoxLayout()
         l.addWidget(QLabel('Template:'))
         temp_group = QButtonGroup(self)
-        self.smooth_template = {'VandenBerk': 7, 'HST': 7, 'Selsing': 7, 'power': None, 'composite': 7}
+        self.smooth_template = {'SDSS': 3, 'VandenBerk': 7, 'HST': 7, 'Selsing': 7, 'power': None, 'composite': 7}
         for template in ['VandenBerk', 'HST', 'Selsing', 'composite', 'power']:
             setattr(self, template, QRadioButton(template))
             temp_group.addButton(getattr(self, template))
@@ -3863,27 +3863,24 @@ class fitExtWidget(QWidget):
         return frame
 
     def load_template(self, x=None, z_em=0, smooth_window=None):
-        if self.template in ['VandenBerk', 'HST', 'Selsing', 'power']:
-            if self.template == 'VandenBerk':
+        if self.template in ['SDSS', 'VandenBerk', 'HST', 'Selsing', 'power']:
+            fill_value = 'extrapolate'
+            if self.template == 'SDSS':
                 data = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
                 data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
-                data[0] *= (1 + z_em)
                 fill_value = (1.3, 0.5)
+            if self.template == 'VandenBerk':
+                data = np.genfromtxt('data/SDSS/QSO_composite.dat', unpack=True)
+                data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
             elif self.template == 'HST':
                 data = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
-                data[0] *= (1 + z_em)
-                fill_value = 'extrapolate'
             elif self.template == 'Selsing':
                 data = np.genfromtxt('data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
-                data[0] *= (1 + z_em)
-                fill_value = 'extrapolate'
             elif self.template == 'power':
                 self.slope = float(self.slopeField.text())
                 data = np.ones((2, 10000))
                 data[0] = np.linspace(500, 25000, data.shape[1])
                 data[1] = np.power(data[0] / 2500, self.slope)
-                data[0] *= (1 + z_em)
-                fill_value = 'extrapolate'
             elif self.template == 'composite':
                 data = np.genfromtxt('data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
                 data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
@@ -3895,12 +3892,12 @@ class fitExtWidget(QWidget):
                     d2 = np.genfromtxt('data/SDSS/QSO1_template_norm.sed', skip_header=0, unpack=True)
                     m = d2[0] > data[0][-1]
                     data = np.append(data, [d2[0][m], d2[1][m] * data[1][-1] / d2[1][m][0], d2[1][m] / 30], axis=1)
-                data[0] *= (1 + z_em)
-                fill_value = 'extrapolate'
+
             elif self.template == 'const':
                 data = np.ones((2, 10))
-                data[0] = np.linspace(xmin, xmax, 10)
+                data[0] = np.linspace(xmin / (1 + z_em), xmax / (1 + z_em), 10)
 
+            data[0] *= (1 + z_em)
             if smooth_window is not None:
                 data[1] = smooth(data[1], window_len=smooth_window, window='hanning', mode='same')
 
@@ -5737,15 +5734,16 @@ class ExportDataWidget(QWidget):
         else:
             cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1, bounds_error=False)
 
+        print(self.spectrum.isChecked(), self.cont.isChecked(), self.fit.isChecked(), self.fit_comps.isChecked())
         if self.spectrum.isChecked():
             np.savetxt(self.filename, np.c_[s.spec.x()[mask] / unit, s.spec.y()[mask] * np.power(cheb(s.spec.x()[mask]), -self.parent.normview), s.spec.err()[mask]], **kwargs)
         if self.cont.isChecked():
             np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x[cont_mask] / unit, s.cont.y[cont_mask] * np.power(cheb(s.cont.x[cont_mask]), 1 - 2 * self.parent.normview)], **kwargs)
-            if len(s.cheb.disp[0].norm.x > 0):
+            if len(s.cheb.disp[0].norm.x) > 0:
                 np.savetxt('_cont_disp.'.join(self.filename.rsplit('.', 1)), np.c_[s.cheb.disp[0].x()[fit_mask] / unit, s.cheb.disp[0].y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview), s.cheb.disp[1].y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview)], **kwargs)
         if self.fit.isChecked():
             np.savetxt('_fit.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.x()[fit_mask] / unit, s.fit.y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview)], **kwargs)
-            if len(s.fit.disp[0].norm.x > 0):
+            if len(s.fit.disp[0].norm.x) > 0:
                 np.savetxt('_fit_disp.'.join(self.filename.rsplit('.', 1)), np.c_[s.fit.disp[0].x()[fit_mask] / unit, s.fit.disp[0].y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview), s.fit.disp[1].y()[fit_mask] * np.power(cheb(s.fit.x()[fit_mask]), -self.parent.normview)], **kwargs)
         #if self.fit.isChecked():
         #    np.savetxt('_fit_regions.'.join(self.filename.rsplit('.', 1)), np.c_[s.spec.x()[np.logical_and(mask, fit_mask)] / unit, (s.spec.y() / cheb(s.spec.x()))[np.logical_and(mask, fit_mask)]], **kwargs)
@@ -7128,7 +7126,7 @@ class sviewer(QMainWindow):
 
         ExcTemp = QAction('&Excitation temperature', self)
         ExcTemp.setStatusTip('Calculate excitation temperature')
-        ExcTemp.triggered.connect(partial(self.ExcitationTemp, levels=[0, 1, 2, 3], ind=None, plot=True))
+        ExcTemp.triggered.connect(partial(self.ExcitationTemp, levels=[0, 1], ind=None, plot=True))
 
         MetalAbundance = QAction('&Metal abundance', self)
         MetalAbundance.setStatusTip('Show Metal abundances')
@@ -9329,7 +9327,7 @@ class sviewer(QMainWindow):
                     result = minner.minimize(method='emcee')
                 if 1:
                     def lnprob(params, x_int, y, err, cont):
-                        return -0.5 * np.sum((((y - cont) - gauss_integ(x_int, params[0], params[1], params[2])) / err )**2)
+                        return -0.5 * np.sum((((y - cont) - gauss_integ(x_int, params[0], params[1], params[2])) / err ) ** 2)
 
                     ndim, nwalkers, nsteps = 3, 100, 2000
                     p0 = np.asarray([result.params[par].value + np.random.randn(nwalkers) * result.params[par].stderr for par in params]).transpose()
@@ -9373,7 +9371,6 @@ class sviewer(QMainWindow):
             y = np.log10(s.spline.y)
 
             p = np.polyfit(x, y, 1)
-            print(p)
 
             x = np.logspace(np.log10(s.spec.x()[0]), np.log10(s.spec.x()[-1]), 100)
             y = np.power(10, p[1] + np.log10(x)*p[0])
@@ -10526,14 +10523,17 @@ class sviewer(QMainWindow):
 
         if self.normview:
             self.normalize(False)
-        if template in ['Selsing', 'VanDenBerk', 'HST', 'const']:
+        if template in ['Selsing', 'SDSS', 'VanDenBerk', 'HST', 'const']:
             s = Spectrum(self, name='mock')
             if template == 'Selsing':
                 data = np.genfromtxt('data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
                 fill_value = 'extrapolate'
-            if template == 'VanDenBerk':
+            elif template == 'SDSS':
                 data = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
                 fill_value = (1.3, 0.5)
+            elif template == 'VanDenBerk':
+                data = np.genfromtxt('data/SDSS/QSO_composite.dat', unpack=True)
+                fill_value = 'extrapolate'
             elif template == 'HST':
                 data = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
                 fill_value = 'extrapolate'

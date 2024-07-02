@@ -1,21 +1,21 @@
-load temp
-cont 1
-set cont 1
-cont 1
-load temp
-load temp
-load temp
-load temp
-load temp
-
-
-load temp
-load temp
-load temp
-load temp
-load temp
-load temp
-load temp
-load temp
-load temp
-load temp
+OH
+show OH
+show CH
+show H2O
+show OH
+show CH
+show CH
+show CH
+show CH
+show H2 0 1
+y 0 1
+x 3000 5000
+x 3000 5000
+y 0 1
+H2O
+CH+
+CH
+CH+
+CH
+show CH
+show SI

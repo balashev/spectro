@@ -14,7 +14,7 @@ import numpy.lib.recfunctions as rfn
 import lmfit
 from pyqtgraph.dockarea import *
 import pandas as pd
-from PyQt6.QtCore import QPoint, QUrl
+from PyQt6.QtCore import QPointF, QUrl
 from PyQt6.QtGui import QDesktopServices, QAction
 from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QMenu, QToolButton,
                              QLabel, QCheckBox, QComboBox)
@@ -94,13 +94,13 @@ class dataPlot(pg.PlotWidget):
 
         if not event.isAutoRepeat():
 
-            if event.key() == Qt.Key_S:
+            if event.key() == Qt.Key.Key_S:
                 self.s_status = True
 
-            if event.key() == Qt.Key_D:
+            if event.key() == Qt.Key.Key_D:
                 self.d_status = True
 
-        if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'SD']):
+        if any([event.key() == getattr(Qt.Key, 'Key_' + s) for s in 'SD']):
             self.vb.setMouseMode(self.vb.RectMode)
             self.vb.rbScaleBox.show()
 
@@ -109,19 +109,19 @@ class dataPlot(pg.PlotWidget):
 
         if not event.isAutoRepeat():
 
-            if event.key() == Qt.Key_S:
+            if event.key() == Qt.Key.Key_S:
                 self.s_status = False
 
-            if event.key() == Qt.Key_D:
+            if event.key() == Qt.Key.Key_D:
                 self.d_status = False
 
-            if (event.key() == Qt.Key_S or event.key() == Qt.Key_D) and hasattr(self.parent, 'd'):
+            if (event.key() == Qt.Key.Key_S or event.key() == Qt.Key.Key_D) and hasattr(self.parent, 'd'):
                 if self.parent.showKDE.isChecked():
                     self.parent.d.plot(frac=0.15, stats=True, xlabel=self.parent.axis_info[self.parent.ero_x_axis][1],
                                        ylabel=self.parent.axis_info[self.parent.ero_y_axis][1])
                     plt.show()
 
-            if any([event.key() == getattr(Qt, 'Key_' + s) for s in 'SD']):
+            if any([event.key() == getattr(Qt.Key, 'Key_' + s) for s in 'SD']):
                 self.vb.rbScaleBox.hide()
                 #self.vb.removeItem(self.vb.rbScaleBox)
                 self.vb.setMouseMode(self.vb.PanMode)
@@ -129,7 +129,7 @@ class dataPlot(pg.PlotWidget):
     def mousePressEvent(self, event):
         super(dataPlot, self).mousePressEvent(event)
 
-        self.mousePoint_saved = self.vb.mapSceneToView(event.pos())
+        self.mousePoint_saved = self.vb.mapSceneToView(event.position())
 
     def mouseReleaseEvent(self, event):
         if any([getattr(self, s + '_status') for s in 'sd']):
@@ -146,7 +146,7 @@ class dataPlot(pg.PlotWidget):
 
     def mouseMoveEvent(self, event):
         super(dataPlot, self).mouseMoveEvent(event)
-        self.mousePoint = self.vb.mapSceneToView(event.pos())
+        self.mousePoint = self.vb.mapSceneToView(event.position())
         self.mouse_moved = True
 
         #if any([getattr(self, s + '_status') for s in 'sd']):
@@ -154,7 +154,7 @@ class dataPlot(pg.PlotWidget):
         #    self.vb.rbScaleBox.show()
         pos = self.vb.sceneBoundingRect()
         self.cursorpos.setText('x={0:.3f}, y={1:.2f}'.format(self.mousePoint.x(), self.mousePoint.y()))
-        self.cursorpos.setPos(self.vb.mapSceneToView(QPoint(int(pos.left()) + 10, int(pos.bottom()) - 10)))
+        self.cursorpos.setPos(self.vb.mapSceneToView(QPointF(int(pos.left()) + 10, int(pos.bottom()) - 10)))
         for ind, name in enumerate(['shown_sel', 'selected', 'shown']):
             if name == 'shown_sel':
                 s = np.sum(np.logical_and(np.isfinite(self.parent.x[self.parent.mask]),
@@ -165,21 +165,21 @@ class dataPlot(pg.PlotWidget):
                 s = np.sum(np.logical_and(np.isfinite(self.parent.x),
                                           np.isfinite(self.parent.y)))
             self.selectedstat[name].setText(name + '={0:d}'.format(s))
-            self.selectedstat[name].setPos(self.vb.mapSceneToView(QPoint(int(pos.right()) - 10, int(pos.bottom()) - 10 - ind * 20)))
+            self.selectedstat[name].setPos(self.vb.mapSceneToView(QPointF(int(pos.right()) - 10, int(pos.bottom()) - 10 - ind * 20)))
         self.plotRegLabels(pos)
 
     def plotRegLabels(self, pos):
         for name, ind in zip(['all', 'all_r', 'selected'], [10, 30, 50]):
             if self.reg[name] is not None:
-                self.corr[name].setPos(self.vb.mapSceneToView(QPoint(int(pos.left()) + 10, int(pos.top()) + ind)))
+                self.corr[name].setPos(self.vb.mapSceneToView(QPointF(int(pos.left()) + 10, int(pos.top()) + ind)))
                 self.corr[name].setText(name + ': ' + self.parent.reg[name])
 
-    def mouseDoubleClickEvent(self, ev):
-        super(dataPlot, self).mouseDoubleClickEvent(ev)
-        if ev.button() == Qt.LeftButton:
-            self.mousePos = self.vb.mapSceneToView(ev.pos())
+    def mouseDoubleClickEvent(self, event):
+        super(dataPlot, self).mouseDoubleClickEvent(event)
+        if event.button() == Qt.LeftButton:
+            self.mousePos = self.vb.mapSceneToView(event.position())
             self.parent.index(x=self.mousePos.x(), y=self.mousePos.y())
-            ev.accept()
+            event.accept()
 
 class ComboMultipleBox(QToolButton):
     def __init__(self, parent, name=None):

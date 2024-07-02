@@ -865,6 +865,7 @@ class atomicData(OrderedDict):
         for d in data:
             words = d.split()
             if words[0] not in self:
+                print(words[0])
                 self[words[0]] = e(words[0])
             self[words[0]].lines.append(line(words[0], words[1], words[2], words[3], descr=' '.join(words[4:])))
 
@@ -1602,8 +1603,8 @@ def mean_molecular_weight(f=1, Z=0):
 if __name__ == '__main__':
     if 1:
         A = atomicData()
-        A.getfromNIST('CI', 4)
-        A.getfromNIST('CI', 5)
+        #A.getfromNIST('CI', 4)
+        #A.getfromNIST('CI', 5)
         A.makedatabase()
         A.readdatabase()
 

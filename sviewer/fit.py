@@ -21,10 +21,12 @@ class par:
             self.dec = 3
         elif 'zero' in self.name:
             self.dec = 3
-        elif 'dispz' in self.name:
+        elif 'displ' in self.name:
             self.dec = 1
         elif 'disps' in self.name:
             self.dec = 8
+        elif 'dispz' in self.name:
+            self.dec = 4
         elif 'sts' in self.name:
             self.dec = 3
         elif 'stN' in self.name:
@@ -456,10 +458,12 @@ class fitPars:
             setattr(self, name, par(self, name, 0.1, 0, 1, 0.01, addinfo='all', left=3000, right=9000))
         if 'zero' in name:
             setattr(self, name, par(self, name, 0.0, 0, 1, 0.01, addinfo='all'))
-        if 'dispz' in name:
+        if 'displ' in name:
             setattr(self, name, par(self, name, 5000, 3000, 9000, 0.1, addinfo='exp_0'))
         if 'disps' in name:
             setattr(self, name, par(self, name, 1e-5, -1e-4, 1e-4, 1e-6, addinfo='exp_0'))
+        if 'dispz' in name:
+            setattr(self, name, par(self, name, 0.0, -1, 1, 1e-3, addinfo='exp_0'))
         if 'sts' in name:
             setattr(self, name, par(self, name, -1.5, -2, -1, 0.01))
         if 'stNl' in name:
@@ -553,7 +557,7 @@ class fitPars:
                 self.add('iso', addinfo='D/H')
             res = getattr(self, 'iso').set(val, attr, check=check)
 
-        if s[0] in ['me', 'res', 'cf', 'zero', 'dispz', 'disps', 'hcont', 'sts', 'stNl', 'stNu']:
+        if s[0] in ['me', 'res', 'cf', 'zero', 'displ', 'disps', 'dispz', 'hcont', 'sts', 'stNl', 'stNu']:
             if not hasattr(self, name):
                 self.add(name)
             res = getattr(self, name).set(val, attr, check=check)
@@ -633,7 +637,7 @@ class fitPars:
             if hasattr(self, s[0]):
                 par = getattr(self, s[0])
 
-        if s[0] in ['me', 'cont', 'res', 'cf', 'zero', 'dispz', 'disps', 'sts', 'stNl', 'stNu']:
+        if s[0] in ['me', 'cont', 'res', 'cf', 'zero', 'displ', 'disps', 'dispz', 'sts', 'stNl', 'stNu']:
             if hasattr(self, name):
                 par = getattr(self, name)
 
@@ -714,7 +718,7 @@ class fitPars:
                         pars[str(p)] = p
             if self.disp_num > 0:
                 for i in range(self.disp_num):
-                    for attr in ['dispz', 'disps']:
+                    for attr in ['displ', 'disps', 'dispz']:
                         attr = attr + '_' + str(i)
                         if hasattr(self, attr):
                             p = getattr(self, attr)
@@ -818,6 +822,7 @@ class fitPars:
     def fromJulia(self, res, unc):
         s = ''
         for i, p in enumerate(self.list_fit()):
+            print(i, p, res[i])
             self.setValue(p.__str__(), res[i])
             self.setValue(p.__str__(), unc[i], 'unc')
             self.setValue(p.__str__(), unc[i], 'step')

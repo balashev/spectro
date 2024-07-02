@@ -287,6 +287,41 @@ class gline():
         # self.x_s, self.y_s, self.err_s = self.x, self.y, self.err
         self.n = self.x.shape[0]
 
+def weighted_quantile(values, quantiles, sample_weight=None, axis=0,
+                      values_sorted=False, old_style=False):
+    """ Very close to numpy.percentile, but supports weights.
+    NOTE: quantiles should be in [0, 1]!
+    :param values: numpy.array with data
+    :param quantiles: array-like with many quantiles needed
+    :param sample_weight: array-like of the same length as `array`
+    :param values_sorted: bool, if True, then will avoid sorting of
+        initial array
+    :param old_style: if True, will correct output to be consistent
+        with numpy.percentile.
+    :return: numpy.array with computed quantiles.
+    """
+    values = np.array(values)
+    quantiles = np.array(quantiles)
+    if sample_weight is None:
+        sample_weight = np.ones(len(values))
+    sample_weight = np.array(sample_weight)
+    assert np.all(quantiles >= 0) and np.all(quantiles <= 1), \
+        'quantiles should be in [0, 1]'
+
+    if not values_sorted:
+        sorter = np.argsort(values, axis=axis)
+        values = values[sorter]
+        sample_weight = sample_weight[sorter]
+
+    weighted_quantiles = np.cumsum(sample_weight) - 0.5 * sample_weight
+    if old_style:
+        # To be convenient with numpy.percentile
+        weighted_quantiles -= weighted_quantiles[0]
+        weighted_quantiles /= weighted_quantiles[-1]
+    else:
+        weighted_quantiles /= np.sum(sample_weight)
+    return np.interp(quantiles, weighted_quantiles, values)
+
 class Filter():
     def __init__(self, parent, name, value=None, flux=None, err=None, system='AB'):
         self.parent = parent
@@ -669,11 +704,11 @@ class sed():
             self.values = []
             with open(self.path +  r'/data/Models/bc03_275templates.pickle', 'rb') as f:
                 l = pickle.load(f)
-                self.tau = pickle.load(f)
-                self.tg = pickle.load(f)
+                self.tau = np.asarray([np.log10(p.value) for p in pickle.load(f)])
+                self.tg = np.asarray([np.log10(p.value / 1e9) for p in pickle.load(f)])
                 SED = pickle.load(f)
                 #print(self.tau, self.tg)
-                #print(tau.shape, tg.shape, SED.shape)
+                #print(self.tau.shape, self.tg.shape, SED.shape)
                 for i in range(len(self.tau)):
                     for k in range(len(self.tg)):
                         self.values.append([self.tau[i], self.tg[k]])
@@ -708,7 +743,7 @@ class sed():
 
     def get_model_ind(self, params):
         if self.name == 'gal':
-            return np.argmin(np.abs((params['host_tau'].value - self.tau.value))) * self.n_tg + np.argmin(np.abs((params['host_tg'].value - np.log10(self.tg.value))))
+            return np.argmin(np.abs((params['host_tau'].value - self.tau))) * self.n_tg + np.argmin(np.abs((params['host_tg'].value - self.tg)))
 
         if self.name == 'tor':
             return np.argmin(np.abs((params['tor_type'].value - np.arange(len(self.values)))))
@@ -1068,11 +1103,14 @@ class QSOSEDfit():
     def lnlike_nest(self, pars):
         #print(pars)
         params = self.set_params(pars)
+        #if not np.isfinite(- .5 * np.sum(np.power(self.ln_like(params), 2))):
+        #    print([[p.name, pars[i]] for i, p in enumerate(self.params.values())])
+        #    input()
         #print(- .5 * np.sum(np.power(self.ln_like(params), 2)))
-        if not np.isfinite(- .5 * np.sum(np.power(self.ln_like(params), 2))):
-            print([[p.name, pars[i]] for i, p in enumerate(self.params.values())])
-            input()
-        return - .5 * np.sum(np.power(self.ln_like(params), 2))
+        #print(len(self.ln_like(params)[::10]), - .5 * np.sum(np.power(self.ln_like(params)[::10], 2)), self.ln_like(params)[::10])
+        y = self.ln_like(params)[:]
+        #print(y)
+        return - .5 * np.sum(np.power(y[np.isfinite(y)], 2))
         #return lp -.5 * np.sum(np.power(self.ln_like_slope(pars), 2))
 
     def ptform(self, u):
@@ -1080,34 +1118,37 @@ class QSOSEDfit():
         x = np.array(u)
         for i, p in enumerate(self.params.values()):
             if p.name == 'bbb_slope':
-                x[i] = st.norm.ppf(u[i], loc=-0.1, scale=0.3)
+                x[i] = st.norm.ppf(u[i], loc=0.0, scale=0.3)
             elif p.name == 'Fe_norm':
                 x[i] = st.norm.ppf(u[i], loc=0.0, scale=0.2)
             elif p.name == 'host_tau':
-                x[i] = st.expon.ppf(u[i])
+                x[i] = np.min([st.expon.ppf(u[i]), p.max])
             elif p.name == 'host_tg':
-                x[i] = p.max - st.expon.ppf(u[i])
+                x[i] = np.max([p.max - st.expon.ppf(u[i]), 0])
             elif p.name == 'host_Av':
-                x[i] = st.expon.ppf(u[i])
+                x[i] = st.expon.ppf(u[i], scale=0.2)
             elif p.name == 'Rv':
                 x[i] = st.norm.ppf(u[i], loc=2.71, scale=0.2)
             elif p.name == 'EBV':
-                x[i] = st.expon.ppf(u[i])
+                x[i] = st.expon.ppf(u[i], scale=0.1)
             elif 'alpha' in p.name:
                 x[i] = st.norm.ppf(u[i], loc=0.0, scale=0.3)
             elif 'slope' in p.name:
                 x[i] = st.norm.ppf(u[i], loc=0.0, scale=0.3)
             elif p.name == 'sigma':
                 x[i] = st.norm.ppf(u[i], loc=0.2, scale=0.05)
-            elif 'norm' in p.name:
-                x[i] = st.norm.ppf(u[i], loc=p.value, scale=p.stderr*2)
+            #elif 'norm' in p.name:
+            #    x[i] = st.norm.ppf(u[i], loc=p.value, scale=1)
                 #print(print(p.name, p.value, p.stderr, u[i], x[i]))
             else:
                 x[i] = p.min + (p.max - p.min) * u[i]
                 #print(p.name, p.min, p.max, u[i], x[i])
-            #print(p.name, prior)
+
+            x[i] = min(max(x[i], p.min), p.max)
+            #print(p.name, i, x[i])
         #print([[p.name, x[i]] for i, p in enumerate(self.params.values())])
         #input()
+        #print(x)
         return x
         #return lp -.5 * np.sum(np.power(self.ln_like_slope(pars), 2))
 
@@ -1245,18 +1286,22 @@ class QSOSEDfit():
             params = lmfit.Parameters()
             params.add('bbb_norm', value=norm_bbb, min=-3, max=3)
             params.add('bbb_slope', value=0, min=-2, max=2)
+            params.add('Fe_norm', value=0, min=-1, max=100, vary=True)
             params.add('EBV', value=0.0, min=0.0, max=10)
-            print("tor_types:", self.models['tor'].n - 1)
+            params.add('Rv', value=2.74, min=0.5, max=6.0, vary=True)
             params.add('tor_type', value=10, vary=True, min=0, max=self.models['tor'].n - 1)
             params.add('tor_norm', value=np.log10(norm_bbb / np.max(self.models['bbb'].data['spec'][0]) * np.max(self.models['tor'].data['spec'][params['tor_type'].value])), min=-3, max=2)
-            params.add('host_tau', value=0.3, vary=True, min=self.models['gal'].tau[0].value, max=3)
-            params.add('host_tg', value=np.log10(Planck15.age(self.d['z']).to('yr').value) - 1, vary=True,
-                       min=np.log10(self.models['gal'].tg[0].value),
-                       max=np.log10(Planck15.age(self.d['z']).to('yr').value))
+            #params.add('host_tau', value=0.3, vary=True, min=self.models['gal'].tau[0].value, max=Planck15.age(self.d['z']).to('Gyr').value)
+            #params.add('host_tg', value=Planck15.age(self.d['z']).to('Gyr').value / 2, vary=True, min=self.models['gal'].tg[0].value, max=min(10, Planck15.age(self.d['z']).to('Gyr').value))
+            params.add('host_tau', value=np.log10(0.2), min=self.models['gal'].tau[0],
+                       max=np.log10(Planck15.age(self.d['z']).to('Gyr').value), vary=True)
+            params.add('host_tg', value=np.log10(min(Planck15.age(self.d['z']).to('Gyr').value, 10) / 2),
+                       min=self.models['gal'].tg[0], max=min(np.log10(Planck15.age(self.d['z']).to('Gyr').value), self.models['gal'].tg[-1]), vary=True)
+            print(params['host_tg'])
             # print('age:', np.log10(Planck15.age(self.d['z']).to('yr').value))
             params.add('host_norm', value=np.log10(np.nanmean(self.sm[1]) / np.nanmean(
                 self.models['gal'].data['spec'][self.models['gal'].get_model_ind(params)])), min=-4, max=2)
-            params.add('host_Av', value=0.1, min=0, max=5.0)
+            params.add('host_Av', value=0.1, min=0, max=10.0)
 
         if params['host_norm'].value < params['bbb_norm'].value - 2:
             params['host_norm'].value = params['bbb_norm'].value - 2
@@ -1275,9 +1320,8 @@ class QSOSEDfit():
                      'host_norm': [0.1, 0.1],
                      'host_Av': [0.01, 0.2]
                      }
-
+        cov = {}
         if not new:
-            cov = {}
             params['host_Av'].max = 5
             # params['host_tau'].value = 0.1
             for k in cov_range.keys():
@@ -1286,6 +1330,9 @@ class QSOSEDfit():
                     params[k].stderr = np.median(cov_range[k])
                 if params[k].vary == True:
                     cov[k] = max([cov_range[k][0], min([cov_range[k][1], params[k].stderr])])
+        else:
+            for k in cov_range.keys():
+                cov[k] = np.median(cov_range[k])
 
         if 'Fe_norm' in params.keys():
             params['Fe_norm'].vary = True
@@ -1691,11 +1738,12 @@ class QSOSEDfit():
                 params.add('host_type', value=0, min=0, max=self.models['host'].n - 1, vary=var['host_type'])
             else:
                 #print('age:', np.log10(Planck15.age(self.d['z']).to('yr').value))
-                params.add('host_tau', value=0.2, min=self.models['gal'].tau[0].value, max=3, vary=var['host_tau'])
-                params.add('host_tg', value=np.log10(Planck15.age(self.d['z']).to('yr').value), min=np.log10(self.models['gal'].tg[0].value), max=np.log10(Planck15.age(self.d['z']).to('yr').value), vary=var['host_tg'])
+                params.add('host_tau', value=np.log10(0.2), min=self.models['gal'].tau[0], max=np.log10(Planck15.age(self.d['z']).to('Gyr').value), vary=var['host_tau'])
+                params.add('host_tg', value=np.log10(min(Planck15.age(self.d['z']).to('Gyr').value, 10) / 2), min=self.models['gal'].tg[0], max=min(np.log10(Planck15.age(self.d['z']).to('Gyr').value), self.models['gal'].tg[-1]), vary=var['host_tg'])
+                print('anneal', params['host_tg'], self.models['gal'].tg[0], min(np.log10(Planck15.age(self.d['z']).to('Gyr').value), self.models['gal'].tg[-1]))
             norm_gal = np.log10(np.nanmean(self.sm[1]) / np.nanmean(self.models['gal'].data['spec'][233]))
             params.add('host_norm', value=norm_gal, min=-3, max=2, vary=var['host_norm'])
-            params.add('host_Av', value=0.5, min=0, max=5.0, vary=var['host_Av'])
+            params.add('host_Av', value=0.5, min=0, max=10.0, vary=var['host_Av'])
 
         anneal_pars = OrderedDict([('tor_type', [int, 5])]) #, ('host_tau', [float, 0.5])]) #, ('host_tg', [float, 0.5])])
         #self.ln_like(params, plot=1)
@@ -1727,30 +1775,164 @@ class QSOSEDfit():
             result, chi2_min = self.anneal_fit(anneal_steps=30, vary={'host_norm': True, 'host_tau': False, 'host_tg': False, 'host_Av': False})
             #result, chi2_min = self.anneal_fit(anneal_steps=30)
             params, cov = self.prepare_params(result.params)
-            print(params, cov)
-            print(len([p for p in params.values() if p.vary]))
+            #print(params, cov)
             self.params = params
             ndim = len([p for p in params.values() if p.vary])
-            if 'dyn' in method:
-                sampler = dynesty.DynamicNestedSampler(self.lnlike_nest, self.ptform, ndim, nlive=2000, bound='balls')
+            if calc:
+                if 'dyn' in method:
+                    sampler = dynesty.DynamicNestedSampler(self.lnlike_nest, self.ptform, ndim, nlive=100) #, bound='balls')
+                else:
+                    sampler = dynesty.NestedSampler(self.lnlike_nest, self.ptform, ndim, nlive=2000, bound='multi')
+                sampler.run_nested(maxiter=self.mcmc_steps, checkpoint_file=os.path.dirname(self.catalog) + '/QC/dynesty/' + self.d['SDSS_NAME'] + '.save', print_progress=True) #, maxcall=500000)
             else:
-                sampler = dynesty.NestedSampler(self.lnlike_nest, self.ptform, ndim, nlive=2000, bound='balls')
-            sampler.run_nested(maxiter=self.mcmc_steps) #, maxcall=500000)
+                sampler = dynesty.DynamicNestedSampler.restore(os.path.dirname(self.catalog) + '/QC/dynesty/' + self.d['SDSS_NAME'] + '.save')
+                # resume
+                sampler.run_nested(resume=True)
             results = sampler.results
+
+            quantiles = [0.16, 0.5, 0.84]
             # Plot a summary of the run.
             rfig, raxes = dyplot.runplot(sampler.results)
-
-            plt.show()
-
+            rfig.savefig(os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_run.png')
             # Plot traces and 1-D marginalized posteriors.
-            tfig, taxes = dyplot.traceplot(sampler.results)
-
-            plt.show()
-
+            tfig, taxes = dyplot.traceplot(sampler.results, quantiles=quantiles, show_titles=True)
+            tfig.savefig(os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_trace.png')
             # Plot the 2-D marginalized posteriors.
-            cfig, caxes = dyplot.cornerplot(sampler.results)
+            cfig, caxes = dyplot.cornerplot(sampler.results, quantiles=quantiles, show_titles=True)
+            cfig.savefig(os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_corner.png')
 
-            plt.show()
+            if 1:
+                # >>> statistical determination:
+                print("calc stats for ", self.ind)
+                res = {}
+                sample = results.samples[:]
+                weights = results.importance_weights()
+                print(params)
+                for i, p in enumerate(list(params.keys()) + ['M_UV', 'L_host', 'Av', 'L_UV_ext', 'L_UV_corr']):
+                    if p not in ['M_UV', 'L_host', 'Av', 'L_UV_ext', 'L_UV_corr']:
+                        d = dynesty.utils.quantile(sample[:, i], quantiles, weights=weights)
+                    else:
+                        print(p)
+                        s = []
+                        for l in range(sample.shape[0]):
+                            for j, p1 in enumerate(params.keys()):
+                                params[p1].value = sample[l, j]
+                            if p == 'L_host':
+                                s.append(np.log10(self.calc_host_lum(params, wave='bol')))
+                            elif p == 'M_UV':
+                                s.append(-2.5 * np.log10(self.calc_host_lum(params, wave=1700) * 9.64e-13) + 51.6)
+                            elif p == 'Av':
+                                s.append(params['EBV'].value * params['Rv'].value)
+                            elif p == 'L_UV_ext':
+                                s.append(np.log10(
+                                    (self.d['L_UV'] + np.random.randn() * self.d['L_UV_err']) / self.extinction(
+                                        2500, params)))
+                                # print(self.d['L_UV'], np.log10(self.d['L_UV'] + np.random.randn() * self.d['L_UV_err']), self.extinction(2500, params), s[-1])
+                            elif p == 'L_UV_corr':
+                                sind = np.argmin(np.abs(self.sm[0] - 2500 * (1 + self.d['z'])))
+                                scaling = (1e-17 * u.erg / u.cm ** 2 / u.AA / u.s).to(
+                                    u.erg / u.cm ** 2 / u.s / u.Hz,
+                                    equivalencies=u.spectral_density(2500 * u.AA * (1 + self.d['z']))).value
+                                s.append(np.log10(self.models['bbb'].data['spec'][0][sind] * 10 ** params[
+                                    'bbb_norm'].value * 0.85 * scaling * 4 * np.pi * Planck15.luminosity_distance(
+                                    self.d['z']).to('cm').value ** 2 / (1 + self.d['z'])))
+                        if np.sum(np.isfinite(s)) > 0:
+                            d = dynesty.utils.quantile(np.asarray(s)[np.isfinite(s)], quantiles, weights=weights[np.isfinite(s)])
+                        else:
+                            d = None
+                    print(p, d)
+                    if d is not None:
+                        res[p] = a(d[1], d[2] - d[1], d[1] - d[0])
+
+            print('res:', res)
+            # >>> plot spectra
+            if self.plot:
+                print("plot spectrum of ", self.ind)
+                inds = np.random.randint(results.samples.shape[0], size=400)
+                weights = results.importance_weights()
+                inds = np.where(weights > np.max(weights) / 2)[0]
+                inds = inds[np.random.randint(len(inds), size=400)]
+                total, bbb, tor, host = [], [], [], []
+                s = {}
+                for k in ['total', 'bbb', 'tor', 'host'] + list(self.filters.keys()):
+                    s[k] = []
+                for i in inds:
+                    # params = result.params
+                    for k, p in enumerate(params.keys()):
+                        # print(ind, k, flat_sample[ind, k])
+                        params[p].value = results.samples[i, k]
+                        # if p in ['tor_type', 'host_tau', 'host_tg']:
+                        #    params[p].value = np.max([params[p].min, np.min([params[p].max, round(params[p].value)])])
+                    # self.ln_like(params, plot=plot)
+                    # plot = 0
+                    s['total'].append(self.model_emcee(params, self.spec[0], 'spec_full', mtype='total'))
+                    s['bbb'].append(self.models['bbb'].models[0].y * 10 ** params['bbb_norm'].value * (
+                                self.models['bbb'].models[0].x / 2500) ** params['bbb_slope'].value * self.extinction(
+                        self.models['bbb'].models[0].x, params))
+                    # s['bbb'].append(self.models['bbb'].models[0].y * params['bbb_norm'].value * (self.models['bbb'].models[0].x / 2500) ** (-0.1) * self.extinction(self.models['bbb'].models[0].x, params))
+
+                    s['tor'].append(
+                        self.models['tor'].models[self.models['tor'].get_model_ind(params)].y * 10 ** params[
+                            'tor_norm'].value)
+                    if self.hostExt:
+                        s['host'].append(
+                            self.models['gal'].models[self.models['gal'].get_model_ind(params)].y * 10 ** params[
+                                'host_norm'].value * self.extinction_MW(
+                                self.models['gal'].models[self.models['gal'].get_model_ind(params)].x,
+                                Av=params['host_Av'].value))
+                        # s['total'][-1] += self.models['gal'].models[self.models['gal'].get_model_ind(params)].flux(self.spec[0] / (1 + self.d['z'])) * 10 ** params['host_norm'].value * self.extinction(self.spec[0] / (1 + self.d['z']), Av=params['host_Av'].value)
+
+                    # >>> filters fluxes:
+                    for k, f in self.filters.items():
+                        if self.filters[k].fit:
+                            s[k].append(self.model_emcee(params, f.x, k, mtype='total'))
+
+                self.fig.axes[0].fill_between(self.models['bbb'].models[0].x,
+                                              *np.quantile(np.asarray(s['bbb']), [0.05, 0.95], axis=0), lw=1,
+                                              color='tab:blue', zorder=3, label='bbb', alpha=0.5)
+                self.fig.axes[0].fill_between(self.models['tor'].models[self.models['tor'].get_model_ind(params)].x,
+                                              *np.quantile(np.asarray(s['tor']), [0.05, 0.95], axis=0), lw=1,
+                                              color='tab:green', zorder=3, label='tor', alpha=0.5)
+                # ax.plot(tor.x, tor.y * 10 ** params['tor_norm'].value, '--', color='tab:orange', zorder=2, label='composite', alpha=alpha)
+                if self.hostExt:
+                    self.fig.axes[0].fill_between(self.models['gal'].models[self.models['gal'].get_model_ind(params)].x,
+                                                  *np.quantile(np.asarray(s['host']), [0.05, 0.95], axis=0), lw=1,
+                                                  color='tab:purple', zorder=2, label='host galaxy', alpha=0.5)
+
+                for k, f in self.filters.items():
+                    if self.filters[k].fit:
+                        # print(k, f.x / (1 + self.d['z']), *np.quantile(np.asarray(s[k]), [0.05, 0.95], axis=0))
+                        self.fig.axes[0].fill_between(f.x / (1 + self.d['z']),
+                                                      *np.quantile(np.asarray(s[k]), [0.05, 0.95], axis=0),
+                                                      color=[c / 255 for c in f.color], lw=1, zorder=3, alpha=0.5)
+
+                self.fig.axes[0].fill_between(self.spec[0] / (1 + self.d['z']),
+                                              *np.quantile(np.asarray(s['total']), [0.05, 0.95], axis=0), lw=1,
+                                              color='tab:red', zorder=3, label='total', alpha=0.5)
+
+                if 1:
+                    title = "id={0:4d} {1:19s} ({2:5d} {3:5d} {4:4d}) z={5:5.3f}".format(
+                        ind, self.df.loc[ind, 'SDSS_NAME'], self.df.loc[ind, 'PLATE'], self.df.loc[ind, 'MJD'],
+                        self.df.loc[ind, 'FIBERID'], self.df.loc[ind, 'z'])
+                          # params['bbb_slope'].value
+                    if 1:
+                        title += " slope={0:s} EBV={1:s} chi2={2:4.2f}".format(str(res['bbb_slope']).replace('in log format', ''), str(res['EBV']).replace('in log format', ''), chi2_min)
+                    if 0 and self.hostExt:
+                        # title += " fgal={1:4.2f} {0:s}".format(self.models['host'].values[host_min], self.df['f_host' + '_photo' * self.addPhoto.isChecked()][i])
+                        title += " fgal={2:4.2f} tau={0:4.2f} tg={1:4.2f}".format(self.models['gal'].values[host_min][0],
+                                                                                  self.models['gal'].values[host_min][1],
+                                                                                  self.df['f_host' + '_photo' * self.addPhoto][i])
+                    self.fig.axes[0].set_title(title)
+
+                if self.save:
+                    self.fig.savefig(
+                        os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.df.loc[ind, 'SDSS_NAME'] + '_spec.png',
+                        bbox_inches='tight', pad_inches=0.1)
+
+                # print(self.fig)
+                # self.fig.show()
+                # plt.close(self.fig)
+            return res
 
         elif method in ['emcee', 'zeus'] and self.hostExt and any([f in self.filters.keys() for f in ['J_UKIDSS', 'H_UKIDSS', 'K_UKIDSS', 'J', 'H', 'K', 'W1', 'W2']]): #and any([f in self.filters.keys() for f in ['W3', 'W4']]):
             if calc:
@@ -1887,6 +2069,45 @@ class QSOSEDfit():
             ax.plot(self.spec[0] / (1 + self.d['z']), temp, '-', lw=2, color='tab:red', zorder=3, label='total profile', alpha=alpha)
             # print(np.sum(((temp - spec[1]) / spec[2])[mask] ** 2) / np.sum(mask))
 
+    def plot_spec_nest(self, results, fig=None, alpha=1):
+        if fig is None or self.fig is None:
+            self.fig, ax = plt.subplots(figsize=(20, 12))
+        else:
+            ax = self.fig.axes[0]
+
+        host_min = params['host_tau'].value * (params['host_tg'].max + 1) + params['host_tg'].value
+        bbb, tor, host = self.models['bbb'].models[0], self.models['tor'].models[params['tor_type'].value], self.models['gal'].models[host_min]
+
+        # >>> plot templates:
+        if alpha == 1:
+            ax.plot(bbb.x, bbb.y * 10 ** params['bbb_norm'].value, '--', color='tab:blue', zorder=2, label='composite', alpha=alpha)
+        ax.plot(bbb.x, bbb.y * 10 ** params['bbb_norm'].value * self.extinction(bbb.x, params),
+                '-', color='tab:blue', zorder=3, label='comp with ext', alpha=alpha)
+        ax.plot(tor.x, tor.y * 10 ** params['tor_norm'].value, '--', color='tab:orange', zorder=2, label='composite', alpha=alpha)
+        if self.hostExt:
+            if alpha == 1:
+                ax.plot(host.x, host.y * 10 ** params['host_norm'].value, '--', color='tab:purple', zorder=2, label='host galaxy', alpha=alpha)
+
+            ax.plot(host.x, host.y * 10 ** params['host_norm'].value * self.extinction_MW(host.x, Av=params['host_Av'].value), '-', color='tab:purple', zorder=2, label='host galaxy', alpha=alpha)
+
+        # >>> plot filters fluxes:
+        for k, f in self.filters.items():
+            temp = bbb.flux(f.x / (1 + self.d['z'])) * self.extinction(f.x / (1 + self.d['z']), params) * 10 ** params['bbb_norm'].value + tor.flux(f.x / (1 + self.d['z'])) * 10 ** params['tor_norm'].value
+            if self.hostExt:
+                temp += host.flux(f.x / (1 + self.d['z'])) * 10 ** params['host_norm'].value * self.extinction_MW(f.x / (1 + self.d['z']), Av=params['host_Av'].value)
+            ax.plot(f.x / (1 + self.d['z']), temp, '-', color=[c / 255 for c in f.color], lw=2, zorder=3, alpha=alpha)
+            # ax.scatter(f.filter.l_eff, f.filter.get_value(x=f.x, y=temp * self.extinction(f.x * (1 + self.d['z']), Av=params['Av'].value) * params['norm'].value),
+            #           s=20, marker='o', c=[c/255 for c in f.filter.color])
+
+        # >>> total profile:
+        temp = bbb.flux(self.spec[0] / (1 + self.d['z'])) * 10 ** params['bbb_norm'].value * self.extinction(self.spec[0] / (1 + self.d['z']), params) + tor.flux(self.spec[0] / (1 + self.d['z'])) * 10 ** params['tor_norm'].value
+        if self.hostExt:
+            temp += host.flux(self.spec[0] / (1 + self.d['z'])) * 10 ** params['host_norm'].value * self.extinction_MW(self.spec[0] / (1 + self.d['z']), Av=params['host_Av'].value)
+
+        ax.plot(self.spec[0] / (1 + self.d['z']), temp, '-', lw=2, color='tab:red', zorder=3, label='total profile', alpha=alpha)
+        # print(np.sum(((temp - spec[1]) / spec[2])[mask] ** 2) / np.sum(mask))
+
+
     def expand_mask(self, mask, exp_pixel=1):
         m = np.copy(mask)
         for p in itertools.product(np.linspace(-exp_pixel, exp_pixel, 2*exp_pixel+1).astype(int), repeat=2):
@@ -2009,15 +2230,15 @@ class jsoncat():
         return self.data
 
 def worker_wrapper(arg):
-    ind, catfile = arg
-    return run_model(ind, catfile=catfile)
+    ind, catfile, mcmc_steps, anneal_steps = arg
+    return run_model(ind, catfile=catfile, mcmc_steps=mcmc_steps, anneal_steps=anneal_steps, method='nested_dyn')
 
-def run_model(ind, catfile=None):
+def run_model(ind, catfile=None, mcmc_steps=10000, anneal_steps=300, method='emcee'):
     print(ind)
 
-    qso = QSOSEDfit(catalog=catfile, plot=1, mcmc_steps=10000, anneal_steps=300, save=1, corr=50, verbose=0)
+    qso = QSOSEDfit(catalog=catfile, plot=1, mcmc_steps=mcmc_steps, anneal_steps=anneal_steps, save=1, corr=50, verbose=0)
     if qso.prepare(ind):
-        res = qso.fit(ind, method='emcee')
+        res = qso.fit(ind, method=method, calc=1)
     else:
         res = None
     return (int(ind), res)
@@ -2040,7 +2261,11 @@ if __name__ == "__main__":
         i1, i2 = 1, 1
 
     if 0:
-        res = run_model(0, catfile=catfile)
+        ind = 3
+        if 0:
+            res = run_model(ind, catfile=catfile, mcmc_steps=500, anneal_steps=50, method='emcee')
+        else:
+            res = run_model(ind, catfile=catfile, method='nested_dyn')
         print(res)
     else:
         #pars = ['bbb_norm', 'Av', 'tor_type', 'tor_norm', 'host_tau', 'host_tg', 'host_norm', 'host_Av', 'sigma', 'alpha_GALEX', 'alpha_SDSS', 'alpha_2MASS', 'alpha_UKIDSS']
@@ -2048,9 +2273,10 @@ if __name__ == "__main__":
         calc = 1
         if calc:
             if 1:
-                for i in range(2): # range(7975 // num + 1):
+                for i in range(6, 8): # range(7975 // num + 1):
+                    if i % i2 + 1 == i1:
                         with Pool(num) as p:
-                            res_new = p.map(worker_wrapper, [(k, catfile) for k in np.arange(i * num, min((i + 1) * num, 7975))]) #total number of AGNs 7975
+                            res_new = p.map(worker_wrapper, [(k, catfile, 10000, 300) for k in np.arange(i * num, min((i + 1) * num, 7975))]) #total number of AGNs 7975
                         print(res_new)
                         res = jsoncat(path=path)
                         res.add(res_new)

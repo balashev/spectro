@@ -2185,8 +2185,8 @@ class Spectrum():
             # >>> correct for dispersion:
             if self.parent.fit.disp_num > 0:
                 for i in range(self.parent.fit.disp_num):
-                    if getattr(self.parent.fit, 'dispz_' + str(i)).addinfo == 'exp_' + str(self.ind()):
-                        f = interp1d(x + (x - getattr(self.parent.fit, 'dispz_' + str(i)).val) * getattr(self.parent.fit,'disps_' + str(i)).val, flux, bounds_error=False, fill_value=1)
+                    if getattr(self.parent.fit, 'displ_' + str(i)).addinfo == 'exp_' + str(self.ind()):
+                        f = interp1d(x + (x - getattr(self.parent.fit, 'displ_' + str(i)).val) * getattr(self.parent.fit,'disps_' + str(i)).val + getattr(self.parent.fit,'dispz_' + str(i)).val, flux, bounds_error=False, fill_value=1)
                         flux = f(x)
 
             # >>> set fit graphics
@@ -2427,8 +2427,8 @@ class Spectrum():
             # >>> correct for dispersion:
             if self.parent.fit.disp_num > 0:
                 for i in range(self.parent.fit.disp_num):
-                    if getattr(self.parent.fit, 'dispz_' + str(i)).addinfo == 'exp_' + str(self.ind()):
-                        f = interp1d(x + (x - getattr(self.parent.fit, 'dispz_' + str(i)).val) * getattr(self.parent.fit, 'disps_' + str(i)).val, flux, bounds_error=False, fill_value=1)
+                    if getattr(self.parent.fit, 'displ_' + str(i)).addinfo == 'exp_' + str(self.ind()):
+                        f = interp1d(x + (x - getattr(self.parent.fit, 'displ_' + str(i)).val) * getattr(self.parent.fit, 'disps_' + str(i)).val + getattr(self.parent.fit, 'dispz_' + str(i)).val, flux, bounds_error=False, fill_value=1)
                         flux = f(x)
 
             # >>> set fit graphics
@@ -3056,12 +3056,12 @@ class CompositeSpectrum():
 
     def setData(self):
         if self.type == 'QSO':
-            self.qso_names = ['X-shooter', 'SDSS', 'HST', 'power', 'power+FeII']
+            self.qso_names = ['X-shooter', 'SDSS', 'VandenBerk',  'HST', 'power', 'power+FeII']
             if self.parent.compositeQSO_status == 1:
                 self.spec = np.genfromtxt('data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
                 self.spec = self.spec[:, np.logical_or(self.spec[1] != 0, self.spec[1] != 0)]
                 self.spec[1] = smooth(self.spec[1], mode='same')
-                if 0:
+                if 1:
                     #x = self.spec[0][-1] + np.arange(1, int((25000 - self.spec[0][-1]) / 0.4)) * 0.4
                     x = self.spec[0][-1] * np.linspace(1, 30, 100)
                     y = np.power(x / 11350, -0.5) * 0.43
@@ -3073,12 +3073,14 @@ class CompositeSpectrum():
             elif self.parent.compositeQSO_status == 3:
                 self.spec = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
             elif self.parent.compositeQSO_status == 5:
-                self.spec = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
+                self.spec = np.genfromtxt('data/SDSS/QSO_composite.dat', skip_header=0, unpack=True)
             elif self.parent.compositeQSO_status == 7:
+                self.spec = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
+            elif self.parent.compositeQSO_status == 9:
                 self.spec = np.ones((2, 1000))
                 self.spec[0] = np.linspace(500, 25000, self.spec.shape[1])
                 self.spec[1] = np.power(self.spec[0] / 2500, -1.9)
-            elif self.parent.compositeQSO_status == 9:
+            elif self.parent.compositeQSO_status == 11:
                 self.spec = np.ones((2, 25000))
                 self.spec[0] = np.linspace(500, 25000, self.spec.shape[1])
                 self.spec[1] = np.power(self.spec[0] / 2500, -1.7)
@@ -3124,7 +3126,7 @@ class CompositeSpectrum():
     def remove(self):
         if self.type == 'QSO':
             self.parent.compositeQSO_status += 1
-            if self.parent.compositeQSO_status == 10:
+            if self.parent.compositeQSO_status == 12:
                 self.parent.compositeQSO_status = 0
         if self.type == 'Galaxy':
             self.parent.compositeGal_status += 1

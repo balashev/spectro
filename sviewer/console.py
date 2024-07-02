@@ -580,7 +580,7 @@ class Console(QTextEdit):
                 mask = (xmin < spec.x()) * (spec.x() < xmax)
                 waver = DescrStatsW(spec.y()[mask], weights=1.0/spec.err()[mask], ddof=1)
                 if np.sum(mask) > 0:
-                    st += ' {0:10.3f}  {1:10.3f}  {2:10.3f}\n'.format(np.average(spec.y()[mask]), waver.mean, waver.std)
+                    st += ' {0:10.3f}  {1:10.3f}  {2:10.3f}\n'.format(np.average(spec.y()[mask]), waver.mean, waver.std_mean)
             return st
 
         elif args[0] == 'ew':

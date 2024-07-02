@@ -30,17 +30,17 @@ class FLineEdit(QLineEdit):
             #locale.RejectGroupSeparator = 1
             validator.setLocale(locale)
             validator.Notation.ScientificNotation
-            if self.name[:1] == 'z':
+            if self.name[:1] in ['z', 'd']:
                 validator.setDecimals(8)
-            if self.name[:1] in ['b', 'N', 'd', 'm', 'c', 'r', 'l', 's']:
+            if self.name[:1] in ['b', 'N', 'm', 'c', 'r', 'l', 's']:
                 validator.setDecimals(4)
             self.setValidator(validator)
 
     def setLength(self, l=None):
         if l is None:
-            if self.name[:1] == 'z':
+            if self.name[:1] in ['z', 'd']:
                 self.setMaxLength(10)
-            if self.name[:1] in ['b', 'N', 'd', 'm', 'c', 'r', 'l', 's']:
+            if self.name[:1] in ['b', 'N', 'm', 'c', 'r', 'l', 's']:
                 self.setMaxLength(7)
         else:
             self.setMaxLength(l)
@@ -48,7 +48,7 @@ class FLineEdit(QLineEdit):
     def calcFit(self):
         if self.var in ['N', 'b', 'z', 'kin', 'turb', 'v', 'c', 'Ntot', 'logn', 'logT', 'rad', 'CMB']:
             self.parent.parent.s.reCalcFit() #self.parent.tab.currentIndex())
-        elif self.var in ['mu', 'zero', 'iso'] or any([x in self.var for x in ['me', 'dispz', 'disps', 'res', 'st']]):
+        elif self.var in ['mu', 'zero', 'iso'] or any([x in self.var for x in ['me', 'displ', 'disps', 'dispz', 'res', 'st']]):
             self.parent.parent.s.prepareFit()
             self.parent.parent.s.calcFit()
 
@@ -405,8 +405,9 @@ class fitModelWidget(QWidget):
         self.disp_num.returnPressed.connect(self.numDispChanged)
         self.treeWidget.setItemWidget(self.disp_m, 4, self.disp_num)
         for i in range(self.parent.fit.disp_num):
-            self.addChild('disp', 'dispz_' + str(i), text_val='zero p. ' + str(i))
+            self.addChild('disp', 'displ_' + str(i), text_val='cross lambda ' + str(i))
             self.addChild('disp', 'disps_' + str(i), text_val='slope ' + str(i))
+            self.addChild('disp', 'dispz_' + str(i), text_val='zero level ' + str(i))
         #self.disp.setExpanded(self.parent.fit.disp_fit)
 
         self.stack = self.addParent(self.treeWidget, 'Stack', expanded=self.parent.fit.stack_num > 0)
@@ -515,7 +516,7 @@ class fitModelWidget(QWidget):
                 #getattr(self, name + '_applied').triggered.connect(partial(self.setApplied, name=name))
                 self.treeWidget.setItemWidget(getattr(self, name), 10, getattr(self, name + '_applied'))
 
-            if any([x in name for x in ['res', 'cf', 'zero', 'dispz', 'sts']]) and k > 2:
+            if any([x in name for x in ['res', 'cf', 'zero', 'displ', 'sts']]) and k > 2:
                 setattr(self, name + '_applied_exp', QComboBox(self))
                 combo = getattr(self, name + '_applied_exp')
                 combo.setFixedSize(70, 30)
@@ -664,7 +665,7 @@ class fitModelWidget(QWidget):
                     except:
                         pass
 
-                if 'dispz' in str(disp):
+                if 'displ' in str(disp):
                     try:
                         combo = getattr(self, str(disp) + '_applied_exp')
                         combo.clear()
@@ -894,11 +895,13 @@ class fitModelWidget(QWidget):
             #self.parent.fit.disp_fit = self.disp.isExpanded()
             for i in range(self.parent.fit.disp_num):
                 if self.disp.isExpanded():
-                    self.parent.fit.add('dispz_'+str(i))
+                    self.parent.fit.add('displ_' + str(i))
                     self.parent.fit.add('disps_' + str(i))
+                    self.parent.fit.add('dispz_' + str(i))
                 else:
-                    self.parent.fit.remove('dispz_'+str(i))
+                    self.parent.fit.remove('displ_' + str(i))
                     self.parent.fit.remove('disps_' + str(i))
+                    self.parent.fit.remove('dispz_' + str(i))
 
         if self.refr:
             self.refresh('stateChanged')
@@ -1039,11 +1042,11 @@ class fitModelWidget(QWidget):
             rang = range(self.parent.fit.disp_num, k) if sign == 1 else range(self.parent.fit.disp_num-1, k-1, -1)
             for i in list(rang):
                 if k > self.parent.fit.disp_num:
-                    for attr in ['dispz', 'disps']:
+                    for attr in ['displ', 'disps', 'dispz']:
                         self.parent.fit.add(attr + '_' + str(i))
                         self.addChild('disp', attr + '_' + str(i), text_val=attr + ' ' + str(i))
                 else:
-                    for attr in ['dispz', 'disps']:
+                    for attr in ['displ', 'disps', 'dispz']:
                         self.parent.fit.remove(attr + '_' + str(i))
                         getattr(self, 'disp').removeChild(getattr(self, attr + '_' + str(i)))
             self.parent.fit.disp_num = k
