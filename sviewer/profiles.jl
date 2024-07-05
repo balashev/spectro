@@ -258,13 +258,13 @@ function update_pars(pars, spec, add)
             spec[parse(Int, pars[k].addinfo[5:end]) + 1].resolution = pars[k].val
         end
         if occursin("displ", pars[k].name)
-            spec[parse(Int, split(pars[k].name, "_")[2]) + 1].displ = pars[k].val
+            spec[parse(Int, split(pars[k].addinfo, "_")[2]) + 1].displ = pars[k].val
         end
         if occursin("disps", pars[k].name)
-            spec[parse(Int, split(pars[k].name, "_")[2]) + 1].disps = pars[k].val
+            spec[parse(Int, split(pars[k].addinfo, "_")[2]) + 1].disps = pars[k].val
         end
         if occursin("dispz", pars[k].name)
-            spec[parse(Int, split(pars[k].name, "_")[2]) + 1].dispz = pars[k].val
+            spec[parse(Int, split(pars[k].addinfo, "_")[2]) + 1].dispz = pars[k].val
         end
         if occursin("Ntot", pars[k].name)
             ind = split(pars[k].name, "_")[2]
@@ -1168,7 +1168,7 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false)
 
     pars = make_pars(p_pars, tieds=tieds, z_ref=true)
 
-    #println("fitLM ", pars)
+    println("fitLM ", pars)
     params = [p.val for (k, p) in pars if p.vary == true]
     lower = [p.min for (k, p) in pars if p.vary == true]
     upper = [p.max for (k, p) in pars if p.vary == true]

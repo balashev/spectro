@@ -2273,7 +2273,7 @@ if __name__ == "__main__":
         calc = 1
         if calc:
             if 1:
-                for i in range(6, 8): # range(7975 // num + 1):
+                for i in range(20): # range(7975 // num + 1):
                     if i % i2 + 1 == i1:
                         with Pool(num) as p:
                             res_new = p.map(worker_wrapper, [(k, catfile, 10000, 300) for k in np.arange(i * num, min((i + 1) * num, 7975))]) #total number of AGNs 7975

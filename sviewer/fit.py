@@ -441,9 +441,9 @@ class fitPars:
             self.mu = par(self, 'mu', 1e-6, 1e-7, 5e-6, 1e-8)
         if 'me' in name:
             setattr(self, name, par(self, name, 0, -3, 1, 0.01))
-        print(name)
+        #print(name)
         if name in 'iso':
-            print('iso', name)
+            #print('iso', name)
             if addinfo == 'D/H':
                 self.iso = par(self, 'iso', -4.5, -5.4, -4, 0.01, addinfo=addinfo)
             if addinfo == '13C/12C':
@@ -461,7 +461,7 @@ class fitPars:
         if 'displ' in name:
             setattr(self, name, par(self, name, 5000, 3000, 9000, 0.1, addinfo='exp_0'))
         if 'disps' in name:
-            setattr(self, name, par(self, name, 1e-5, -1e-4, 1e-4, 1e-6, addinfo='exp_0'))
+            setattr(self, name, par(self, name, 0.0, -1e-4, 1e-4, 1e-6, addinfo='exp_0'))
         if 'dispz' in name:
             setattr(self, name, par(self, name, 0.0, -1, 1, 1e-3, addinfo='exp_0'))
         if 'sts' in name:

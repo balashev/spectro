@@ -560,6 +560,10 @@ class fitModelWidget(QWidget):
         elif 'sts' in name:
             self.parent.fit.setValue(name, sp1, 'addinfo')
             self.parent.fit.setValue(sp1, 0, 'vary')
+        elif 'disp' in name:
+            self.parent.fit.setValue(name, sp1, 'addinfo')
+            self.parent.fit.setValue(name.replace('l', 's'), sp1, 'addinfo')
+            self.parent.fit.setValue(name.replace('l', 'z'), sp1, 'addinfo')
         else:
             self.parent.fit.setValue(name, sp1, 'addinfo')
         self.refresh()

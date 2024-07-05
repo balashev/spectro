@@ -83,7 +83,7 @@ class dataPlot(pg.PlotWidget):
             self.vb.removeItem(self.corr[name])
 
         if x is not None and y is not None:
-            pens = {'all': pg.mkPen(0, 127, 255, width=6), 'selected': pg.mkPen(30, 250, 127, width=6), 'all_r': pg.mkPen(0, 127, 255, width=4, style=Qt.DashLine)}
+            pens = {'all': pg.mkPen(0, 127, 255, width=6), 'selected': pg.mkPen(30, 250, 127, width=6), 'all_r': pg.mkPen(0, 127, 255, width=4, style=Qt.PenStyle.DashLine)}
             self.reg[name] = pg.PlotCurveItem(x, y, pen=pens[name])
             self.addItem(self.reg[name])
             self.vb.addItem(self.corr[name], ignoreBounds=True)
@@ -176,7 +176,7 @@ class dataPlot(pg.PlotWidget):
 
     def mouseDoubleClickEvent(self, event):
         super(dataPlot, self).mouseDoubleClickEvent(event)
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             self.mousePos = self.vb.mapSceneToView(event.position())
             self.parent.index(x=self.mousePos.x(), y=self.mousePos.y())
             event.accept()
@@ -1057,11 +1057,15 @@ class ErositaWidget(QWidget):
         self.save_data()
 
     def plot_sed(self, ind=None):
-        for attr in ['_mcmc', '_post', '_spec']:
             if os.name == 'nt':
-                print(os.path.dirname(self.parent.ErositaFile) + '/QC/plots/' + self.df['SDSS_NAME'][ind] + attr + '.png')
+                #print(os.path.dirname(self.parent.ErositaFile) + '/QC/plots/' + self.df['SDSS_NAME'][ind] + attr + '.png')
                 try:
-                    os.startfile(os.path.dirname(self.parent.ErositaFile) + '/QC/plots/' + self.df['SDSS_NAME'][ind] + attr + '.png')
+                    if self.method.currentText() == 'emcee':
+                        for attr in ['_mcmc', '_post', '_spec']:
+                            os.startfile(os.path.dirname(self.parent.ErositaFile) + '/QC/plots/' + self.df['SDSS_NAME'][ind] + attr + '.png')
+                    elif 'nested' in self.method.currentText():
+                        for attr in ['_corner', '_spec']:
+                            os.startfile(os.path.dirname(self.parent.ErositaFile) + '/QC/dynesty_plots/' + self.df['SDSS_NAME'][ind] + attr + '.png')
                 except:
                     print("there is no proceeded data")
                     self.parent.sendMessage(f"There is no proceeded data for {self.df['SDSS_NAME'][ind]}")
