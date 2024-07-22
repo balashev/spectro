@@ -546,27 +546,62 @@ mutable struct cheb
     disp::Float64
 end
 
-mutable struct spectrum
-    x::Vector{Float64}
-    y::Vector{Float64}
-    unc::Vector{Float64}
-    mask::BitArray
-    resolution::Float64
-    lines::Vector{line}
-    displ::Float64
-    disps::Float64
-    dispz::Float64
-    cont::Vector{Any}
-    bins::Vector{Any}
-    bin_mask::BitArray
+module spectrum
+    using Main: line
+    using Interpolations
+
+    mutable struct spec
+        x::Vector{Float64}
+        y::Vector{Float64}
+        unc::Vector{Float64}
+        mask::BitArray
+        lsf_type::String
+        resolution::Float64
+        lines::Vector{line}
+        displ::Float64
+        disps::Float64
+        dispz::Float64
+        cont::Vector{Any}
+        bins::Vector{Any}
+        bin_mask::BitArray
+        cos::Interpolations.Extrapolation
+        cos_disp::Float64
+    end
+
+    function COS(obj::spec, x, xcenter)
+        return obj.cos.((x .- xcenter) ./ obj.cos_disp, xcenter) ./ obj.cos_disp
+    end
+
+    function Base.getproperty(obj::spec, prop::Symbol)
+        if prop in fieldnames(spec)
+            return getfield(obj, prop)
+        elseif prop == :COS
+            return (x, xcenter,)->COS(obj, x, xcenter)
+        else
+            throw(UndefVarError(prop))
+        end
+    end
 end
 
-function prepare(s, pars, add)
+function prepare_COS(s)
+    cos = Dict()
+    for (i, si) in enumerate(s)
+        if si.lsf_type == "cos"
+            cos[i] = si.prepare_COS()
+        else
+            x = 0:1:1
+            cos[i] = (x, x, [xs + ys for xs in x, ys in x], 0)
+        end
+    end
+    return cos #LinearInterpolation((lsf_cent, pix), lsf)
+end
+
+function prepare(s, pars, add, COS)
     #c = Vector{Any}
     #println(append!(c,  [cheb([], 0, 0, 0)]))
     spec = Vector(undef, size(s)[1])
     for (i, si) in enumerate(s)
-        spec[i] = spectrum(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0))
+        spec[i] = spectrum.spec(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.lsf_type, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0), LinearInterpolation((COS[i][1], COS[i][2]), COS[i][3], extrapolation_bc=Flat()), COS[i][4])
         spec[i].bins = (si.spec.norm.x[2:end] + si.spec.norm.x[1:end-1]) / 2
         spec[i].bin_mask = spec[i].mask[1:end-1] .|| spec[i].mask[2:end]
     end
@@ -759,31 +794,43 @@ function calc_spectrum_nonbinned(spec, pars; comp=0, regular=-1, regions="fit", 
         y .*= correct_continuum(spec.cont, pars, x)
     end
 
-    if spec.resolution != 0
+    if spec.resolution > 0
         y = 1 .- y
         y_c = Vector{Float64}(undef, size(y)[1])
-        for (i, xi) in enumerate(x)
-            sigma_r = xi / spec.resolution / 1.66511
-            k_min, k_max = binsearch(x, xi - 3 * sigma_r), binsearch(x, xi + 3 * sigma_r)
-            #println(k_min, "  ", k_max)
-            instr = exp.( -1 .* ((view(x, k_min:k_max) .- xi) ./ sigma_r ) .^ 2)
-            s = 0
-            @inbounds for k = k_min+1:k_max
-                s = s + (y[k] * instr[k-k_min+1] + y[k-1] * instr[k-k_min]) * (x[k] - x[k-1])
+        if spec.lsf_type == "gauss" # Gaussian function
+            for (i, xi) in enumerate(x)
+                sigma_r = xi / spec.resolution / 1.66511
+                k_min, k_max = binsearch(x, xi - 3 * sigma_r), binsearch(x, xi + 3 * sigma_r)
+                #println(k_min, "  ", k_max)
+                instr = exp.( -1 .* ((view(x, k_min:k_max) .- xi) ./ sigma_r ) .^ 2)
+                s = 0
+                @inbounds for k = k_min+1:k_max
+                    s = s + (y[k] * instr[k-k_min+1] + y[k-1] * instr[k-k_min]) * (x[k] - x[k-1])
+                end
+                y_c[i] = s / 2 / sqrt(π) / sigma_r  + y[k_min] * (1 - SpecialFunctions.erf((xi - x[k_min]) / sigma_r)) / 2 + y[k_max] * (1 - SpecialFunctions.erf((x[k_max] - xi) / sigma_r)) / 2
+                #sleep(5)
             end
-            y_c[i] = s / 2 / sqrt(π) / sigma_r  + y[k_min] * (1 - SpecialFunctions.erf((xi - x[k_min]) / sigma_r)) / 2 + y[k_max] * (1 - SpecialFunctions.erf((x[k_max] - xi) / sigma_r)) / 2
-            #sleep(5)
+        elseif spec.lsf_type == "cos" # COS line spread function
+            for (i, xi) in enumerate(x)
+                sigma_r = xi / spec.resolution / 1.66511
+                k_min, k_max = binsearch(x, xi - 4 * sigma_r), binsearch(x, xi + 4 * sigma_r)
+                #println(k_min, "  ", k_max)
+                instr = spec.COS(view(x, k_min:k_max), xi)
+                #instr = exp.( -1 .* ((view(x, k_min:k_max) .- xi) ./ sigma_r ) .^ 2)
+                s = 0
+                @inbounds for k = k_min+1:k_max
+                    s = s + (y[k] * instr[k-k_min+1] + y[k-1] * instr[k-k_min]) * (x[k] - x[k-1])
+                end
+                y_c[i] = s / 2
+                #sleep(5)
+            end
         end
 
         if timeit == 1
             println("convolve ", time() - start)
         end
 
-        #if size(spec.cont)[1] > 0
-        #    y_c = (1 .-y_c) .* correct_continuum(spec.cont, pars, x)
-        #else
         y_c = 1 .- y_c
-        #end
 
         println("indexes: ", searchsortedfirst.(Ref(x), spec.x[x_grid .> -1]))
         if out == "all"
@@ -827,6 +874,8 @@ function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
     line_mask = update_lines(spec.lines, pars, comp=comp)
 
     x_instr = 1.0 / spec.resolution / 2.355
+    #println(spec.lsf_type, " ", spec.resolution, " ", x_instr)
+
     x_grid = -1 .* ones(Int8, size(spec.bins)[1])
     x_grid[spec.bin_mask] = zeros(Int8, sum(spec.bin_mask))
     for i in findall(!=(0), spec.bin_mask[2:end])
@@ -975,32 +1024,42 @@ function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
         y .+= pars["zero"].val
     end
 
-    if spec.resolution != 0
+    if (spec.resolution > 0)
         y = 1 .- y
         y_c = zero(y)
-        #y_c = Vector{Float64}(undef, size(y)[1])
-        for (i, xi) in enumerate(x)
-            sigma_r = xi / spec.resolution / 1.66511
-            k_min, k_max = binsearch(x, xi - 3 * sigma_r), binsearch(x, xi + 3 * sigma_r)
-            #println(k_min, "  ", k_max)
-            instr = exp.( -1 .* ((view(x, k_min:k_max) .- xi) ./ sigma_r ) .^ 2)
-            s = 0
-            @inbounds for k = k_min+1:k_max
-                s = s + (y[k] * instr[k-k_min+1] + y[k-1] * instr[k-k_min]) * (x[k] - x[k-1])
+        if spec.lsf_type == "gauss" # Gaussian function
+            for (i, xi) in enumerate(x)
+                sigma_r = xi / spec.resolution / 1.66511
+                k_min, k_max = binsearch(x, xi - 3 * sigma_r), binsearch(x, xi + 3 * sigma_r)
+                #println(k_min, "  ", k_max)
+                instr = exp.( -1 .* ((view(x, k_min:k_max) .- xi) ./ sigma_r ) .^ 2)
+                s = 0
+                @inbounds for k = k_min+1:k_max
+                    s = s + (y[k] * instr[k-k_min+1] + y[k-1] * instr[k-k_min]) * (x[k] - x[k-1])
+                end
+                y_c[i] = s / 2 / sqrt(π) / sigma_r  + y[k_min] * (1 - SpecialFunctions.erf((xi - x[k_min]) / sigma_r)) / 2 + y[k_max] * (1 - SpecialFunctions.erf((x[k_max] - xi) / sigma_r)) / 2
+                #sleep(5)
             end
-            y_c[i] = s / 2 / sqrt(π) / sigma_r  + y[k_min] * (1 - SpecialFunctions.erf((xi - x[k_min]) / sigma_r)) / 2 + y[k_max] * (1 - SpecialFunctions.erf((x[k_max] - xi) / sigma_r)) / 2
-            #sleep(5)
+        elseif spec.lsf_type == "cos" # COS line spread function
+            for (i, xi) in enumerate(x)
+                sigma_r = xi / spec.resolution / 1.66511
+                k_min, k_max = binsearch(x, xi - 4 * sigma_r), binsearch(x, xi + 4 * sigma_r)
+                #println(k_min, "  ", k_max)
+                instr = spec.COS(view(x, k_min:k_max), xi)
+                #instr = exp.( -1 .* ((view(x, k_min:k_max) .- xi) ./ sigma_r ) .^ 2)
+                s = 0
+                @inbounds for k = k_min+1:k_max
+                    s = s + (y[k] * instr[k-k_min+1] + y[k-1] * instr[k-k_min]) * (x[k] - x[k-1])
+                end
+                y_c[i] = s / 2
+                #sleep(5)
+            end
         end
-
         if timeit == 1
             println("convolve ", time() - start)
         end
 
-        #if size(spec.cont)[1] > 0
-        #    y_c = (1 .-y_c) .* correct_continuum(spec.cont, pars, x)
-        #else
         y_c = 1 .- y_c
-        #end
     else
         y_c = y
     end

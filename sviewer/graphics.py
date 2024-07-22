@@ -8,6 +8,7 @@ import astropy.constants as ac
 from astropy.convolution import convolve, Gaussian1DKernel, Gaussian2DKernel
 from astropy.io import fits
 from astropy.modeling.models import Moffat1D
+from astropy.table import Table
 from ccdproc import cosmicray_lacosmic
 import itertools
 from matplotlib import cm
@@ -30,7 +31,7 @@ from scipy.stats import gaussian_kde
 
 from ..profiles import tau, convolveflux, makegrid, add_ext
 from .external import sg_smooth as sg
-from .utils import Timer, MaskableList, moffat_func, smooth
+from .utils import Timer, MaskableList, moffat_func, smooth, fetch_COS_files
 
 class Speclist(list):
     def __init__(self, parent):
@@ -144,13 +145,14 @@ class Speclist(list):
             #self.parent.reload_julia()
             self.parent.julia_pars = self.parent.julia.make_pars(self.parent.fit.list(), tieds=self.parent.fit.tieds)
             self.parent.julia_add = self.parent.julia.prepare_add(self.parent.fit, self.parent.julia_pars)
+            self.parent.julia_cos = self.parent.julia.prepare_COS(self) #, s.prepare_COS())
 
         for i, s in enumerate(self):
             if exp_ind in [-1, i]:
                 s.findFitLines(ind, all=all, debug=False)
 
         if self.parent.fitType == 'julia':
-            self.parent.julia_spec = self.parent.julia.prepare(self, self.parent.julia_pars, self.parent.julia_add)
+            self.parent.julia_spec = self.parent.julia.prepare(self, self.parent.julia_pars, self.parent.julia_add, self.parent.julia_cos)
 
     def calcFit(self, ind=-1, exp_ind=-1, recalc=False, redraw=True, timer=False):
 
@@ -1382,6 +1384,7 @@ class Spectrum():
         self.filename = name
         self.name = name
         self.resolution = resolution
+        self.lsf_type = 'gauss'
         self.scaling_factor = 1
         self.date = ''
         self.wavelmin = None
@@ -2053,6 +2056,55 @@ class Spectrum():
                 self.cont_mask = np.logical_or(self.cont_mask, mask)
                 self.cont.set_data(x=self.spec.raw.x[self.cont_mask], y=y[self.cont_mask])
             self.redraw()
+
+    def prepare_COS(self, verbose=False):
+        if verbose:
+            print("COS", self.filename)
+        with fits.open(self.filename) as hdu:
+            # print(repr(hdu[1].header))
+            param_dict = {}
+            for hdrKeyword in ["DETECTOR", "OPT_ELEM", "LIFE_ADJ", "CENWAVE", "DISPTAB"]:  # Print out the relevant values
+                try:  # For DISPTAB
+                    value = hdu[0].header[hdrKeyword].split("$")[1]  # Save the key/value pairs to the dictionary
+                    param_dict[hdrKeyword] = value  # DISPTAB needs the split here
+                except:  # For other params
+                    value = hdu[0].header[hdrKeyword]  # Save the key/value pairs to the dictionary
+                    param_dict[hdrKeyword] = value
+                if verbose:
+                    print(f"{hdrKeyword} = {value}")  # Print the key/value pairs
+
+        LSF_file_name, disptab_path = fetch_COS_files(*list(param_dict.values()))
+
+        def read_lsf(filename):
+            # This is the table of all the LSFs: called "lsf"
+            # The first column is a list of the wavelengths corresponding to the line profile, so we set our header accordingly
+            if "nuv_" in filename:  # If its an NUV file, header starts 1 line later
+                ftype = "nuv"
+            else:  # assume its an FUV file
+                ftype = "fuv"
+            hs = 0
+            lsf = Table.read(filename, format="ascii", header_start=hs)
+
+            # This is the range of each LSF in pixels (for FUV from -160 to +160, inclusive)
+            # middle pixel of the lsf is considered zero ; center is relative zero
+            pix = np.arange(len(lsf)) - len(lsf) // 2  # integer division to yield whole pixels
+
+            # the column names returned as integers.
+            lsf_wvlns = np.array([int(float(k)) for k in lsf.keys()])
+
+            return lsf, pix, lsf_wvlns
+
+        lsf, pix, lsf_wvlns = read_lsf(str(os.getcwd() + '/data/COS/' + LSF_file_name))
+        #print(len(lsf[lsf.colnames[5]]))
+        #print(lsf.colnames)
+        #print(pix)
+        #print(lsf_wvlns)
+        with fits.open(disptab_path) as d:
+            wh_disp = np.where((d[1].data["cenwave"] == param_dict["CENWAVE"]) & (d[1].data["aperture"] == "PSA"))[0] #& (d[1].data["segment"] == "FUVA")
+            #print(d[1].data[wh_disp]["COEFF"])
+            disp_coeff = d[1].data[wh_disp]["COEFF"][0][1]
+
+        return pix, lsf_wvlns, np.lib.recfunctions.structured_to_unstructured(lsf.as_array()), disp_coeff
 
     def findFitLines(self, ind=-1, tlim=0.01, all=True, debug=True):
         """

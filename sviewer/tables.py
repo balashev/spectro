@@ -90,15 +90,15 @@ class expTableWidget(TableWidget):
         self.horizontalHeader().sortIndicatorChanged.connect(self.rewrite)
 
     def update(self):
-        dtype = [('filename', np.str_, 100), ('obs. date', np.str_, 30),
-                 ('wavelmin', np.float_), ('wavelmax', np.float_),
+        dtype = [('filename', np.str_, 100), ('obs. date', np.str_, 20),
+                 ('wavelmin', np.float_), ('wavelmax', np.float_), ('lsf_type', np.str_, 10),
                  ('resolution', np.int_), ('scaling factor', np.float_)]
-        zero = ('', '', np.nan, np.nan, 0, 1)
+        zero = ('', '', np.nan, np.nan, 'Gaussian', 0, 1)
         data = np.array([zero], dtype=dtype)
         self.edit_col = [4, 5]
         for s in self.parent.s:
-            print(s.filename, s.date, s.wavelmin, s.wavelmax, s.resolution)
-            data = np.insert(data, len(data), np.array([('  '+s.filename+'  ', '  '+s.date+'  ', s.wavelmin, s.wavelmax, s.resolution, s.scaling_factor)], dtype=dtype), axis=0)
+            #print(s.filename, s.date, s.wavelmin, s.wavelmax, s.resolution)
+            data = np.insert(data, len(data), np.array([('  '+s.filename+'  ', '  '+s.date+'  ', s.wavelmin, s.wavelmax, s.lsf_type, s.resolution, s.scaling_factor)], dtype=dtype), axis=0)
         if len(self.parent.s) > 0:
             data = np.delete(data, (0), axis=0)
         self.setData(data)
@@ -138,9 +138,21 @@ class expTableWidget(TableWidget):
             self.row_clicked()
 
     def cell_Changed(self):
+
+        if self.cell_value('lsf_type'):
+            lsf_type = ''
+            if self.cell_value('lsf_type').lower() in ['gauss', 'Gaussian', 'normal']:
+                lsf_type = 'gauss'
+            elif self.cell_value('lsf_type').lower() in ['cos']:
+                lsf_type = 'cos'
+            if lsf_type != '':
+                self.parent.s[self.currentItem().row()].lsf_type = lsf_type
+                self.parent.s.calcFit(-1, recalc=True)
+                self.parent.s.calcFitComps()
+                self.parent.s.redraw()
+
         if self.parent.s[self.currentItem().row()].resolution != int(self.cell_value('resolution')):
             self.parent.s[self.currentItem().row()].resolution = int(self.cell_value('resolution'))
-            print(self.parent.s[self.currentItem().row()].resolution)
             self.parent.s.calcFit(-1, recalc=True)
             self.parent.s.calcFitComps()
             self.parent.s.redraw()

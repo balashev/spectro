@@ -5,10 +5,11 @@ Created on Fri Dec 23 11:25:04 2016
 @author: Serj
 """
 import astropy.constants as ac
+from astropy.io import fits
 from astropy.modeling.functional_models import Moffat1D
 import inspect
 from itertools import compress
-from math import atan2,degrees
+from math import atan2, degrees
 import numpy as np
 import os
 from scipy.interpolate import interp1d
@@ -18,6 +19,7 @@ sys.path.append('C:/science/python')
 from spectro.sviewer.utils import *
 import threading
 import time
+import urllib
 
 def include(filename):
     if os.path.exists(filename):
@@ -395,3 +397,60 @@ def flux_to_mag(flux, x, filter_name):
         flux[mask] * x[mask] ** 2 / ac.c.to('Angstrom/s').value / 3.631e-20 / 2 / b[filter_name]) + np.log(
         b[filter_name]))
     return np.trapz(m * fil(x[mask]), x=x[mask]) / np.trapz(fil(x[mask]), x=x[mask])
+
+def fetch_COS_files(det, grating, lpPos, cenwave, disptab):
+    """
+    <<<< Taken from COS notebook example >>>>>
+    Given all the inputs: (detector, grating, LP-POS, cenwave, dispersion table,) this will download both
+    the LSF file and Disptab file you should use in the convolution and return their paths.
+    Returns:
+    LSF_file_name (str): filename of the new downloaded LSF file
+    disptab_path (str): path to the new downloaded disptab file
+    """
+    print(os.getcwd())
+    datadir = os.getcwd() + '/data/COS/'
+    disptab_path = str(datadir + disptab)
+    COS_site_rootname = ("https://www.stsci.edu/files/live/sites/www/files/home/hst/instrumentation/cos/performance/spectral-resolution/_documents/")  # Link to where all the files live - split into 2 lines
+    if det == "NUV":  # Only one file for NUV
+        LSF_file_name = "nuv_model_lsf.dat"
+    elif det == "FUV":  # FUV files follow a naming pattern
+        LSF_file_name = f"aa_LSFTable_{grating}_{cenwave}_LP{lpPos}_cn.dat"
+
+    if not os.path.exists(datadir + LSF_file_name):
+        LSF_file_webpath = COS_site_rootname + LSF_file_name  # Where to find file online
+        print(LSF_file_webpath)
+        urllib.request.urlretrieve(LSF_file_webpath, str(datadir + LSF_file_name))  # Where to save file to locally
+        print(f"Downloaded LSF file to {str(datadir + LSF_file_name)}")
+
+        # And we'll need to get the DISPTAB file as well
+        urllib.request.urlretrieve(f"https://hst-crds.stsci.edu/unchecked_get/references/hst/{disptab}", disptab_path,)
+        print(f"Downloaded DISPTAB file to {disptab_path}")
+
+    return LSF_file_name, disptab_path
+
+def get_disp_params(disptab, cenwave, segment, x=[]):
+    """
+    Helper function to redefine_lsf(). Reads through a DISPTAB file and gives relevant\
+    dispersion relationship/wavelength solution over input pixels.
+    Parameters:
+    disptab (str): Path to your DISPTAB file.
+    cenwave (str): Cenwave for calculation of dispersion relationship.
+    segment (str): FUVA or FUVB?
+    x (list): Range in pixels over which to calculate wvln with dispersion relationship (optional).
+    Returns:
+    disp_coeff (list): Coefficients of the relevant polynomial dispersion relationship
+    wavelength (list; if applicable): Wavelengths corresponding to input x pixels
+    """
+    with fits.open(disptab) as d:
+        wh_disp = np.where((d[1].data["cenwave"] == cenwave) & (d[1].data["segment"] == segment) & (d[1].data["aperture"] == "PSA"))[0]
+        disp_coeff = d[1].data[wh_disp]["COEFF"][0] # 0 is needed as this returns nested list [[arr]]
+        d_tv03 = d[1].data[wh_disp]["D_TV03"]  # Offset from WCA to PSA in Thermal Vac. 2003 data
+        d_orbit = d[1].data[wh_disp]["D"]  # Current offset from WCA to PSA
+
+    delta_d = d_tv03 - d_orbit
+
+    if len(x):  # If given a pixel range, build up a polynomial wvln solution pix -> λ
+        wavelength = np.polyval(p=disp_coeff[::-1], x=np.arange(16384))
+        return disp_coeff, wavelength
+    else:  # If x is empty:
+        return disp_coeff

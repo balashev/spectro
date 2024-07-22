@@ -7816,6 +7816,9 @@ class sviewer(QMainWindow):
                         if 'resolution' in d[i]:
                             self.s[ind].resolution = int(float(d[i].split()[1]))
 
+                        if 'lsf_type' in d[i]:
+                            self.s[ind].lsf_type = d[i].split()[1]
+
                         if 'scaling_factor' in d[i]:
                             if float(d[i].split()[1]) != 1:
                                 self.s[ind].rescale(float(d[i].split()[1]))
@@ -7966,6 +7969,8 @@ class sviewer(QMainWindow):
                     if 'others' in self.save_opt:
                         if s.resolution not in [0, None]:
                             f.write('resolution:   {}\n'.format(s.resolution))
+                        if s.lsf_type != 'gauss':
+                            f.write('lsf_type:   {}\n'.format(s.lsf_type))
                         if s.scaling_factor not in [0, None]:
                             f.write('scaling_factor:   {}\n'.format(s.scaling_factor))
 
@@ -8150,13 +8155,16 @@ class sviewer(QMainWindow):
                                         np.concatenate([np.r_[prihdr['FLUX'][i], np.inf] for i in range(hdulist[1].header['NAXIS2'])]) * 1e15,
                                         np.concatenate([np.r_[prihdr['ERROR'][i], np.inf] for i in range(hdulist[1].header['NAXIS2'])]) * 1e15,
                                         ])
+                            s.filename = filename
                             s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
-                            self.s.append(s)
-                            s = Spectrum(self, name=filename+'_2')
-                            s.set_data([prihdr['WAVELENGTH'][1],
-                                        1e17 * prihdr['FLUX'][1],
-                                        1e17 * prihdr['ERROR'][1]
-                                        ])
+                            s.resolution = 20000
+                            s.lsf_type = 'cos'
+                            #self.s.append(s)
+                            #s = Spectrum(self, name=filename+'_2')
+                            #s.set_data([prihdr['WAVELENGTH'][1],
+                            #            1e15 * prihdr['FLUX'][1],
+                            #            1e15 * prihdr['ERROR'][1]
+                            #            ])
                             # for l, f, e in zip(prihdr['WAVELENGTH'], prihdr['FLUX'], prihdr['ERROR']):
                             #    s.set_data()
 
