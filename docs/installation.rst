@@ -3,7 +3,7 @@ Installation
 
 .. _installation:
 
-This section describe how to download, install dependecies and config ``Spectro`` package for the first use  
+This section describe how to download, install dependencies and config ``Spectro`` package for the first use
 
 Downloading
 -----------
@@ -55,7 +55,7 @@ and::
 * statsmodels==0.12.2
 * ultranest==3.3.3
 
-The exact versions of the packages listed here are not obligatory (it was generated from the working build), and the code can work with some old/new versions. However, there are sometimes inconsistencies with previous verisons of the packages, e.g. for ``matplotlib`` and ``chainconsumer``. For convinience, this package list is automatically stored in ``requirements.txt``, therefore you can simply use:: 
+The exact versions of the packages listed here are not obligatory (it was generated from the working build), and the code can work with some old/new versions. However, there are sometimes inconsistencies with previous verisons of the packages, e.g. for ``matplotlib`` and ``chainconsumer``. For convenience, this package list is automatically stored in ``requirements.txt``, therefore you can simply use::
 
     $ pip install -r /path/to/requirements.txt    
 

@@ -1,4 +1,3 @@
-y 0 1
 H2O
 CH+
 CH
@@ -19,3 +18,4 @@ show H2 0 1
 show H2 0 1
 show CI
 high FeII
+show SiII*

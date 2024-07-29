@@ -38,7 +38,7 @@ Keyboard bindings
    * **c + LEFT ARROW**                :  show/select previous component
    * **c + CTRL**                       :  continuum fit options window
    * **c + SHIFT**                      :  change show component mode (none, one, all)
-   * **c + LEFT CLICK**                :  shift comnonent center at the position (line indicator have to be selected)
+   * **c + LEFT CLICK**                :  shift component center at the position (line indicator have to be selected)
    * **c + MOUSE WHEEL**               :  increase/decrease b parameter of the component
    * **c + <mouse drag>**               :  increase/decrease column density of the component 
 
@@ -59,14 +59,14 @@ Keyboard bindings
 * **f**: construct fit
    
    * **f**                              :  show fit (only lines nearby fitting points)
-   * **f + SHIFT**                      :  show full fit (all avaliable lines in the full wavelenght range of exposures)
+   * **f + SHIFT**                      :  show full fit (all available lines in the full wavelength range of exposures)
    * **f + CTRL**                       :  <not set yet>
    
 * **g**: fit gauss
 
-   * **g + CRTL**                       :  show composite Galaxy spectrum (several templates avaliable)
+   * **g + CTRL**                       :  show composite Galaxy spectrum (several templates available)
 
-* **h**: highligh labels
+* **h**: highlight labels
    
    * **h + LEFT CLICK** on line label        :  highlight all the line labels corresponding to species of selected line label 
 
@@ -90,18 +90,18 @@ Keyboard bindings
 * **o**: open / change UVES setup
   
    * **o**                              :  change UVES setup 
-   * **o + CRTL**                       :  open file
+   * **o + CTRL**                       :  open file
 
 * **p**: partial coverage and polynomial fitting
    
    * **p + two LEFT CLICKs**            :  create partial coverage line
-   * **p + KEY_UP / KEY_DOWN**          :  fit selected points with polinomial higher degree
-   * **p + KEY_RIGHT / KEY_LEFT**       :  fit selected points with polinomial lower degree
+   * **p + KEY_UP / KEY_DOWN**          :  fit selected points with polynomial higher degree
+   * **p + KEY_RIGHT / KEY_LEFT**       :  fit selected points with polynomial lower degree
    
 * **r**: select region:
    
    * **r + <select by mouse>**          :  add region (how to work with regions see Tutorial)
-   * **r + SHIFT**                      :  force top x axis to show restframe wavelenght
+   * **r + SHIFT**                      :  force top x axis to show restframe wavelength
    
 * **s**: select data points:
    
@@ -116,7 +116,7 @@ Keyboard bindings
 * **q**: continuum
    
    * **q**                              :  make continuum in window using smoothing
-   * **q + CRTL**                       :  show composite QSO spectrum (several templates avaliable)
+   * **q + CRTL**                       :  show composite QSO spectrum (several templates available)
 
 * **u**: find doublet:
    
@@ -127,7 +127,7 @@ Keyboard bindings
 * **w**: width of region:
    
    * **w + <select by mouse>**          :  select area to calculate equivalent width of absorption line. Continuum should be set for width calculation!
-   * **w + SHIFT + <select by mouse>**  :  select area to calculate equivalent width of absorption line, substracting fit model. (i.e. respective fit model, but no to continuum) 
+   * **w + SHIFT + <select by mouse>**  :  select area to calculate equivalent width of absorption line, subtracting fit model. (i.e. respective fit model, but no to continuum)
    * **w**                              :  hide w-region
   
 * **x**: select bad pixels:
@@ -145,5 +145,5 @@ Keyboard bindings
    * **z + CTRL**                       :  return to the previous view 
     
 shift: 
-  1. when shift is pressed you can shift absortion pointers using mouse
+  1. when shift is pressed you can shift absorption pointers using mouse
  

@@ -11,7 +11,7 @@ There are several interactive objects in the sviewer that can be move by mouse i
 B-spline continuum
 ------------------
 
-The continuum that is constructed using B-spline with the point choosed by holding **b** key (see :ref:`tutorial` and :ref:`keyboard`). It is marked as object 1 on the Figure.
+The continuum that is constructed using B-spline with the point chosen by holding **b** key (see :ref:`tutorial` and :ref:`keyboard`). It is marked as object 1 on the Figure.
 
 Line labels
 -----------
@@ -37,7 +37,7 @@ Line labels (objects 2, 3, 4, 5 in Figure) indicate possible positions of the ab
 Regions
 -------
 
-Regions (objects 6 and 7 in Figure) are convinient graphical object to select certain wavelenght range of the spectrum. It can be used in several parts of the spectral analysis. There are two representation of the regions in extended (object 6) and minimized (object 7) form. Allowed interactions:
+Regions (objects 6 and 7 in Figure) are convenient graphical object to select certain wavelength range of the spectrum. It can be used in several parts of the spectral analysis. There are two representation of the regions in extended (object 6) and minimized (object 7) form. Allowed interactions:
 
 * ``r + LEFT MOUSE BUTTON``:  create a region.
 
@@ -50,7 +50,7 @@ Regions (objects 6 and 7 in Figure) are convinient graphical object to select ce
 Composite spectrum
 ------------------
 
-Composite spectrum (object 8 in Figure) indicate a composite spectrum of QSO or Galaxy one. Currently, there are 3 types of the composite spectrum that is shown one after another. The spectrum will be displayed taking into account the redshift provided in the redshint panel. Interactions:
+Composite spectrum (object 8 in Figure) indicate a composite spectrum of QSO or Galaxy one. Currently, there are 3 types of the composite spectrum that is shown one after another. The spectrum will be displayed taking into account the redshift provided in the redshift panel. Interactions:
 
 * ``CTRL + q``: show/hide composite spectrum. There are different types, which are shown consequently.
 
@@ -78,7 +78,7 @@ Fixed Line Labels (object 9 in Figure) are separate (from objects 2-5) line labe
 Line flux residuals (zero levels)
 ---------------------------------
 
-Line flux residual (object 10 in Figure) is the indicator of zero level, that can be a part of the fit profile constuction, to model the partial coverage. Interactions:
+Line flux residual (object 10 in Figure) is the indicator of zero level, that can be a part of the fit profile construction, to model the partial coverage. Interactions:
 
 * ``p + LEFT CLICK``: create line flux residual object.
 

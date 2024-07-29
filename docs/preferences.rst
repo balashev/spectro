@@ -8,7 +8,7 @@ Some of the global preference can be accessed/changed using Preferences menu. To
 Appearance
 ----------
 
-Controls appearrance of the general graphical elements in the Spectrum panel:
+Controls appearance of the general graphical elements in the Spectrum panel:
 
 * **Spectrum view**: the representation of the spectrum. Can be ``steps``, ``lines``, ``points``. Each one can also include uncertainties ``+ errors``.
 
@@ -23,13 +23,13 @@ Controls appearrance of the general graphical elements in the Spectrum panel:
 Fit
 ---
 
-Provide setting that control the fit plofile calculation and appearence:
+Provide setting that control the fit profile calculation and appearance:
 
 *  **Line profile type**: choose the type of the construction of line profiles between:
     
     * **regular**: regular python calculation (this include non-uniform wavelength grid for calculation the sub pixel profiles)
 
-    * **fast**: python calculation with uniform wavelenght grid, where number in adjacent Line Edit panel set the number of sub-pixels within the spectral pixel. This is typically faster, than regular fit, but can be inaccurate if the number of sub=pixels is not enough. 
+    * **fast**: python calculation with uniform wavelength grid, where number in adjacent Line Edit panel set the number of sub-pixels within the spectral pixel. This is typically faster, than regular fit, but can be inaccurate if the number of subpixels is not enough.
 
     * **julia**: line profiles calculated using  ``Julia``.
 
@@ -49,7 +49,7 @@ Provide setting that control the fit plofile calculation and appearence:
 
 * **show fit points**: show explicitly the points in which fit profile is calculated.   
 
-* **animate fit**: animate fit minimization, i.e. upadate the fit each step. **Does not properly work yet!**   
+* **animate fit**: animate fit minimization, i.e. update the fit each step. **Does not properly work yet!**
 
 Colors
 ------
