@@ -4,7 +4,7 @@ using Distributed
 using Measures
 #using Plots
 using Random
-using Serialization
+# using Serialization
 using Statistics
 @everywhere using SpecialFunctions
 @everywhere using Statistics
@@ -12,9 +12,13 @@ using Statistics
 #@everywhere using PyCall
 @everywhere using Combinatorics
 @everywhere using AdvancedHMC, ForwardDiff
+using FileIO
+using JLD2
+
 
 function initJulia(filename, spec, pars, add, parnames; sampler="Affine", prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
-	serialize(filename, [spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts])
+# 	serialize(filename, [spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts])
+	save(File(format"JLD2", filename), "data", [spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts])
 end
 
 function initJulia2(filename, self; fit=nothing, fit_list=nothing, parnames=nothing, tieds=nothing, sampler="Affine", prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
@@ -23,13 +27,17 @@ function initJulia2(filename, self; fit=nothing, fit_list=nothing, parnames=noth
     cos = prepare_COS(self)
     spec = prepare(self, pars, add, cos)
     priors = make_priors(prior)
-    serialize(filename, [spec, pars, add, parnames, sampler, priors, nwalkers, nsteps, thinning, init, opts])
+#     serialize(filename, [spec, pars, add, parnames, sampler, priors, nwalkers, nsteps, thinning, init, opts])
+	save(File(format"JLD2", filename), "data", [spec, pars, add, parnames, sampler, priors, nwalkers, nsteps, thinning, init, opts])
 end
 
 function runMCMC(filename, nthreads; nstep=nothing, cont=false, last=false, sampler_type=nothing)
-    spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = deserialize(filename)
+#     spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = deserialize(filename)
+	spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = load(filename)["data"]
+
     if nstep != nothing
-        nsteps = parse(Int, nstep)
+#        nsteps = parse(Int, nstep)
+        nsteps = nstep
     end
     if sampler_type != nothing
         sampler = sampler_type
@@ -40,7 +48,8 @@ function runMCMC(filename, nthreads; nstep=nothing, cont=false, last=false, samp
     if cont
         println("continue from the last step...")
         if last
-            init = deserialize(replace(filename, ".spj" => ".spl"))
+#             init = deserialize(replace(filename, ".spj" => ".spl"))
+            init = load(replace(filename, ".spj" => ".spl"))["data"]
         else
             chain, llhoodvals = readMCMC(replace(filename, ".spj" => ".spr"))
             println(size(chain))
@@ -52,13 +61,16 @@ function runMCMC(filename, nthreads; nstep=nothing, cont=false, last=false, samp
 
     println("size of init: ", size(init))
 	#println(sampler, " ", parnames, " ", prior, " ", nwalkers, " ", nsteps, " ", thinning)
-	chain, llhoodvals = fitMCMC(spec, pars, add, parnames, sampler=sampler, prior=prior, nwalkers=nwalkers, nsteps=nsteps, nthreads=parse(Int, nthreads), thinning=thinning, init=init, opts=opts, filename=filename)
-	serialize(replace(filename, ".spj" => ".spr"), [parnames, chain, llhoodvals])
+	chain, llhoodvals = fitMCMC(spec, pars, add, parnames, sampler=sampler, prior=prior, nwalkers=nwalkers, nsteps=nsteps, nthreads=nthreads, thinning=thinning, init=init, opts=opts, filename=filename)
+# 	serialize(replace(filename, ".spj" => ".spr"), [parnames, chain, llhoodvals])
+	save(File(format"JLD2", replace(filename, ".spj" => ".spr")), "data", [parnames, chain, llhoodvals])
+
 	#plotChain(filename)
 end
 
 function plotChain(filename) #(pars, chain, llhoodvals)
-    spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = deserialize(filename)
+#     spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = deserialize(filename)
+    spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = load(filename)["data"]
     pars = make_pars(pars, parnames=parnames)
     chain, llhoodvals = readMCMC(replace(filename, ".spj" => ".spr"))
     println(size(chain))
@@ -116,7 +128,8 @@ function plotChain(filename) #(pars, chain, llhoodvals)
 end
 
 function readMCMC(filename)
-	parnames, chain, llhoodvals = deserialize(filename)
+# 	parnames, chain, llhoodvals = deserialize(filename)
+	parnames, chain, llhoodvals = load(filename)["data"]
 	return chain, llhoodvals
 end
 
@@ -420,7 +433,8 @@ function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Intege
             x[imin, :], lastllhoodvals[imin] = x[ind, :], lastllhoodvals[ind]
         end
         if i % thinning == 0
-            serialize(replace(filename, ".spj" => ".spl"), chain[:, :, div(i, thinning)])
+#             serialize(replace(filename, ".spj" => ".spl"), chain[:, :, div(i, thinning)])
+			save(File(format"JLD2", replace(filename, ".spj" => ".spl")), "data", chain[:, :, div(i, thinning)])
         end
 	end
 	return chain, llhoodvals
