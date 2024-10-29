@@ -624,6 +624,10 @@ end
 @everywhere spectrum_comp(spectrum, s, x; comp=0) = p->spectrum(p, s, x, comp=comp)
 @everywhere spectrum_cheb(spectrum, s, x) = p->spectrum(p, s, x, cheb=1)
 
+function load_disp(filename)
+	fit, fit_comps, cheb = load(filename)["data"]
+return fit, fit_comps, cheb
+
 function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nthreads=1)
 	"""
 	Calculate the dispersion of the fit
@@ -687,5 +691,6 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nt
 
     rmprocs(workers())
 
+	save(File(format"JLD2", "disp.spd"), "data", [fit, fit_comps, cheb])
     return fit, fit_comps, cheb
 end
