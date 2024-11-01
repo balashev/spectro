@@ -1,0 +1,54 @@
+<!DOCTYPE html
+	PUBLIC -//W3C//DTD XHTML 1.0 Transitional//EN
+	 http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd>
+<html xmlns=http://www.w3.org/1999/xhtml lang=en-US xml:lang=en-US>
+<head>
+<title>NIST ASD : Input Error</title>
+<meta http-equiv=Content- content=text/html; charset=iso-8859-1 />
+</head>
+<body bgcolor=white>
+<table style=width:100%; border:0; margin-top:0>
+<tr><td style=text-align:left><a href=https://physics.nist.gov/PhysRefData/ASD/index.html><img
+src=https://physics.nist.gov/PhysRefData/ASD/Images/ASD-sm.gif style=border:0 width=100 height=47
+alt=[ASD Home] title=ASD Home></a><a href=https://physics.nist.gov/PhysRefData/ASD/lines_form.html><img
+src=https://physics.nist.gov/PhysRefData/ASD/Images/Lines.gif style=border:0 width=70 height=47
+alt=[Lines Query] title=Lines Query></a><a href=https://physics.nist.gov/PhysRefData/ASD/levels_form.html><img
+src=https://physics.nist.gov/PhysRefData/ASD/Images/Levels.gif style=border:0 width=79 height=47
+alt=[Levels Query] title=Levels Query></a><a href=https://www.nist.gov/pml/atomic-spectra-database-contents><img
+src=https://physics.nist.gov/PhysRefData/ASD/Images/List.gif style=border:0 width=77 height=47
+alt=[List of Spectra] title=List of Spectra></a><a href=https://physics.nist.gov/PhysRefData/ASD/ionEnergy.html><img
+src=https://physics.nist.gov/PhysRefData/ASD/Images/GS-IE.gif style=border:0 width=124 height=47
+alt=[Ground States and Ionization Energies] title=Ground States and Ionization Energies></a><a
+href=https://physics.nist.gov/PhysRefData/ASBib1/index.html><img src=https://physics.nist.gov/PhysRefData/ASD/Images/Bib.gif style=border:0
+width=98 height=47 alt=[Bibliography] title=Bibliography></a><a
+href=https://physics.nist.gov/PhysRefData/ASD/Html/help.html><img src=https://physics.nist.gov/PhysRefData/ASD/Images/Help.gif style=border:0
+width=55 height=47 alt=[Help] title=Help/></a></td>
+<td style=text-align:right><img src=https://physics.nist.gov/PhysRefData/ASD/Images/nist-pl-black.gif style=border:0 width=136 height=68
+usemap=#NIST-PL alt=NIST Physical Measurement Laboratory/></td>
+</tr></table>
+
+<h2>Error Message:</h2><hr>
+<FONT COLOR=red>No lines are available in ASD with the parameters selected</FONT>
+<hr><table style=width:100%; border:0; margin-top:0>
+<tr><td style=text-align:left><a href=https://physics.nist.gov/PhysRefData/ASD/index.html><img
+src=https://physics.nist.gov/PhysRefData/ASD/Images/ASD-sm.gif style=border:0 width=100 height=47
+alt=[ASD Home] title=ASD Home></a><a href=https://physics.nist.gov/PhysRefData/ASD/lines_form.html><img
+src=https://physics.nist.gov/PhysRefData/ASD/Images/Lines.gif style=border:0 width=70 height=47
+alt=[Lines Query] title=Lines Query></a><a href=https://physics.nist.gov/PhysRefData/ASD/levels_form.html><img
+src=https://physics.nist.gov/PhysRefData/ASD/Images/Levels.gif style=border:0 width=79 height=47
+alt=[Levels Query] title=Levels Query></a><a href=https://www.nist.gov/pml/atomic-spectra-database-contents><img
+src=https://physics.nist.gov/PhysRefData/ASD/Images/List.gif style=border:0 width=77 height=47
+alt=[List of Spectra] title=List of Spectra></a><a href=https://physics.nist.gov/PhysRefData/ASD/ionEnergy.html><img
+src=https://physics.nist.gov/PhysRefData/ASD/Images/GS-IE.gif style=border:0 width=124 height=47
+alt=[Ground States and Ionization Energies] title=Ground States and Ionization Energies></a><a
+href=https://physics.nist.gov/PhysRefData/ASBib1/index.html><img src=https://physics.nist.gov/PhysRefData/ASD/Images/Bib.gif style=border:0
+width=98 height=47 alt=[Bibliography] title=Bibliography></a><a
+href=https://physics.nist.gov/PhysRefData/ASD/Html/help.html><img src=https://physics.nist.gov/PhysRefData/ASD/Images/Help.gif style=border:0
+width=55 height=47 alt=[Help] title=Help/></a></td>
+<td style=text-align:right><img src=https://physics.nist.gov/PhysRefData/ASD/Images/nist-pl-black.gif style=border:0 width=136 height=68
+usemap=#NIST-PL alt=NIST Physical Measurement Laboratory/></td>
+</tr></table>
+
+
+</body>
+</html>
