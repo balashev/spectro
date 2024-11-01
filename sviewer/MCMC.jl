@@ -626,9 +626,10 @@ end
 
 function load_disp(filename)
 	fit, fit_comps, cheb = load(filename)["data"]
-return fit, fit_comps, cheb
+	return fit, fit_comps, cheb
+end
 
-function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nthreads=1)
+function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nthreads=1, savename="disp")
 	"""
 	Calculate the dispersion of the fit
 	"""
@@ -691,6 +692,6 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nt
 
     rmprocs(workers())
 
-	save(File(format"JLD2", "disp.spd"), "data", [fit, fit_comps, cheb])
+	save(File(format"JLD2", "output\\"*savename*".spd"), "data", [fit, fit_comps, cheb])
     return fit, fit_comps, cheb
 end
