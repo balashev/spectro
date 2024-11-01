@@ -116,7 +116,7 @@ Keyboard bindings
 * **q**: continuum
    
    * **q**                              :  make continuum in window using smoothing
-   * **q + CRTL**                       :  show composite QSO spectrum (several templates available)
+   * **q + CTRL**                       :  show composite QSO spectrum (several templates available)
 
 * **u**: find doublet:
    

@@ -741,9 +741,9 @@ class plotline():
         # ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res-1.1*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
         # ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res+0.9*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
         x_pos = self.x_max - 0.01 * (self.x_max - self.x_min)
-        self.ax.text(x_pos, null_res + delt_res, r'$+$' + str(self.sig) + '$\sigma$', fontsize=self.font_size - 2,
+        self.ax.text(x_pos, null_res + delt_res, r'$+$' + str(self.sig) + '$\sigma$', fontsize=self.font_size - 4,
                 color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
-        self.ax.text(x_pos, null_res - delt_res, r'$-$' + str(self.sig) + '$\sigma$', fontsize=self.font_size - 2,
+        self.ax.text(x_pos, null_res - delt_res, r'$-$' + str(self.sig) + '$\sigma$', fontsize=self.font_size - 4,
                 color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
         if sum(self.points) > 0:
             k = (self.points != 1)
@@ -861,6 +861,7 @@ class plotline():
             z_ref, z_col = [self.parent.z_ref], [color]
 
         species = levels[0][:levels[0].index('j')]
+        #print(species)
 
         if species == 'H2':
             lines = atomicData.H2(levels)
@@ -906,6 +907,8 @@ class plotline():
                             pos_y = pos - d_pos - d_pos * (ymax - ymin)
                     else:
                         pos_y = pos + i * d_pos + i * d_pos * (ymax - ymin)
+                elif species == 'CO':
+                    pass
                 b_lines = [line for line in lines if band.replace(' ', '') in str(line)]
                 #print(b_lines)
                 b_lines = [line for line in b_lines if line.l() * (1 + self.parent.z_ref) > xmin and line.l() * (1 + self.parent.z_ref) < xmax]

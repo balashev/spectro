@@ -322,6 +322,7 @@ class fitSystem:
                 self.pr.pars['CMB'].value = self.CMB.val
             for k in self.pr.species.keys():
                 col = self.pr.predict(name=k, level=-1, logN=self.Ntot.val)
+                #print("python:", col)
                 for s in self.sp.keys():
                     if k in s and 'Ntot' in self.sp[s].N.addinfo:
                         self.sp[s].N.val = col[self.pr.species[k].names.index(s)]
@@ -614,17 +615,23 @@ class fitPars:
                         what = 'all'
 
                 for k, s in sys.sp.items():
+                    #print(k, s.N.addinfo)
                     if what in ['all', 'me', 'iso']:
                         if 'me' in s.N.addinfo and 'HI' in sys.sp.keys():
                             if any([sp not in k for sp in ['DI', '13C']]) and self.me_num > 0:
-                                s.N.val = abundance(k, sys.sp['HI'].N.val, getattr(self, s.N.addinfo).val)
+                                sys.sp[k].N.val = abundance(k, sys.sp['HI'].N.val, getattr(self, s.N.addinfo).val)
                         if s.N.addinfo == 'iso':
-                            if self.iso.addinfo == 'D/H' and 'HI' in sys.sp.keys():
+                            #print(self.iso.addinfo)
+                            if 'D/H' in self.iso.addinfo and 'HI' in sys.sp.keys():
                                 if 'DI' in k:
-                                    s.N.val = sys.sp['HI'].N.val + self.iso.val
-                            if self.iso.addinfo == '13C/12C':
+                                    sys.sp[k].N.val = sys.sp['HI'].N.val + self.iso.val
+                            if '13C/12C' in self.iso.addinfo:
                                 if '13CI' in k and k.replace('13', '') in sys.sp.keys():
-                                    s.N.val = sys.sp[k.replace('13', '')].N.val + self.iso.val
+                                    sys.sp[k].N.val = sys.sp[k.replace('13', '')].N.val + self.iso.val
+                                #print(k, '13CO' in k, k.replace('13', '') in sys.sp.keys(), sys.sp.keys())
+                                if '13CO' in k and k.replace('13', '') in sys.sp.keys():
+                                    #print(k.replace('13', ''), sys.sp[k.replace('13', '')].N.val)
+                                    sys.sp[k].N.val = sys.sp[k.replace('13', '')].N.val + self.iso.val
 
 
         for k, v in self.tieds.items():

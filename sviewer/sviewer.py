@@ -6,14 +6,14 @@ from astropy.io import ascii, fits
 from astropy.table import Table
 import astropy.time
 from astroquery import sdss as aqsdss
-from chainconsumer import ChainConsumer
+from chainconsumer import Chain, ChainConfig, ChainConsumer, PlotConfig, Truth
 from collections import OrderedDict
 from copy import deepcopy, copy
 import corner
+import ctypes
 import emcee
 import h5py
 from importlib import reload
-from julia import Main as julia
 from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs, Model
 from matplotlib.colors import to_hex
 import matplotlib
@@ -259,6 +259,7 @@ class plotSpectrum(pg.PlotWidget):
             if event.key() == Qt.Key.Key_E:
                 if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
                     self.parent.s.remove(self.parent.s.ind)
+                    self.e_status = False
 
                 if self.w_region is not None and not event.isAutoRepeat():
                     for attr in ['w_region', 'w_label']:
@@ -1056,6 +1057,7 @@ class spec2dWidget(pg.PlotWidget):
             if event.key() == Qt.Key.Key_E:
                 if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
                     self.parent.s.remove(self.parent.s.ind)
+                    self.e_status = False
                 else:
                     self.e_status = True
                     if self.parent.s[self.parent.s.ind].err2d is not None:
@@ -1503,12 +1505,15 @@ class preferencesWidget(QWidget):
                 self.parent.fitType = f.replace(':', '')
                 self.parent.options('fitType', self.parent.fitType)
                 if self.parent.fitType == 'julia':
-                    try:
+                    if self.parent.developer:
                         self.parent.reload_julia()
-                    except:
-                        self.parent.sendMessage('Julia is not installed')
-                        self.fitType = 'regular'
-                        self.regular.toggle()
+                    else:
+                        try:
+                            self.parent.reload_julia()
+                        except:
+                            self.parent.sendMessage('Julia is not installed')
+                            self.fitType = 'regular'
+                            self.regular.toggle()
                 else:
                     self.parent.julia = None
                 return
@@ -2433,8 +2438,10 @@ class showLinesWidget(QWidget):
                                 levels = [sp for sp in self.parent.fit.list_species() if sp.startswith(speci)]
                             else:
                                 levels = [(speci + "j") * l.isdigit() + l for l in self.show_H2.split()]
-                            p.showLineLabels(levels=levels, pos=self.pos_H2, kind='full', only_marks=self.only_marks, show_comps=self.all_comps_marks)
-                    
+                            levels = [l for l in levels if l.startswith(speci)]
+                            if len(levels) > 0:
+                                p.showLineLabels(levels=levels, pos=self.pos_H2, kind='full', only_marks=self.only_marks, show_comps=self.all_comps_marks)
+
                 if self.show_cont:
                     if not self.show_disp or len(s.fit.disp[0].norm.x) == 0:
                         p.ax.plot(s.cheb.x(), np.power(s.cheb.y(), 1 - self.corr_cheb), '--k', lw=1)
@@ -2806,6 +2813,9 @@ class fitMCMCWidget(QWidget):
         self.continue_cluster_button = QPushButton("Continue")
         self.continue_cluster_button.setFixedSize(90, 30)
         self.continue_cluster_button.clicked[bool].connect(partial(self.initCluster, init=False))
+        self.import_cluster_button = QPushButton("Import")
+        self.import_cluster_button.setFixedSize(90, 30)
+        self.import_cluster_button.clicked[bool].connect(partial(self.importCluster))
         #self.cont_fit = QPushButton("Fit cont")
         #self.cont_fit.setFixedSize(70, 30)
         #self.cont_fit.clicked[bool].connect(self.fitCont)
@@ -2816,6 +2826,7 @@ class fitMCMCWidget(QWidget):
         hbox.addWidget(QLabel('  Cluster:'))
         hbox.addWidget(self.init_cluster_button)
         hbox.addWidget(self.continue_cluster_button)
+        hbox.addWidget(self.import_cluster_button)
         hbox.addStretch(1)
         #hbox.addWidget(self.cont_fit)
 
@@ -2923,7 +2934,7 @@ class fitMCMCWidget(QWidget):
         self.fit_disp_num.setFixedSize(80, 30)
         self.fit_disp_num.textChanged.connect(self.set_fit_disp_num)
 
-        self.loadres_button = QPushButton("Load")
+        self.loadres_button = QPushButton("Import")
         self.loadres_button.setFixedSize(120, 30)
         self.loadres_button.clicked[bool].connect(self.loadres)
         self.export_button = QPushButton("Export")
@@ -3061,6 +3072,23 @@ class fitMCMCWidget(QWidget):
             print(chain.shape, chain.transpose(2, 0, 1).shape)
             g["chain"][...] = chain.transpose(2, 0, 1)
             g.attrs["pars"] = [p.encode() for p in [str(p) for p in self.parent.fit.list_fit()]]
+
+    def importCluster(self):
+        fname = QFileDialog.getOpenFileName(self, 'Import MCMC model', self.parent.work_folder)
+
+        if fname[0]:
+            if fname[0].endswith('.spj'):
+                self.importJulia(fname[0])
+            else:
+                self.parent.options('work_folder', os.path.dirname(fname[0]))
+                self.parent.MCMC_output = fname[0]
+
+    def importJulia(self, filename):
+        print(filename)
+        pars = self.parent.julia.readJulia(filename)
+        print(pars)
+        for par in pars:
+            print(par)
 
     def stop(self):
         self.start_button.setChecked(False)
@@ -3260,21 +3288,29 @@ class fitMCMCWidget(QWidget):
         if burnin < samples.shape[0]:
             if self.parent.options('MCMC_graph') == 'chainConsumer':
                 c = ChainConsumer()
-                c.add_chain(samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]], walkers=nwalkers,
-                            parameters=names)
-                c.configure(smooth=self.parent.options('MCMC_smooth'),
+                print(pd.DataFrame(data=samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]], columns=names))
+                c.add_chain(Chain(samples=pd.DataFrame(data=samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]], columns=names),# walkers=nwalkers,
+                            name="posteriors",
+                            #parameters=names,
+                            smooth=self.parent.options('MCMC_smooth'),
                             #colors='tab:red',
                             #cmap='Reds',
                             #marker_size=2,
-                            cloud=True,
+                            plot_cloud=True,
                             shade=True,
                             sigmas=[0, 1, 2, 3],
-                            )
-                c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
+                            ))
+                #c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
+                if truth is not None:
+                    c.add_truth(Truth(location=truth))
+                c.set_plot_config(PlotConfig(blind=self.parent.blindMode,
+                                             # flip=True,
+                                             # labels={"A": "$A$", "B": "$B$", "C": r"$\alpha^2$"},
+                                             # contour_label_font_size=12,
+                                             ))
                 figure = c.plotter.plot(figsize=(20, 20),
                                         #filename="output/fit.png",
-                                        display=not self.parent.blindMode,
-                                        truth=truth,
+                                        #display=not self.parent.blindMode,
                                         )
                 if self.parent.blindMode:
                     for ax in figure.axes:
@@ -3579,7 +3615,13 @@ class fitMCMCWidget(QWidget):
 
     def show_bestfit(self):
         pars, samples, lnprobs = self.readChain()
-        ind = np.where(lnprobs == np.amax(lnprobs))
+        print(lnprobs)
+        print(np.amax(lnprobs), np.nanmax(lnprobs))
+        print(np.isfinite(lnprobs))
+        print(np.sum(np.logical_not(np.isfinite(lnprobs))))
+        print(np.amax(lnprobs))
+        ind = np.where(lnprobs == np.nanmax(lnprobs))
+        print(ind)
         truth = samples[ind[0][0], ind[1][0], :]
         for p, t in zip(pars, truth):
             print(p, t)
@@ -3601,6 +3643,9 @@ class fitMCMCWidget(QWidget):
                     #print(i, k, s.fit_comp[k].line.norm.x[:], s.fit_comp[k].line.norm.y)
                     #fit_comp[i].append(s.fit_comp[k].line.norm.x[:])
                     fit_comp_disp[i].append([s.fit_comp[k].line.norm.y])
+            else:
+                fit_disp.append([])
+                fit_comp_disp.append([])
 
         #for i, s in enumerate(self.parent.s):
         #    for k, sys in enumerate(self.parent.fit.sys):
@@ -3710,7 +3755,6 @@ class fitMCMCWidget(QWidget):
     def keyPressEvent(self, event):
         super(fitMCMCWidget, self).keyPressEvent(event)
         key = event.key()
-
         if not event.isAutoRepeat():
             if event.key() == Qt.Key.Key_F5:
                 #if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
@@ -6092,7 +6136,7 @@ class rebinWidget(QWidget):
     def addParent(self, parent, text, checkable=False, expanded=False):
         item = QTreeWidgetItem(parent, [text])
         if checkable:
-            item.setCheckState(0, pUnchecked)
+            item.setCheckState(0, Qt.CheckState.Unchecked)
         else:
             #item.setFlags(item.flags() | Qt.ItemIsEditable)
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsUserCheckable)
@@ -6716,9 +6760,7 @@ class sviewer(QMainWindow):
         elif platform.system() == 'Linux':
             self.config = 'config/options_linux.ini'
         self.developer = os.path.isfile(self.folder + 'config/developer.ini')
-        print(self.developer)
-        self.blindMode = self.options('blindMode', config=self.config)
-        #self.developer = self.options('developerMode', config=self.config)
+        self.blindMode = self.options('blindMode')
         self.SDSSfolder = self.options('SDSSfolder', config=self.config)
         self.SDSSDR14 = self.options('SDSSDR14', config=self.config)
         if self.SDSSDR14 is not None and os.path.isfile(self.SDSSDR14):
@@ -6754,14 +6796,20 @@ class sviewer(QMainWindow):
         self.export2d_opt = ['spectrum', 'err', 'mask', 'cr', 'sky', 'trace']
         self.num_between = int(self.options('num_between'))
         self.tau_limit = float(self.options('tau_limit'))
-        self.fit_method = str(self.options('fit_method'))
-        self.comp_view = self.options('comp_view')
-        self.animateFit = self.options('animateFit')
-        self.juliaFit = self.options('julia')
+        self.juliaFit = self.options('juliaFit')
         self.julia = None
         if self.juliaFit:
-            self.julia = julia #.Julia()
-            self.julia.include(self.folder + "profiles.jl")
+            try:
+                from julia import Main as julia
+                self.julia = julia #.Julia()
+                self.julia.include(self.folder + "profiles.jl")
+                self.options('juliaFit', True)
+            except:
+                self.options('juliaFit', False)
+                self.options('fitType', 'fast')
+        # self.specview sets the type of plot representation
+        for l in ['specview', 'selectview', 'linelabels', 'showinactive', 'show_osc', 'fitType', 'fitComp', 'fitview', 'comp_view', 'animateFit', 'fit_method']:
+            setattr(self, l, self.options(l))
         self.polyDeg = int(self.options('polyDeg'))
         self.SDSScat = self.options('SDSScat')
         self.comp = 0
@@ -6783,13 +6831,12 @@ class sviewer(QMainWindow):
         self.message = None
         self.ErositaWidget = None
         self.fullscreen = bool(self.options('fullscreen'))
+        # this is to set the spectro_logo in the taskbar for Windows
+        myapp = u'spectro.0.8'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myapp)
 
     def initUI(self):
-        
-        dbg = pg.dbg()
-        # self.specview sets the type of plot representation
-        for l in ['specview', 'selectview', 'linelabels', 'showinactive', 'show_osc', 'fitType', 'fitComp', 'fitview']:
-            setattr(self, l, self.options(l))
+        #dbg = pg.dbg()
         # >>> create panel for plotting spectra
         self.plot = plotSpectrum(self)
         self.vb = self.plot.getPlotItem().getViewBox()
@@ -7548,9 +7595,29 @@ class sviewer(QMainWindow):
                 f.write(line)
 
     def reload_julia(self):
-        reload(julia)
-        self.julia = julia #.Julia()
-        self.julia.include(self.folder + "profiles.jl")
+        if self.developer:
+            try:
+                reload(julia)
+            except:
+                self.sendMessage("Julia was not imported. Importing")
+                from julia import Main as julia
+            self.julia = julia  # .Julia()
+            self.julia.include(self.folder + "profiles.jl")
+            self.options('juliaFit', True)
+        else:
+            try:
+                try:
+                    reload(julia)
+                except:
+                    self.sendMessage("Julia was not imported. Importing")
+                    from julia import Main as julia
+                self.julia = julia  # .Julia()
+                self.julia.include(self.folder + "profiles.jl")
+                self.options('juliaFit', True)
+            except:
+                self.sendMessage("There was a problems to import Julia was not imported.")
+                self.julia = None
+                self.options('juliaFit', False)
 
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -7744,6 +7811,7 @@ class sviewer(QMainWindow):
             if '%' in d[i] or any([x in d[i] for x in ['spect', 'Bcont', 'fitting']]):
                 if '%' in d[i]:
                     specname = d[i][1:].strip()
+                    print(specname)
                     try:
                         ind = [s.filename for s in self.s].index(specname)
                     except:
@@ -8136,28 +8204,34 @@ class sviewer(QMainWindow):
                             prihdr = hdulist[1].data
 
                             if hdulist[1].header['NAXIS2'] == 1:
-                                s.set_data([prihdr['WAVE'][0], prihdr['FLUX'][0], prihdr['ERROR'][0]])
+                                if 'HLSPID' in hdulist[0].header and (hdulist[0].header['HLSPID'].strip() == 'HSLA' or hdulist[0].header['HLSPID'].strip() == 'ULLYSES'):
+                                    s.set_data([prihdr['WAVELENGTH'][0], prihdr['FLUX'][0], prihdr['ERROR'][0]])
+                                else:
+                                    s.set_data([prihdr['WAVE'][0], prihdr['FLUX'][0], prihdr['ERROR'][0]])
                             else:
                                 for k in [0, 1]:
                                     s = Spectrum(self, name=filename + f'_{k}')
                                     r = range(k, hdulist[1].header['NAXIS2'], 2)
                                     s.set_data([np.concatenate([np.r_[prihdr['WAVELENGTH'][i], 2 * prihdr['WAVELENGTH'][i][-1] - prihdr['WAVELENGTH'][i][-2]] for i in r]),
-                                                np.concatenate([np.r_[prihdr['FLUX'][i], np.inf] for i in r]) * 1e12,
-                                                np.concatenate([np.r_[prihdr['ERROR'][i], np.inf] for i in r]) * 1e12])
+                                                np.concatenate([np.r_[prihdr['FLUX'][i], np.inf] for i in r]),
+                                                np.concatenate([np.r_[prihdr['ERROR'][i], np.inf] for i in r])])
                                     if k == 0:
                                         s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
+                                        s.rescale(1e13)
                                         self.s.append(s)
+                            s.rescale(1e13)
 
                         if 'COS' in hdulist[0].header['INSTRUME']:
                             prihdr = hdulist[1].data
                             print(prihdr['WAVELENGTH'])
                             s.set_data([[np.r_[prihdr['WAVELENGTH'][i], 2 * prihdr['WAVELENGTH'][i][-1] - prihdr['WAVELENGTH'][i][-2]] for i in range(hdulist[1].header['NAXIS2'])],
-                                        np.concatenate([np.r_[prihdr['FLUX'][i], np.inf] for i in range(hdulist[1].header['NAXIS2'])]) * 1e15,
-                                        np.concatenate([np.r_[prihdr['ERROR'][i], np.inf] for i in range(hdulist[1].header['NAXIS2'])]) * 1e15,
+                                        np.concatenate([np.r_[prihdr['FLUX'][i], np.inf] for i in range(hdulist[1].header['NAXIS2'])]),
+                                        np.concatenate([np.r_[prihdr['ERROR'][i], np.inf] for i in range(hdulist[1].header['NAXIS2'])]),
                                         ])
                             s.filename = filename
                             s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
                             s.resolution = 20000
+                            s.rescale(1e13)
                             s.lsf_type = 'cos'
                             #self.s.append(s)
                             #s = Spectrum(self, name=filename+'_2')
@@ -8385,13 +8459,14 @@ class sviewer(QMainWindow):
                         #print('ORIGIN' in hdulist[0].header, 'sviewer' in hdulist[0].header['ORIGIN'])
                         if 'INSTRUME' in hdulist[0].header and 'XSHOOTER' in hdulist[0].header['INSTRUME']:
                             err, mask = None, None
+                            factor = 1 #1e17
                             for h in hdulist[1:]:
                                 if 'EXTNAME' not in h.header or h.header['EXTNAME'].strip() == 'ERRS':
-                                    err = h.data * 1e17
+                                    err = h.data * factor
                                 elif h.header['EXTNAME'].strip() == 'QUAL':
                                     mask = h.data.astype(bool)
                             #print(err, mask)
-                            s.spec2d.set(x=x, y=y, z=hdulist[0].data * 1e17, err=err, mask=mask)
+                            s.spec2d.set(x=x, y=y, z=hdulist[0].data * factor, err=err, mask=mask)
 
                         elif 'INSTRUME' in hdulist[0].header and hdulist[0].header['INSTRUME'] == 'SCORPIO-2':
                             err, mask = None, None
@@ -8931,7 +9006,6 @@ class sviewer(QMainWindow):
     def fitJulia(self, **kwargs):
 
         #self.reload_julia()
-
         self.s.prepareFit(all=False)
         #self.julia_spec = self.julia.prepare(self.s, self.julia_pars)
         dof, res, unc = self.julia.fitLM(self.julia_spec, self.fit.list(), self.julia_add, tieds=self.fit.tieds, opts=kwargs, blindMode=self.blindMode)
@@ -9348,19 +9422,32 @@ class sviewer(QMainWindow):
                     print(samples.shape)
                     samples[:, 2] = samples[:, 0] / (2 * np.pi)**0.5 / samples[:, 2]
                     c = ChainConsumer()
-                    names, truth = ['Area', 'Centroid', 'Amplitude', 'FWHM'], [params['amp'].value, params['cen'].value, params['amp'].value / (2 * np.pi)**0.5 / params['disp'].value, np.sqrt(2 * np.log(2)) * params['disp'].value * 2]
-                    c.add_chain(samples, walkers=nwalkers, parameters=names)
-                    c.configure(smooth=True,
-                                cloud=True,
-                                sigmas=[0, 1, 2, 3],
-                                )
-                    c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
-                    #fig = c.plotter.plot_walks(truth={name: params[name].value for name in names}, convolve=50)
-                    fig = c.plotter.plot(figsize=(30, 30),
-                                         # filename="output/fit.png",
-                                         display=True,
-                                         truth=truth
-                                         )
+                    names, truth = ['Area', 'Centroid', 'Amplitude', 'FWHM'], {'Area': params['amp'].value, 'Centroid': params['cen'].value, 'Amplitude': params['amp'].value / (2 * np.pi)**0.5 / params['disp'].value, 'FWHM': np.sqrt(2 * np.log(2)) * params['disp'].value * 2}
+                    print(pd.DataFrame(data=samples, columns=names))
+
+                    c.add_chain(Chain(samples=pd.DataFrame(data=samples, columns=names),  # walkers=nwalkers,
+                                    name="emission line posteriors",
+                                    # parameters=names,
+                                    smooth=True,
+                                    # colors='tab:red',
+                                    # cmap='Reds',
+                                    # marker_size=2,
+                                    plot_cloud=True,
+                                    shade=True,
+                                    sigmas=[0, 1, 2, 3],
+                                    ))
+                    #c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
+                    if truth is not None:
+                        c.add_truth(Truth(location=truth))
+                    c.set_plot_config(PlotConfig(blind=False,
+                            #flip=True,
+                            #labels={"A": "$A$", "B": "$B$", "C": r"$\alpha^2$"},
+                            #contour_label_font_size=12,
+                            ))
+                    figure = c.plotter.plot(figsize=(20, 20),
+                                            # filename="output/fit.png",
+                                            #display=True,
+                                            )
                     table = c.analysis.get_latex_table(caption="Results for emission line fit", label="tab:results")
                     print(table)
                     self.console.set(table)

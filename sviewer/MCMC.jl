@@ -120,6 +120,11 @@ function readMCMC(filename)
 	return chain, llhoodvals
 end
 
+function readJulia(filename)
+	spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = deserialize(filename)
+	return pars
+end
+
 function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0, filename="mcmc")
 
     #COUNTERS["num"] = nwalkers

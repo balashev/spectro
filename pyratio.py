@@ -24,11 +24,9 @@ from spectro.a_unc import a
 from spectro.profiles import tau, voigt
 from spectro.stats import distr1d, distr2d
 from spectro.sviewer.utils import printProgressBar, Timer, flux_to_mag
-
 def smooth_step(x, delta):
     x = np.clip(x/delta, 0, 1)
     return x**3 * (x * (x*6 - 15) + 10)
-
 class speci:
     """
     class of all necessary species data for calculations
@@ -941,7 +939,7 @@ class pyratio():
 
         return R
 
-    def balance(self, name=None, debug=None):
+    def balance(self, name=None, debug=None, logN=None):
         """
         calculate balance matrix for population of levels
         parameters:
@@ -965,7 +963,7 @@ class pyratio():
 
         #self.timer.time('A')
         if debug in [None, 'A', 'total']:
-            W += speci.Aij
+            W += speci.Aij * self.radiative_trapping(logN=logN)
 
         if debug in [None, 'C', 'total']:
             for u in range(speci.num):
@@ -975,7 +973,7 @@ class pyratio():
 
         if debug in [None, 'CMB', 'total']:
             if 'CMB' in self.pars:
-                W += np.multiply(speci.Bij, self.rad_field(speci.Eij, sed_type='CMB'))
+                W += np.multiply(speci.Bij, self.rad_field(speci.Eij, sed_type='CMB') * self.radiative_trapping(logN=logN))
 
         if 'rad' in self.pars:
 
@@ -992,10 +990,10 @@ class pyratio():
                 if self.radiation == 'full':
                     for u in range(speci.num):
                         for l in range(speci.num):
-                            W[u, l] += speci.Bij[u, l] * self.rad_field(speci.Eij[u, l])
+                            W[u, l] += speci.Bij[u, l] * self.rad_field(speci.Eij[u, l]) * self.radiative_trapping(logN=logN)
 
                 if self.radiation == 'simple':
-                    W += self.species[name].rad_rate * 10 ** self.pars['rad'].value
+                    W += self.species[name].rad_rate * 10 ** self.pars['rad'].value * self.radiative_trapping(logN=logN)
 
         #self.timer.time('solve')
         if debug is None:
@@ -1165,6 +1163,14 @@ class pyratio():
 
         return field
 
+    def radiative_trapping(self, logN=None):
+        if logN != None:
+            beta = np.exp(-(logN - 15) / 2) if logN > 15 else 1
+        else:
+            beta = 1
+
+        return beta
+
     def ionization_parameter(self, ne=None):
         if self.sed_type in ['AGN', 'power']:
             if ne == None:
@@ -1322,7 +1328,7 @@ class pyratio():
         if name is None:
             name = list(self.species.keys())[0]
 
-        x = self.balance(self.species[name].name)
+        x = self.balance(self.species[name].name, logN=logN)
 
         if logN is None:
             logN = 0.0

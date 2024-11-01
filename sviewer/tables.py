@@ -95,7 +95,7 @@ class expTableWidget(TableWidget):
                  ('resolution', np.int_), ('scaling factor', np.float_)]
         zero = ('', '', np.nan, np.nan, 'Gaussian', 0, 1)
         data = np.array([zero], dtype=dtype)
-        self.edit_col = [4, 5]
+        self.edit_col = [4, 5, 6]
         for s in self.parent.s:
             #print(s.filename, s.date, s.wavelmin, s.wavelmax, s.resolution)
             data = np.insert(data, len(data), np.array([('  '+s.filename+'  ', '  '+s.date+'  ', s.wavelmin, s.wavelmax, s.lsf_type, s.resolution, s.scaling_factor)], dtype=dtype), axis=0)
@@ -137,28 +137,29 @@ class expTableWidget(TableWidget):
         if self.currentItem().row() != self.parent.s.ind:
             self.row_clicked()
 
-    def cell_Changed(self):
+    def cell_Changed(self, row, col):
 
-        if self.cell_value('lsf_type'):
+        #print(row, col)
+        if col == 4:
             lsf_type = ''
             if self.cell_value('lsf_type').lower() in ['gauss', 'Gaussian', 'normal']:
                 lsf_type = 'gauss'
             elif self.cell_value('lsf_type').lower() in ['cos']:
                 lsf_type = 'cos'
             if lsf_type != '':
-                self.parent.s[self.currentItem().row()].lsf_type = lsf_type
+                self.parent.s[row].lsf_type = lsf_type
                 self.parent.s.calcFit(-1, recalc=True)
                 self.parent.s.calcFitComps()
                 self.parent.s.redraw()
 
-        if self.parent.s[self.currentItem().row()].resolution != int(self.cell_value('resolution')):
-            self.parent.s[self.currentItem().row()].resolution = int(self.cell_value('resolution'))
+        if (col == 5) and (self.parent.s[row].resolution != int(self.cell_value('resolution'))):
+            self.parent.s[row].resolution = int(self.cell_value('resolution'))
             self.parent.s.calcFit(-1, recalc=True)
             self.parent.s.calcFitComps()
             self.parent.s.redraw()
 
-        if self.parent.s[self.currentItem().row()].scaling_factor != float(self.cell_value('scaling factor')):
-            self.parent.s[self.currentItem().row()].rescale(float(self.cell_value('scaling factor')))
+        if (col == 6) and (self.parent.s[row].scaling_factor != float(self.cell_value('scaling factor'))):
+            self.parent.s[row].rescale(float(self.cell_value('scaling factor')))
             #self.parent.s.calcFitComps()
             self.parent.s.redraw()
 

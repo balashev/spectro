@@ -271,6 +271,7 @@ function update_pars(pars, spec, add)
             pr = add["pyratio"][parse(Int, ind) + 1]
             x = pyratio_predict(pr, pars)
             col = [v.val - log10(sum(x)) + log10(x[i]) for i in 1:pr.num]
+            #println("julia: ", col)
             for (k1, v1) in pars
                 if startswith(k1, "N_" * ind * "_" * pr.species) * occursin("Ntot", v1.addinfo)
                     i = occursin(pr.species * "j", k1) ? parse(Int, replace(k1, "N_" * ind * "_" * pr.species * "j" => "")) + 1 : 1
@@ -278,12 +279,17 @@ function update_pars(pars, spec, add)
                 end
             end
         end
+        #println(occursin("iso", pars[k].name))
         if occursin("iso", pars[k].name)
             for (k1, v1) in pars
                 if occursin("D/H", pars[k].addinfo) * occursin("N_", k1) * occursin("DI", k1) * occursin("iso", v1.addinfo)
                     pars[k1].val = pars[replace(k1, "DI" => "HI")].val + pars[k].val
                 end
                 if occursin("13C/12C", pars[k].addinfo) * occursin("N_", k1) * occursin("13CI", k1) * occursin("iso", v1.addinfo) * haskey(pars, replace(k1, "13" => ""))
+                    pars[k1].val = pars[replace(k1, "13" => "")].val + pars[k].val
+                end
+                #println(occursin("13C/12C", pars[k].addinfo), " ", occursin("N_", k1) * occursin("13CO", k1), " ", haskey(pars, replace(k1, "13" => "")))
+                if occursin("13C/12C", pars[k].addinfo) * occursin("N_", k1) * occursin("13CO", k1) * occursin("iso", v1.addinfo) * haskey(pars, replace(k1, "13" => ""))
                     pars[k1].val = pars[replace(k1, "13" => "")].val + pars[k].val
                 end
             end
@@ -451,10 +457,20 @@ function prepare_add(fit, pars)
     return add
 end
 
+function escape_prob(N)
+    esc = 1
+    if N > 15
+        esc = esc * exp(- (N - 15) / 2)
+    end
+    return esc
+end
+
 ##############################################################################
 function pyratio_predict(pr, pars)
     #pars["logT_" * ind].val
-    W = pr.Aij
+    #println("Ntot_" * pr.ind, " ", pars["Ntot_" * pr.ind].val, " ", escape_prob(pars["Ntot_" * pr.ind].val))
+    #println(pars["Ntot_" * pr.ind].val, " ", escape_prob(pars["Ntot_" * pr.ind].val))
+    W = pr.Aij .* escape_prob(pars["Ntot_" * pr.ind].val)
 
     update_coll_rate(pr, pars)
     if any(s in pr.pars for s in ["n", "e"])
@@ -466,10 +482,10 @@ function pyratio_predict(pr, pars)
     else
         TCMB = 2.726 * (pars["z_" * pr.ind].val + 1)
     end
-    W = W .+ cmb_rate(pr.Bij, pr.Eij, TCMB)
+    W = W .+ cmb_rate(pr.Bij, pr.Eij, TCMB) .* escape_prob(pars["Ntot_" * pr.ind].val)
 
     if "rad" in pr.pars
-        W = W .+ pr.rad_rate .* 10 ^ pars["rad_" * pr.ind].val
+        W = W .+ pr.rad_rate .* 10 ^ pars["rad_" * pr.ind].val .* escape_prob(pars["Ntot_" * pr.ind].val)
     end
     if "rad" in pr.pars
         W = W .+ pr.pump_rate .* 10 ^ pars["rad_" * pr.ind].val

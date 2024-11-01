@@ -1,21 +1,21 @@
-H2O
-CH+
-CH
-CH+
-CH
-show CH
-show SI
-shiw H2 01 
-show H2 0 1 
-show CI
-show FeIIj1\
-show FeIIj1
-show FeIIj2
-show FeIIj3
-show H2 0 1
+show 13COj2
+show 13COj1
+show 13COj2
+logN 13CO
+show 13COj0
+show 13COj1
+show 13COj0
+show 13COj1
+show 13COj2
+show 13COj3
+show 13COj4
 show SiIIj1
-show H2 0 1
-show H2 0 1
-show CI
-high FeII
-show SiII*
+SiII
+SiIIj1
+CIV
+HI
+set err 0.05
+set err 0.05
+set err 0.03
+set err 0.05
+set err 0.05

@@ -558,14 +558,14 @@ class Console(QTextEdit):
                     mask = (xmin < s.spec.x()) * (s.spec.x() < xmax)
                     if np.sum(mask) > 0:
                         ston, disp = np.mean(s.spec.y()[mask]/s.spec.err()[mask]), np.std(s.spec.y()[mask]-1) / np.mean(s.spec.err()[mask])
-                        st += '   {0:6.2f}    {1:6.3f}    {2:6.2f}\n'.format(ston, disp, ston/disp)
+                        st += '   {0:6.2f}    {1:6.3f}    {2:6.2f}    {3:6.3f}\n'.format(ston, disp, ston/disp, disp/ston)
                     else:
                         st += ' there is no continuum \n'
                 else:
                     mask = (xmin < s.spec.x()[s.cont_mask]) * (s.spec.x()[s.cont_mask] < xmax)
                     if np.sum(mask) > 0:
                         ston, disp = np.mean(s.spec.y()[s.cont_mask][mask] / s.spec.err()[s.cont_mask][mask]), np.std(s.spec.y()[s.cont_mask][mask] - s.cont.y[mask]) / np.mean(s.spec.err()[s.cont_mask][mask])
-                        st += '   {0:6.2f}    {1:6.3f}    {2:6.2f}\n'.format(ston, disp, ston/disp)
+                        st += '   {0:6.2f}    {1:6.3f}    {2:6.2f}    {3:6.3f}\n'.format(ston, disp, ston/disp, disp/ston)
                     else:
                         st += ' there is no continuum \n'
 

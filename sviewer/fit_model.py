@@ -169,8 +169,8 @@ class fitModelWidget(QWidget):
         self.tab.setTabBar(self.tabBar)
         self.tabBar.setMouseTracking(False)
         self.tabBar.setMovable(True)
-        self.tab.setGeometry(0, 0, 800, 900)
-        self.tab.setMinimumSize(900, 500)
+        self.tab.setGeometry(0, 0, 800, 1000)
+        self.tab.setMinimumSize(900, 700)
         self.tabIndex = 1
         #t = Timer('fitmodel')
         self.tabNum = len(self.parent.fit.sys)
@@ -291,7 +291,7 @@ class fitModelWidget(QWidget):
 
         self.setLayout(l)
 
-        self.setGeometry(100, 100, 1900, 900)
+        self.setGeometry(100, 100, 1900, 1200)
         self.setWindowTitle('Fit model')
         self.show()
         self.refresh()
@@ -925,6 +925,7 @@ class fitModelWidget(QWidget):
             s = self.parent.s[self.parent.fit.cont[i].exp]
             if self.parent.normview:
                 m = (s.spec.x() > self.parent.fit.cont[i].left) * (s.spec.x() < self.parent.fit.cont[i].right)
+                print(np.nanmean(s.spec.err()[m] / s.cont.y[m]))
                 self.parent.fit.cont[i].disp = np.nanmean(s.spec.err()[m] / s.cont.y[m])
             else:
                 m = (s.spec.x() > self.parent.fit.cont[i].left) * (s.spec.x() < self.parent.fit.cont[i].right)
@@ -932,7 +933,7 @@ class fitModelWidget(QWidget):
             self.parent.fit.cont[i].update()
             getattr(self, 'region_' + str(i)).cont_left.setText('{0:6.1f}'.format(self.parent.fit.cont[i].left).strip())
             getattr(self, 'region_' + str(i)).cont_right.setText('{0:6.1f}'.format(self.parent.fit.cont[i].right).strip())
-            getattr(self, 'region_' + str(i)).cont_disp.setText('{0:6.2f}'.format(self.parent.fit.cont[i].disp).strip())
+            getattr(self, 'region_' + str(i)).cont_disp.setText('{0:6.3f}'.format(self.parent.fit.cont[i].disp).strip())
         #self.parent.fit.cont_num = len(self.parent.plot.regions)
         #self.cont_num.setText(str(self.parent.fit.cont_num))
 
@@ -1331,7 +1332,7 @@ class fitModelSysWidget(QFrame):
         for species in self.species.keys():
             combo = getattr(self, species + '_btied')
             combo.clear()
-            combo.addItems(['tie to'])
+            combo.addItems(['indep.'])
             if self.cons.isExpanded():
                 combo.addItems(['consist'])
             sp = list(self.species.keys())
@@ -1348,7 +1349,7 @@ class fitModelSysWidget(QFrame):
 
             combo = getattr(self, species + '_Ntied')
             combo.clear()
-            combo.addItems(['tie to'])
+            combo.addItems(['indep.'])
             if self.parent.parent.fit.me_num > 0:
                 for i in range(self.parent.parent.fit.me_num):
                     combo.addItems(['me_' + str(i)])

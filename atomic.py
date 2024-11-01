@@ -839,7 +839,7 @@ class atomicData(OrderedDict):
                 self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'], nu_u=l['band']))
                 self[name].lines[-1].band = l['name'].decode('UTF-8')
 
-        CO = np.genfromtxt(self.folder + r'/data/13CO_data.dat', skip_header=1, names=True, dtype=None)
+        CO = np.genfromtxt(self.folder + r'/data/13CO_Morton.dat', skip_header=1, names=True, dtype=None)
         for i in np.unique(CO['level']):
             name = '13COj' + str(i)
             self[name] = e(name)

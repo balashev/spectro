@@ -2013,12 +2013,13 @@ class Spectrum():
 
             y = np.copy(self.spec.raw.y)
 
-            mask = (xl < self.spec.raw.x) * (self.spec.raw.x < xr)
+            mask = (xl < self.spec.raw.x) * (self.spec.raw.x < xr) * (self.spec.raw.err != 0)
             if cont:
                 mask *= self.cont_mask
                 self.cont.interpolate()
                 y[mask] = self.cont.inter(self.spec.raw.x[mask])
                 iter = 1
+            print('calcCont:', np.sum(mask), y[mask])
             ys = y[mask]
 
             if method == 'Bspline':
@@ -2031,6 +2032,8 @@ class Spectrum():
                     else:
                         mask[mask] *= sign * (ys - y[mask]) / self.spec.raw.err[mask] < clip
 
+                print('calcCont:', np.sum(mask), y[mask], window)
+
                 if method == 'SG':
                     ys = sg.savitzky_golay(y[mask], window_size=window, order=sg_order)
                 if method == 'Smooth':
@@ -2038,8 +2041,11 @@ class Spectrum():
                 if method == 'Bspline':
                     ys = smooth(y[mask], window_len=window, window=filter, mode='same')
                     inter = interp1d(self.spec.raw.x[mask], ys, fill_value=(ys[0], ys[-1]), bounds_error=False)
+                    m = np.isfinite(inter(self.spec.raw.x[inds]))
+                    print(self.spec.raw.x[inds][m], inter(self.spec.raw.x[inds][m]))
                     if i == iter - 1:
-                        self.spline.set_data(x=self.spec.raw.x[inds], y=inter(self.spec.raw.x[inds]))
+                        self.spline.set_data(x=self.spec.raw.x[inds][m], y=inter(self.spec.raw.x[inds][m]))
+                        print(self.spline.x, self.spline.y)
                         self.g_spline.setData(x=self.spline.x, y=self.spline.y)
                     tck = splrep(self.spec.raw.x[inds], inter(self.spec.raw.x[inds]), k=3)
                     ys = splev(self.spec.raw.x[mask], tck)
@@ -2071,7 +2077,7 @@ class Spectrum():
                     value = hdu[0].header[hdrKeyword]  # Save the key/value pairs to the dictionary
                     param_dict[hdrKeyword] = value
                 if verbose:
-                    print(f"{hdrKeyword} = {value}")  # Print the key/value pairs
+                    print(f"{hdrKeywrd} = {value}")  # Print the key/value pairs
 
         LSF_file_name, disptab_path = fetch_COS_files(*list(param_dict.values()))
 
@@ -2099,7 +2105,14 @@ class Spectrum():
         #print(lsf.colnames)
         #print(pix)
         #print(lsf_wvlns)
+        #print(disptab_path)
+        #print(type(param_dict["CENWAVE"]))
         with fits.open(disptab_path) as d:
+            #print(d[1].data["cenwave"])
+            #print(d[1].data["cenwave"].dtype)
+            #print(d[1].data["aperture"])
+            #print(np.where((d[1].data["cenwave"] == param_dict["CENWAVE"])))
+            #print(np.where((d[1].data["aperture"] == "PSA")))
             wh_disp = np.where((d[1].data["cenwave"] == param_dict["CENWAVE"]) & (d[1].data["aperture"] == "PSA"))[0] #& (d[1].data["segment"] == "FUVA")
             #print(d[1].data[wh_disp]["COEFF"])
             disp_coeff = d[1].data[wh_disp]["COEFF"][0][1]
