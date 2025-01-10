@@ -56,17 +56,17 @@ class distr1d():
     def level(self, x, level):
         return self.inter(x) - level
 
-    def plot(self, x=None, conf=None, kind='center', color='orangered', ax=None, xlabel=None, ylabel=None, fontsize=16, alpha=0.3, title=None):
+    def plot(self, x=None, conf=None, kind='center', factor=1, color='orangered', ax=None, xlabel=None, ylabel=None, fontsize=16, alpha=0.3, lw=1.5, title=None):
         if ax is None:
             fig, ax = plt.subplots()
         if x is None:
             x = self.x
-        ax.plot(x, self.inter(x), '-', color=color, lw=1.5)
+        ax.plot(x, self.inter(x) / factor, '-', color=color, lw=lw)
         if conf is not None:
             self.dointerval(conf=conf, kind=kind)
             #print('interval plot', self.interval)
             mask = np.logical_and(x >= self.interval[0], x <= self.interval[1])
-            ax.fill_between(x[mask], self.inter(x)[mask], facecolor=color, alpha=alpha, interpolate=True)
+            ax.fill_between(x[mask], self.inter(x)[mask] / factor, facecolor=color, alpha=alpha, interpolate=True)
 
         ax.tick_params(axis='both', which='major', labelsize=fontsize - 2)
         if xlabel is not None:
@@ -225,7 +225,7 @@ class distr2d():
 
     def normalize(self):
         if 1:
-            norm = np.abs(integrate.simps(integrate.simps(self.z, self.y, axis=0), self.x))
+            norm = np.abs(integrate.simpson(integrate.simpson(self.z, x=self.y, axis=0), x=self.x))
         else:
             # not working ???!!!
             inter = interpolate.interp2d(self.x, self.y, self.z, kind='linear', fill_value=0)
@@ -235,7 +235,7 @@ class distr2d():
         self.z = self.z / norm
 
     def interpolate(self):
-        if 1:
+        if 0:
             self.inter = interpolate.interp2d(self.x, self.y, self.z, kind='cubic', fill_value=0)
             #self.inter = interpolate.Rbf(self.x, self.y, self.z, function='multiquadric', smooth=0.1)
         else:
@@ -274,7 +274,7 @@ class distr2d():
             z = self.z
         zs = np.copy(z)
         zs[zs < level] = 0
-        return integrate.simps(integrate.simps(zs, y, axis=0), x) - conf
+        return integrate.simpson(integrate.simpson(zs, x=y, axis=0), x=x) - conf
 
     def dopoint(self, verbose=False):
         """
@@ -494,9 +494,9 @@ class distr2d():
             - distr             :  1d distribution object
         """
         if over == 'y':
-            return distr1d(self.x, integrate.simps(self.z, self.y, axis=0), debug=self.debug)
+            return distr1d(self.x, integrate.simpson(self.z, x=self.y, axis=0), debug=self.debug)
         else:
-            return distr1d(self.y, integrate.simps(self.z, self.x, axis=1), debug=self.debug)
+            return distr1d(self.y, integrate.simpson(self.z, x=self.x, axis=1), debug=self.debug)
 
     def pdf(self, x, y):
         """

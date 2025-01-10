@@ -1,21 +1,21 @@
-show 13COj2
-show 13COj1
-show 13COj2
+show CI
+show CIj1
+show CIj2
+show H2 0 1
+show NV
+logN
+logN 12CO
+logN CO
 logN 13CO
-show 13COj0
-show 13COj1
-show 13COj0
-show 13COj1
-show 13COj2
-show 13COj3
-show 13COj4
-show SiIIj1
-SiII
-SiIIj1
-CIV
-HI
-set err 0.05
-set err 0.05
-set err 0.03
-set err 0.05
-set err 0.05
+logN Ci
+logN CI
+show CIIJ1
+show CIIj1
+show CN
+CN
+high CH
+show NaI
+show H2j7
+show H2j9
+show CI
+stats

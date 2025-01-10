@@ -2873,10 +2873,10 @@ class fitMCMCWidget(QWidget):
         grid.addWidget(self.graph, 0, 1)
         grid.addWidget(QLabel('Truths:'), 2, 0)
         self.truths = QComboBox()
-        self.truths.addItems(['None', 'Best Fit', 'Model', 'MAP'])
+        self.truths.addItems(['None', 'Max L', 'Model', 'MAP'])
         self.truths.setFixedSize(120, 30)
         self.truths.setCurrentText(self.parent.options('MCMC_truths'))
-        self.truths.activated.connect(self.selectTruths)
+        self.truths.currentTextChanged.connect(self.selectTruths)
         grid.addWidget(self.truths, 2, 1)
         self.smooth = QCheckBox('smooth')
         self.smooth.setChecked(bool(self.parent.options('MCMC_smooth')))
@@ -3026,7 +3026,7 @@ class fitMCMCWidget(QWidget):
 
     def selectTruths(self, text):
         self.parent.options('MCMC_truths', text)
-        self.graph.setCurrentText(self.parent.options('MCMC_truths'))
+        self.truths.setCurrentText(self.parent.options('MCMC_truths'))
 
     def start(self, init=True, filename=None):
         self.MCMC(init=init, filename=filename)
@@ -3260,6 +3260,12 @@ class fitMCMCWidget(QWidget):
             pars, samples, lnprobs = self.readChain()
         nsteps, nwalkers, = lnprobs.shape
         burnin = int(self.parent.options('MCMC_burnin'))
+        if burnin < samples.shape[0]:
+            samples = samples[burnin:, :, :]
+            lnprobs = lnprobs[burnin:, :]
+        else:
+            self.parent.sendMessage("Burn-in length is larger than the sample size")
+            return
 
         if mask is None:
             mask = np.array([self.parent.fit.list()[[str(i) for i in self.parent.fit.list()].index(p)].show for p in pars])
@@ -3267,54 +3273,71 @@ class fitMCMCWidget(QWidget):
         #print(mask)
         names = [str(p).replace('_', ' ') for i, p in enumerate(self.parent.fit.list_fit()) if mask[i]]
         truth = None
-        if self.parent.options('MCMC_truths') == 'Best Fit':
+        print(self.parent.options('MCMC_truths'))
+        print(samples.shape)
+        if self.parent.options('MCMC_truths') == 'Max L':
             inds = np.where(lnprobs == np.max(lnprobs))
             truth = samples[inds[0][0], inds[1][0], :][np.where(mask)[0]]
         elif self.parent.options('MCMC_truths') == 'Model':
             truth = np.asarray([self.parent.fit.getValue(par) for par in pars])[np.where(mask)[0]]
         elif self.parent.options('MCMC_truths') == 'MAP':
-            print('MAP estimate is not currently available')
-        #print('truths:', truth)
+            truth = []
+            for i, p in enumerate(pars):
+                print(p, names)
+                if p.replace('_', ' ') in names:
+                    s = samples[:, :, i].flatten()
+                    # print(np.min(s), np.max(s))
+                    x = np.linspace(np.min(s), np.max(s), 100)
+                    kde = gaussian_kde(s)
+                    d = distr1d(x, kde(x))
+                    d.dopoint()
+                    truth.append(d.point)
+            #print('MAP estimate is not currently available')
+            print("MAP:", truth)
+        print('truths:', truth)
         
         if self.parent.options('MCMC_likelihood'):
             names = [r'$\chi^2$'] + names
             samples = np.insert(samples, 0, lnprobs, axis=len(samples.shape)-1)
-            truth = np.insert(truth, 0, 0)
+            if truth is not None:
+                truth = np.insert(truth, 0, np.max(lnprobs))
             mask = np.insert(mask, 0, True)
 
         if self.parent.blindMode:
             truth = None
 
-        if burnin < samples.shape[0]:
-            if self.parent.options('MCMC_graph') == 'chainConsumer':
-                c = ChainConsumer()
-                print(pd.DataFrame(data=samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]], columns=names))
-                c.add_chain(Chain(samples=pd.DataFrame(data=samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]], columns=names),# walkers=nwalkers,
-                            name="posteriors",
-                            #parameters=names,
-                            smooth=self.parent.options('MCMC_smooth'),
-                            #colors='tab:red',
-                            #cmap='Reds',
-                            #marker_size=2,
-                            plot_cloud=True,
-                            shade=True,
-                            sigmas=[0, 1, 2, 3],
-                            ))
-                #c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
-                if truth is not None:
-                    c.add_truth(Truth(location=truth))
-                c.set_plot_config(PlotConfig(blind=self.parent.blindMode,
-                                             # flip=True,
-                                             # labels={"A": "$A$", "B": "$B$", "C": r"$\alpha^2$"},
-                                             # contour_label_font_size=12,
-                                             ))
-                figure = c.plotter.plot(figsize=(20, 20),
-                                        #filename="output/fit.png",
-                                        #display=not self.parent.blindMode,
-                                        )
-                if self.parent.blindMode:
-                    for ax in figure.axes:
-                        ax.set_title('')
+
+        if self.parent.options('MCMC_graph') == 'chainConsumer':
+            c = ChainConsumer()
+            #print(pd.DataFrame(data=samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]], columns=names))
+            c.add_chain(Chain(samples=pd.DataFrame(data=samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]], columns=names),# walkers=nwalkers,
+                        name="posteriors",
+                        #parameters=names,
+                        smooth=self.parent.options('MCMC_smooth'),
+                        #colors='tab:red',
+                        #cmap='Reds',
+                        #marker_size=2,
+                        plot_cloud=True,
+                        shade=True,
+                        sigmas=[0, 1, 2, 3],
+                        ))
+            #c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
+            print(truth)
+            if truth is not None:
+                c.add_truth(Truth(location={n:t for n, t in zip(names, truth)}))
+
+            c.set_plot_config(PlotConfig(blind=self.parent.blindMode,
+                                         # flip=True,
+                                         # labels={"A": "$A$", "B": "$B$", "C": r"$\alpha^2$"},
+                                         # contour_label_font_size=12,
+                                         ))
+            figure = c.plotter.plot(figsize=(20, 20),
+                                    #filename="output/fit.png",
+                                    #display=not self.parent.blindMode,
+                                    )
+            if self.parent.blindMode:
+                for ax in figure.axes:
+                    ax.set_title('')
 
             if self.parent.options('MCMC_graph') == 'corner':
                 figure = corner.corner(samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]],
@@ -3355,7 +3378,7 @@ class fitMCMCWidget(QWidget):
             fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
             k = 0
 
-            mask = lnprobs[burnin:, :] > -20000
+            mask = lnprobs[burnin:, :] > -30000
             print(lnprobs)
             print(lnprobs.shape, lnprobs[burnin:, :].shape, np.sum(mask))
 
@@ -3370,6 +3393,7 @@ class fitMCMCWidget(QWidget):
                     d.dopoint()
                     d.dointerval()
                     res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0], self.parent.fit.getPar(p).form)
+
                     self.parent.fit.setValue(p, res, 'unc')
                     self.parent.fit.setValue(p, res.val)
                     self.parent.fit.setValue(p, (res.plus + res.minus) / 2, 'step')
@@ -3458,19 +3482,22 @@ class fitMCMCWidget(QWidget):
                     print(p, np.std(values[:, i]))
                     if np.std(values[:, i]) > 0:
                         d = distr1d(values[:, i])
-                        d.dopoint()
-                        d.dointerval()
-                        res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0], p.form)
-                        f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
-                        self.results.setText(self.results.toPlainText() + str(p) + ': ' + res.latex(f=f) + '\n')
-                        #vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
-                        vert, hor = k // n_hor, k % n_hor
-                        k += 1
-                        d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
-                        ax[vert, hor].yaxis.set_ticklabels([])
-                        ax[vert, hor].yaxis.set_ticks([])
-                        ax[vert, hor].text(.1, .9, str(p).replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
-                        #ax[vert, hor].set_title(str(p).replace('_', ' '))
+                        try:
+                            d.dopoint()
+                            d.dointerval()
+                            res = a(d.point, d.interval[1] - d.point, d.point - d.interval[0], p.form)
+                            f = int(np.round(np.abs(np.log10(np.min([res.plus, res.minus])))) + 1)
+                            self.results.setText(self.results.toPlainText() + str(p) + ': ' + res.latex(f=f) + '\n')
+                            #vert, hor = int((i) / n_hor), i - n_hor * int((i) / n_hor)
+                            vert, hor = k // n_hor, k % n_hor
+                            k += 1
+                            d.plot(conf=0.683, ax=ax[vert, hor], ylabel='')
+                            ax[vert, hor].yaxis.set_ticklabels([])
+                            ax[vert, hor].yaxis.set_ticks([])
+                            ax[vert, hor].text(.1, .9, str(p).replace('_', ' '), ha='left', va='top', transform=ax[vert, hor].transAxes)
+                            #ax[vert, hor].set_title(str(p).replace('_', ' '))
+                        except:
+                            k += 1
 
             elif t == 'cols':
                 species = set()
@@ -3689,8 +3716,8 @@ class fitMCMCWidget(QWidget):
         for i, s in enumerate(self.parent.s):
             if s.fit.line.norm.n > 0:
                 fit_disp[i] = np.sort(fit_disp[i], axis=0)
-                self.parent.s[i].fit.disp[0].set(x=fit[i].x, y=fit_disp[i][int((1-0.683)/2*num), :])
-                self.parent.s[i].fit.disp[1].set(x=fit[i].x, y=fit_disp[i][num-int((1-0.683)/2*num), :])
+                self.parent.s[i].fit.disp[0].set(x=fit[i].x, y=fit_disp[i][int((1 - 0.683) / 2 * num), :])
+                self.parent.s[i].fit.disp[1].set(x=fit[i].x, y=fit_disp[i][num-int((1 - 0.683) / 2 * num), :])
                 if self.parent.fit.cont_fit:
                 #    fit_disp[i] = np.sort(np.divide(fit_disp[i], cheb_disp[i]), axis=0)
                 #    self.parent.s[i].fit.disp_corr[0].set(x=fit[i].x, y=fit_disp[i][int((1 - 0.683) / 2 * num), :])
@@ -5780,7 +5807,7 @@ class ExportDataWidget(QWidget):
 
         print(self.spectrum.isChecked(), self.cont.isChecked(), self.fit.isChecked(), self.fit_comps.isChecked())
         if self.spectrum.isChecked():
-            np.savetxt(self.filename, np.c_[s.spec.x()[mask] / unit, s.spec.y()[mask] * np.power(cheb(s.spec.x()[mask]), -self.parent.normview), s.spec.err()[mask]], **kwargs)
+            np.savetxt(self.filename, np.c_[s.spec.x()[mask] / unit, s.spec.y()[mask] * np.power(cheb(s.spec.x()[mask]), -self.parent.normview), s.spec.err()[mask], s.fit_mask.x()[mask]], **kwargs)
         if self.cont.isChecked():
             np.savetxt('_cont.'.join(self.filename.rsplit('.', 1)), np.c_[s.cont.x[cont_mask] / unit, s.cont.y[cont_mask] * np.power(cheb(s.cont.x[cont_mask]), 1 - 2 * self.parent.normview)], **kwargs)
             if len(s.cheb.disp[0].norm.x) > 0:
@@ -6833,7 +6860,8 @@ class sviewer(QMainWindow):
         self.fullscreen = bool(self.options('fullscreen'))
         # this is to set the spectro_logo in the taskbar for Windows
         myapp = u'spectro.0.8'
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myapp)
+        if platform.system() == 'Windows':
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myapp)
 
     def initUI(self):
         #dbg = pg.dbg()
@@ -9362,6 +9390,9 @@ class sviewer(QMainWindow):
                     cont = np.zeros_like(x, dtype=float)
                 else:
                     cont = np.array(s.cont.y[s.mask.x()[s.cont_mask]], dtype=float)
+                np.savetxt('output/fit_gauss_spec.dat', np.c_[s.spec.x(), s.spec.y(), s.spec.err(), s.mask.x()])
+                np.savetxt('output/fit_gauss_cont.dat', np.c_[s.cont.x, s.cont.y])
+                #np.savetxt('output/fit_gauss_data.dat', np.c_[x, y, err])
                 ymax = np.max(y - cont)
                 m = y - cont > ymax / 2
                 if len(x[m]) > 1:
@@ -9402,7 +9433,7 @@ class sviewer(QMainWindow):
                     result = minner.minimize(method='leastsq')
                     for par in params:
                         params[par].value = result.params[par].value
-                    #print(fit_report(result))
+                        #print(fit_report(result))
                     self.console.set(fit_report(result))
                 if 0:
                     minner = Minimizer(fcn2min, params, fcn_args=(x, y, err, cont), calc_covar=True)
@@ -9423,8 +9454,7 @@ class sviewer(QMainWindow):
                     samples[:, 2] = samples[:, 0] / (2 * np.pi)**0.5 / samples[:, 2]
                     c = ChainConsumer()
                     names, truth = ['Area', 'Centroid', 'Amplitude', 'FWHM'], {'Area': params['amp'].value, 'Centroid': params['cen'].value, 'Amplitude': params['amp'].value / (2 * np.pi)**0.5 / params['disp'].value, 'FWHM': np.sqrt(2 * np.log(2)) * params['disp'].value * 2}
-                    print(pd.DataFrame(data=samples, columns=names))
-
+                    pd.DataFrame(data=samples, columns=names).to_pickle('output/mcmc_fitGauss.pickle')
                     c.add_chain(Chain(samples=pd.DataFrame(data=samples, columns=names),  # walkers=nwalkers,
                                     name="emission line posteriors",
                                     # parameters=names,
@@ -9598,7 +9628,7 @@ class sviewer(QMainWindow):
                         n = [a(sys.sp['H2j'+str(x)].N.val, 0, 0) for x in levels]
                 if any(['COj' + str(x) in sys.sp.keys() for x in levels]):
                     temp = ExcitationTemp('CO')
-                    levels = [int(k[3:]) for k in sys.sp.keys() if int(k[3:]) in levels]
+                    levels = [int(k[k.index('j')+1:]) for k in sys.sp.keys() if int(k[k.index('j')+1:]) in levels]
                     print(levels)
                     n = [sys.sp['COj' + str(x)].N.unc for x in levels]
                     if any([ni.val == 0 for ni in n]):
@@ -9676,12 +9706,12 @@ class sviewer(QMainWindow):
                 #temp = self.H2ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax)
                 text.append(self.ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax))
 
-            if any(['CO' in name for name in sys.sp.keys()]):
+            if any([name.startswith('CO') for name in sys.sp.keys()]):
                 species = 'CO'
                 num_sys += 1
                 x, y = [], []
                 for sp in sys.sp:
-                    if 'CO' in sp:
+                    if sp.startswith('CO'):
                         if 'v' in sp:
                             nu, j = int(sp[sp.index('v')+1:]), int(sp[sp.index('j')+1:sp.index('v')])
                         else:

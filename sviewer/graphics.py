@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import QApplication
 import re
 from skimage.filters.rank import median
 from scipy.interpolate import interp1d, interp2d, splrep, splev
-from scipy.integrate import cumtrapz
+from scipy.integrate import cumulative_trapezoid as cumtrapz
 from scipy.optimize import curve_fit, least_squares
 from scipy.signal import savgol_filter, lombscargle, medfilt
 from scipy.stats import gaussian_kde
@@ -2117,6 +2117,10 @@ class Spectrum():
             #print(d[1].data[wh_disp]["COEFF"])
             disp_coeff = d[1].data[wh_disp]["COEFF"][0][1]
 
+        #print(pix.shape, pix)
+        #print(lsf_wvlns.shape, lsf_wvlns)
+        #print(lsf.as_array().shape, np.lib.recfunctions.structured_to_unstructured(lsf.as_array()))
+        #print(disp_coeff)
         return pix, lsf_wvlns, np.lib.recfunctions.structured_to_unstructured(lsf.as_array()), disp_coeff
 
     def findFitLines(self, ind=-1, tlim=0.01, all=True, debug=True):

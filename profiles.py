@@ -12,7 +12,7 @@ from extinction import fitzpatrick99
 import matplotlib.pyplot as plt
 from numba import jit
 import numpy as np
-from scipy.integrate import simps
+from scipy.integrate import simpson
 from scipy.interpolate import interp1d
 from scipy.special import wofz
 #from scipy.stats import lognormal
@@ -363,7 +363,7 @@ def convolveflux(l, f, res, vel=False, kind='astropy', verbose=False, debug=Fals
                 x = lt[mask]/l[i]
                 #print(1-l1/l[i], gauss(1-l1/l[i], 1.0/R))
                 #input()
-                fc[i] = simps(fl*gauss(1-x, 1.0/R), x)
+                fc[i] = simpson(fl*gauss(1-x, 1.0/R), x)
             else:
                 fc[i] = 1
         #print(fc)

@@ -129,7 +129,7 @@ class plot_spec(list):
                 rects.append(rectangle(left + (panel_w + r.col_offset) * col, top - (panel_h + r.row_offset) * row, panel_w, panel_h))
                 #[left+(panel_w+r.col_offset)*col, top-panel_h*(row+1)-r.row_offset*row, panel_w, panel_h])
             top -= r.height
-            top -= r.h_indent
+            #top -= r.h_indent
             #if r.row_offset == 0:
             #    top -= r.h_indent
 
@@ -139,7 +139,8 @@ class plot_spec(list):
    
     def specify_comps(self, *args):
         self.comps = np.array(args)
-                
+        self.num_comp = len(self.comps)
+
     def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, ls_total='solid', ind_ls='dotted', ind_lw=1.0,
                        add_lines="0.0", add_ls='dotted', disp_alpha=0.7, res_style='scatter', res_color=None):
 
@@ -219,7 +220,7 @@ class plot_spec(list):
 
         for p in self:
             p.xlabel, p.ylabel = None, None
-            p.ylabel_pos, p.xlabel_pos = None, None
+            p.ylabel_pos, p.xlabel_pos =    None, None
 
         #if xlabels is not None:
         #    for i, p in enumerate(self):
@@ -613,11 +614,11 @@ class plotline():
 
         if self.gray_out:
             if self.add_errors:
-                self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=elinewidth, drawstyle='steps-mid',
-                            color='k', ecolor='0.3', capsize=capsize, zorder=1)
+                self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid',
+                            color='0.5', ecolor='0.3', capsize=capsize, zorder=0)
             else:
-                self.ax.errorbar(self.spec.x, self.spec.y, lw=1, elinewidth=elinewidth, drawstyle='steps-mid',
-                            color='k', capsize=capsize, zorder=1)
+                self.ax.errorbar(self.spec.x, self.spec.y, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid',
+                            color='0.5', capsize=capsize, zorder=0)
             k = (self.points == 0)
             self.spec.y[k] = np.NaN
 

@@ -387,8 +387,8 @@ class speci:
         """
         read data for CO: einstein coefficients, collisional rates
         """
-        # self.Lambda_read('data/pyratio/co_data_old.dat')
-        self.Lambda_read(self.parent.folder + '/data/pyratio/co_data.dat')
+        # self.Lambda_read('data/pyratio/CO_data_old.dat')
+        self.Lambda_read(self.parent.folder + '/data/pyratio/CO_data.dat')
 
     def Lambda_pars(self, line):
         remove = ['!', '\n', '(cm^-1)']
@@ -2027,7 +2027,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check CO populations
-    if 1:
+    if 0:
         fig, ax = plt.subplots(figsize=(14, 6))
         pr = pyratio(z=2.5)
         pr.add_spec('CO', num=10)
@@ -2625,17 +2625,17 @@ if __name__ == '__main__':
             plt.show()
 
     # >>> CI calculations:
-    if 0:
-        pr = pyratio(z=1.17)
+    if 1:
+        pr = pyratio(z=0.0)
         pr.add_spec('CI', num=3)
         pr.set_pars(['T', 'n', 'f'])
         pr.pars['n'].value = 2
-        pr.pars['T'].value = np.log10(100)
+        pr.pars['T'].value = np.log10(10)
         pr.pars['f'].value = 0
         fig, ax = plt.subplots()
         print(pr.predict())
         if 1:
-            n, T = np.linspace(0.7, 3.8, 100), np.linspace(1, 3.5, 50)
+            n, T = np.linspace(0.7, 4.8, 100), np.linspace(0.5, 2.5, 50)
             X, Y = np.meshgrid(n, T)
             z = np.zeros_like(X)
             for i, ni in enumerate(n):

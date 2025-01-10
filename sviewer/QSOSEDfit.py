@@ -21,7 +21,7 @@ import lmfit
 import os
 import pandas as pd
 import pickle
-from scipy.integrate import cumtrapz
+from scipy.integrate import cumulative_trapezoid as cumtrapz
 from scipy.interpolate import interp1d, CubicSpline
 from scipy.special import gamma, gammainc
 from scipy import stats as st

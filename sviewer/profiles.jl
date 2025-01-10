@@ -565,6 +565,7 @@ end
 module spectrum
     using Main: line
     using Interpolations
+    #using Dierckx
 
     mutable struct spec
         x::Vector{Float64}
@@ -581,6 +582,7 @@ module spectrum
         bins::Vector{Any}
         bin_mask::BitArray
         cos::Interpolations.Extrapolation
+        #cos::Dierckx.Spline2D
         cos_disp::Float64
     end
 
@@ -617,7 +619,8 @@ function prepare(s, pars, add, COS)
     #println(append!(c,  [cheb([], 0, 0, 0)]))
     spec = Vector(undef, size(s)[1])
     for (i, si) in enumerate(s)
-        spec[i] = spectrum.spec(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.lsf_type, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0), LinearInterpolation((COS[i][1], COS[i][2]), COS[i][3], extrapolation_bc=Flat()), COS[i][4])
+        spec[i] = spectrum.spec(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.lsf_type, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0), linear_interpolation((COS[i][1], COS[i][2]), COS[i][3], extrapolation_bc=Flat()), COS[i][4])
+        #spec[i] = spectrum.spec(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.lsf_type, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0), Spline2D(COS[i][1], COS[i][2], COS[i][3]; kx=3, ky=3, s=0.0), COS[i][4])
         spec[i].bins = (si.spec.norm.x[2:end] + si.spec.norm.x[1:end-1]) / 2
         spec[i].bin_mask = spec[i].mask[1:end-1] .|| spec[i].mask[2:end]
     end
@@ -904,19 +907,26 @@ function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
     end
 
     for line in spec.lines[line_mask]
+        #println(line.l, " ", line.tau0, " ", line)
         line.dx = voigt_range(line.a, 0.001 / line.tau0)
+        #println(line.dx, " ", line.ld)
         x, r = voigt_step(line.a, line.tau0)
+        #println(x)
+        #println(r)
         x = line.l .+ x * line.ld
+        #println(x[1], " ", x[end])
         if size(x)[1] > 0
-            i_min, i_max = binsearch(spec.bins, x[1], type="min"), binsearch(spec.bins, x[end], type="max") - 1
-            if i_max - i_min > 0 && i_min > 0
+            i_min, i_max = binsearch(spec.bins, x[1], type="min"), binsearch(spec.bins, x[end], type="max")
+            #println(i_min, " ", i_max)
+            if i_max - i_min > 0 && i_min > 0 && i_max < length(spec.bins)
                 for i in i_min:i_max
                     k_min, k_max = binsearch(x, spec.bins[i]), binsearch(x, spec.bins[i+1])
                     x_grid[i] = max(x_grid[i], Int(floor((spec.bins[i+1] - spec.bins[i]) / (0.1 / maximum(r[k_min:k_max]) * line.ld)))+1)
+                    #println(i, " ", (spec.bins[i+1] - spec.bins[i]), " ", (0.1 / maximum(r[k_min:k_max]) * line.ld))
                 end
             end
             i_min, i_max = binsearch(spec.bins, x[1] * (1 - 3 * x_instr), type="min"), binsearch(spec.bins, x[end] * (1 + 3 * x_instr), type="max")
-            if i_max - i_min > 1 && i_min > 1
+            if i_max - i_min > 1 && i_min > 1 && i_max < length(spec.bins)
                 for i in i_min:i_max
                     x_grid[i] = max(x_grid[i], round(Int, (spec.bins[i] - spec.bins[i-1]) / line.l / x_instr * 3))
                 end

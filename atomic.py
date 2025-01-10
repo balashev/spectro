@@ -22,14 +22,14 @@ else:
 def vactoair(vac):
     """
     Convert vacuum wavelengths to air wavelengths
-    :param vac: vaccum wavelengths in A
+    :param vac: vacuum wavelengths in A
     :return: air wavelengths in A
     """
     return vac / (1.0 + 2.735182e-4 + 131.4182 / vac ** 2 + 2.76249e8 / vac ^ 4)
 
 def airtovac(air):
     """
-    Convert vacuum wavelengths to air wavelengths
+    Convert air wavelengths to vacuum wavelengths
     :param air: air wavelengths in A
     :return: vac wavelengths in A
     """
@@ -851,6 +851,22 @@ class atomicData(OrderedDict):
                          nu_u=l['band']))
                 self[name].lines[-1].band = l['name'].decode('UTF-8')
 
+    def readH2O(self):
+        H2O = np.genfromtxt(self.folder + r'/data/molec/H2O_plus.dat', names=True, dtype=None)
+        print(np.unique(H2O['level']))
+        for i, level in enumerate(np.unique(H2O['level'])):
+            name = 'H2Oj' + str(i)
+            self[name] = e(name)
+            self[name].lines = []
+            print(H2O['level'], level)
+            print(H2O['level'] == level)
+            mask = H2O['level'] == level
+            for l in H2O[mask]:
+                self[name].lines.append(
+                    line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i+1, nu_u=0, # j_u=i + l['PQR'], nu_u=l['band']
+                        ))
+            print(self[name].lines)
+    
     def readHF(self):
         HF = np.genfromtxt(self.folder + r'/data/molec/HF.dat', skip_header=1, unpack=True, dtype=None)
         self['HF'] = e('HF')
@@ -858,7 +874,7 @@ class atomicData(OrderedDict):
             self['HF'].lines.append(line(l[4].decode('UTF-8'), l[6], l[7], l[8], ref='', j_l=l[0], nu_l=l[1], j_u=l[2], nu_u=l[3]))
 
     def read_Molecular(self):
-        with open(self.folder + r'/data/Molecular_data.dat', newline='') as f:
+        with open(self.folder + r'/data/Molecular_data_new.dat', newline='') as f:
             for i in range(3):
                 f.readline()
             data = f.readlines()
@@ -943,6 +959,7 @@ class atomicData(OrderedDict):
         #self.readH2(nu=2, j=[0, 1, 2, 3])
         self.readHD()
         self.readCO()
+        self.readH2O()
         #self.readHF()
         self.readBAL()
         self.read_Molecular()
@@ -1616,6 +1633,14 @@ if __name__ == '__main__':
         #A.toascii('sviewer/data/H2/H2cat.dat', els=[f'H2j{i}' for i in range(13)] + [f'H2j{i}v1' for i in range(7)])
 
     if 0:
+        with open(os.path.dirname(os.path.realpath(__file__)) + r'/data/Molecular_data_new.dat', newline='') as f:
+            for i in range(3):
+                f.readline()
+            data = f.readlines()
+        for d in data[:30]:
+            print(d.split()[1], airtovac(float(d.split()[1])))
+
+    if 0:
         A = atomicData()
         A.readH2Abgrall(j=[0,1,2,3,4,5,6,7])
         #A.readH2new(j=[0])
@@ -1637,10 +1662,10 @@ if __name__ == '__main__':
         for line in HI:
             print(line, line.l, line.f, line.g)
     if 0:
-        N = a('15.39^{+0.08}_{-0.08}', 'l')
+        N = a('13.11^{+0.07}_{-0.08}', 'l')
         print(N)
-        HI = a('20.71^{+0.03}_{-0.03}', 'l')
-        print(metallicity('S', N, HI))
+        HI = a('21.27^{+0.1}_{-0.1}', 'l')
+        print(metallicity('Zn', N, HI).dec())
 
     if 0:
         HI = a('19.88^{+0.01}_{-0.01}', 'l')

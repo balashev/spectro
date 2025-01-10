@@ -43,6 +43,7 @@ Thumbs.db
 /sviewer/output/*
 /sviewer/temp/*
 /sviewer/data/COS/*
+./venv/*
 *.spj
 *.spr
 

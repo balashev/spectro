@@ -1448,7 +1448,7 @@ class fitModelSysWidget(QFrame):
     def setbTied(self, species):
         combo = getattr(self, species + '_btied')
         sp = combo.currentText()
-        if 'tie' in sp:
+        if 'indep' in sp:
             sp = ''
 
         setattr(getattr(self.fit.sys[self.ind].sp[species], 'b'), 'addinfo', sp)
@@ -1458,7 +1458,7 @@ class fitModelSysWidget(QFrame):
     def setNTied(self, species):
         combo = getattr(self, species + '_Ntied')
         sp = combo.currentText()
-        if 'tie' in sp:
+        if 'indep' in sp:
             sp = ''
 
         setattr(getattr(self.fit.sys[self.ind].sp[species], 'N'), 'addinfo', sp)
