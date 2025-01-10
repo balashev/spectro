@@ -2937,6 +2937,11 @@ class fitMCMCWidget(QWidget):
         self.loadres_button = QPushButton("Import")
         self.loadres_button.setFixedSize(120, 30)
         self.loadres_button.clicked[bool].connect(self.loadres)
+
+        self.loaddisp_button = QPushButton("Load disp")
+        self.loaddisp_button.setFixedSize(100, 30)
+        self.loaddisp_button.clicked[bool].connect(self.loaddisp)
+
         self.export_button = QPushButton("Export")
         self.export_button.setFixedSize(120, 30)
         self.export_button.clicked[bool].connect(self.export)
@@ -2967,6 +2972,7 @@ class fitMCMCWidget(QWidget):
         hbox = QHBoxLayout()
         hbox.addWidget(self.fit_disp_button)
         hbox.addWidget(self.fit_disp_num)
+        hbox.addWidget(self.loaddisp_button)
         hbox.addStretch(1)
         showlayout.addLayout(hbox)
 
@@ -3048,6 +3054,74 @@ class fitMCMCWidget(QWidget):
         fname = QFileDialog.getSaveFileName(self, 'Select/set file', self.parent.options('filename_saved').replace('.spv', '.spj'), ".spj")
         if fname[0]:
             self.MCMC(init=init, filename=fname[0])
+
+    def LoadJulia_for_disp(self, filename):
+        self.parent.julia.include("MCMC.jl")
+
+        self.show_bestfit()
+        self.parent.s.prepareFit(-1, all=all)
+        self.parent.s.calcFit(recalc=True)
+        self.parent.s.calcFitComps(recalc=True)
+
+        fit, fit_disp, fit_comp, fit_comp_disp = [], [], [], []
+        for i, s in enumerate(self.parent.s):
+            if s.fit.line.norm.n > 0:
+                fit.append(deepcopy(s.fit.line.norm))
+                # fit_disp.append([s.fit.line.norm.y])
+                # #fit_comp.append([])
+                # fit_comp_disp.append([])
+                # for k, sys in enumerate(self.parent.fit.sys):
+                #     #print(i, k, s.fit_comp[k].line.norm.x[:], s.fit_comp[k].line.norm.y)
+                #     #fit_comp[i].append(s.fit_comp[k].line.norm.x[:])
+                #     fit_comp_disp[i].append([s.fit_comp[k].line.norm.y])
+
+        #for i, s in enumerate(self.parent.s):
+        #    for k, sys in enumerate(self.parent.fit.sys):
+        #        print(i, k, self.parent.s[i].fit_comp[k].line.norm.x[0], fit_comp[i][k][0], fit_comp[i][k][-1])
+
+        # burnin = int(self.parent.options('MCMC_burnin'))
+        # pars, samples, lnprobs = self.readChain()
+        # samples[burnin:, :, :]
+        num = int(self.parent.options('MCMC_disp_num'))
+
+        #print(fit_disp)
+        #print(fit_disp.shape)
+
+        fit_disp, fit_comp_disp, cheb_disp = self.parent.julia.load_disp(filename)
+
+        for i, s in enumerate(self.parent.s):
+            if s.fit.line.norm.n > 0:
+                fit_disp[i] = np.sort(fit_disp[i], axis=0)
+                self.parent.s[i].fit.disp[0].set(x=fit[i].x, y=fit_disp[i][int((1-0.683)/2*num), :])
+                self.parent.s[i].fit.disp[1].set(x=fit[i].x, y=fit_disp[i][num-int((1-0.683)/2*num), :])
+                if self.parent.fit.cont_fit:
+                #    fit_disp[i] = np.sort(np.divide(fit_disp[i], cheb_disp[i]), axis=0)
+                #    self.parent.s[i].fit.disp_corr[0].set(x=fit[i].x, y=fit_disp[i][int((1 - 0.683) / 2 * num), :])
+                #    self.parent.s[i].fit.disp_corr[1].set(x=fit[i].x, y=fit_disp[i][num - int((1 - 0.683) / 2 * num), :])
+                    cheb_disp[i] = np.sort(cheb_disp[i], axis=0)
+                    self.parent.s[i].cheb.disp[0].set(x=fit[i].x, y=cheb_disp[i][int((1 - 0.683) / 2 * num), :])
+                    self.parent.s[i].cheb.disp[1].set(x=fit[i].x, y=cheb_disp[i][num - int((1 - 0.683) / 2 * num), :])
+
+                for k, sys in enumerate(self.parent.fit.sys):
+                    if len(fit_comp_disp[i][k][0]) > 0:
+                        fit_comp_disp[i][k] = np.sort(np.asarray(fit_comp_disp[i][k]), axis=0)
+                        self.parent.s[i].fit_comp[k].disp[0].set(x=fit[i].x, y=fit_comp_disp[i][k][int((1 - 0.683) / 2 * num), :])
+                        self.parent.s[i].fit_comp[k].disp[1].set(x=fit[i].x, y=fit_comp_disp[i][k][num - int((1 - 0.683) / 2 * num), :])
+                    else:
+                        self.parent.s[i].fit_comp[k].disp[0].set(x=self.parent.s[i].fit.disp[0].norm.x, y=self.parent.s[i].fit.disp[0].norm.y)
+                        self.parent.s[i].fit_comp[k].disp[1].set(x=self.parent.s[i].fit.disp[1].norm.x, y=self.parent.s[i].fit.disp[1].norm.y)
+                    #if self.parent.fit.cont_fit:
+                    #    if len(fit_comp_disp[i][k][0]) > 0:
+                    #        fit_comp_disp[i][k] = np.sort(np.divide(np.asarray(fit_comp_disp[i][k]), cheb_disp[i]), axis=0)
+                    #        self.parent.s[i].fit_comp[k].disp_corr[0].set(x=fit[i].x, y=fit_comp_disp[i][k][int((1 - 0.683) / 2 * num), :])
+                    #        self.parent.s[i].fit_comp[k].disp_corr[1].set(x=fit[i].x, y=fit_comp_disp[i][k][num - int((1 - 0.683) / 2 * num), :])
+                    #    else:
+                    #        self.parent.s[i].fit_comp[k].disp_corr[0].set(x=self.parent.s[i].fit.disp_corr[0].norm.x, y=self.parent.s[i].fit.disp_corr[0].norm.y)
+                    #        self.parent.s[i].fit_comp[k].disp_corr[1].set(x=self.parent.s[i].fit.disp_corr[1].norm.x, y=self.parent.s[i].fit.disp_corr[1].norm.y)
+
+        print("disp loaded")
+
+        # println()
 
     def loadJulia(self, filename):
         self.parent.julia.include("MCMC.jl")
@@ -3664,26 +3738,18 @@ class fitMCMCWidget(QWidget):
             if s.fit.line.norm.n > 0:
                 fit.append(deepcopy(s.fit.line.norm))
                 fit_disp.append([s.fit.line.norm.y])
-                #fit_comp.append([])
                 fit_comp_disp.append([])
                 for k, sys in enumerate(self.parent.fit.sys):
-                    #print(i, k, s.fit_comp[k].line.norm.x[:], s.fit_comp[k].line.norm.y)
-                    #fit_comp[i].append(s.fit_comp[k].line.norm.x[:])
                     fit_comp_disp[i].append([s.fit_comp[k].line.norm.y])
             else:
                 fit_disp.append([])
                 fit_comp_disp.append([])
 
-        #for i, s in enumerate(self.parent.s):
-        #    for k, sys in enumerate(self.parent.fit.sys):
-        #        print(i, k, self.parent.s[i].fit_comp[k].line.norm.x[0], fit_comp[i][k][0], fit_comp[i][k][-1])
 
         burnin = int(self.parent.options('MCMC_burnin'))
         pars, samples, lnprobs = self.readChain()
         samples[burnin:, :, :]
         num = int(self.parent.options('MCMC_disp_num'))
-        #print(fit_disp)
-        #print(fit_disp.shape)
 
         if self.parent.fitType == 'julia':
             self.parent.julia.include("MCMC.jl")
@@ -3706,22 +3772,12 @@ class fitMCMCWidget(QWidget):
                             if s.fit_comp[k].line.n() > 2 and len(fit_comp_disp[i][k]) > 0 and len(fit[i].x) > 0:
                                 fit_comp_disp[i][k] = np.r_[fit_comp_disp[i][k], [s.fit_comp[k].line.norm.inter(fit[i].x)]]
 
-        #print(np.asarray(fit_disp).shape)
-        #print(np.asarray(cheb_disp).shape)
-        #print(np.asarray(fit_comp_disp).shape)
-        #print('fit_comp_disp:', fit_comp_disp)
-
-        #print(fit_cheb)
-
         for i, s in enumerate(self.parent.s):
             if s.fit.line.norm.n > 0:
                 fit_disp[i] = np.sort(fit_disp[i], axis=0)
                 self.parent.s[i].fit.disp[0].set(x=fit[i].x, y=fit_disp[i][int((1 - 0.683) / 2 * num), :])
                 self.parent.s[i].fit.disp[1].set(x=fit[i].x, y=fit_disp[i][num-int((1 - 0.683) / 2 * num), :])
                 if self.parent.fit.cont_fit:
-                #    fit_disp[i] = np.sort(np.divide(fit_disp[i], cheb_disp[i]), axis=0)
-                #    self.parent.s[i].fit.disp_corr[0].set(x=fit[i].x, y=fit_disp[i][int((1 - 0.683) / 2 * num), :])
-                #    self.parent.s[i].fit.disp_corr[1].set(x=fit[i].x, y=fit_disp[i][num - int((1 - 0.683) / 2 * num), :])
                     cheb_disp[i] = np.sort(cheb_disp[i], axis=0)
                     self.parent.s[i].cheb.disp[0].set(x=fit[i].x, y=cheb_disp[i][int((1 - 0.683) / 2 * num), :])
                     self.parent.s[i].cheb.disp[1].set(x=fit[i].x, y=cheb_disp[i][num - int((1 - 0.683) / 2 * num), :])
@@ -3734,16 +3790,9 @@ class fitMCMCWidget(QWidget):
                     else:
                         self.parent.s[i].fit_comp[k].disp[0].set(x=self.parent.s[i].fit.disp[0].norm.x, y=self.parent.s[i].fit.disp[0].norm.y)
                         self.parent.s[i].fit_comp[k].disp[1].set(x=self.parent.s[i].fit.disp[1].norm.x, y=self.parent.s[i].fit.disp[1].norm.y)
-                    #if self.parent.fit.cont_fit:
-                    #    if len(fit_comp_disp[i][k][0]) > 0:
-                    #        fit_comp_disp[i][k] = np.sort(np.divide(np.asarray(fit_comp_disp[i][k]), cheb_disp[i]), axis=0)
-                    #        self.parent.s[i].fit_comp[k].disp_corr[0].set(x=fit[i].x, y=fit_comp_disp[i][k][int((1 - 0.683) / 2 * num), :])
-                    #        self.parent.s[i].fit_comp[k].disp_corr[1].set(x=fit[i].x, y=fit_comp_disp[i][k][num - int((1 - 0.683) / 2 * num), :])
-                    #    else:
-                    #        self.parent.s[i].fit_comp[k].disp_corr[0].set(x=self.parent.s[i].fit.disp_corr[0].norm.x, y=self.parent.s[i].fit.disp_corr[0].norm.y)
-                    #        self.parent.s[i].fit_comp[k].disp_corr[1].set(x=self.parent.s[i].fit.disp_corr[1].norm.x, y=self.parent.s[i].fit.disp_corr[1].norm.y)
-
         print("disp done")
+
+
 
     def set_fit_disp_num(self):
         self.parent.options('MCMC_disp_num', int(self.fit_disp_num.text()))
@@ -3757,6 +3806,18 @@ class fitMCMCWidget(QWidget):
             else:
                 self.parent.options('work_folder', os.path.dirname(fname[0]))
                 self.parent.MCMC_output = fname[0]
+
+    def loaddisp(self):
+        fname = QFileDialog.getOpenFileName(self, 'Load disp', self.parent.work_folder)
+
+        if fname[0]:
+            if fname[0].endswith('.spd'):
+                self.LoadJulia_for_disp(fname[0])
+            else:
+                raise Exception("You can load disp only from a file with .spd extension")
+                self.parent.options('work_folder', os.path.dirname(fname[0]))
+                self.parent.MCMC_output = fname[0]
+
 
     def export(self):
         fname = QFileDialog.getSaveFileName(self, 'Export MCMC results', self.parent.work_folder)
