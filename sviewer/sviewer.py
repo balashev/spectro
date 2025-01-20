@@ -435,7 +435,13 @@ class plotSpectrum(pg.PlotWidget):
             if event.key() == Qt.Key.Key_B:
                 self.b_status = False
                 if not self.mouse_moved:
-                    self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y())
+                    if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.AltModifier):
+                        spec = self.parent.s[self.parent.s.ind].spec
+                        imin, imax = np.argmin(np.abs(spec.x() - (self.mousePoint.x() - (self.viewRange()[0][-1] - self.viewRange()[0][0]) / 40))), np.argmin(np.abs(spec.x() - (self.mousePoint.x() + (self.viewRange()[0][-1] - self.viewRange()[0][0]) / 40)))
+                        med = np.median(spec.raw.y[imin:imax]) if imax > imin + 3 else np.median(spec.raw.y[(imin + imax) % 2 - 1: (imin + imax) % 2 + 1])
+                        self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), med)
+                    else:
+                        self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y())
 
             if event.key() == Qt.Key.Key_C:
                 if (QApplication.keyboardModifiers() != Qt.KeyboardModifier.ShiftModifier):
@@ -563,12 +569,18 @@ class plotSpectrum(pg.PlotWidget):
         if self.b_status:
             if event.button() == Qt.MouseButton.LeftButton:
                 if self.mousePoint == self.mousePoint_saved:
-                    self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y())
+                    if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.AltModifier):
+                        spec = self.parent.s[self.parent.s.ind].spec
+                        imin, imax = np.argmin(np.abs(spec.x() - (self.mousePoint.x() - (self.viewRange()[0][-1] - self.viewRange()[0][0]) / 40))), np.argmin(np.abs(spec.x() - (self.mousePoint.x() + (self.viewRange()[0][-1] - self.viewRange()[0][0]) / 40)))
+                        med = np.median(spec.raw.y[imin:imax]) if imax > imin + 3 else np.median(spec.raw.y[(imin+imax) % 2-1: (imin+imax) % 2+1])
+                        self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), med)
+                    else:
+                        self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y())
                 else:
                     self.parent.s[self.parent.s.ind].del_spline(self.mousePoint_saved.x(), self.mousePoint_saved.y(), self.mousePoint.x(), self.mousePoint.y())
 
             if event.button() == Qt.MouseButton.RightButton:
-                ind = self.parent.s[self.parent.s.ind].spline.find_nearest(self.mousePoint.x(), self.mousePoint.y())
+                ind = self.parent.s[self.parent.s.ind].spline.find_nearest(self.mousePoint.x(), None)
                 self.parent.s[self.parent.s.ind].del_spline(arg=ind)
                 event.accept()
 
@@ -1207,12 +1219,13 @@ class spec2dWidget(pg.PlotWidget):
             if event.button() == Qt.MouseButton.LeftButton:
                 if self.mousePoint == self.mousePoint_saved:
                     self.parent.s[self.parent.s.ind].add_spline(self.mousePoint.x(), self.mousePoint.y(), name='2d')
+
                 else:
                     self.parent.s[self.parent.s.ind].del_spline(self.mousePoint_saved.x(), self.mousePoint_saved.y(),
                                                                 self.mousePoint.x(), self.mousePoint.y(), name='2d')
 
             if event.button() == Qt.MouseButton.RightButton:
-                ind = self.parent.s[self.parent.s.ind].spline2d.find_nearest(self.mousePoint.x(), self.mousePoint.y())
+                ind = self.parent.s[self.parent.s.ind].spline2d.find_nearest(self.mousePoint.x(), None)
                 self.parent.s[self.parent.s.ind].del_spline(arg=ind, name='2d')
                 event.accept()
 
@@ -2257,7 +2270,7 @@ class showLinesWidget(QWidget):
                     p.name = ' '.join([p.name.split()[0][:-2], p.name.split()[1]])
                 if self.labels_corr and all([not s in p.name for s in ['H2', 'HD', 'CO']]):
                     if 'j' in p.name:
-                        m = re.findall('(j\d+)', p.name)[0]
+                        m = re.findall(r'(j\d+)', p.name)[0]
                         if int(m[1:]) < 3:
                             p.name = p.name.replace(m, '*'*int(m[1:]))
                         else:
@@ -3662,9 +3675,9 @@ class fitMCMCWidget(QWidget):
                     samples[:, :, i] = (samples[:, :, i] / np.mean(samples[:, :, i], axis=0) - 1) * 300000
                 #print(i, p)
             fig, ax0 = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
-            ax0[0, 0].hist(-lnprobs[nsteps-1, :][np.isfinite(lnprobs[nsteps-1, :])], 20, density=1, histtype='bar', color='crimson', label='$\chi^2$')
+            ax0[0, 0].hist(-lnprobs[nsteps-1, :][np.isfinite(lnprobs[nsteps-1, :])], 20, density=1, histtype='bar', color='crimson', label=r'$\chi^2$')
             ax0[0, 0].legend()
-            ax0[0, 0].set_title('$\chi^2$ distribution')
+            ax0[0, 0].set_title(r'$\chi^2$ distribution')
             for i in range(ndims):
                 vert, hor = int((i + 1) / n_hor), i + 1 - n_hor * int((i + 1) / n_hor)
                 ax0[vert, hor].scatter(samples[nsteps-1, :, i], -lnprobs[nsteps-1, :], c='r')
@@ -3690,10 +3703,10 @@ class fitMCMCWidget(QWidget):
                 chimin[1, i] = np.mean(-lnprobs[i, :])
                 chimin[2, i] = np.std(-lnprobs[i, :])
             fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor), sharex=True)
-            ax[0, 0].plot(np.arange(nsteps), np.log10(chimin[0]), label='$\chi^2_{min}$')
-            ax[0, 0].plot(np.arange(nsteps), np.log10(-lnprobs[:, ind+1]), label='$\chi^2$ at chain')
-            ax[0, 0].plot(np.arange(nsteps), np.log10(chimin[1]), label='$\chi^2$ mean')
-            ax[0, 0].plot(np.arange(nsteps), np.log10(chimin[2]), label='$\chi^2$ disp')
+            ax[0, 0].plot(np.arange(nsteps), np.log10(chimin[0]), label=r'$\chi^2_{min}$')
+            ax[0, 0].plot(np.arange(nsteps), np.log10(-lnprobs[:, ind+1]), label=r'$\chi^2$ at chain')
+            ax[0, 0].plot(np.arange(nsteps), np.log10(chimin[1]), label=r'$\chi^2$ mean')
+            ax[0, 0].plot(np.arange(nsteps), np.log10(chimin[2]), label=r'$\chi^2$ disp')
             ax[0, 0].legend(loc=1)
             for i in range(ndims):
                 vert, hor = int((i + 1) / n_hor), i + 1 - n_hor * int((i + 1) / n_hor)
@@ -4024,10 +4037,6 @@ class fitExtWidget(QWidget):
                     d2 = np.genfromtxt('data/SDSS/QSO1_template_norm.sed', skip_header=0, unpack=True)
                     m = d2[0] > data[0][-1]
                     data = np.append(data, [d2[0][m], d2[1][m] * data[1][-1] / d2[1][m][0], d2[1][m] / 30], axis=1)
-
-            elif self.template == 'const':
-                data = np.ones((2, 10))
-                data[0] = np.linspace(xmin / (1 + z_em), xmax / (1 + z_em), 10)
 
             data[0] *= (1 + z_em)
             if smooth_window is not None:
@@ -5241,16 +5250,16 @@ class loadSDSSwidget(QWidget):
                 cat = self.parent.SDSScat
             self.parent.options('SDSScat', cat)
             if cat == 'DR14':
-                self.data = Table.read('C:\science\SDSS\DR14\DR14Q_v4_4.fits')
+                self.data = Table.read(r'C:\science\SDSS\DR14\DR14Q_v4_4.fits')
                 default = ['SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID', 'Z']
             if cat == 'DR12':
                 self.data = Table(self.parent.IGMspec['BOSS_DR12']['meta'][()])
                 default = ['SDSS_NAME', 'RA_GROUP', 'DEC_GROUP', 'PLATE', 'MJD', 'FIBERID', 'Z_VI']
             if cat == 'DR9Lee':
-                self.data = Table.read('C:/science/SDSS/DR9_Lee/BOSSLyaDR9_cat.fits')
+                self.data = Table.read(r'C:\science\SDSS\DR9_Lee\BOSSLyaDR9_cat.fits')
                 default = ['SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID', 'Z_VI']
             if cat == 'Astroquery':
-                self.data = Table.read('C:\science\SDSS\DR14\DR14Q_v4_4.fits')
+                self.data = Table.read(r'C:\science\SDSS\DR14\DR14Q_v4_4.fits')
                 default = ['SDSS_NAME', 'RA', 'DEC', 'PLATE', 'MJD', 'FIBERID', 'Z']
             self.saved = {}
             for par in self.data.colnames:
@@ -6984,6 +6993,9 @@ class sviewer(QMainWindow):
     def initMenu(self):
         
         menubar = self.menuBar()
+        #menubar.setIconSize(QSize(40, 20))
+        menubar.setFixedHeight(37)
+        #menubar.setNativeMenuBar(self)
         fileMenu = menubar.addMenu('&File')
         viewMenu = menubar.addMenu('&View')
         linesMenu = menubar.addMenu('&Lines')
@@ -9705,16 +9717,16 @@ class sviewer(QMainWindow):
                     if isinstance(temp.slope, (float, int, np.floating)):
                         ax.plot(E / 1.4388 * 1.5, temp.slope * E * 1.5 + temp.zero, '--k', lw=1.5)
                         text = [E[-1] / 1.4388 * 1.5, temp.slope * E[-1] * 1.5 + temp.zero,
-                                'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + "{:.1f}".format(temp.temp) + '$\,$K']
+                                r'T$_{' + ''.join([str(l) for l in levels]) + r'}$=' + "{:.1f}".format(temp.temp) + r'$\,$K']
                     elif temp.slope.type == 'm':
                         ax.plot(E / 1.4388 * 1.5, temp.slope.val * E * 1.5 + temp.zero.val, '--k', lw=1.5)
                         text = [E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
-                                'T$_{' + ''.join([str(l) for l in levels]) + '}$=' + temp.latex(f=0, base=0)+'$\,$K']
+                                r'T$_{' + ''.join([str(l) for l in levels]) + r'}$=' + temp.latex(f=0, base=0)+r'$\,$K']
                     elif temp.slope.type == 'u':
                         E = np.linspace(E[0], E[1], 5)
                         ax.errorbar(E / 1.4388 * 1.5, (temp.slope.val - temp.slope.minus) * E * 1.5 + temp.zero.val, fmt='--k', yerr=0.1, lolims=E>0, lw=1.5, capsize=0, zorder=0 )
                         text = [E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
-                                'T$_{' + ''.join([str(l) for l in levels]) + '}>' + '{:.0f}\,$'.format(temp.temp.dec().val) + 'K']
+                                r'T$_{' + ''.join([str(l) for l in levels]) + r'}>' + '{:.0f}'.format(temp.temp.dec().val) + r'\,$K']
                     text[2] = ax.text(text[0], text[1], text[2], va='top', ha='right', fontsize=16)
         if plot:
             plt.show()

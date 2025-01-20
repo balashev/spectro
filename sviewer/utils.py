@@ -15,8 +15,8 @@ import os
 from scipy.interpolate import interp1d
 from scipy.stats import rv_continuous
 import sys
-sys.path.append('C:/science/python')
-from spectro.sviewer.utils import *
+#sys.path.append('C:/science/python')
+#from spectro.sviewer.utils import *
 import threading
 import time
 import urllib

@@ -393,7 +393,6 @@ class gline():
         except:
             raise ValueError("Illegal axis argument")
         if not np.all(args[:-1] <= args[1:]):
-            print('not sorted', args)
             for attr in ['x', 'y', 'err', 'mask']:
                 if len(getattr(self, attr)) > 0:
                     setattr(self, attr, getattr(self, attr)[args])
@@ -1943,7 +1942,8 @@ class Spectrum():
         getattr(self, 'spline'+name).add(x=x, y=y)
         #getattr(self, 'spline'+name).sort()
         getattr(self, 'g_spline'+name).setData(x=getattr(self, 'spline'+name).x, y=getattr(self, 'spline'+name).y)
-        self.calc_spline(name=name)
+        if self.calc_spline(name=name) == False:
+            self.del_spline(arg=getattr(self, 'spline'+name).find_nearest(x, None))
         self.update_fit()
 
     def del_spline(self, x1=None, y1=None, x2=None, y2=None, arg=None, name=''):
@@ -1970,9 +1970,12 @@ class Spectrum():
             tck = splrep(getattr(self, 'spline'+name).x, getattr(self, 'spline'+name).y, k=k)
 
         if getattr(self, 'spline'+name).n > 1:
-            setattr(self, 'cont_mask'+name, (getattr(self, 'spec'+name).raw.x > getattr(self, 'spline'+name).x[0]) & (getattr(self, 'spec'+name).raw.x < getattr(self, 'spline'+name).x[-1]))
-            getattr(self, 'cont'+name).set_data(x=getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)],
-                                                y=splev(getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)], tck))
+            if np.isnan(splev(getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)], tck)).any():
+                return False
+            else:
+                setattr(self, 'cont_mask'+name, (getattr(self, 'spec'+name).raw.x > getattr(self, 'spline'+name).x[0]) & (getattr(self, 'spec'+name).raw.x < getattr(self, 'spline'+name).x[-1]))
+                getattr(self, 'cont'+name).set_data(x=getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)],
+                                                    y=splev(getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)], tck))
         else:
             setattr(self, 'cont_mask' + name, None)
             setattr(self, 'cont'+name, gline())

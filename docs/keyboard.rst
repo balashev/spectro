@@ -29,6 +29,7 @@ Keyboard bindings
    
    * **b**                              :  add b-splain point (if key is quickly pressed)
    * **b + LEFT CLICK**               :  add b-splain point
+   * **b + ALT + LEFT CLICK**         :  add b-splain point at x position and median value of the spectrum around the x position (the median window will depend on the shown size of spectrum)
    * **b + RIGHT CLICK**              :  remove nearest b-splain point
    * **b + <select region>**            :  remove all b-splain points in selected region
   

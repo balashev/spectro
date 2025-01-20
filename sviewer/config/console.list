@@ -1,21 +1,21 @@
 show CI
+show H2 2 3
+hide H2 2 3
+hide H2
+hide H2 0 1
+show H2 0 1 2
+show CIj1
+show CIj2
+hide FeIIj1
+hide FeIIj2
+hide FeIIj3
+show CO
+high SiII
+show SiII
+show CI
 show CIj1
 show CIj2
 show H2 0 1
-show NV
-logN
-logN 12CO
-logN CO
-logN 13CO
-logN Ci
-logN CI
-show CIIJ1
 show CIIj1
-show CN
-CN
-high CH
-show NaI
-show H2j7
-show H2j9
-show CI
-stats
+hide CO
+show CO

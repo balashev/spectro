@@ -15,6 +15,7 @@ from functools import partial
 import json
 import itertools
 import matplotlib.pyplot as plt
+from nautilus import Prior, Sampler
 from multiprocessing import Pool
 import numpy as np
 import lmfit
@@ -31,6 +32,7 @@ import sys
 if __name__ in ["__main__", "__mp_main__"]:
     from a_unc import a
     from stats import distr1d
+    from utils import Timer
 else:
     from ..a_unc import a
     from ..stats import distr1d, distr2d
@@ -823,11 +825,11 @@ class QSOSEDfit():
 
             return True
 
-    def set_filters(self, ind, names=None):
+    def set_filters(self, ind, names=None, add_UV=False, add_SDSS=False):
         self.photo = {}
         self.filters = {}
         if self.addPhoto:
-            if 1:
+            if add_UV:
                 for k in ['FUV', 'NUV']:
                     if (names is None and k in self.filter_names) or (names is not None and k in names):
                         if 0:
@@ -842,13 +844,14 @@ class QSOSEDfit():
                                     self.filters[k] = f
                                     self.photo[k] = 'GALEX'
 
-            for i, k in enumerate(['u', 'g', 'r', 'i', 'z']):
-                if (names is None and k in self.filter_names) or (names is not None and k in names):
-                    if self.df.loc[ind, f'PSFMAG{i}'] != 0 and self.df.loc[ind, f'ERR_PSFMAG{i}'] != 0:
-                        f = Filter(self, k, value=self.df.loc[ind, f'PSFMAG{i}'], err=self.df.loc[ind, f'ERR_PSFMAG{i}'])
-                        if f.range[0] > 912 * (self.df.loc[ind, 'z'] + 1):
-                            self.filters[k] = f
-                            self.photo[k] = 'SDSS'
+            if add_SDSS:
+                for i, k in enumerate(['u', 'g', 'r', 'i', 'z']):
+                    if (names is None and k in self.filter_names) or (names is not None and k in names):
+                        if self.df.loc[ind, f'PSFMAG{i}'] != 0 and self.df.loc[ind, f'ERR_PSFMAG{i}'] != 0:
+                            f = Filter(self, k, value=self.df.loc[ind, f'PSFMAG{i}'], err=self.df.loc[ind, f'ERR_PSFMAG{i}'])
+                            if f.range[0] > 912 * (self.df.loc[ind, 'z'] + 1):
+                                self.filters[k] = f
+                                self.photo[k] = 'SDSS'
 
             for k in ['J', 'H', 'K']:
                 if (names is None and k in self.filter_names) or (names is not None and k in names):
@@ -1009,13 +1012,13 @@ class QSOSEDfit():
         #    model += self.models['host'].data[kind][params['host_type'].value] * 10 ** params['host_norm'].value * self.extinction(x / (1 + d['z']), Av=params['host_Av'].value)
         return model
 
-    def model_emcee(self, params, x, dtype, mtype='total'):
+    def model_emcee(self, params, x, dtype, mtype='total', lnorm=2200):
         for s in ['spec', 'spec_full']:
             self.photo[s] = 'spec'
-        alpha = 10 ** params['alpha_' + self.photo[dtype]].value * (x / (1 + self.d['z']) / 2500) ** params['slope_' + self.photo[dtype]].value if self.photo[dtype] not in ['WISE', 'spec'] else 1
+        alpha = 10 ** params['alpha_' + self.photo[dtype]].value * (x / (1 + self.d['z']) / lnorm) ** params['slope_' + self.photo[dtype]].value if self.photo[dtype] not in ['WISE', 'spec'] else 1
         #print(dtype, self.photo[dtype], alpha)
         if 'bbb_slope' in params.keys():
-            alpha *= (x / (1 + self.d['z']) / 2500) ** params['bbb_slope'].value
+            alpha *= (x / (1 + self.d['z']) / lnorm) ** params['bbb_slope'].value
         model = np.zeros_like(self.models['bbb'].data[dtype][0])
         if mtype in ['total', 'bbb']:
             model += self.models['bbb'].data[dtype][0] * alpha * 10 ** params['bbb_norm'].value
@@ -1101,20 +1104,18 @@ class QSOSEDfit():
         #return lp -.5 * np.sum(np.power(self.ln_like_slope(pars), 2))
 
     def lnlike_nest(self, pars):
-        #print(pars)
-        params = self.set_params(pars)
-        #if not np.isfinite(- .5 * np.sum(np.power(self.ln_like(params), 2))):
-        #    print([[p.name, pars[i]] for i, p in enumerate(self.params.values())])
-        #    input()
-        #print(- .5 * np.sum(np.power(self.ln_like(params), 2)))
-        #print(len(self.ln_like(params)[::10]), - .5 * np.sum(np.power(self.ln_like(params)[::10], 2)), self.ln_like(params)[::10])
-        y = self.ln_like(params)[:]
-        #print(y)
+        if 1:
+            #t = Timer()
+            params = self.set_params(pars)
+            y = self.ln_like(params)[:]
+            #t.time('calc')
+        else:
+            y = np.asarray([(self.params[p].value - v) ** 2 for p, v in zip(self.params, pars)])
         return - .5 * np.sum(np.power(y[np.isfinite(y)], 2))
-        #return lp -.5 * np.sum(np.power(self.ln_like_slope(pars), 2))
 
     def ptform(self, u):
         #print(self.params)
+        #t = Timer()
         x = np.array(u)
         for i, p in enumerate(self.params.values()):
             if p.name == 'bbb_slope':
@@ -1149,6 +1150,7 @@ class QSOSEDfit():
         #print([[p.name, x[i]] for i, p in enumerate(self.params.values())])
         #input()
         #print(x)
+        #t.time('priors')
         return x
         #return lp -.5 * np.sum(np.power(self.ln_like_slope(pars), 2))
 
@@ -1224,7 +1226,8 @@ class QSOSEDfit():
 
     def ln_like(self, params, plot=0, outliers=False):
         # print(params)
-        # t = Timer()
+        #t = Timer()
+        #print(len(self.sm[0]))
         chi = (self.model_emcee(params, self.sm[0], 'spec') - self.sm[1]) / self.sm[2]
         if outliers:
             chi = chi[np.abs(chi) < np.quantile(np.abs(chi), 0.95)]
@@ -1234,16 +1237,17 @@ class QSOSEDfit():
             fig, ax = plt.subplots()
         #if np.sum(np.isnan(chi)):
         #    print(self.sm[0][np.isnan(chi)])
-        # t.time('spec')
+        #t.time('spec')
         for k, f in self.filters.items():
             if self.filters[k].fit:
                 chi = np.append(chi, [f.weight / f.err * (f.value - f.get_value(x=f.x, y=self.model_emcee(params, f.x, k)))])
+                #print(chi[-1])
                 if plot:
                     print(k, [f.weight / f.err * (f.value - f.get_value(x=f.x, y=self.model_emcee(params, f.x, k)))])
                     ax.plot(np.mean(f.x), [f.weight / f.err * (f.value - f.get_value(x=f.x, y=self.model_emcee(params, f.x, k)))])
                 #if np.isnan(chi[-1]):
                 #    print(k)
-                # t.time(f.name)
+                #t.time(f.name)
         if plot:
             plt.show()
 
@@ -1710,6 +1714,7 @@ class QSOSEDfit():
                 curr, curr_eval = candidate, candidate_eval
         # print('best:', best)
         return self.objective(best, anneal_pars, params)
+
     def anneal_fit(self, params=None, anneal_steps=None, slope=True, vary={}):
 
         if anneal_steps == None:
@@ -1771,48 +1776,67 @@ class QSOSEDfit():
             if self.plot:
                 self.plot_spec(params=result.params)
 
-        elif method in ['nested', 'nested_dyn']:
+        elif method in ['nested', 'nested_dyn', 'nautilus']:
             result, chi2_min = self.anneal_fit(anneal_steps=30, vary={'host_norm': True, 'host_tau': False, 'host_tg': False, 'host_Av': False})
             #result, chi2_min = self.anneal_fit(anneal_steps=30)
             params, cov = self.prepare_params(result.params)
             #print(params, cov)
             self.params = params
+            parnames = [p for p in self.params]
             ndim = len([p for p in params.values() if p.vary])
-            if calc:
-                if 'dyn' in method:
-                    sampler = dynesty.DynamicNestedSampler(self.lnlike_nest, self.ptform, ndim, nlive=100) #, bound='balls')
-                else:
-                    sampler = dynesty.NestedSampler(self.lnlike_nest, self.ptform, ndim, nlive=2000, bound='multi')
-                sampler.run_nested(maxiter=self.mcmc_steps, checkpoint_file=os.path.dirname(self.catalog) + '/QC/dynesty/' + self.d['SDSS_NAME'] + '.save', print_progress=True) #, maxcall=500000)
-            else:
-                sampler = dynesty.DynamicNestedSampler.restore(os.path.dirname(self.catalog) + '/QC/dynesty/' + self.d['SDSS_NAME'] + '.save')
-                # resume
-                sampler.run_nested(resume=True)
-            results = sampler.results
-
+            t = Timer()
+            #from multiprocessing import Pool
+            #num_proc = 10
+            #pool = Pool(processes=num_proc)
             quantiles = [0.16, 0.5, 0.84]
-            # Plot a summary of the run.
-            rfig, raxes = dyplot.runplot(sampler.results)
-            rfig.savefig(os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_run.png')
-            # Plot traces and 1-D marginalized posteriors.
-            tfig, taxes = dyplot.traceplot(sampler.results, quantiles=quantiles, show_titles=True)
-            tfig.savefig(os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_trace.png')
-            # Plot the 2-D marginalized posteriors.
-            cfig, caxes = dyplot.cornerplot(sampler.results, quantiles=quantiles, show_titles=True)
-            cfig.savefig(os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_corner.png')
+            res = {}
+            if method in ['nested', 'nested_dyn']:
+                if calc:
+                    if 'dyn' in method:
+                        sampler = dynesty.DynamicNestedSampler(self.lnlike_nest, self.ptform, ndim, nlive=100, bound='multi') #, pool=pool, queue_size=num_proc) #, bound='balls')
+                    else:
+                        sampler = dynesty.NestedSampler(self.lnlike_nest, self.ptform, ndim, nlive=2000, bound='multi')
+                    sampler.run_nested(maxiter=self.mcmc_steps, checkpoint_file=os.path.dirname(self.catalog) + '/QC/dynesty/' + self.d['SDSS_NAME'] + '.save', print_progress=True,
+                                       dlogz_init=0.1, maxiter_init=20000) #, maxcall=500000)
+                else:
+                    sampler = dynesty.DynamicNestedSampler.restore(os.path.dirname(self.catalog) + '/QC/dynesty/' + self.d['SDSS_NAME'] + '.save')
+                    # resume
+                    sampler.run_nested(resume=True)
+                results = sampler.results
+                print(sampler.results)
+                t.time(f'sample time for {self.ind}')
 
-            if 1:
-                # >>> statistical determination:
-                print("calc stats for ", self.ind)
-                res = {}
+                # Plot a summary of the run.
+                rfig, raxes = dyplot.runplot(sampler.results)
+                rfig.savefig(os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_run.png')
+                # Plot traces and 1-D marginalized posteriors.
+                tfig, taxes = dyplot.traceplot(sampler.results, quantiles=quantiles, show_titles=True, labels=parnames)
+                tfig.savefig(os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_trace.png')
+                # Plot the 2-D marginalized posteriors.
+                cfig, caxes = dyplot.cornerplot(sampler.results, quantiles=quantiles, show_titles=True, labels=parnames)
+                cfig.savefig(os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_corner.png')
+                #t.time('plot')
                 sample = results.samples[:]
                 weights = results.importance_weights()
-                print(params)
+            elif  method in ['nautilus']:
+                sampler = Sampler(self.ptform, self.lnlike_nest, n_live=1000, n_dim=ndim, filepath=os.path.dirname(self.catalog) + '/QC/nautilus/' + self.d['SDSS_NAME'] + '.hdf5', resume=not calc) #, pool=20)
+                if calc:
+                    sampler.run(verbose=True)
+
+                t.time(f'sample time for {self.ind}')
+
+                sample, weights, log_l = sampler.posterior()
+                weights = np.exp(weights)
+                corner.corner(sample, weights=weights, bins=20, labels=parnames, color='purple', plot_datapoints=False, range=np.repeat(0.999, ndim))
+            if 1:
+                # >>> statistical determination:
+                #print("calc stats for ", self.ind)
+                #print(params)
                 for i, p in enumerate(list(params.keys()) + ['M_UV', 'L_host', 'Av', 'L_UV_ext', 'L_UV_corr']):
                     if p not in ['M_UV', 'L_host', 'Av', 'L_UV_ext', 'L_UV_corr']:
                         d = dynesty.utils.quantile(sample[:, i], quantiles, weights=weights)
                     else:
-                        print(p)
+                        #print(p)
                         s = []
                         for l in range(sample.shape[0]):
                             for j, p1 in enumerate(params.keys()):
@@ -1840,16 +1864,15 @@ class QSOSEDfit():
                             d = dynesty.utils.quantile(np.asarray(s)[np.isfinite(s)], quantiles, weights=weights[np.isfinite(s)])
                         else:
                             d = None
-                    print(p, d)
+                    #print(p, d)
                     if d is not None:
                         res[p] = a(d[1], d[2] - d[1], d[1] - d[0])
-
-            print('res:', res)
+            #t.time('stats')
+            #print('res:', res)
             # >>> plot spectra
             if self.plot:
-                print("plot spectrum of ", self.ind)
-                inds = np.random.randint(results.samples.shape[0], size=400)
-                weights = results.importance_weights()
+                #print("plot spectrum of ", self.ind)
+                inds = np.random.randint(sample.shape[0], size=400)
                 inds = np.where(weights > np.max(weights) / 2)[0]
                 inds = inds[np.random.randint(len(inds), size=400)]
                 total, bbb, tor, host = [], [], [], []
@@ -1860,7 +1883,7 @@ class QSOSEDfit():
                     # params = result.params
                     for k, p in enumerate(params.keys()):
                         # print(ind, k, flat_sample[ind, k])
-                        params[p].value = results.samples[i, k]
+                        params[p].value = sample[i, k]
                         # if p in ['tor_type', 'host_tau', 'host_tg']:
                         #    params[p].value = np.max([params[p].min, np.min([params[p].max, round(params[p].value)])])
                     # self.ln_like(params, plot=plot)
@@ -1925,14 +1948,34 @@ class QSOSEDfit():
                     self.fig.axes[0].set_title(title)
 
                 if self.save:
-                    self.fig.savefig(
-                        os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.df.loc[ind, 'SDSS_NAME'] + '_spec.png',
-                        bbox_inches='tight', pad_inches=0.1)
+                    self.fig.savefig(os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.df.loc[ind, 'SDSS_NAME'] + '_spec.png', bbox_inches='tight', pad_inches=0.1)
 
                 # print(self.fig)
                 # self.fig.show()
                 # plt.close(self.fig)
+            t.time('plot spectrum')
             return res
+
+        elif method in ['nautilus']:
+            result, chi2_min = self.anneal_fit(anneal_steps=30, vary={'host_norm': True, 'host_tau': False, 'host_tg': False, 'host_Av': False})
+            # result, chi2_min = self.anneal_fit(anneal_steps=30)
+            params, cov = self.prepare_params(result.params)
+            # print(params, cov)
+            self.params = params
+            parnames = [p for p in self.params]
+            ndim = len([p for p in params.values() if p.vary])
+            t = Timer()
+
+            sampler = Sampler(self.ptform, self.lnlike_nest, n_live=1000, n_dim=ndim, filepath=os.path.dirname(self.catalog) + '/QC/nautilus/' + self.d['SDSS_NAME'] + '.hdf5', resume=not calc)
+            if calc:
+                sampler.run(verbose=True)
+
+            t.time(f'sample time for {self.ind}')
+
+            points, log_w, log_l = sampler.posterior()
+            corner.corner(points, weights=np.exp(log_w), bins=20, labels=parnames, color='purple',
+                plot_datapoints=False, range=np.repeat(0.999, ndim))
+
 
         elif method in ['emcee', 'zeus'] and self.hostExt and any([f in self.filters.keys() for f in ['J_UKIDSS', 'H_UKIDSS', 'K_UKIDSS', 'J', 'H', 'K', 'W1', 'W2']]): #and any([f in self.filters.keys() for f in ['W3', 'W4']]):
             if calc:
@@ -2231,14 +2274,14 @@ class jsoncat():
 
 def worker_wrapper(arg):
     ind, catfile, mcmc_steps, anneal_steps = arg
-    return run_model(ind, catfile=catfile, mcmc_steps=mcmc_steps, anneal_steps=anneal_steps, method='nested_dyn')
+    return run_model(ind, catfile=catfile, mcmc_steps=mcmc_steps, anneal_steps=anneal_steps, method='nautilus')
 
-def run_model(ind, catfile=None, mcmc_steps=10000, anneal_steps=300, method='emcee'):
+def run_model(ind, catfile=None, mcmc_steps=10000, anneal_steps=300, method='emcee', calc=1):
     print(ind)
 
     qso = QSOSEDfit(catalog=catfile, plot=1, mcmc_steps=mcmc_steps, anneal_steps=anneal_steps, save=1, corr=50, verbose=0)
     if qso.prepare(ind):
-        res = qso.fit(ind, method=method, calc=1)
+        res = qso.fit(ind, method=method, calc=calc)
     else:
         res = None
     return (int(ind), res)
@@ -2253,7 +2296,6 @@ if __name__ == "__main__":
     #catfile = 'C:/science/Erosita/UV_Xray/individual/individual_targets_add.csv'
     path = os.path.dirname(catfile)
     #print(path)
-    #path = '/home/balashev/science/Erosita/'
 
     try:
         i1, i2 = int(sys.argv[1]), int(sys.argv[2])
@@ -2261,19 +2303,19 @@ if __name__ == "__main__":
         i1, i2 = 1, 1
 
     if 0:
-        ind = 3
+        ind = 5
         if 0:
             res = run_model(ind, catfile=catfile, mcmc_steps=500, anneal_steps=50, method='emcee')
         else:
-            res = run_model(ind, catfile=catfile, method='nested_dyn')
+            res = run_model(ind, catfile=catfile, method='nautilus', calc=1) # method='nested_dyn') #
         print(res)
     else:
         #pars = ['bbb_norm', 'Av', 'tor_type', 'tor_norm', 'host_tau', 'host_tg', 'host_norm', 'host_Av', 'sigma', 'alpha_GALEX', 'alpha_SDSS', 'alpha_2MASS', 'alpha_UKIDSS']
-        num = 20
+        num = 10
         calc = 1
         if calc:
             if 1:
-                for i in range(20): # range(7975 // num + 1):
+                for i in range(1): # range(7975 // num + 1):
                     if i % i2 + 1 == i1:
                         with Pool(num) as p:
                             res_new = p.map(worker_wrapper, [(k, catfile, 10000, 300) for k in np.arange(i * num, min((i + 1) * num, 7975))]) #total number of AGNs 7975

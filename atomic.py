@@ -829,7 +829,7 @@ class atomicData(OrderedDict):
                 self[name].lines[-1].band = l['LW'].decode('UTF-8')
 
     def readCO(self):
-        CO = np.genfromtxt(self.folder + r'/data/CO_data_Dapra.dat', skip_header=1, names=True, dtype=None)
+        CO = np.genfromtxt(self.folder + r'/data/CO_data_Dapra_plus_Morton.dat', skip_header=1, names=True, dtype=None)
         for i in np.unique(CO['level']):
             name = 'COj'+str(i)
             self[name] = e(name)
