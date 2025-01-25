@@ -90,9 +90,9 @@ class expTableWidget(TableWidget):
         self.horizontalHeader().sortIndicatorChanged.connect(self.rewrite)
 
     def update(self):
-        dtype = [('filename', np.str_, 100), ('obs. date', np.str_, 20),
-                 ('wavelmin', np.float_), ('wavelmax', np.float_), ('lsf_type', np.str_, 10),
-                 ('resolution', np.int_), ('scaling factor', np.float_)]
+        dtype = [('filename', str, 100), ('obs. date', str, 20),
+                 ('wavelmin', float), ('wavelmax', float), ('lsf_type', str, 10),
+                 ('resolution', int), ('scaling factor', float)]
         zero = ('', '', np.nan, np.nan, 'Gaussian', 0, 1)
         data = np.array([zero], dtype=dtype)
         self.edit_col = [4, 5, 6]
@@ -865,7 +865,7 @@ class QSOlistTable(pg.TableWidget):
                         for qso in XQ100data:
                             if self.item(self.currentItem().row(), 0).text() == str(qso.id):
                                 break
-                        data = np.array([(a.z, a.logN) for a in qso.DLA], dtype=[('z', np.str_, 9), ('N_HI', np.str_, 5)])
+                        data = np.array([(a.z, a.logN) for a in qso.DLA], dtype=[('z', str, 9), ('N_HI', str, 5)])
                         print(data)
                         self.DLAtable.setdata(data)
 
@@ -946,8 +946,8 @@ class IGMspecTable(pg.TableWidget):
     def setdata(self, data=None):
         print(data)
         if data is None:
-            dtype = [('SPEC_FILE', np.str_, 100), ('RA_GROUP', np.float_), ('DEC_GROUP', np.float_), ('IGM_ID', np.int_),
-                     ('DATE-OBS', np.str_, 10), ('zem_GROUP', np.float_), ('R', np.int_)]
+            dtype = [('SPEC_FILE', str, 100), ('RA_GROUP', float), ('DEC_GROUP', float), ('IGM_ID', int),
+                     ('DATE-OBS', str, 10), ('zem_GROUP', float), ('R', int)]
             data = np.empty([len(self.data['meta']['IGM_ID'])], dtype=dtype)
             data = add_field(data, [('ind', int)], np.arange(len(self.data['meta']['IGM_ID'])))
             for d in dtype:

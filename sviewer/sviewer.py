@@ -3263,7 +3263,8 @@ class fitMCMCWidget(QWidget):
                     g = f[backend.name]
                     g.attrs["iteration"] = nsteps // thinning
                     if lns is not None:
-                        g["log_prob"][...] = lns.transpose()
+                        print(lns)
+                        g["log_prob"][...] = np.transpose(lns)
                     print(chain.shape, chain.transpose(2, 0, 1).shape)
                     g["chain"][...] = chain.transpose(2, 0, 1)
                     g.attrs["pars"] = [p.encode() for p in pars]
@@ -3546,14 +3547,23 @@ class fitMCMCWidget(QWidget):
                             ax[vert, hor].text(.1, .8, res.latex(f=f), ha='left', va='top', transform=ax[vert, hor].transAxes)
         else:
             values = []
-            for k in range(burnin, samples.shape[0]):
-                for i in range(samples.shape[1]):
+            if 0:
+                for k in range(burnin, samples.shape[0]):
+                    for i in range(samples.shape[1]):
+                        for xi, p in zip(samples[k, i], pars):
+                            self.parent.fit.setValue(p, xi)
+                        self.parent.fit.update()
+                        values.append([p.val for p in self.parent.fit.list()])
+            else:
+                kis, iis = burnin + np.random.randint(samples.shape[0] - burnin, size=5000), np.random.randint(samples.shape[1], size=5000)
+                for k, i in zip(kis, iis):
+                    #print(k, i)
                     for xi, p in zip(samples[k, i], pars):
                         self.parent.fit.setValue(p, xi)
                     self.parent.fit.update()
                     values.append([p.val for p in self.parent.fit.list()])
-
             values = np.asarray(values)
+            print("values done")
 
             if t == 'all':
                 k = len(self.parent.fit.list())  # samples.shape[1]
@@ -6096,14 +6106,14 @@ class combineWidget(QWidget):
             if 0:
                 if 1:
                     spec = s.spec.y()[:]
-                    spec[s.bad_mask.x()] = np.NaN
-                    spec = interp1d(s.spec.x(), spec, bounds_error=False, fill_value=np.NaN)
+                    spec[s.bad_mask.x()] = np.nan
+                    spec = interp1d(s.spec.x(), spec, bounds_error=False, fill_value=np.nan)
                     err = s.spec.err()[:]
-                    err[s.bad_mask.x()] = np.NaN
-                    err = interp1d(s.spec.x(), err, bounds_error=False, fill_value=np.NaN)
+                    err[s.bad_mask.x()] = np.nan
+                    err = interp1d(s.spec.x(), err, bounds_error=False, fill_value=np.nan)
                 else:
-                    spec = interp1d(s.spec.x()[np.logical_not(s.bad_mask.x())], s.spec.y()[np.logical_not(s.bad_mask.x())], bounds_error=False, fill_value=np.NaN)
-                    err = interp1d(s.spec.x()[np.logical_not(s.bad_mask.x())], s.spec.err()[np.logical_not(s.bad_mask.x())], bounds_error=False, fill_value=np.NaN)
+                    spec = interp1d(s.spec.x()[np.logical_not(s.bad_mask.x())], s.spec.y()[np.logical_not(s.bad_mask.x())], bounds_error=False, fill_value=np.nan)
+                    err = interp1d(s.spec.x()[np.logical_not(s.bad_mask.x())], s.spec.err()[np.logical_not(s.bad_mask.x())], bounds_error=False, fill_value=np.nan)
                 comb[i] = spec(x)
                 e_comb[i] = np.power(err(x), -1)
             else:
@@ -7274,7 +7284,7 @@ class sviewer(QMainWindow):
 
         ExcTemp = QAction('&Excitation temperature', self)
         ExcTemp.setStatusTip('Calculate excitation temperature')
-        ExcTemp.triggered.connect(partial(self.ExcitationTemp, levels=[0, 1], ind=None, plot=True))
+        ExcTemp.triggered.connect(partial(self.ExcitationTemp, ind=None, plot=True))
 
         MetalAbundance = QAction('&Metal abundance', self)
         MetalAbundance.setStatusTip('Show Metal abundances')
@@ -9691,28 +9701,37 @@ class sviewer(QMainWindow):
     def ExcitationTemp(self, species='H2', levels=[0, 1, 2], E=None, ind=None, plot=True, ax=None):
         from ..excitation_temp import ExcitationTemp
 
+        text = None
         for i, sys in enumerate(self.fit.sys):
             if ind is None or ind == i:
                 if all(['H2j'+str(x) in sys.sp.keys() for x in levels]):
-                    temp = ExcitationTemp('H2')
+                    levels = [0, 1]
                     # print(Temp.col_dens(num=4, Temp=92, Ntot=21.3))
                     n = [sys.sp['H2j'+str(x)].N.unc for x in levels]
                     if any([ni.val == 0 for ni in n]):
                         n = [a(sys.sp['H2j'+str(x)].N.val, 0, 0) for x in levels]
+                    temp = ExcitationTemp('H2', n)
+
                 if any(['COj' + str(x) in sys.sp.keys() for x in levels]):
                     temp = ExcitationTemp('CO')
-                    levels = [int(k[k.index('j')+1:]) for k in sys.sp.keys() if int(k[k.index('j')+1:]) in levels]
-                    print(levels)
+                    levels = np.arange(10)
+                    levels = [int(k[k.index('j')+1:]) for k in sys.sp.keys() if int(k[k.index('j')+1:]) in levels and k.startswith('CO')]
+                    print("levels:", levels)
                     n = [sys.sp['COj' + str(x)].N.unc for x in levels]
                     if any([ni.val == 0 for ni in n]):
                         n = [a(sys.sp['COj' + str(x)].N.val, 0, 0) for x in levels]
-                temp.calcTemp(n, calc='', plot=plot, verbose=1)
+                    temp = ExcitationTemp('H2', n)
+                temp.calc(method='emcee')
+                #temp.temp, temp.ntot = temp.res['temp'].val, temp.res['ntot'].val
+                temp.temp_to_slope()
+
                 if E is None:
                     E = temp.E
                 elif isinstance(E, (float, int, np.floating)):
                     E = np.asarray([0, E])
                 elif isinstance(E, list):
                     E = np.asarray(E)
+                print("E:", E)
                 if ax is not None:
                     if isinstance(temp.slope, (float, int, np.floating)):
                         ax.plot(E / 1.4388 * 1.5, temp.slope * E * 1.5 + temp.zero, '--k', lw=1.5)

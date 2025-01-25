@@ -908,7 +908,7 @@ class SDSS_fit():
         w = np.nanstd(Y_in, axis=0)
         mask = np.abs(np.divide(Y_in, w)) > 3
         print(sum(mask))
-        self.Y[mask] = np.NaN
+        self.Y[mask] = np.nan
 
     def savetofile(self, attrs, prefix=''):
         """

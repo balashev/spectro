@@ -1,21 +1,21 @@
 show CI
-show H2 2 3
-hide H2 2 3
-hide H2
-hide H2 0 1
-show H2 0 1 2
-show CIj1
-show CIj2
-hide FeIIj1
-hide FeIIj2
-hide FeIIj3
-show CO
-high SiII
-show SiII
-show CI
 show CIj1
 show CIj2
 show H2 0 1
 show CIIj1
 hide CO
 show CO
+show CI
+show CIj1
+show CIj2
+show CI
+show CIj1
+show CIj2
+x 1000 2000
+y 0 1
+logN CI
+show Zn
+show ZnII
+CrII
+show CrII
+ZnII

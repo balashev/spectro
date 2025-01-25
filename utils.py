@@ -3,6 +3,16 @@ import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
 #import matplotlib.pyplot as plt
 
+def airvac(l):
+    """
+    correct from air to vacuum wavelenghts
+    """
+    n = 1.0
+    for i in range(5):
+        n_it = n
+        sig2 = 1.0e8 / (l * l * n_it * n_it)
+        n = 1.0e-8 * (15997.0 / (38.90 - sig2) + 2406030.0 / (130.0 - sig2) + 8342.13) + 1.0
+    return l * n
 
 def cmap_from_color(color, r=0, c='w', alpha=1, name='mycmap', bins=128):
     """
@@ -120,3 +130,8 @@ def specify_rects(rect_pars):
         #    top -= r.h_indent
 
     return rects
+
+if __name__ == '__main__':
+
+    if 1:
+        print(airvac(3633.289))

@@ -227,6 +227,7 @@ class a:
             plus = round(round(self.val/10**base + self.plus/10**base, r) - round(self.val/10**base, r), r)
             minus = round(round(self.val/10**base, r) - round(self.val/10**base - self.minus/10**base, r), r)
 
+        s = 'none'
         if np.isfinite(self.plus) and np.isfinite(self.minus) and self.type == 'm':
             if self.repr == 'log':
                 #print(val, plus, minus, f)

@@ -413,7 +413,7 @@ class distr2d():
             else:
                 c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color,
                                lw=lw, linestyles='-', zorder=zorder, alpha=alpha)
-                x, y = c.collections[0].get_segments()[0][:,0], c.collections[0].get_segments()[0][:, 1]
+                x, y = c.get_segments()[0][:,0], c.get_segments()[0][:, 1]
                 inter = interpolate.interp1d(x, y)
                 x = np.linspace(x[0], x[-1], 30)
                 ax.plot(x, inter(x), '-', c=color, lw=lw)
@@ -424,9 +424,10 @@ class distr2d():
                 x = np.linspace(x[0], x[-1], 20)
                 ax.errorbar(x, inter(x), yerr=np.abs(limits), lolims=lolims, fmt='o', color=color, uplims=uplims,
                             markersize=0, capsize=0, zorder=zorder, label=label)
-            if ls is not None:
-                for c, s in zip(c.collections[:len(ls)], ls[::-1]):
-                    c.set_dashes(s)
+            #if ls is not None:
+            #    for ci, s in zip(c[:len(ls)], ls[::-1]):
+            #        ci.set_dashes(s)
+
         if color_point != None:
             ax.scatter(self.point[0], self.point[1], s=200, color=color_point, edgecolors='k', marker='*', zorder=50)
         if colorbar:

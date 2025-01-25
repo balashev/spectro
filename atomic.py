@@ -1618,7 +1618,7 @@ def mean_molecular_weight(f=1, Z=0):
     return m / n
 
 if __name__ == '__main__':
-    if 1:
+    if 0:
         A = atomicData()
         #A.getfromNIST('CI', 4)
         #A.getfromNIST('CI', 5)
@@ -1661,11 +1661,11 @@ if __name__ == '__main__':
         HI = HIlist.HIset()
         for line in HI:
             print(line, line.l, line.f, line.g)
-    if 0:
-        N = a('13.11^{+0.07}_{-0.08}', 'l')
+    if 1:
+        N = a('13.8^{+0.07}_{-0.08}', 'l')
         print(N)
         HI = a('21.27^{+0.1}_{-0.1}', 'l')
-        print(metallicity('Zn', N, HI).dec())
+        print(metallicity('Zn', N, HI).log())
 
     if 0:
         HI = a('19.88^{+0.01}_{-0.01}', 'l')

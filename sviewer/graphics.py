@@ -360,7 +360,7 @@ class gline():
                 self.mask = np.delete(self.mask, arg)
         self.n = len(self.x)
 
-    def interpolate(self, err=False, fill_value=np.NaN):
+    def interpolate(self, err=False, fill_value=np.nan):
         m = np.logical_and(np.isfinite(self.y), np.isfinite(self.x))
         #print(np.sum(np.logical_not(m)))
         if not err:
@@ -1500,7 +1500,7 @@ class Spectrum():
             elif self.parent.selectview == 'color' and ('step' in self.view or 'line' in self.view):
                 x, y = np.copy(self.spec.x()), np.copy(self.spec.y())
                 if len(x) > 0:
-                    y[np.logical_not(self.fit_mask.x())] = np.NaN
+                    y[np.logical_not(self.fit_mask.x())] = np.nan
                 self.points = plotLineSpectrum(parent=self, view=self.view, x=x, y=y, name='points', connect='finite', pen=self.fit_pixels_pen)
                 if self.active:
                     self.points.setZValue(3)
@@ -1701,7 +1701,7 @@ class Spectrum():
                     mask = np.logical_or(mask, (data[1] == 0))
                 self.spec.raw.set_data(x=data[0], y=data[1], mask=mask)
             else:
-                mask = data[1] != np.NaN
+                mask = data[1] != np.nan
         self.spec.raw.interpolate()
         self.wavelmin, self.wavelmax = self.spec.raw.x[0], self.spec.raw.x[-1]
         self.mask.set(x=np.zeros_like(self.spec.raw.x, dtype=bool))
@@ -1890,7 +1890,7 @@ class Spectrum():
     def update_points(self):
         x, y = np.copy(self.spec.x()), np.copy(self.spec.y())
         if len(x) > 0:
-            y[np.logical_not(self.fit_mask.x())] = np.NaN
+            y[np.logical_not(self.fit_mask.x())] = np.nan
         if self.parent.selectview == 'points' or 'point' in self.parent.specview:
             self.points.setData(x=x, y=y)
         elif self.parent.selectview == 'color':
@@ -2299,7 +2299,7 @@ class Spectrum():
             if comp == -1:
                 self.set_fit(x=x, y=flux, attr='fit')
                 if binned is not None and len(binned) > 0:
-                    y = np.ones_like(self.spec.y()) * np.NaN
+                    y = np.ones_like(self.spec.y()) * np.nan
                     if len(y) > 0:
                         y[self.fit_mask.x()] = binned
                     self.set_fit(x=np.copy(self.spec.x()), y=y, attr='fit_bin')
