@@ -1,16 +1,3 @@
-show CI
-show CIj1
-show CIj2
-show H2 0 1
-show CIIj1
-hide CO
-show CO
-show CI
-show CIj1
-show CIj2
-show CI
-show CIj1
-show CIj2
 x 1000 2000
 y 0 1
 logN CI
@@ -19,3 +6,16 @@ show ZnII
 CrII
 show CrII
 ZnII
+show H2 0 1
+SiIV
+show CI
+show CIj1
+show CIj2
+show CO
+show H2j5
+show H2j5
+show H2j6
+show H2j3
+show H2j5
+show CII*
+show SiII*

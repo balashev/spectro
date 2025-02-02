@@ -158,6 +158,7 @@ class ExcitationTemp():
             print('species:', self.species)
             print('number of levels:', self.num)
             print('excitation energies:', self.E)
+            print('stat. weights:', self.g)
             print('N, cm^-2:', self.n)
             print('N tot, cm^-2:', sum(self.n))
 
@@ -180,9 +181,11 @@ class ExcitationTemp():
             ndim, nwalkers, nsteps = 2, 10, 5000
             self.calc(method='freq')
 
-            sigma = [self.res['ntot'].plus + self.res['ntot'].minus if np.isfinite(self.res['ntot'].plus + self.res['ntot'].minus) else np.min([(n.minus + n.plus) for n in self.n]),
-                     self.res['temp'].plus + self.res['temp'].minus if np.isfinite(self.res['temp'].plus + self.res['temp'].minus) else self.res['temp'].val / 10]
+            print("mins:", np.min([(n.minus + n.plus) for n in self.n]))
+            sigma = [(self.res['ntot'].plus + self.res['ntot'].minus) / 2 if np.isfinite(self.res['ntot'].plus + self.res['ntot'].minus) else np.min([(n.minus + n.plus) for n in self.n]),
+                     (self.res['temp'].plus + self.res['temp'].minus) / 2 if np.isfinite(self.res['temp'].plus + self.res['temp'].minus) else self.res['temp'].val / 10]
 
+            print(sigma)
             start = np.c_[self.res['ntot'].val + np.random.randn(nwalkers) * sigma[0], self.res['temp'].val + np.random.randn(nwalkers) * sigma[1]]
             print(start)
 
@@ -198,9 +201,11 @@ class ExcitationTemp():
                 # Now we'll sample for up to max_n steps
                 for sample in self.sampler.sample(start, iterations=max_n, progress=True):
                     # Only check convergence every 100 steps
-                    if self.sampler.iteration % 100:
+                    #print(self.sampler.iteration)
+                    if self.sampler.iteration % 200:
                         continue
 
+                    print(self.sampler.iteration)
                     # Compute the autocorrelation time so far
                     # Using tol=0 means that we'll always get an estimate even
                     # if it isn't trustworthy
@@ -218,49 +223,50 @@ class ExcitationTemp():
 
                 tau = self.sampler.get_autocorr_time()
                 print(tau)
-                burnin, thin = int(10 * np.max(tau)), int(0.5 * np.min(tau))
+                if all(np.isfinite(tau)):
+                    burnin, thin = int(10 * np.max(tau)), int(0.5 * np.min(tau))
 
-                samples = self.sampler.get_chain(discard=burnin, flat=True, thin=thin)
+                    samples = self.sampler.get_chain(discard=burnin, flat=True, thin=thin)
 
-                for i, l in enumerate(['ntot', 'temp']):
-                    d = distr1d(samples[:, i])
-                    print(d.stats(latex=2))
-                    #q = np.quantile(samples[:, i], [0.1585, 0.50, 0.8415])
-                    #print(l + ": ${0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}$".format(q[1], q[2] - q[1], q[1] - q[0], n=2))
-                    self.res[l] = a(d.stats(latex=2).split()[2])
-                self.temp, self.ntot = self.res['temp'].val, self.res['ntot'].val
+                    for i, l in enumerate(['ntot', 'temp']):
+                        d = distr1d(samples[:, i])
+                        print(d.stats(latex=2))
+                        #q = np.quantile(samples[:, i], [0.1585, 0.50, 0.8415])
+                        #print(l + ": ${0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}$".format(q[1], q[2] - q[1], q[1] - q[0], n=2))
+                        self.res[l] = a(d.stats(latex=4).split()[2])
+                    self.temp, self.ntot = self.res['temp'].val, self.res['ntot'].val
 
-                log_prob_samples = self.sampler.get_log_prob(discard=burnin, flat=True, thin=thin)
-                cols = self.sampler.get_blobs(discard=burnin, flat=True, thin=thin)
-                for i in range(self.num):
-                    d = distr1d(cols[:, i])
-                    print(d.stats(latex=2))
-                    #q = np.quantile(samples[:, i], [0.1585, 0.50, 0.8415])
-                    #print(l + ": ${0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}$".format(q[1], q[2] - q[1], q[1] - q[0], n=2))
-                    self.res[f'col_{i}'] = a(d.stats(latex=2).split()[2])
+                    log_prob_samples = self.sampler.get_log_prob(discard=burnin, flat=True, thin=thin)
+                    cols = self.sampler.get_blobs(discard=burnin, flat=True, thin=thin)
+                    for i in range(self.num):
+                        d = distr1d(cols[:, i])
+                        print(d.stats(latex=4))
+                        #q = np.quantile(samples[:, i], [0.1585, 0.50, 0.8415])
+                        #print(l + ": ${0:.{n}f}^{{+{1:.{n}f}}}_{{-{2:.{n}f}}}$".format(q[1], q[2] - q[1], q[1] - q[0], n=2))
+                        self.res[f'col_{i}'] = a(d.stats(latex=4).split()[2])
 
-                print(self.res)
+                    print(self.res)
 
-                print("burn-in: {0}".format(burnin))
-                print("thin: {0}".format(thin))
-                print("flat chain shape: {0}".format(samples.shape))
+                    print("burn-in: {0}".format(burnin))
+                    print("thin: {0}".format(thin))
+                    print("flat chain shape: {0}".format(samples.shape))
 
-                all_samples = np.concatenate((np.concatenate((samples, log_prob_samples[:, None]), axis=1), cols), axis=1)
+                    all_samples = np.concatenate((np.concatenate((samples, log_prob_samples[:, None]), axis=1), cols), axis=1)
 
-                print(all_samples.shape)
+                    print(all_samples.shape)
 
-                labels = ["logNtot", "Texc", "log prob"] + [f"logN_{i}" for i in range(self.num)]
+                    labels = ["logNtot", "Texc", "log prob"] + [f"logN_{i}" for i in range(self.num)]
 
-                if plot:
-                    fig = corner.corner(all_samples, labels=labels, quantiles=[0.1585, 0.5, 0.8415], show_titles=True,)
-                    # Extract the axes
-                    axes = np.array(fig.axes).reshape((all_samples.shape[1], all_samples.shape[1]))
+                    if plot:
+                        fig = corner.corner(all_samples, labels=labels, quantiles=[0.1585, 0.5, 0.8415], show_titles=True,)
+                        # Extract the axes
+                        axes = np.array(fig.axes).reshape((all_samples.shape[1], all_samples.shape[1]))
 
-                    # Loop over the diagonal
-                    for i in range(ndim+1, all_samples.shape[1]):
-                        ax = axes[i, i]
-                        ax.axvline(self.n[i - ndim - 1].val, color="tomato")
-                        ax.axvspan(self.n[i - ndim - 1].val - self.n[i - ndim - 1].minus, self.n[i - ndim - 1].val + self.n[i - ndim - 1].plus, color="tomato", alpha=0.3)
+                        # Loop over the diagonal
+                        for i in range(ndim+1, all_samples.shape[1]):
+                            ax = axes[i, i]
+                            ax.axvline(self.n[i - ndim - 1].val, color="tomato")
+                            ax.axvspan(self.n[i - ndim - 1].val - self.n[i - ndim - 1].minus, self.n[i - ndim - 1].val + self.n[i - ndim - 1].plus, color="tomato", alpha=0.3)
 
     def slope_to_temp(self, slope=None, zero=None):
         """
@@ -289,40 +295,43 @@ class ExcitationTemp():
             zero = Ntot + np.log10(self.g[0]) - np.log10(self.Z(temp))
             return slope, zero
 
-    def plot(self, ax=None, color='tomato'):
+    def plot(self, ax=None, color='tomato', energy='K'):
         if ax is None:
             fig = plt.figure(figsize=(14, 7))
             self.dataplot = fig.add_subplot(121)
             self.regionplot = fig.add_subplot(122)
 
-        self.plot_data(ax=self.dataplot if ax is None else ax, color=color)
-        self.plot_temp(ax=self.dataplot if ax is None else ax, color=color)
+        self.plot_data(ax=self.dataplot if ax is None else ax, color=color, enegry=energy)
+        self.plot_temp(ax=self.dataplot if ax is None else ax, color=color, enegry=energy)
 
         if ax is None:
             self.plot_post(ax=self.regionplot if ax is None else ax)
 
-    def plot_data(self, ax=None, color='tomato', markersize=8, label=None):
-        ax.errorbar(self.E, column(self.n,'val') - np.log10(self.g), yerr=[column(self.n,'plus'), column(self.n,'minus')],
+    def plot_data(self, ax=None, color='tomato', markersize=8, label=None, energy='K'):
+        E = self.E if energy == 'K' else self.E * 0.695
+        ax.errorbar(E, column(self.n,'val') - np.log10(self.g), yerr=[column(self.n,'plus'), column(self.n,'minus')],
                                fmt='o', color=color , ecolor='k', linewidth=0.5, markersize=markersize, label=label)
-        ax.set_xlim(self.E[0] - 10, self.E[-1] + 20)
+        ax.set_xlim(E[0] - 10, E[-1] + 20)
 
-    def plot_temp(self, color='tomato', ax=None, label=None):
+    def plot_temp(self, color='tomato', ax=None, label=None, energy='K'):
+        E = self.E if energy == 'K' else self.E * 0.695
+
         if 'temp' in self.res.keys():
             if isinstance(self.res['temp'], a):
                 self.ntot, self.temp = self.res['ntot'].val, self.res['temp'].val
             else:
                 self.ntot, self.temp = self.res['ntot'], self.res['temp']
-        ax.plot(self.E, self.model([self.ntot, self.temp]) - np.log10(self.g), '--', color=color, lw=2)
+        ax.plot(E, self.model([self.ntot, self.temp]) - np.log10(self.g), '--', color=color, lw=2)
 
         if len(self.res.keys()) > 2:
             d = [[self.res[f"col_{i}"].val + self.res[f"col_{i}"].plus - np.log10(self.g[i]) for i in range(self.num)], [self.res[f"col_{i}"].val - self.res[f"col_{i}"].minus - np.log10(self.g[i]) for i in range(self.num)]]
-            ax.fill_between(self.E, d[0], d[1], color=color, alpha=0.3, label=label)
+            ax.fill_between(E, d[0], d[1], color=color, alpha=0.3, label=label)
 
         #print(self.E[-1] * 0.8, self.ntot + np.log10(1 / self.g[-1] * np.exp(-self.E[-1] * 0.8 / self.temp)) + 0.5)
         if np.all([np.isfinite(getattr(self.res['temp'], attr)) for attr in ['val', 'plus', 'minus']]):
-            ax.text(self.E[-1] * 0.7, self.ntot + np.log10(1 / self.g[-1] * np.exp(-self.E[-1] * 0.7 / self.temp)) + 0.8, r"$T_{\rm exc} = " + "{0:s}".format(self.res['temp'].latex(f=1, base=0)[1:]), va='bottom', ha='left', color=color, fontsize=16)
+            ax.text(E[-1] * 0.7, self.ntot + np.log10(1 / self.g[-1] * np.exp(-self.E[-1] * 0.7 / self.temp)) + 0.8, r"$T_{\rm exc} = " + "{0:s}".format(self.res['temp'].latex(f=2, base=0)[1:]), va='bottom', ha='left', color=color, fontsize=16)
 
-    def plot_post(self):
+    def plot_post(self, ax=None):
         if self.sampler != None:
             tau = self.sampler.get_autocorr_time()
             print(tau)

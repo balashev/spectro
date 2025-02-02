@@ -7278,9 +7278,13 @@ class sviewer(QMainWindow):
         AncMenu = QMenu('&Diagnostic plots', self)
         AncMenu.setStatusTip('Some ancillary for fit procedures')
 
+        ExcDiag_t = QAction('&Excitation diagram with temperature', self)
+        ExcDiag_t.setStatusTip('Show excitation diagram')
+        ExcDiag_t.triggered.connect(partial(self.ExcDiag, temp=1))
+
         ExcDiag = QAction('&Excitation diagram', self)
         ExcDiag.setStatusTip('Show excitation diagram')
-        ExcDiag.triggered.connect(self.ExcDiag)
+        ExcDiag.triggered.connect(partial(self.ExcDiag, temp=0))
 
         ExcTemp = QAction('&Excitation temperature', self)
         ExcTemp.setStatusTip('Calculate excitation temperature')
@@ -7314,6 +7318,7 @@ class sviewer(QMainWindow):
         fitMenu.addSeparator()
         fitMenu.addAction(H2Upper)
         fitMenu.addMenu(AncMenu)
+        AncMenu.addAction(ExcDiag_t)
         AncMenu.addAction(ExcDiag)
         AncMenu.addAction(ExcTemp)
         AncMenu.addAction(MetalAbundance)
@@ -9725,34 +9730,38 @@ class sviewer(QMainWindow):
                 #temp.temp, temp.ntot = temp.res['temp'].val, temp.res['ntot'].val
                 temp.temp_to_slope()
 
+                temp.plot_temp(ax=ax, energy='cm-1')
+
                 if E is None:
                     E = temp.E
                 elif isinstance(E, (float, int, np.floating)):
                     E = np.asarray([0, E])
                 elif isinstance(E, list):
                     E = np.asarray(E)
-                print("E:", E)
+
                 if ax is not None:
                     if isinstance(temp.slope, (float, int, np.floating)):
-                        ax.plot(E / 1.4388 * 1.5, temp.slope * E * 1.5 + temp.zero, '--k', lw=1.5)
+                        #ax.plot(E / 1.4388 * 1.5, temp.slope * E * 1.5 + temp.zero, '--k', lw=1.5)
                         text = [E[-1] / 1.4388 * 1.5, temp.slope * E[-1] * 1.5 + temp.zero,
                                 r'T$_{' + ''.join([str(l) for l in levels]) + r'}$=' + "{:.1f}".format(temp.temp) + r'$\,$K']
                     elif temp.slope.type == 'm':
-                        ax.plot(E / 1.4388 * 1.5, temp.slope.val * E * 1.5 + temp.zero.val, '--k', lw=1.5)
+                        #ax.plot(E / 1.4388 * 1.5, temp.slope.val * E * 1.5 + temp.zero.val, '--k', lw=1.5)
                         text = [E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
                                 r'T$_{' + ''.join([str(l) for l in levels]) + r'}$=' + temp.latex(f=0, base=0)+r'$\,$K']
                     elif temp.slope.type == 'u':
                         E = np.linspace(E[0], E[1], 5)
-                        ax.errorbar(E / 1.4388 * 1.5, (temp.slope.val - temp.slope.minus) * E * 1.5 + temp.zero.val, fmt='--k', yerr=0.1, lolims=E>0, lw=1.5, capsize=0, zorder=0 )
+                        #ax.errorbar(E / 1.4388 * 1.5, (temp.slope.val - temp.slope.minus) * E * 1.5 + temp.zero.val, fmt='--k', yerr=0.1, lolims=E>0, lw=1.5, capsize=0, zorder=0 )
                         text = [E[-1] / 1.4388 * 1.5, temp.slope.val * E[-1] * 1.5 + temp.zero.val,
                                 r'T$_{' + ''.join([str(l) for l in levels]) + r'}>' + '{:.0f}'.format(temp.temp.dec().val) + r'\,$K']
                     text[2] = ax.text(text[0], text[1], text[2], va='top', ha='right', fontsize=16)
         if plot:
             plt.show()
 
+        if text is None:
+            text = [0, 0, ax.text(0, 0, "not constrained", va='top', ha='right', fontsize=16)]
         return text
 
-    def ExcDiag(self):
+    def ExcDiag(self, temp=1):
         """
         Show H2 excitation diagram for the selected component
         """
@@ -9796,7 +9805,8 @@ class sviewer(QMainWindow):
                     p = ax.plot(x, [v.val for v in y], marker, markersize=1, color=color) #, label='sys_' + str(self.fit.sys.index(sys)))
                     ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]], fmt=marker, color=p[0].get_color(), label=label)
                 #temp = self.H2ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax)
-                text.append(self.ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax))
+                if temp:
+                    text.append(self.ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax))
 
             if any([name.startswith('CO') for name in sys.sp.keys()]):
                 species = 'CO'
@@ -9822,7 +9832,8 @@ class sviewer(QMainWindow):
 
                 p = ax.plot(x, [v.val for v in y], 'o', markersize=1) #, label='sys_' + str(self.fit.sys.index(sys)))
                 ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]],  fmt='o', color = p[0].get_color(), label=label)
-                text.append(self.ExcitationTemp(species='CO', levels=[0, 1, 2, 3], ind=self.fit.sys.index(sys), plot=False, ax=ax))
+                if temp:
+                    text.append(self.ExcitationTemp(species='CO', levels=[0, 1, 2, 3], ind=self.fit.sys.index(sys), plot=False, ax=ax))
 
 
         if len(text) > 0:
@@ -10191,6 +10202,7 @@ class sviewer(QMainWindow):
         else:
             Av_gal = 0
 
+        print('RA:', ra, "DEC:", dec)
         print('Av_gal:', Av_gal)
 
         if erosita:
@@ -10248,17 +10260,21 @@ class sviewer(QMainWindow):
             if self.SDSSquery is None:
                 self.SDSSquery = aqsdss.SDSS
             if name is not None and len(name) > 0:
-                qso = self.SDSSquery.get_spectra(coordinates=astropy.coordinates.SkyCoord(ra, dec, frame='icrs', unit='deg'))[0]
+                qso = self.SDSSquery.get_spectra(coordinates=astropy.coordinates.SkyCoord(ra, dec, frame='icrs', unit='deg'), radius='4″')
             else:
-                qso = self.SDSSquery.get_spectra(plate=plate, fiberID=fiber, mjd=MJD)[0]
+                qso = self.SDSSquery.get_spectra(plate=plate, fiberID=fiber, mjd=MJD)
             #mask = qso[1].data['ivar'] > 0
             if qso is not None:
+                print(qso[0])
+                qso = qso[0]
                 plate, MJD, fiber = qso[0].header['PLATEID'], qso[0].header['MJD'], qso[0].header['FIBERID']
                 ext = add_ext(10 ** qso[1].data['loglam'][:], Av_gal)
                 self.importSpectrum('spec-{0:05d}-{1:05d}-{2:04d}'.format(plate, MJD, fiber),
                                     spec=[10 ** qso[1].data['loglam'][:], qso[1].data['flux'][:] / ext, np.sqrt(1.0 / qso[1].data['ivar'][:]) / ext],
                                     mask=qso[1].data['and_mask'], append=append)
                 resolution = 1800
+            else:
+                out = False
         else:
             out = False
         if out:
