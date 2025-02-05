@@ -122,7 +122,7 @@ class Speclist(list):
         #debug(ind)
         #self[ind].specClicked()
         self.parent.s.redraw(ind)
-        self.parent.plot.e_status = 2
+        #self.parent.plot.e_status = 2
         try:
             self.parent.exp.selectRow(self.ind)
         except:
@@ -219,8 +219,11 @@ class Speclist(list):
         for i, s in enumerate(self):
             if exp_ind in [-1, i] and hasattr(s, 'fit_mask') and s.fit_mask is not None:
                 n += np.sum(s.fit_mask.x())
-
-        self.parent.chiSquare.setText('  chi2 / dof = {0:.2f} / {1:d}'.format(chi2, int(n - len(self.parent.fit.list_fit()))))
+        k = len(self.parent.fit.list_fit())
+        AIC = 2 * k - 2 * self.lnL()
+        AICc = AIC + (2 * k ** 2 + 2 * k) / (n - k - 1)
+        BIC = k * np.log(n) - 2 * self.lnL()
+        self.parent.chiSquare.setText('  chi2 / dof / AIC / AICc = {0:.2f} / {1:d} / {2:.2f} / {3:.2f} / {4:.2f}'.format(chi2, int(n - k), AIC, AICc, BIC))
         return chi2
 
     def chi(self, exp_ind=-1):
@@ -229,6 +232,14 @@ class Speclist(list):
             if exp_ind in [-1, i]:
                 chi = np.append(chi, s.chi())
         return chi
+
+    def lnL(self, exp_ind=-1):
+        lnL = 0
+        for i, s in enumerate(self):
+            if exp_ind in [-1, i]:
+                lnL += s.lnL()
+                print(s.lnL())
+        return lnL
 
     def selectCosmics(self):
         for i, s in enumerate(self):
@@ -2542,8 +2553,18 @@ class Spectrum():
     def chi2(self):
         mask = self.fit_mask.norm.x
         spec = self.spec.norm
-        chi2 = np.sum(np.power(((spec.y[mask] - self.fit.line.norm.f(spec.x[mask])) / spec.err[mask]), 2))
+        if len(self.spec.x()) > 0 and np.sum(mask) > 0 and self.fit.line.n() > 0:
+            chi2 = np.sum(np.power(((spec.y[mask] - self.fit.line.norm.f(spec.x[mask])) / spec.err[mask]), 2))
+        else:
+            chi2 = 0
         return chi2
+
+    def lnL(self):
+        mask = self.fit_mask.x()
+        err = 0
+        if len(self.spec.x()) > 0 and np.sum(mask) > 0 and self.fit.line.n() > 0:
+            err = np.sum(np.power(self.spec.norm.err[mask], -0.5))
+        return np.log(err / np.sqrt(2 * np.pi)) - self.chi2() / 2
 
     def selectCosmics(self):
         y_sm = medfilt(self.spec.y(), 5)

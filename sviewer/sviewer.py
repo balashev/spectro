@@ -1441,6 +1441,16 @@ class preferencesWidget(QWidget):
 
         if window == 'Appearance':
             ind = 0
+            self.grid.addWidget(QLabel('Working display:'), 0, 0)
+            self.display = QComboBox()
+            self.dispdict = ["Main", "Secondary", "Additional"]
+            self.display.addItems([self.dispdict[i] for i in range(len(QApplication.screens()))])
+            self.display.setCurrentText(self.dispdict[min([int(self.parent.options("display")), len(QApplication.screens())])])
+            self.display.currentIndexChanged.connect(self.setDisplay)
+            self.display.setFixedSize(120, 30)
+            self.grid.addWidget(self.display, ind, 1)
+
+            ind += 1
             self.grid.addWidget(QLabel('Spectrum view:'), ind, 0)
             self.specview = QComboBox()
             self.viewdict = OrderedDict([('step', 'step'), ('steperr', 'step + uncert.'), ('line', 'lines'),
@@ -1491,6 +1501,10 @@ class preferencesWidget(QWidget):
         layout.addStretch()
         frame.setLayout(layout)
         return frame
+
+    def setDisplay(self):
+        self.parent.options("display", self.display.currentIndex())
+        self.parent.setScreen()
 
     def setSpecview(self):
         self.parent.specview = list(self.viewdict.keys())[list(self.viewdict.values()).index(self.specview.currentText())]
@@ -6840,11 +6854,25 @@ class sviewer(QMainWindow):
 
         #self.setWindowFlags(Qt.FramelessWindowHint)
         self.initStatus()
+        self.setScreen()
         self.initUI()
         self.initStyles()
+
         self.initData()
         self.setWindowTitle('Spectro')
         self.setWindowIcon(QIcon(self.folder + 'images/spectro_logo.png'))
+
+    def setScreen(self):
+        screens = QApplication.screens()
+        ind = int(self.options("display"))
+        #for s in screens:
+        #    print(s.geometry())
+        if ind < len(screens):
+            screen = screens[ind]
+            self.move(screen.geometry().left(), screen.geometry().top())
+            self.resize(screen.geometry().width(), screen.geometry().height())
+            #print(self.fullscreen)
+            #action = self.showFullScreen() if self.fullscreen else self.showMaximized()
 
     def initStyles(self):
         self.setStyleSheet(open(self.folder + 'config/styles.ini').read())
@@ -6990,7 +7018,7 @@ class sviewer(QMainWindow):
         splitter.addWidget(self.chiSquare)
         self.MCMCprogress = QLabel('')
         splitter.addWidget(self.MCMCprogress)
-        splitter.setSizes([1500, 200, 300, 500])
+        splitter.setSizes([1500, 200, 500, 500])
         splitter.setStyleSheet(open(self.folder + 'config/styles.ini').read() + "QSplitter::handle:horizontal {height: 1px; background: rgb(49,49,49);}")
         self.statusBarWidget.addWidget(splitter)
 
@@ -9710,7 +9738,7 @@ class sviewer(QMainWindow):
         for i, sys in enumerate(self.fit.sys):
             if ind is None or ind == i:
                 if all(['H2j'+str(x) in sys.sp.keys() for x in levels]):
-                    levels = [0, 1]
+                    levels = [0, 1, 2]
                     # print(Temp.col_dens(num=4, Temp=92, Ntot=21.3))
                     n = [sys.sp['H2j'+str(x)].N.unc for x in levels]
                     if any([ni.val == 0 for ni in n]):

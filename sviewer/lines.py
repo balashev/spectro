@@ -875,8 +875,8 @@ class colorCompBox(QHBoxLayout):
             if i < self.num:
                 if c.strip() != '':
                     self.colors[i] = tuple(int(c.strip()).to_bytes(4, byteorder='big'))
-                #else:
-                #    self.colors[i] = 000000 #, tuple(int(111111).to_bytes(4, byteorder='big'))
+                else:
+                    self.colors[i] = 000000 #, tuple(int(111111).to_bytes(4, byteorder='big'))
         #print(self.colors)
         self.saveColors()
 

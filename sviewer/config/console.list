@@ -1,15 +1,3 @@
-x 1000 2000
-y 0 1
-logN CI
-show Zn
-show ZnII
-CrII
-show CrII
-ZnII
-show H2 0 1
-SiIV
-show CI
-show CIj1
 show CIj2
 show CO
 show H2j5
@@ -19,3 +7,15 @@ show H2j3
 show H2j5
 show CII*
 show SiII*
+show CI
+show CIj1
+show CIj2
+show CIIj1
+show CO
+high H2j5
+show CI
+show CIj1
+show CI
+show CIj1
+show CIj2
+hide H2

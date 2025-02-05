@@ -124,8 +124,9 @@ class ExcitationTemp():
 
     def log_prior(self, theta):
         self.set_pars(theta)
+        #print(theta)
         lp = 0. if 0 < self.ntot < np.inf else -np.inf
-        lp += 0. if 0 < self.temp < np.inf else -np.inf
+        lp += 0. if 0 < self.temp < 5e3 else -np.inf
         return lp
 
     def log_like(self, theta):
@@ -193,7 +194,7 @@ class ExcitationTemp():
                 self.sampler = emcee.EnsembleSampler(nwalkers, ndim, self.log_prob)
                 #self.sampler.run_mcmc(start, nsteps, progress=True)
                 # We'll track how the average autocorrelation time estimate changes
-                max_n = 100000
+                max_n = 50000
                 ind = 0
                 autocorr = np.empty(max_n)
                 old_tau = np.inf

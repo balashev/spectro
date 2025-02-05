@@ -58,6 +58,8 @@ Composite spectrum (object 8 in Figure) indicate a composite spectrum of QSO or 
 
 * ``SHIFT + DRAG``: drag composite spectrum, during this its normalization and redshift is changed.
 
+* ``ALT + DRAG (vertically)``: apply extinction to composite spectrum. The quantity of Av is scaled with vertical shift of the cursor.
+
 * ``CTRL + LEFT CLICK``: hide composite spectrum.
 
 Fixed Line Labels

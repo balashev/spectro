@@ -22,12 +22,5 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     ex = sv.sviewer()
-    if 1:
-        screens = app.screens()
-        if len(screens) > 1:
-            screen = screens[-1]
-        else:
-            screen = screens[0]
-        ex.move(screen.geometry().left(), screen.geometry().top())
-        action = ex.showFullScreen() if ex.fullscreen else ex.showMaximized()
+
     sys.exit(app.exec())

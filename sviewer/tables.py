@@ -12,7 +12,7 @@ import numpy as np
 import os
 import pyqtgraph as pg
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QHeaderView
+from PyQt6.QtWidgets import QHeaderView, QComboBox
 from scipy.interpolate import interp1d
 import sys
 
@@ -71,12 +71,14 @@ class expTableWidget(TableWidget):
     def __init__(self, parent):
         super().__init__(parent=parent)
         self.parent = parent
+        self.parent.e_status = False
         #self.resize(100, 800)
         self.move(500, 300)
         self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         #self.setWindowFlags(Qt.FramelessWindowHint)
         self.setSortingEnabled(False)
         self.setWidth = None
+        self.LSFtypes = ['gauss', 'cos', 'espresso']
         self.update()
         self.show()
         self.setSortingEnabled(True)
@@ -103,6 +105,15 @@ class expTableWidget(TableWidget):
             data = np.delete(data, (0), axis=0)
         self.setData(data)
         self.resizeColumnsToContents()
+
+        self.comb = []
+        for i in range(len(self.parent.s)):
+            self.comb.append(QComboBox())
+            self.comb[-1].addItems(self.LSFtypes)
+            self.comb[-1].setCurrentIndex(self.LSFtypes.index(self.parent.s[i].lsf_type))
+            self.comb[-1].currentIndexChanged.connect(partial(self.LSFchanged, i))
+            self.setCellWidget(i, 4, self.comb[-1])
+
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         if len(self.parent.s) > 0:
             self.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -140,7 +151,7 @@ class expTableWidget(TableWidget):
     def cell_Changed(self, row, col):
 
         #print(row, col)
-        if col == 4:
+        if 0 and col == 4:
             lsf_type = ''
             if self.cell_value('lsf_type').lower() in ['gauss', 'Gaussian', 'normal']:
                 lsf_type = 'gauss'
@@ -162,6 +173,12 @@ class expTableWidget(TableWidget):
             self.parent.s[row].rescale(float(self.cell_value('scaling factor')))
             #self.parent.s.calcFitComps()
             self.parent.s.redraw()
+
+    def LSFchanged(self, i):
+        self.parent.s[i].lsf_type = self.comb[i].currentText()
+        self.parent.s.calcFit(-1, recalc=True)
+        self.parent.s.calcFitComps()
+        self.parent.s.redraw()
 
     def cell_value(self, columnname):
 
@@ -192,6 +209,7 @@ class expTableWidget(TableWidget):
 
     def closeEvent(self, event):
         self.parent.exp = None
+        self.parent.e_status = False
         event.accept()
 
 class QSOlistTable(pg.TableWidget):

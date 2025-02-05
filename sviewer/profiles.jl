@@ -680,11 +680,14 @@ function calc_spectrum_nonbinned(spec, pars; comp=0, regular=-1, regions="fit", 
     end
 
     for line in spec.lines[line_mask]
+        #println(line)
         line.dx = voigt_range(line.a, 0.001 / line.tau0)
+        #println(line.l, " ", line.dx, " ", line.ld)
         x, r = voigt_step(line.a, line.tau0)
         x = line.l .+ x * line.ld
         if size(x)[1] > 0
             i_min, i_max = binsearch(spec.x, x[1], type="min"), binsearch(spec.x, x[end], type="max") - 1
+            #println(i_min, " ", i_max, " ", spec.x[i_min], " ", spec_x[i_max])
             if i_max - i_min > 0 && i_min > 0
                 for i in i_min:i_max
                     k_min, k_max = binsearch(x, spec.x[i]), binsearch(x, spec.x[i+1])
@@ -692,6 +695,7 @@ function calc_spectrum_nonbinned(spec, pars; comp=0, regular=-1, regions="fit", 
                 end
             end
             i_min, i_max = binsearch(spec.x, x[1] * (1 - 3 * x_instr), type="min"), binsearch(spec.x, x[end] * (1 + 3 * x_instr), type="max")
+            #println(i_min, " ", i_max, " ", spec.x[i_min], " ", spec_x[i_max])
             if i_max - i_min > 1 && i_min > 1
                 for i in i_min:i_max
                     x_grid[i] = max(x_grid[i], round(Int, (spec.x[i] - spec.x[i-1]) / line.l / x_instr * 3))
@@ -917,7 +921,7 @@ function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
         #println(x[1], " ", x[end])
         if size(x)[1] > 0
             i_min, i_max = binsearch(spec.bins, x[1], type="min"), binsearch(spec.bins, x[end], type="max")
-            #println(i_min, " ", i_max)
+            #println(i_min, " ", i_max, " ", spec.bins[i_min], " ", spec.bins[i_max])
             if i_max - i_min > 0 && i_min > 0 && i_max < length(spec.bins)
                 for i in i_min:i_max
                     k_min, k_max = binsearch(x, spec.bins[i]), binsearch(x, spec.bins[i+1])
@@ -926,6 +930,7 @@ function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
                 end
             end
             i_min, i_max = binsearch(spec.bins, x[1] * (1 - 3 * x_instr), type="min"), binsearch(spec.bins, x[end] * (1 + 3 * x_instr), type="max")
+            #println(i_min, " ", i_max, " ", spec.bins[i_min], " ", spec.bins[i_max])
             if i_max - i_min > 1 && i_min > 1 && i_max < length(spec.bins)
                 for i in i_min:i_max
                     x_grid[i] = max(x_grid[i], round(Int, (spec.bins[i] - spec.bins[i-1]) / line.l / x_instr * 3))

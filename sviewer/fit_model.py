@@ -858,7 +858,6 @@ class fitModelWidget(QWidget):
         if item.name == 'cont':
             self.parent.fit.cont_fit = self.cont.isExpanded()
             self.parent.fit.cont_num = int(self.cont_num.text())
-            print(self.parent.fit.cont_num)
             if item.isExpanded():
                 self.parent.fit.add('hcont')
             else:
@@ -1013,9 +1012,9 @@ class fitModelWidget(QWidget):
         name = self.iso_type.currentText()
         if hasattr(self, 'iso'):
             self.iso_p.removeChild(self.iso)
+        if 'iso' in self.parent.fit.list_names():
+            self.parent.fit.remove('iso')
         if name != 'None':
-            if 'iso' in self.parent.fit.list_names():
-                self.parent.fit.remove('iso')
             self.parent.fit.add('iso', addinfo=name)
             self.addChild('iso_p', 'iso')
             print(self.parent.fit.list_names())
