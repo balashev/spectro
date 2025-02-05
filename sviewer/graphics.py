@@ -238,7 +238,6 @@ class Speclist(list):
         for i, s in enumerate(self):
             if exp_ind in [-1, i]:
                 lnL += s.lnL()
-                print(s.lnL())
         return lnL
 
     def selectCosmics(self):
@@ -2564,7 +2563,10 @@ class Spectrum():
         err = 0
         if len(self.spec.x()) > 0 and np.sum(mask) > 0 and self.fit.line.n() > 0:
             err = np.sum(np.power(self.spec.norm.err[mask], -0.5))
-        return np.log(err / np.sqrt(2 * np.pi)) - self.chi2() / 2
+        if err > 0:
+            return np.log(err / np.sqrt(2 * np.pi)) - self.chi2() / 2
+        else:
+            return 0
 
     def selectCosmics(self):
         y_sm = medfilt(self.spec.y(), 5)

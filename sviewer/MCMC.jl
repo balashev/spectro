@@ -34,9 +34,7 @@ end
 function runMCMC(filename, nthreads; nstep=nothing, cont=false, last=false, sampler_type=nothing)
 #     spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = deserialize(filename)
 	spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = load(filename)["data"]
-
-    if nstep != nothing
-#        nsteps = parse(Int, nstep)
+	if nstep != nothing
         nsteps = nstep
     end
     if sampler_type != nothing
