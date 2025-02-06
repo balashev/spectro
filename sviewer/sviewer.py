@@ -536,7 +536,7 @@ class plotSpectrum(pg.PlotWidget):
 
         self.mousePoint_saved = self.vb.mapSceneToView(event.position())
 
-        if self.r_status:
+        if self.r_status and event.button() == Qt.MouseButton.LeftButton:
             self.r_status = 2
             self.regions.add(sort=False)
 
@@ -591,12 +591,8 @@ class plotSpectrum(pg.PlotWidget):
                     self.parent.fit.sys[self.parent.comp].z.set(self.mousePoint.x() / self.parent.abs.reference.line.l() - 1)
                     if self.mousePoint.y() != self.mousePoint_saved.y():
                         sp = self.parent.fit.sys[self.parent.comp].sp[self.parent.abs.reference.line.name]
-                        print(sp)
                         # sp.b.set(sp.b.val + (self.mousePoint_saved.x() / self.mousePoint.x() - 1) * 299794.26)
-                        sp.N.set(sp.N.val + np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * np.log10(
-                                 1 + np.abs((self.mousePoint_saved.y() - self.mousePoint.y()) / 0.1)))
-                        print(sp.N.val + np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * np.log10(
-                                 1 + np.abs((self.mousePoint_saved.y() - self.mousePoint.y()) / 0.1)))
+                        sp.N.set(sp.N.val + np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * 2 * np.abs((self.mousePoint_saved.y() - self.mousePoint.y()) / (self.viewRange()[1][-1] - self.viewRange()[1][0])))
                     try:
                         self.parent.fitModel.refresh()
                     except:
@@ -642,8 +638,12 @@ class plotSpectrum(pg.PlotWidget):
             self.p_status = 1 if self.p_status == 2 else 2
 
         if self.r_status:
-            self.r_status = False
-            self.regions.sortit()
+            if event.button() == Qt.MouseButton.LeftButton:
+                self.r_status = False
+                if np.abs(self.mousePoint_saved.x() - self.mousePoint.x()) > (self.viewRange()[0][-1] - self.viewRange()[0][0]) / 100:
+                    self.regions.sortit()
+                else:
+                    self.regions.remove(self.regions[-1])
 
         if self.s_status or self.d_status:
             for s in self.parent.s:

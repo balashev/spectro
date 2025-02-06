@@ -2892,6 +2892,10 @@ class regionItem(pg.LinearRegionItem):
             if (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier):
                 self.parent.remove(self)
 
+        if ev.button() == Qt.MouseButton.RightButton:
+            if self.parent.parent.r_status:
+                self.parent.remove(self)
+                self.parent.parent.r_status = 0
     #def __eq__(self, other):
     #    return (self.xmin == other.xmin) * (self.xmax == other.xmax)
 
@@ -3153,7 +3157,7 @@ class CompositeSpectrum():
         if self.type == 'QSO':
             self.qso_names = ['X-shooter', 'SDSS', 'VandenBerk',  'HST', 'power', 'power+FeII']
             if self.parent.compositeQSO_status == 1:
-                self.spec = np.genfromtxt('data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
+                self.spec = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r'/data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
                 self.spec = self.spec[:, np.logical_or(self.spec[1] != 0, self.spec[1] != 0)]
                 self.spec[1] = smooth(self.spec[1], mode='same')
                 if 1:
@@ -3162,15 +3166,15 @@ class CompositeSpectrum():
                     y = np.power(x / 11350, -0.5) * 0.43
                     self.spec = np.append(self.spec, [x, y, y / 10], axis=1)
                 else:
-                    data = np.genfromtxt('data/SDSS/QSO1_template_norm.sed', skip_header=0, unpack=True)
+                    data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r'/data/SDSS/QSO1_template_norm.sed', skip_header=0, unpack=True)
                     m = data[0] > self.spec[0][-1]
                     self.spec = np.append(self.spec, [data[0][m], data[1][m] * self.spec[1][-1] / data[1][m][0], data[1][m] / 30], axis=1)
             elif self.parent.compositeQSO_status == 3:
-                self.spec = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
+                self.spec = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r'/data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
             elif self.parent.compositeQSO_status == 5:
-                self.spec = np.genfromtxt('data/SDSS/QSO_composite.dat', skip_header=0, unpack=True)
+                self.spec = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r'/data/SDSS/QSO_composite.dat', skip_header=0, unpack=True)
             elif self.parent.compositeQSO_status == 7:
-                self.spec = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
+                self.spec = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r'/data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
             elif self.parent.compositeQSO_status == 9:
                 self.spec = np.ones((2, 1000))
                 self.spec[0] = np.linspace(500, 25000, self.spec.shape[1])
@@ -3180,9 +3184,9 @@ class CompositeSpectrum():
                 self.spec[0] = np.linspace(500, 25000, self.spec.shape[1])
                 self.spec[1] = np.power(self.spec[0] / 2500, -1.7)
                 if 0:
-                    fe_opt = np.genfromtxt("data/Models/fe_optical.txt", comments='#', unpack=True)
+                    fe_opt = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r"/data/Models/fe_optical.txt", comments='#', unpack=True)
                     fe_opt = interp1d(10 ** fe_opt[0], convolveflux(10 ** fe_opt[0], fe_opt[1] * 5e13, res=100, vel=False, kind='gauss'), bounds_error=False, fill_value=0)
-                    fe_uv = np.genfromtxt("data/Models/fe_uv.txt", comments='#', unpack=True)
+                    fe_uv = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r"/data/Models/fe_uv.txt", comments='#', unpack=True)
                     fe_uv = interp1d(10 ** fe_uv[0], convolveflux(10 ** fe_uv[0], fe_uv[1] * 5e13, res=100, vel=False, kind='gauss'), bounds_error=False, fill_value=0)
                     print(self.spec[0][2000], self.spec[1][2000], fe_uv(self.spec[0][2000]), fe_opt(self.spec[0][2000]))
                     self.spec[1] += fe_uv(self.spec[0]) + fe_opt(self.spec[0])
@@ -3191,11 +3195,11 @@ class CompositeSpectrum():
             #print('gal_status: ', self.parent.compositeGal_status)
             if self.parent.compositeGal_status % 2:
                 if 0:
-                    f = fits.open(f"data/SDSS/spDR2-0{23 + self.parent.compositeGal_status // 2}.fit")
+                    f = fits.open(os.path.dirname(os.path.realpath(__file__)) + f"/data/SDSS/spDR2-0{23 + self.parent.compositeGal_status // 2}.fit")
                     self.spec = 10 ** (f[0].header['COEFF0'] + f[0].header['COEFF1'] * np.arange(f[0].header['NAXIS1'])), f[0].data[0]
                 else:
                     self.gal_names = ['S0', 'Sa', 'Sb', 'Sc', 'Sd', 'Sdm', 'Ell2', 'Ell5', 'Ell13', 'Sey2', 'Sey18']
-                    self.spec = np.genfromtxt(f'data/SDSS/{self.gal_names[self.parent.compositeGal_status // 2]}_template_norm.sed', unpack=True)
+                    self.spec = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + f'/data/SDSS/{self.gal_names[self.parent.compositeGal_status // 2]}_template_norm.sed', unpack=True)
                     self.parent.statusBar.setText(f'Galaxy composite loaded {self.gal_names[self.parent.compositeGal_status // 2]}_template_norm.sed')
 
     def draw(self):

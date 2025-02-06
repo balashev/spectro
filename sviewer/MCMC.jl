@@ -126,8 +126,8 @@ function plotChain(filename) #(pars, chain, llhoodvals)
 end
 
 function readMCMC(filename)
- 	parnames, chain, llhoodvals = deserialize(filename)
-    #parnames, chain, llhoodvals = load(filename)["data"]
+ 	#parnames, chain, llhoodvals = deserialize(filename)
+    parnames, chain, llhoodvals = load(filename)["data"]
 	return chain, llhoodvals
 end
 

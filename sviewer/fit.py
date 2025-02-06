@@ -454,7 +454,7 @@ class fitPars:
         if 'cont' in name:
             self.cont.add(name)
         if name in 'hcont':
-            self.hcont = par(self, 'hcont', 1, 0, 10, 0.1)
+            self.hcont = par(self, 'hcont', 1, 0, 10, 0.1, vary=False)
         if 'cf' in name:
             setattr(self, name, par(self, name, 0.1, 0, 1, 0.01, addinfo='all', left=3000, right=9000))
         if 'zero' in name:

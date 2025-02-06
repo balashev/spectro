@@ -241,9 +241,12 @@ class fitModelWidget(QWidget):
         rangebox.addWidget(self.rangeValue)
         rangebox.addStretch(1)
 
-        self.addSys = QPushButton("Add system")
+        self.addSys = QPushButton("Add clear system")
         self.addSys.setFixedSize(120, 30)
-        self.addSys.clicked[bool].connect(self.addSystem)
+        self.addSys.clicked[bool].connect(partial(self.addSystem, duplicate=0))
+        self.dupSys = QPushButton("Duplicate system")
+        self.dupSys.setFixedSize(120, 30)
+        self.dupSys.clicked[bool].connect(partial(self.addSystem, duplicate=1))
         self.delSys = QPushButton("Del system")
         self.delSys.setFixedSize(120, 30)
         self.delSys.clicked[bool].connect(self.delSystem)
@@ -255,6 +258,7 @@ class fitModelWidget(QWidget):
         self.okButton.clicked[bool].connect(self.close)
         hbox = QHBoxLayout()
         hbox.addWidget(self.addSys)
+        hbox.addWidget(self.dupSys)
         hbox.addWidget(self.delSys)
         hbox.addWidget(self.sortSys)
         hbox.addStretch(1)
@@ -456,7 +460,7 @@ class fitModelWidget(QWidget):
         item.cont_num.returnPressed.connect(partial(self.numContRegionChanged, ind))
         self.treeWidget.setItemWidget(item.cont_m, 4, item.cont_num)
         item.cont_m.setTextAlignment(5, self.alignMode)
-        item.cont_m.setText(5, 'range: ')
+        item.cont_m.setText(5, 'Wave. range: ')
         item.cont_left = FLineEdit(self, '{0:6.1f}'.format(self.parent.fit.cont[ind].left).strip())
         item.cont_left.textEdited.connect(partial(self.contRange, ind))
         self.treeWidget.setItemWidget(item.cont_m, 6, item.cont_left)
@@ -478,7 +482,8 @@ class fitModelWidget(QWidget):
         setattr(self, item.name, item)
         item.setExpanded(self.parent.fit.cont_fit)
         for i in range(self.parent.fit.cont[ind].num):
-            self.addChild(text, 'cont_' + str(ind) + '_' + str(i))
+            print(i, text, 'cont_' + str(ind) + '_' + str(i))
+            self.addChild(text, 'cont_' + str(ind) + '_' + str(i), text_val='cont_' + str(ind) + '_' + str(i))
         self.parent.fit.cont[ind].update()
         return item
 
@@ -789,33 +794,37 @@ class fitModelWidget(QWidget):
                 self.parent.fit.setValue(str(p), p.val + p.step * x, attr='max')
         self.update()
 
-    def addSystem(self):
+    def addSystem(self, duplicate=1, update=0):
         self.tabNum += 1
-        z = self.parent.z_abs if self.tab.currentIndex() == -1 else None
+        print('duplicate:', duplicate)
+        z = self.parent.z_abs if (self.tab.currentIndex() == -1 or not duplicate) else None
         self.parent.fit.addSys(self.tab.currentIndex(), z=z)
+        print(z)
         sys = fitModelSysWidget(self, len(self.parent.fit.sys)-1)
         self.tab.addTab(sys, "sys {:}".format(self.tabNum-1))
         self.tab.setCurrentIndex(len(self.parent.fit.sys)-1)
-        self.parent.s.refreshFitComps()
-        self.parent.s.reCalcFit(self.tab.currentIndex())
+        if update:
+            self.parent.s.refreshFitComps()
+            self.parent.s.reCalcFit(self.tab.currentIndex())
         if hasattr(self.parent, 'chooseFit') and self.parent.chooseFit != None:
             self.parent.chooseFit.update()
         self.onTabChanged()
 
-    def delSystem(self):
+    def delSystem(self, update=0):
         self.tabNum -= 1
         self.parent.fit.delSys(self.tab.currentIndex())
         self.tab.removeTab(self.tab.currentIndex())
         for i in range(self.tabNum):
             self.tab.setTabText(i, "sys {:}".format(i))
             self.tab.widget(i).ind = i
-        self.parent.s.refreshFitComps()
-        self.parent.showFit()
+        if update:
+            self.parent.s.refreshFitComps()
+            self.parent.showFit()
         if hasattr(self.parent, 'chooseFit') and self.parent.chooseFit != None:
             self.parent.chooseFit.update()
         self.onTabChanged()
 
-    def sortSystem(self):
+    def sortSystem(self, update=0):
         self.swap = -self.swap
         for i in range(len(self.parent.fit.sys)-1):
             zs = [sys.z.val for sys in self.parent.fit.sys[i:]]
@@ -828,8 +837,9 @@ class fitModelWidget(QWidget):
         for i in range(self.tabNum):
             self.tab.setTabText(i, "sys {:}".format(i))
             self.tab.widget(i).ind = i
-        self.parent.s.refreshFitComps()
-        self.parent.showFit()
+        if update:
+            self.parent.s.refreshFitComps()
+            self.parent.showFit()
         if hasattr(self.parent, 'chooseFit') and self.parent.chooseFit != None:
             self.parent.chooseFit.update()
         self.onTabChanged()
