@@ -7,7 +7,7 @@ Created on Tue Aug 23 19:20:44 2016
 import astropy.convolution as conv
 from astropy import constants as const
 from astropy import units as u
-from dust_extinction.averages import G03_SMCBar
+#from dust_extinction.averages import G03_SMCBar
 from extinction import fitzpatrick99
 import matplotlib.pyplot as plt
 from numba import jit
@@ -154,7 +154,6 @@ class tau:
             - tau    : The optical depth as a function of vel.
 
         """
-
         self.update()
 
         if verbose:

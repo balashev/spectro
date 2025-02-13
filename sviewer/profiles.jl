@@ -572,6 +572,7 @@ module spectrum
         y::Vector{Float64}
         unc::Vector{Float64}
         mask::BitArray
+        sky::Interpolations.Extrapolation
         lsf_type::String
         resolution::Float64
         lines::Vector{line}
@@ -619,10 +620,14 @@ function prepare(s, pars, add, COS)
     #println(append!(c,  [cheb([], 0, 0, 0)]))
     spec = Vector(undef, size(s)[1])
     for (i, si) in enumerate(s)
-        spec[i] = spectrum.spec(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.lsf_type, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0), linear_interpolation((COS[i][1], COS[i][2]), COS[i][3], extrapolation_bc=Flat()), COS[i][4])
+        #println("sky ", si.sky_cont.norm.x, " ", si.sky_cont.norm.y)
+        #println(isempty(si.sky.norm.x), " ", isempty(si.sky_cont.norm.x))
+        #println(size(si.sky.norm.x))
+        spec[i] = spectrum.spec(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, linear_interpolation(si.sky_cont.norm.x, si.sky_cont.norm.y, extrapolation_bc=Flat()), si.lsf_type, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0), linear_interpolation((COS[i][1], COS[i][2]), COS[i][3], extrapolation_bc=Flat()), COS[i][4])
         #spec[i] = spectrum.spec(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.lsf_type, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0), Spline2D(COS[i][1], COS[i][2], COS[i][3]; kx=3, ky=3, s=0.0), COS[i][4])
         spec[i].bins = (si.spec.norm.x[2:end] + si.spec.norm.x[1:end-1]) / 2
         spec[i].bin_mask = spec[i].mask[1:end-1] .|| spec[i].mask[2:end]
+        #println(spec[i].sky)
     end
     update_pars(pars, spec, add)
     return spec
@@ -886,7 +891,7 @@ function calc_spectrum_nonbinned(spec, pars; comp=0, regular=-1, regions="fit", 
     end
 end
 
-function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
+function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all", telluric=false)
 
     timeit = 0
     if timeit == 1
@@ -1047,6 +1052,10 @@ function calc_spectrum(spec, pars; comp=0, regular=-1, regions="fit", out="all")
         y = inter(x .+ (x .- spec.displ) .* spec.disps .+ spec.dispz)
     end
 
+    if (comp == 0) & (telluric==true) & ~isempty(knots(spec.sky))
+        y .*= spec.sky(x)
+    end
+
     if size(spec.cont)[1] > 0
         y .*= correct_continuum(spec.cont, pars, x)
     end
@@ -1144,7 +1153,7 @@ end
 
 
 
-function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false)
+function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, telluric=false)
 
     function cost(p)
         i = 1
@@ -1161,7 +1170,7 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false)
         res = Vector{Float64}()
         for s in spec
             if sum(s.mask) > 0
-                append!(res, (calc_spectrum(s, pars, out="binned") .- s.y[s.mask]) ./ s.unc[s.mask])
+                append!(res, (calc_spectrum(s, pars, out="binned", telluric=telluric) .- s.y[s.mask]) ./ s.unc[s.mask])
             end
         end
 

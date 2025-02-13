@@ -1379,10 +1379,9 @@ class preferencesWidget(QWidget):
 
             ind = 0
             self.fitGroup = QButtonGroup(self)
-            self.fittype = ['regular', 'fft', 'julia', 'fast']
+            self.fittype = ['julia', 'regular', 'uniform']
             for i, f in enumerate(self.fittype):
-                s = ':' if f == 'fast' else ''
-                setattr(self, f, QRadioButton(f + s))
+                setattr(self, f, QRadioButton(f if f == 'julia' else 'py:' + f + ':' * (f == 'uniform')))
                 getattr(self, f).toggled.connect(self.setFitType)
                 self.fitGroup.addButton(getattr(self, f))
                 self.grid.addWidget(getattr(self, f), ind, i)
@@ -1433,10 +1432,17 @@ class preferencesWidget(QWidget):
             self.fitView.setFixedSize(120, 30)
             self.grid.addWidget(self.fitView, ind, 1)
 
+            ind += 1
+            self.telluric = QCheckBox('add telluric/accompanying asborption')
+            self.telluric.setChecked(self.parent.options("telluric"))
+            self.telluric.stateChanged.connect(partial(self.setChecked, 'telluric'))
+            self.grid.addWidget(self.telluric, ind, 0)
+
             ind +=1
             self.animateFit = QCheckBox('animate fit')
             self.animateFit.setChecked(self.parent.animateFit)
             self.animateFit.stateChanged.connect(partial(self.setChecked, 'animateFit'))
+            self.animateFit.setEnabled(False)
             self.grid.addWidget(self.animateFit, ind, 0)
 
         if window == 'Appearance':
@@ -1529,7 +1535,7 @@ class preferencesWidget(QWidget):
     def setFitType(self):
         for f in self.fittype:
             if getattr(self, f).isChecked():
-                self.parent.fitType = f.replace(':', '')
+                self.parent.fitType = f
                 self.parent.options('fitType', self.parent.fitType)
                 if self.parent.fitType == 'julia':
                     if self.parent.developer:
@@ -1539,8 +1545,8 @@ class preferencesWidget(QWidget):
                             self.parent.reload_julia()
                         except:
                             self.parent.sendMessage('Julia is not installed')
-                            self.fitType = 'regular'
-                            self.regular.toggle()
+                            self.fitType = 'uniform'
+                            self.uniform.toggle()
                 else:
                     self.parent.julia = None
                 return
@@ -6581,7 +6587,7 @@ class GenerateAbsWidget(QWidget):
             self.parent.fit.update()
 
             if 1:
-                dof, x, unc = self.parent.julia.fitLM(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add, tieds=self.parent.fit.tieds)
+                dof, x, unc = self.parent.julia.fitLM(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add, tieds=self.parent.fit.tieds, telluric=self.parent.options("telluric"))
                 res.append(x)
                 self.parent.s.calcFit(redraw=False)
                 lnprobs.append(self.parent.s.chi2())
@@ -7073,6 +7079,10 @@ class sviewer(QMainWindow):
         importAction.setStatusTip('Import spectrum')
         importAction.triggered.connect(self.showImportDialog)
 
+        importTelluric = QAction('&Import telluric/sky', self)
+        importTelluric.setStatusTip('Import telluric/sky/accompanying absorption')
+        importTelluric.triggered.connect(self.showImportTelluricDialog)
+
         import2dAction = QAction('&Import 2d spectrum...', self)
         import2dAction.setStatusTip('Import 2d spectrum')
         import2dAction.triggered.connect(self.show2dImportDialog)
@@ -7109,6 +7119,7 @@ class sviewer(QMainWindow):
         fileMenu.addAction(saveAsAction)
         fileMenu.addSeparator()
         fileMenu.addAction(importAction)
+        fileMenu.addAction(importTelluric)
         fileMenu.addAction(import2dAction)
         fileMenu.addAction(importList)
         fileMenu.addAction(importFolder)
@@ -8022,6 +8033,10 @@ class sviewer(QMainWindow):
                                 self.s[ind].add_exact_points(w, redraw=False, bad=True)
                                 i += n - 1
                                 self.s[ind].bad_mask.normalize()
+
+                        if 'sky' in d[i]:
+                            self.importSky(d[i].split()[1])
+
                         if '2d' in d[i]:
                             self.import2dSpectrum(d[i].split()[1], ind=ind)
 
@@ -8186,6 +8201,11 @@ class sviewer(QMainWindow):
                         if s.scaling_factor not in [0, None]:
                             f.write('scaling_factor:   {}\n'.format(s.scaling_factor))
 
+                    # >>> save sky spectrum:
+                    if 'others' in self.save_opt:
+                        if s.sky.filename not in [None, '']:
+                            f.write('sky:   {}\n'.format(s.sky.filename))
+
                     # >>> save 2d spectrum:
                     if 'others' in self.save_opt:
                         if s.spec2d is not None and s.spec2d.filename not in [None, '']:
@@ -8270,6 +8290,15 @@ class sviewer(QMainWindow):
             self.importSpectrum(fname[0])
             self.abs.redraw()
             self.statusBar.setText('Spectrum is imported from ' + fname[0])
+
+    def showImportTelluricDialog(self):
+
+        fname = QFileDialog.getOpenFileName(self, 'Import telluric/sky/accompanying spectrum', self.work_folder)
+
+        if fname[0]:
+            self.importSky(fname[0])
+            self.abs.redraw()
+            self.statusBar.setText('Telluric/sky/accompaying spectrum is imported from ' + fname[0])
 
     def show2dImportDialog(self):
 
@@ -8555,6 +8584,28 @@ class sviewer(QMainWindow):
                 m = max([max(s.spec.raw.y) for s in self.s])
                 for f in self.filters[name]:
                     f.update(m)
+
+    def importSky(self, filename):
+        data = np.genfromtxt(filename, unpack=True)
+        if len(self.s) > 0:
+            for attr in ['g_sky', 'g_sky_cont']:
+                try:
+                    self.vb.removeItem(getattr(self.s[self.s.ind], attr))
+                except:
+                    pass
+            try:
+                if data.shape[0] == 2:
+                    self.s[self.s.ind].sky.set(data[0], data[1])
+                elif data.shape[0] > 3:
+                    self.s[self.s.ind].sky.set(data[0], data[-1])
+                #print(self.s[self.s.ind].sky.y())
+                self.s[self.s.ind].sky.interpolate()
+                self.s[self.s.ind].sky.filename = filename
+                self.s[self.s.ind].update_sky()
+                self.s.redraw()
+            except:
+                self.sendMessage("Sky/telluric/nuisance absorption spectrum was not imported. Check the file")
+
 
     def import2dSpectrum(self, filelist, spec=None, header=0, dir_path='', ind=None, append=False):
 
@@ -8993,6 +9044,7 @@ class sviewer(QMainWindow):
         f = not self.normview
         if f:
             self.normalize()
+        print("showFit", ind)
         self.s.prepareFit(ind=ind, all=all)
         self.s.calcFit(ind=ind, redraw=True)
         self.s.calcFitComps(ind=ind)
@@ -9152,7 +9204,7 @@ class sviewer(QMainWindow):
         #self.reload_julia()
         self.s.prepareFit(all=False)
         #self.julia_spec = self.julia.prepare(self.s, self.julia_pars)
-        dof, res, unc = self.julia.fitLM(self.julia_spec, self.fit.list(), self.julia_add, tieds=self.fit.tieds, opts=kwargs, blindMode=self.blindMode)
+        dof, res, unc = self.julia.fitLM(self.julia_spec, self.fit.list(), self.julia_add, tieds=self.fit.tieds, opts=kwargs, blindMode=self.blindMode, telluric=self.options("telluric"))
 
         s = self.fit.fromJulia(res, unc)
         if not self.blindMode:

@@ -158,9 +158,9 @@ class Speclist(list):
 
         if timer:
             t = Timer()
-
         for i, s in enumerate(self):
             if exp_ind in [-1, i]:
+                print(s.fit_lines)
                 if hasattr(s, 'fit_lines') and len(s.fit_lines) > 0:
                     if self.parent.fitType == 'regular':
                         s.calcFit(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
@@ -168,8 +168,8 @@ class Speclist(list):
                     elif self.parent.fitType == 'fft':
                         s.calcFit_fft(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
 
-                    elif self.parent.fitType == 'fast':
-                        s.calcFit_fast(ind=ind, recalc=recalc, redraw=redraw, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit, timer=timer)
+                    elif self.parent.fitType == 'uniform':
+                        s.calcFit_uniform(ind=ind, recalc=recalc, redraw=redraw, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit, timer=timer)
 
                     elif self.parent.fitType == 'julia':
                         s.calcFit_julia(comp=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
@@ -192,8 +192,8 @@ class Speclist(list):
                     elif self.parent.fitType == 'fft':
                         s.calcFit_fft(ind=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit)
 
-                    elif self.parent.fitType == 'fast':
-                        s.calcFit_fast(ind=sys.ind, recalc=recalc, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit)
+                    elif self.parent.fitType == 'uniform':
+                        s.calcFit_uniform(ind=sys.ind, recalc=recalc, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit)
 
                     elif self.parent.fitType == 'julia':
                         s.calcFit_julia(comp=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit, timer=False)
@@ -345,6 +345,7 @@ class gline():
     def set_data(self, *args, **kwargs):
         self.delete()
         self.add(**kwargs)
+
     def add(self, **kwargs):
         for k, v in kwargs.items():
             if v is not None:
@@ -582,6 +583,7 @@ class specline():
         self.parent = parent
         self.raw = gline()
         self.norm = gline()
+        self.filename = None
 
     def current(self):
         attr = 'norm' if self.parent.parent.normview else 'raw'
@@ -680,6 +682,9 @@ class specline():
                         self.norm.y = self.raw.y - cont
                     elif action == 'aod':
                         self.norm.y = - np.log(self.raw.y / cont)
+                    elif action == 'mask':
+                        cont_mask = (self.raw.x >= self.parent.cont.x[0]) * (self.raw.x <= self.parent.cont.x[-1])
+                        self.norm.x, self.norm.y = self.raw.x[cont_mask], self.raw.y[cont_mask]
                 self.norm.n = len(self.norm.x)
             else:
                 self.raw.x = self.norm.x[:]
@@ -690,6 +695,8 @@ class specline():
                         self.raw.y = self.norm.y + cont
                     elif action == 'aod':
                         self.raw.y = np.exp(-self.norm.y) * cont
+                    #elif action == 'sky':
+                    #    self.raw.y = self.norm.y[:]
 
     def inter(self, x):
         return self.current().inter(x)
@@ -700,7 +707,7 @@ class fitline():
         self.line = specline(parent)
         self.disp = [specline(parent), specline(parent)]
         self.disp_corr = [specline(parent), specline(parent)]
-        self.g_disp = [None]*3
+        self.g_disp = [None] * 3
 
     def interpolate(self):
         self.line.current().interpolate()
@@ -1404,6 +1411,8 @@ class Spectrum():
         self.mask = specline(self)
         self.bad_mask = specline(self)
         self.fit_mask = specline(self)
+        self.sky = specline(self)
+        self.sky_cont = specline(self)
         self.cont = gline()
         self.cont2d = gline()
         self.spline = gline()
@@ -1435,6 +1444,7 @@ class Spectrum():
     def init_pen(self):
         self.err_pen = pg.mkPen(70, 130, 180)
         self.cont_pen = pg.mkPen(168, 66, 195, width=3)
+        self.sky_pen = pg.mkPen(255, 127, 80, width=2)
         self.fit_pen = pg.mkPen(255, 69, 0, width=4)
         self.fit_disp_pen = pg.mkPen(255, 204, 35, width=2)
         self.fit_comp_pen = pg.mkPen(255, 215, 63, width=1.0)
@@ -1522,6 +1532,13 @@ class Spectrum():
             elif self.parent.selectview == 'regions':
                 self.updateRegions()
 
+        # >>> plot sky/telluric/nuisance absorption:
+        if len(self.sky.x()) > 0 and len(self.sky_cont.x()) == 0 and not self.parent.normview:
+            self.g_sky = pg.PlotCurveItem(x=self.sky.x(), y=self.sky.y(), pen=self.sky_pen)
+            self.parent.vb.addItem(self.g_sky)
+        if len(self.sky_cont.x()) > 0:
+            self.g_sky_cont = pg.PlotCurveItem(x=self.sky_cont.x(), y=self.sky_cont.y(), pen=self.sky_pen)
+            self.parent.vb.addItem(self.g_sky_cont)
 
         # >>> plot bad point:
         if len(self.bad_mask.x()) > 0 and len(self.spec.x()) > 0:
@@ -1642,8 +1659,8 @@ class Spectrum():
             self.remove_g_fit_comps()
         except:
             pass
-        attrs = ['g_fit', 'g_fit_bin', 'g_fit_comp', 'points', 'bad_pixels', 'g_cont', 'g_spline',
-                 'normline', 'sm_line', 'g_cheb', 'rebin']
+        attrs = ['g_fit', 'g_fit_bin', 'g_sky', 'g_sky_cont', 'g_fit_comp', 'points', 'bad_pixels',
+                 'g_cont', 'g_spline', 'normline', 'sm_line', 'g_cheb', 'rebin']
         for attr in attrs:
             try:
                 self.parent.vb.removeItem(getattr(self, attr))
@@ -1726,13 +1743,27 @@ class Spectrum():
         self.spec.raw.interpolate()
         #self.set_res()
 
+    def update_sky(self):
+        if len(self.sky.raw.x) > 0 and self.cont.n > 0 and self.active():
+            mask = (self.sky.raw.x >= self.spline.x[0]) * (self.sky.raw.x <= self.spline.x[-1])
+            if np.sum(mask) > 0:
+                self.sky_cont.raw.set_data(x=self.sky.raw.x[mask], y=self.cont.inter(self.sky.raw.x[mask]) * self.sky.raw.y[mask])
+                self.sky_cont.norm.set_data(x=self.sky.raw.x[mask], y=self.sky.raw.y[mask])
+                #print(self.sky_cont.raw.x, self.sky_cont.raw.y)
+            else:
+                self.sky_cont.raw.set_data(x=[], y=[])
+            self.g_sky_cont.setData(self.sky_cont.raw.x, self.sky_cont.raw.y)
+
     def update_fit(self):
         if len(self.fit.line.norm.x) > 0 and self.cont.n > 0 and self.active():
-            self.set_gfit()
-            self.set_res()
+            if self.parent.fitview in ['line', 'points']:
+                self.g_fit.setData(self.fit.line.norm.x, self.fit.line.norm.y * self.cont.inter(self.fit.line.norm.x))
+            elif self.parent.fitview == 'bins':
+                self.g_fit.setData(self.fit_bin.line.x(), self.fit_bin.line.y())
+            # self.g_fit_bin.setData(self.fit_bin.line.x(), self.fit_bin.line.y())
             if self.parent.fit.cont_fit:
                 self.set_cheb()
-            self.parent.s.chi2()
+            #self.parent.s.chi2()
 
     def set_fit(self, x, y, attr='fit'):
         if self.cont.n > 0: # and self.active():
@@ -1954,7 +1985,6 @@ class Spectrum():
         getattr(self, 'g_spline'+name).setData(x=getattr(self, 'spline'+name).x, y=getattr(self, 'spline'+name).y)
         if self.calc_spline(name=name) == False:
             self.del_spline(arg=getattr(self, 'spline'+name).find_nearest(x, None))
-        self.update_fit()
 
     def del_spline(self, x1=None, y1=None, x2=None, y2=None, arg=None, name=''):
         if arg is None:
@@ -1990,9 +2020,14 @@ class Spectrum():
             setattr(self, 'cont_mask' + name, None)
             setattr(self, 'cont'+name, gline())
         try:
+            #print('cont:', getattr(self, 'cont'+name).x)
             getattr(self, 'g_cont' + name).setData(x=getattr(self, 'cont'+name).x, y=getattr(self, 'cont'+name).y)
         except:
             pass
+
+        self.cont.interpolate()
+        self.update_sky()
+        self.update_fit()
 
     def set_fit_mask(self):
         self.fit_mask.set(x=np.logical_and(self.mask.x(), np.logical_not(self.bad_mask.x())))
@@ -2001,6 +2036,10 @@ class Spectrum():
         if self.parent.normview and self.cont_mask is not None:
             self.spec.normalize(True, action=action)
             self.spec.norm.interpolate()
+
+        #if len(self.sky.x()) > 0:
+        #    self.sky_cont.normalize(cont_mask=False, inter=False, action=action)
+        #    self.sky_cont.norm.interpolate()
 
         if len(self.fit_comp) > 0:
             for comp in self.fit_comp:
@@ -2271,6 +2310,9 @@ class Spectrum():
                         f = interp1d(x + (x - getattr(self.parent.fit, 'displ_' + str(i)).val) * getattr(self.parent.fit,'disps_' + str(i)).val + getattr(self.parent.fit,'dispz_' + str(i)).val, flux, bounds_error=False, fill_value=1)
                         flux = f(x)
 
+            if (ind == -1) and self.parent.options("telluric") and len(self.sky_cont.x() > 0) :
+                flux *= self.sky_cont.inter(x)
+
             # >>> set fit graphics
             if ind == -1:
                 self.set_fit(x=x, y=flux)
@@ -2297,9 +2339,9 @@ class Spectrum():
 
             # >>> calculate the intrinsic absorption line spectrum
             if 1:
-                x, flux, bins, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, comp=comp + 1)
+                x, flux, bins, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, comp=comp + 1, telluric=self.parent.options("telluric"))
             else:
-                x, flux, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=comp + 1, out="binned")
+                x, flux, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=comp + 1, out="binned", telluric=self.parent.options("telluric"))
                 x = self.spec.norm.x[self.mask.norm.x]
 
             if timer:
@@ -2414,7 +2456,7 @@ class Spectrum():
             else:
                 self.set_fit_comp(x=x, y=flux, ind=ind)
 
-    def calcFit_fast(self, ind=-1, recalc=False, redraw=True, timer=False, num_between=3, tau_limit=0.01):
+    def calcFit_uniform(self, ind=-1, recalc=False, redraw=True, timer=True, num_between=3, tau_limit=0.01):
         """
 
            - ind             : specify the exposure for which fit is calculated
@@ -2424,6 +2466,7 @@ class Spectrum():
            - tau_limit       : limit of optical depth to cutoff the line (set the range of calculations)
         :return:
         """
+        print("ind", ind)
         if timer:
             t = Timer(str(ind))
         if self.spec.norm.n > 0 and self.cont.n > 0:
@@ -2436,6 +2479,7 @@ class Spectrum():
                         line.logN = sys.sp[line.name.split()[0]].N.val
                         line.z = sys.z.val
                         line.tau = tau(line, resolution=self.resolution)
+                print(line)
             if timer:
                 t.time('update')
 
@@ -2449,6 +2493,7 @@ class Spectrum():
                         if ind == -1 or ind == line.sys:
                             line.tau.getrange(tlim=tau_limit)
                             mask_glob = np.logical_or(mask_glob, ((x_spec > line.tau.range[0]) * (x_spec < line.tau.range[-1])))
+                    print("mask:", np.sum(mask_glob))
                     x = makegrid(x_spec, mask_glob.astype(int) * num_between)
                 else:
                     x = self.fit.line.norm.x
@@ -2492,6 +2537,9 @@ class Spectrum():
 
             flux = np.exp(-flux)
 
+            if (ind == -1) and self.parent.options("telluric") and len(self.sky_cont.x() > 0):
+                flux *= self.sky_cont.inter(x)
+
             if timer:
                 t.time('calc profiles')
 
@@ -2513,6 +2561,7 @@ class Spectrum():
                         f = interp1d(x + (x - getattr(self.parent.fit, 'displ_' + str(i)).val) * getattr(self.parent.fit, 'disps_' + str(i)).val + getattr(self.parent.fit, 'dispz_' + str(i)).val, flux, bounds_error=False, fill_value=1)
                         flux = f(x)
 
+            print("flux:", x, flux)
             # >>> set fit graphics
             if ind == -1:
                 self.set_fit(x=x, y=flux)

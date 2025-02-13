@@ -1,4 +1,3 @@
-show CIj2
 show CO
 show H2j5
 show H2j5
@@ -19,3 +18,4 @@ show CI
 show CIj1
 show CIj2
 hide H2
+y 0 1

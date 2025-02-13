@@ -45,7 +45,9 @@ Regions (objects 6 and 7 in Figure) are convenient graphical object to select ce
 
 * ``SHIFT + LEFT MOUSE BUTTON``: modify (shift and changing size) the region
 
-* ``CTRL + LEFT CLICK``: delete region
+* ``r + RIGHT MOUSE BUTTON``:  delete region that is clicked.
+
+* ``CTRL + LEFT CLICK``: delete region that is clicked.
 
 Composite spectrum
 ------------------
