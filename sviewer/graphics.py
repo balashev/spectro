@@ -160,7 +160,6 @@ class Speclist(list):
             t = Timer()
         for i, s in enumerate(self):
             if exp_ind in [-1, i]:
-                print(s.fit_lines)
                 if hasattr(s, 'fit_lines') and len(s.fit_lines) > 0:
                     if self.parent.fitType == 'regular':
                         s.calcFit(ind=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
@@ -183,20 +182,24 @@ class Speclist(list):
     def calcFitComps(self, ind=-1, exp_ind=-1, recalc=False):
         self.refreshFitComps()
         for i, s in enumerate(self):
-            if exp_ind in [i, -1] and len(s.fit_lines) > 0:
-                for sys in self.parent.fit.sys:
-                    #print('calcFitComps', sys.ind)
-                    if self.parent.fitType == 'regular':
-                        s.calcFit(ind=sys.ind, x=s.fit.x(), recalc=recalc, tau_limit=self.parent.tau_limit)
+            if exp_ind in [i, -1] and hasattr(s, 'fit_lines') and len(s.fit_lines) > 0:
+                if len(self.parent.fit.sys) > 1:
+                    for sys in self.parent.fit.sys:
+                        #print('calcFitComps', sys.ind)
+                        if self.parent.fitType == 'regular':
+                            s.calcFit(ind=sys.ind, x=s.fit.x(), recalc=recalc, tau_limit=self.parent.tau_limit)
 
-                    elif self.parent.fitType == 'fft':
-                        s.calcFit_fft(ind=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit)
+                        elif self.parent.fitType == 'fft':
+                            s.calcFit_fft(ind=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit)
 
-                    elif self.parent.fitType == 'uniform':
-                        s.calcFit_uniform(ind=sys.ind, recalc=recalc, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit)
+                        elif self.parent.fitType == 'uniform':
+                            s.calcFit_uniform(ind=sys.ind, recalc=recalc, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit)
 
-                    elif self.parent.fitType == 'julia':
-                        s.calcFit_julia(comp=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit, timer=False)
+                        elif self.parent.fitType == 'julia':
+                            s.calcFit_julia(comp=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit, timer=False)
+
+                elif len(self.parent.fit.sys) == 1:
+                        s.set_fit_comp(x=s.fit.x(), y=s.fit.y(), ind=0)
 
     def reCalcFit(self, ind=-1, exp_ind=-1):
         #self.prepareFit(ind=-1)
@@ -223,7 +226,7 @@ class Speclist(list):
         AIC = 2 * k - 2 * self.lnL()
         AICc = AIC + (2 * k ** 2 + 2 * k) / (n - k - 1)
         BIC = k * np.log(n) - 2 * self.lnL()
-        self.parent.chiSquare.setText('  chi2 / dof / AIC / AICc = {0:.2f} / {1:d} / {2:.2f} / {3:.2f} / {4:.2f}'.format(chi2, int(n - k), AIC, AICc, BIC))
+        self.parent.chiSquare.setText('  chi2 / dof / AIC / AICc / BIC = {0:.2f} / {1:d} / {2:.2f} / {3:.2f} / {4:.2f}'.format(chi2, int(n - k), AIC, AICc, BIC))
         return chi2
 
     def chi(self, exp_ind=-1):
@@ -1552,7 +1555,8 @@ class Spectrum():
         elif self.parent.fitview == 'line':
             self.g_fit = pg.PlotCurveItem(x=[], y=[], pen=self.fit_pen)
         elif self.parent.fitview == 'bins':
-            self.g_fit = plotLineSpectrum(parent=self, view='step', x=x, y=y, name='fit', connect='finite', pen=self.fit_pen)
+            self.g_fit = plotLineSpectrum(parent=self, view='step', x=[], y=[], name='fit', connect='finite', pen=self.fit_pen)
+
         self.g_fit.setZValue(7)
         self.parent.vb.addItem(self.g_fit)
         #self.g_fit_bin = plotLineSpectrum(parent=self, view='step', name='fit', connect='finite', pen=self.fit_pen)
@@ -1744,7 +1748,7 @@ class Spectrum():
         #self.set_res()
 
     def update_sky(self):
-        if len(self.sky.raw.x) > 0 and self.cont.n > 0 and self.active():
+        if len(self.sky.raw.x) > 0 and self.cont.n > 0 and self.active() and len(self.spline.x) > 0:
             mask = (self.sky.raw.x >= self.spline.x[0]) * (self.sky.raw.x <= self.spline.x[-1])
             if np.sum(mask) > 0:
                 self.sky_cont.raw.set_data(x=self.sky.raw.x[mask], y=self.cont.inter(self.sky.raw.x[mask]) * self.sky.raw.y[mask])
@@ -1752,7 +1756,13 @@ class Spectrum():
                 #print(self.sky_cont.raw.x, self.sky_cont.raw.y)
             else:
                 self.sky_cont.raw.set_data(x=[], y=[])
-            self.g_sky_cont.setData(self.sky_cont.raw.x, self.sky_cont.raw.y)
+            if hasattr(self, 'g_sky_cont') and (self.g_sky_cont in self.parent.vb.addedItems):
+                self.g_sky_cont.setData(self.sky_cont.x(), self.sky_cont.y())
+            else:
+                if hasattr(self, 'g_sky') and self.g_sky in self.parent.vb.addedItems:
+                    self.parent.vb.removeItem(self.g_sky)
+                self.g_sky_cont = pg.PlotCurveItem(x=self.sky_cont.x(), y=self.sky_cont.y(), pen=self.sky_pen)
+                self.parent.vb.addItem(self.g_sky_cont)
 
     def update_fit(self):
         if len(self.fit.line.norm.x) > 0 and self.cont.n > 0 and self.active():
@@ -1996,8 +2006,7 @@ class Spectrum():
         else:
             getattr(self, 'spline'+name).delete(arg)
         getattr(self, 'g_spline'+name).setData(x=getattr(self, 'spline'+name).x, y=getattr(self, 'spline'+name).y)
-        if getattr(self, 'spline'+name).n > 1:
-            self.calc_spline(name=name)
+        self.calc_spline(name=name)
         self.update_fit()
 
     def set_spline(self, x, y, name=''):
@@ -2005,29 +2014,35 @@ class Spectrum():
         self.add_spline(x, y, name=name)
 
     def calc_spline(self, name=''):
+        print(getattr(self, 'spline'+name).n)
         if getattr(self, 'spline'+name).n > 1:
             k = 3 if getattr(self, 'spline'+name).n > 3 else getattr(self, 'spline'+name).n-1
             tck = splrep(getattr(self, 'spline'+name).x, getattr(self, 'spline'+name).y, k=k)
 
-        if getattr(self, 'spline'+name).n > 1:
             if np.isnan(splev(getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)], tck)).any():
                 return False
             else:
                 setattr(self, 'cont_mask'+name, (getattr(self, 'spec'+name).raw.x > getattr(self, 'spline'+name).x[0]) & (getattr(self, 'spec'+name).raw.x < getattr(self, 'spline'+name).x[-1]))
                 getattr(self, 'cont'+name).set_data(x=getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)],
                                                     y=splev(getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)], tck))
+            print(name == '', hasattr(self, 'g_cont'), self.g_cont in self.parent.vb.addedItems)
+            if (name == '') and hasattr(self, 'g_cont') and (self.g_cont in self.parent.vb.addedItems):
+                getattr(self, 'g_cont').setData(x=getattr(self, 'cont').x, y=getattr(self, 'cont').y)
+            else:
+                self.g_cont = pg.PlotCurveItem(x=self.cont.x, y=self.cont.y, pen=self.cont_pen)
+                self.g_cont.setZValue(4)
+                self.parent.vb.addItem(self.g_cont)
+
+            self.cont.interpolate()
+            self.update_sky()
+            self.update_fit()
         else:
             setattr(self, 'cont_mask' + name, None)
             setattr(self, 'cont'+name, gline())
-        try:
-            #print('cont:', getattr(self, 'cont'+name).x)
-            getattr(self, 'g_cont' + name).setData(x=getattr(self, 'cont'+name).x, y=getattr(self, 'cont'+name).y)
-        except:
-            pass
-
-        self.cont.interpolate()
-        self.update_sky()
-        self.update_fit()
+            print(hasattr(self, 'g_cont'), self.g_cont in self.parent.vb.addedItems)
+            for attr in ['g_cont', 'g_sky_cont']:
+                if hasattr(self, attr) and getattr(self, attr) in self.parent.vb.addedItems:
+                    self.parent.vb.removeItem(getattr(self, attr))
 
     def set_fit_mask(self):
         self.fit_mask.set(x=np.logical_and(self.mask.x(), np.logical_not(self.bad_mask.x())))
@@ -2338,11 +2353,11 @@ class Spectrum():
         if self.spec.norm.n > 0 and self.cont.n > 0:
 
             # >>> calculate the intrinsic absorption line spectrum
-            if 1:
-                x, flux, bins, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, comp=comp + 1, telluric=self.parent.options("telluric"))
-            else:
-                x, flux, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, ind=comp + 1, out="binned", telluric=self.parent.options("telluric"))
-                x = self.spec.norm.x[self.mask.norm.x]
+            x, flux, bins, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, comp=comp + 1,
+                                                                    regular=int(self.parent.options("julia_grid")),
+                                                                    telluric=self.parent.options("telluric"),
+                                                                    tau_limit=self.parent.tau_limit,
+                                                                    accuracy=self.parent.accuracy)
 
             if timer:
                 t.time('calc fit')

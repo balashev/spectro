@@ -1353,6 +1353,9 @@ class preferencesWidget(QWidget):
         for t in ['Appearance', 'Fit', 'Colors']:
             self.tab.addTab(self.initTabGUI(t), t)
 
+        self.tab.currentChanged.connect(self.setTabIndex)
+        self.tab.setCurrentIndex(self.parent.preferencesTabIndex)
+
         layout.addWidget(self.tab)
         h = QHBoxLayout()
         h.addStretch(1)
@@ -1382,10 +1385,11 @@ class preferencesWidget(QWidget):
             self.fittype = ['julia', 'regular', 'uniform']
             for i, f in enumerate(self.fittype):
                 setattr(self, f, QRadioButton(f if f == 'julia' else 'py:' + f + ':' * (f == 'uniform')))
+                if self.parent.fitType == f:
+                    getattr(self, f).toggle()
                 getattr(self, f).toggled.connect(self.setFitType)
                 self.fitGroup.addButton(getattr(self, f))
                 self.grid.addWidget(getattr(self, f), ind, i)
-            getattr(self, self.parent.fitType).toggle()
 
             self.num_between = QLineEdit(str(self.parent.num_between))
             self.num_between.setValidator(validator)
@@ -1399,6 +1403,30 @@ class preferencesWidget(QWidget):
             self.tau_limit.setValidator(validator)
             self.tau_limit.textChanged[str].connect(self.setTauLimit)
             self.grid.addWidget(self.tau_limit, ind, 1)
+
+            ind += 1
+            self.grid.addWidget(QLabel('Accuracy:'), ind, 0)
+
+            self.accuracy = QLineEdit(str(self.parent.accuracy))
+            self.accuracy.setValidator(validator)
+            self.accuracy.textChanged[str].connect(self.setAccuracy)
+            self.grid.addWidget(self.accuracy, ind, 1)
+
+            ind += 1
+            self.grid.addWidget(QLabel("Julia grid method:"), ind, 0)
+
+            self.julia_grid = QComboBox()
+            self.julia_grid.addItems(["minimized", "adaptive bins", "uniform"])
+            self.julia_grid.setCurrentIndex(int(self.parent.options("julia_grid")) + 2 if int(self.parent.options("julia_grid")) < 0 else 2)
+            self.julia_grid.currentIndexChanged.connect(self.setJuliaGrid)
+            self.julia_grid.setFixedSize(120, 30)
+            self.grid.addWidget(self.julia_grid, ind, 1)
+            self.julia_grid_num = QLineEdit(self.parent.options("julia_grid_num"))
+            self.julia_grid_num.setEnabled(int(self.parent.options("julia_grid")) > -1)
+            self.julia_grid_num.setFixedSize(80, 30)
+            self.julia_grid_num.setValidator(validator)
+            self.julia_grid_num.textChanged[str].connect(self.setJuliaGridNum)
+            self.grid.addWidget(self.julia_grid_num, ind, 2)
 
             ind += 1
             self.grid.addWidget(QLabel('Fit method:'), ind, 0)
@@ -1551,6 +1579,9 @@ class preferencesWidget(QWidget):
                     self.parent.julia = None
                 return
 
+    def setTabIndex(self):
+        self.parent.preferencesTabIndex = self.tab.currentIndex()
+
     def setCompView(self):
         for f in self.compview:
             if getattr(self, f).isChecked():
@@ -1574,7 +1605,7 @@ class preferencesWidget(QWidget):
 
     def setNumBetween(self):
         self.parent.num_between = int(self.num_between.text())
-        self.parent.options('num_between', self.parent.num_between)
+        self.parent.options("num_between", self.parent.num_between)
 
     def setTauLimit(self):
         try:
@@ -1584,6 +1615,28 @@ class preferencesWidget(QWidget):
                 self.parent.options('tau_limit', self.parent.tau_limit)
         except:
             pass
+
+    def setAccuracy(self):
+        try:
+            t = float(self.accuracy.text())
+            if t > 0 and t < 0.5:
+                self.parent.accuracy = t
+                self.parent.options('accuracy', self.parent.accuracy)
+        except:
+            pass
+
+    def setJuliaGrid(self):
+        if self.julia_grid.currentText() == 'uniform':
+            self.julia_grid_num.setEnabled(True)
+            jd = int(self.julia_grid_num.text())
+        else:
+            self.julia_grid_num.setEnabled(False)
+            jd = self.julia_grid.currentIndex() - 2
+        self.parent.options("julia_grid", jd)
+
+    def setJuliaGridNum(self):
+        if self.julia_grid.currentText() == 'uniform':
+            self.parent.options("julia_grid", int(self.julia_grid_num.text()))
 
     def setMethod(self):
         self.parent.fit_method = self.fitmethod.currentText()
@@ -6587,7 +6640,12 @@ class GenerateAbsWidget(QWidget):
             self.parent.fit.update()
 
             if 1:
-                dof, x, unc = self.parent.julia.fitLM(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add, tieds=self.parent.fit.tieds, telluric=self.parent.options("telluric"))
+                dof, x, unc = self.parent.julia.fitLM(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add,
+                                                      tieds=self.parent.fit.tieds,
+                                                      regular=int(self.parent.options("julia_grid")),
+                                                      telluric=self.parent.options("telluric"),
+                                                      tau_limit=self.parent.tau_limit,
+                                                      accuracy=self.parent.accuracy)
                 res.append(x)
                 self.parent.s.calcFit(redraw=False)
                 lnprobs.append(self.parent.s.chi2())
@@ -6937,6 +6995,7 @@ class sviewer(QMainWindow):
         self.export2d_opt = ['spectrum', 'err', 'mask', 'cr', 'sky', 'trace']
         self.num_between = int(self.options('num_between'))
         self.tau_limit = float(self.options('tau_limit'))
+        self.accuracy = float(self.options('accuracy'))
         self.juliaFit = self.options('juliaFit')
         self.julia = None
         if self.juliaFit:
@@ -6947,7 +7006,7 @@ class sviewer(QMainWindow):
                 self.options('juliaFit', True)
             except:
                 self.options('juliaFit', False)
-                self.options('fitType', 'fast')
+                self.options('fitType', 'uniform')
         # self.specview sets the type of plot representation
         for l in ['specview', 'selectview', 'linelabels', 'showinactive', 'show_osc', 'fitType', 'fitComp', 'fitview', 'comp_view', 'animateFit', 'fit_method']:
             setattr(self, l, self.options(l))
@@ -6958,6 +7017,7 @@ class sviewer(QMainWindow):
         self.fitModel = None
         self.chooseFit = None
         self.preferences = None
+        self.preferencesTabIndex = 0
         self.observability = None
         self.exp = None
         self.fitResults = None
@@ -7079,7 +7139,7 @@ class sviewer(QMainWindow):
         importAction.setStatusTip('Import spectrum')
         importAction.triggered.connect(self.showImportDialog)
 
-        importTelluric = QAction('&Import telluric/sky', self)
+        importTelluric = QAction('&Import telluric/sky...', self)
         importTelluric.setStatusTip('Import telluric/sky/accompanying absorption')
         importTelluric.triggered.connect(self.showImportTelluricDialog)
 
@@ -8035,7 +8095,7 @@ class sviewer(QMainWindow):
                                 self.s[ind].bad_mask.normalize()
 
                         if 'sky' in d[i]:
-                            self.importSky(d[i].split()[1])
+                            self.importTelluric(d[i].split()[1])
 
                         if '2d' in d[i]:
                             self.import2dSpectrum(d[i].split()[1], ind=ind)
@@ -8296,7 +8356,7 @@ class sviewer(QMainWindow):
         fname = QFileDialog.getOpenFileName(self, 'Import telluric/sky/accompanying spectrum', self.work_folder)
 
         if fname[0]:
-            self.importSky(fname[0])
+            self.importTelluric(fname[0])
             self.abs.redraw()
             self.statusBar.setText('Telluric/sky/accompaying spectrum is imported from ' + fname[0])
 
@@ -8585,7 +8645,7 @@ class sviewer(QMainWindow):
                 for f in self.filters[name]:
                     f.update(m)
 
-    def importSky(self, filename):
+    def importTelluric(self, filename):
         data = np.genfromtxt(filename, unpack=True)
         if len(self.s) > 0:
             for attr in ['g_sky', 'g_sky_cont']:
@@ -8594,15 +8654,21 @@ class sviewer(QMainWindow):
                 except:
                     pass
             try:
+                #print(data.shape[0])
                 if data.shape[0] == 2:
                     self.s[self.s.ind].sky.set(data[0], data[1])
                 elif data.shape[0] > 3:
                     self.s[self.s.ind].sky.set(data[0], data[-1])
                 #print(self.s[self.s.ind].sky.y())
+                print('load')
                 self.s[self.s.ind].sky.interpolate()
+                print('inter')
                 self.s[self.s.ind].sky.filename = filename
                 self.s[self.s.ind].update_sky()
+                print('redraw')
                 self.s.redraw()
+                print('update')
+                self.s[self.s.ind].update_sky()
             except:
                 self.sendMessage("Sky/telluric/nuisance absorption spectrum was not imported. Check the file")
 
@@ -9204,7 +9270,13 @@ class sviewer(QMainWindow):
         #self.reload_julia()
         self.s.prepareFit(all=False)
         #self.julia_spec = self.julia.prepare(self.s, self.julia_pars)
-        dof, res, unc = self.julia.fitLM(self.julia_spec, self.fit.list(), self.julia_add, tieds=self.fit.tieds, opts=kwargs, blindMode=self.blindMode, telluric=self.options("telluric"))
+        dof, res, unc = self.julia.fitLM(self.julia_spec, self.fit.list(), self.julia_add, tieds=self.fit.tieds,
+                                         opts=kwargs,
+                                         blindMode=self.blindMode,
+                                         regular=int(self.options("julia_grid")),
+                                         telluric=self.options("telluric"),
+                                         tau_limit=self.tau_limit,
+                                         accuracy=self.accuracy)
 
         s = self.fit.fromJulia(res, unc)
         if not self.blindMode:

@@ -78,7 +78,7 @@ class expTableWidget(TableWidget):
         #self.setWindowFlags(Qt.FramelessWindowHint)
         self.setSortingEnabled(False)
         self.setWidth = None
-        self.LSFtypes = ['gauss', 'cos', 'espresso']
+        self.LSFtypes = ['none', 'gauss', 'cos', 'espresso']
         self.update()
         self.show()
         self.setSortingEnabled(True)
@@ -150,24 +150,11 @@ class expTableWidget(TableWidget):
 
     def cell_Changed(self, row, col):
 
-        #print(row, col)
-        if 0 and col == 4:
-            lsf_type = ''
-            if self.cell_value('lsf_type').lower() in ['gauss', 'Gaussian', 'normal']:
-                lsf_type = 'gauss'
-            elif self.cell_value('lsf_type').lower() in ['cos']:
-                lsf_type = 'cos'
-            if lsf_type != '':
-                self.parent.s[row].lsf_type = lsf_type
-                self.parent.s.calcFit(-1, recalc=True)
-                self.parent.s.calcFitComps()
-                self.parent.s.redraw()
-
         if (col == 5) and (self.parent.s[row].resolution != int(self.cell_value('resolution'))):
             self.parent.s[row].resolution = int(self.cell_value('resolution'))
-            self.parent.s.calcFit(-1, recalc=True)
-            self.parent.s.calcFitComps()
-            self.parent.s.redraw()
+            #self.parent.s.calcFit(-1, recalc=True)
+            #self.parent.s.calcFitComps()
+            #self.parent.s.redraw()
 
         if (col == 6) and (self.parent.s[row].scaling_factor != float(self.cell_value('scaling factor'))):
             self.parent.s[row].rescale(float(self.cell_value('scaling factor')))
@@ -175,10 +162,14 @@ class expTableWidget(TableWidget):
             self.parent.s.redraw()
 
     def LSFchanged(self, i):
-        self.parent.s[i].lsf_type = self.comb[i].currentText()
-        self.parent.s.calcFit(-1, recalc=True)
-        self.parent.s.calcFitComps()
-        self.parent.s.redraw()
+        if self.comb[i].currentText() != 'espresso':
+            self.parent.s[i].lsf_type = self.comb[i].currentText()
+            self.parent.s.prepareFit(-1)
+            self.parent.s.calcFit(-1, recalc=True)
+            self.parent.s.calcFitComps()
+            self.parent.s.redraw()
+        else:
+            self.parent.sendMessage("ESPRESSO LSF is currently not available. Stay tuned")
 
     def cell_value(self, columnname):
 
