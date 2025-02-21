@@ -2014,7 +2014,7 @@ class Spectrum():
         self.add_spline(x, y, name=name)
 
     def calc_spline(self, name=''):
-        print(getattr(self, 'spline'+name).n)
+        #print(getattr(self, 'spline'+name).n)
         if getattr(self, 'spline'+name).n > 1:
             k = 3 if getattr(self, 'spline'+name).n > 3 else getattr(self, 'spline'+name).n-1
             tck = splrep(getattr(self, 'spline'+name).x, getattr(self, 'spline'+name).y, k=k)
@@ -2025,7 +2025,7 @@ class Spectrum():
                 setattr(self, 'cont_mask'+name, (getattr(self, 'spec'+name).raw.x > getattr(self, 'spline'+name).x[0]) & (getattr(self, 'spec'+name).raw.x < getattr(self, 'spline'+name).x[-1]))
                 getattr(self, 'cont'+name).set_data(x=getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)],
                                                     y=splev(getattr(self, 'spec'+name).raw.x[getattr(self, 'cont_mask'+name)], tck))
-            print(name == '', hasattr(self, 'g_cont'), self.g_cont in self.parent.vb.addedItems)
+            #print(name == '', hasattr(self, 'g_cont'), self.g_cont in self.parent.vb.addedItems)
             if (name == '') and hasattr(self, 'g_cont') and (self.g_cont in self.parent.vb.addedItems):
                 getattr(self, 'g_cont').setData(x=getattr(self, 'cont').x, y=getattr(self, 'cont').y)
             else:
@@ -2039,7 +2039,7 @@ class Spectrum():
         else:
             setattr(self, 'cont_mask' + name, None)
             setattr(self, 'cont'+name, gline())
-            print(hasattr(self, 'g_cont'), self.g_cont in self.parent.vb.addedItems)
+            #print(hasattr(self, 'g_cont'), self.g_cont in self.parent.vb.addedItems)
             for attr in ['g_cont', 'g_sky_cont']:
                 if hasattr(self, attr) and getattr(self, attr) in self.parent.vb.addedItems:
                     self.parent.vb.removeItem(getattr(self, attr))
@@ -2056,16 +2056,17 @@ class Spectrum():
         #    self.sky_cont.normalize(cont_mask=False, inter=False, action=action)
         #    self.sky_cont.norm.interpolate()
 
-        if len(self.fit_comp) > 0:
-            for comp in self.fit_comp:
-                comp.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
-        if self.fit.line.norm.n > 0:
-            self.fit.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
-            if not self.parent.normview:
-                self.fit.line.raw.interpolate()
+        if (self.parent.normview + self.parent.aodview) == 0:
+            if len(self.fit_comp) > 0:
+                for comp in self.fit_comp:
+                    comp.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
+            if self.fit.line.norm.n > 0:
+                self.fit.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
+                if not self.parent.normview:
+                    self.fit.line.raw.interpolate()
 
-        if len(self.cheb.line.x()) > 0:
-            self.cheb.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
+            if len(self.cheb.line.x()) > 0:
+                self.cheb.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
 
         self.mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
         self.bad_mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
