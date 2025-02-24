@@ -806,7 +806,7 @@ function make_grid(spec, lines; regular=-1, tau_limit=0.005, accuracy=0.2)
             end
         end
 
-        println(sum(x_grid[x_grid .> -1]), " ", x_grid[x_grid .> -1])
+        #println(sum(x_grid[x_grid .> -1]), " ", x_grid[x_grid .> -1])
         if regular == 0
             x = spec.bins[x_grid .> -1]
         else
@@ -1051,7 +1051,7 @@ function calc_spectrum(spec, pars; comp=0, regular=-2, out="all", telluric=false
         y .+= pars["zero"].val
     end
 
-    #println("x:", size(x))
+    #println("x:", size(x),  " ", spec.lsf_type)
     if (spec.resolution > 0) && (spec.lsf_type != "none")
         y = 1 .- y
         y_c = zero(y)
@@ -1099,7 +1099,13 @@ function calc_spectrum(spec, pars; comp=0, regular=-2, out="all", telluric=false
     elseif out in ["all", "binned", "init"]
 
         #println("y_c:", y_c)
-        inds = searchsortedfirst.(Ref(x), spec.bins[spec.bin_mask])
+        #println(spec.x[spec.mask])
+        #println(spec.bins[spec.bin_mask])
+        #println(x)
+        #println(size(spec.x[spec.mask]), " ", size(spec.bins[spec.bin_mask]), " ", size(x), " ", size(y_c))
+        inds = searchsortedlast.(Ref(x), spec.bins[spec.bin_mask])
+        #println(inds)
+        #inds = binsearch.(Ref(x), spec.bins[spec.bin_mask], type="min")
         #println("bins:", spec.bins[spec.bin_mask])
         #println("indexes: ", inds, " ", size(inds))
         #cumsum = zeros(size(x))
@@ -1112,21 +1118,25 @@ function calc_spectrum(spec, pars; comp=0, regular=-2, out="all", telluric=false
         #println(1 .- (cumsum[inds[2:end]] .- cumsum[inds[1:end-1]]) ./ (x[inds[2:end]] .- x[inds[1:end-1]]))
 
         binned = zero(spec.x[spec.mask])
-        for (k, xi) in enumerate(spec.x[spec.mask])
-            ind = findmin(abs.(x .- xi))[2]
+        sind = searchsortedlast.(Ref(spec.bins[spec.bin_mask]), spec.x[spec.mask])
+        #println(sind)
+        for (l, k) in enumerate(sind)
+
+        #for (k, xi) in enumerate(spec.x[spec.mask])
+            #ind = findmin.(abs.(spec.bins[spec.bin_mask] .- spec.x[spec.mask]))[2]
             #println(xi, " ", ind)
         #for (k, ind) in enumerate(searchsortedfirst.(Ref(x), spec.x[spec.mask] .* 1.000000001))
             #ind_min, ind_max = searchsortedlast(inds, ind), searchsortedfirst(inds, ind)
-            ind_min, ind_max = binsearch(inds, ind, type="min"), binsearch(inds, ind, type="max")
-            #println(xi, " ", ind, " ",  ind_max, " ", ind_min)
-            #println(x[inds[ind_max]], " ", x[inds[ind_min]])
-            #println(x[inds[ind_max]], " ", x[inds[ind_min]])
+            #ind_min, ind_max = binsearch(inds, ind, type="min"), binsearch(inds, ind, type="max")
+            #ind_min = binsearch(inds, ind, type="min")
+            #println(k, " ",  spec.bins[spec.bin_mask][k])
+            #println(x[inds[k]], " ", x[inds[k+1]])
 
-            for i in inds[ind_min]+1:inds[ind_max]
-                binned[k] += (x[i] - x[i-1]) * (2 - y_c[i] - y_c[i-1])
+            for i in inds[k]:inds[k+1]-1
+                binned[l] += (x[i+1] - x[i]) * (2 - y_c[i+1] - y_c[i])
             end
 
-            binned[k] = 1 - binned[k] / (x[inds[ind_max]] - x[inds[ind_min]]) / 2
+            binned[l] = 1 - binned[l] / (x[inds[k+1]] - x[inds[k]]) / 2
         end
         #println("binned:", binned)
         #println("specmask: ", spec.x[spec.mask])
@@ -1160,6 +1170,7 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, re
         res = Vector{Float64}()
         for s in spec
             if sum(s.mask) > 0
+                println(calc_spectrum(s, pars, out="binned", regular=regular, telluric=telluric, tau_limit=tau_limit, accuracy=accuracy))
                 append!(res, (calc_spectrum(s, pars, out="binned", regular=regular, telluric=telluric, tau_limit=tau_limit, accuracy=accuracy) .- s.y[s.mask]) ./ s.unc[s.mask])
             end
         end
