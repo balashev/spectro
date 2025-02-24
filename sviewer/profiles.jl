@@ -47,39 +47,41 @@ end
 function mergesorted(a, b)
     #println(size(a))
     #println(size(b))
-    i_min = searchsortedlast(a, b[1])
-    #println(i_min)
-    i, k, k_ind = i_min, 1, 1
-    if (i > 0)
-        k_ind += Int(b[k] == a[i])
-    end
-    while k <= size(b)[1]
-        #println(i, " ", k, " ", k_ind)
-        if i >= size(a)[1]
-            append!(a, b[k_ind:end])
-            #println("break")
-            break
+    if size(b)[1] > 0
+        i_min = searchsortedlast(a, b[1])
+        #println(i_min)
+        i, k, k_ind = i_min, 1, 1
+        if (i > 0)
+            k_ind += Int(b[k] == a[i])
         end
-        if b[k] <= a[i+1]
-            k += 1
-        else
+        while k <= size(b)[1]
+            #println(i, " ", k, " ", k_ind)
+            if i >= size(a)[1]
+                append!(a, b[k_ind:end])
+                #println("break")
+                break
+            end
+            if b[k] <= a[i+1]
+                k += 1
+            else
+                o = Int(b[k-1]==a[i+1])
+                #println(o)
+                #println("append: ", i+1, " ", a[i+1], " ", k, " ", k_ind, " ", b[k_ind:k-o-1])
+                splice!(a, i+1, vcat(b[k_ind:k-o-1], a[i+1]))
+                i += k + 1 - o - k_ind
+                k_ind = k
+
+                #println(a[i], " ", a[i+1])
+            end
+        end
+        if k > k_ind
             o = Int(b[k-1]==a[i+1])
-            #println(o)
             #println("append: ", i+1, " ", a[i+1], " ", k, " ", k_ind, " ", b[k_ind:k-o-1])
             splice!(a, i+1, vcat(b[k_ind:k-o-1], a[i+1]))
-            i += k + 1 - o - k_ind
-            k_ind = k
-
-            #println(a[i], " ", a[i+1])
         end
+        #println(size(a), " ", a)
+        #println(a[2:end] .- a[1:end-1])
     end
-    if k > k_ind
-        o = Int(b[k-1]==a[i+1])
-        #println("append: ", i+1, " ", a[i+1], " ", k, " ", k_ind, " ", b[k_ind:k-o-1])
-        splice!(a, i+1, vcat(b[k_ind:k-o-1], a[i+1]))
-    end
-    #println(size(a), " ", a)
-    #println(a[2:end] .- a[1:end-1])
     return a
 end
 
@@ -1170,7 +1172,7 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, re
         res = Vector{Float64}()
         for s in spec
             if sum(s.mask) > 0
-                println(calc_spectrum(s, pars, out="binned", regular=regular, telluric=telluric, tau_limit=tau_limit, accuracy=accuracy))
+                #println(calc_spectrum(s, pars, out="binned", regular=regular, telluric=telluric, tau_limit=tau_limit, accuracy=accuracy))
                 append!(res, (calc_spectrum(s, pars, out="binned", regular=regular, telluric=telluric, tau_limit=tau_limit, accuracy=accuracy) .- s.y[s.mask]) ./ s.unc[s.mask])
             end
         end
