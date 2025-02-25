@@ -45,8 +45,6 @@ function binsearch(x, item; type="close")
 end
 
 function mergesorted(a, b)
-    #println(size(a))
-    #println(size(b))
     if size(b)[1] > 0
         i_min = searchsortedlast(a, b[1])
         #println(i_min)
@@ -68,7 +66,7 @@ function mergesorted(a, b)
                 #println(o)
                 #println("append: ", i+1, " ", a[i+1], " ", k, " ", k_ind, " ", b[k_ind:k-o-1])
                 splice!(a, i+1, vcat(b[k_ind:k-o-1], a[i+1]))
-                i += k + 1 - o - k_ind
+                i += maximum([1, k + 1 - o - k_ind])
                 k_ind = k
 
                 #println(a[i], " ", a[i+1])
@@ -183,8 +181,8 @@ function voigt_step(a, tau_0; tau_limit=0.001, accuracy=0.1)
     if timeit == 1
         start = time()
     end
-    x0 = voigt_range_accurate(a, tau_limit / tau_0)
-    #println(x0, " ", tau_limit, " ", real(SpecialFunctions.erfcx.(a .- im .* x0)) * tau_0)
+    x0 = voigt_range(a, tau_limit / tau_0)
+    #println(x0, " ", tau_limit, " ", real(SpecialFunctions.erfcx.(a .- im .* x0)) * tau_0, " ", tau_0)
     if timeit == 1
         println("Voigt range ", time() - start)
     end
@@ -209,30 +207,33 @@ function voigt_step(a, tau_0; tau_limit=0.001, accuracy=0.1)
     end
     t = real(SpecialFunctions.erfcx.(a .- im .* x[1])) * tau_0
     #println(t)
-    app = false
+    #app = false
     while t > tau_limit
         pushfirst!(x, x[1] + accuracy / der[1])
         w = SpecialFunctions.erfcx.(a .- im .* x[1])
         t = tau_0 .* real(w)
         pushfirst!(der, -exp.( - t) .* tau_0 .* 2 .* (imag(w) .* a .- real(w) .* x[1]))
         #println(x[1], " ", der[1])
-        app = true
+        #app = true
     end
     if timeit == 1
         println("back step ", time() - start)
     end
     #println(x, " ", der)
-    if app
+    if size(x)[1] > 1
         deleteat!(x, 1)
         deleteat!(der, 1)
     end
-    pushfirst!(x, -voigt_range_accurate(a, tau_limit / tau_0))
+    if -x0 < x[1]
+        pushfirst!(x, -x0)
+        pushfirst!(der, der[1])
+    end
 
-    pushfirst!(der, der[1])
 
     append!(x, [0], -x[end:-1:1])
     append!(der, [0], der[end:-1:1])
-    return x[1:end], der
+    #println(x, " ", der)
+    return x, der
 end
 
 function voigt_grid(l, a, tau_0; step=0.03)
@@ -898,71 +899,59 @@ function make_grid(spec, lines; regular=-1, tau_limit=0.005, accuracy=0.2)
     # >>> adaptive grid pixel based:
     elseif regular == -2
 
-        #mergesorted_regular(a,b) = sort!(vcat(a,b))
-
         if timeit == 1
             println("merge ", time() - start)
         end
 
         mask = copy(spec.mask)
-        #println("masked: ", size(mask), " ", sum(mask))
         for i in 1:5
             mask[1+i:end] .|= spec.mask[1:end-i]
             mask[1:end-i] .|= spec.mask[1+i:end]
-            #println("masked: ", i, " ", size(mask), " ", sum(mask))
         end
+
         x = mergesorted(spec.bins[spec.bin_mask], spec.x[mask])
+        for i in size(x)[1]-1:-1:1
+            insert!(x, i+1, (x[i+1] + x[i]) / 2)
+        end
 
         if timeit == 1
             println("mask ", time() - start)
         end
         for line in lines
-            start = time()
-            #println(line.l, " ", line.tau0, " ", line)
-            line.dx = voigt_range(line.a, tau_limit / line.tau0)
-            d = isfinite(x_instr) ? 2 * x_instr : 0
-            i_min, i_max = binsearch(spec.x, (line.l - line.dx * line.ld) * (1 - d), type="min"), binsearch(spec.x, (line.l + line.dx * line.ld) * (1 + d), type="max")
-            #println(i_min, " ", i_max, " ", size(spec.x), " ", spec.x[end], " ", (line.l + line.dx * line.ld) * (1 + d))
-            if i_max > i_min
-                #println(i_min, " ", i_max, " ", size(x)[1])
-                x = mergesorted(x, mergesorted(spec.x[i_min:i_max], (spec.x[i_min+1:i_max] + spec.x[i_min:i_max-1]) / 2))
-                #println(size(x)[1], " ", size(x)[1] - size(mergesorted(spec.x[i_min:i_max], (spec.x[i_min+1:i_max] + spec.x[i_min:i_max-1]) / 2))[1])
+            if line.tau0 > tau_limit
+                start = time()
+                #println(line.l, " ", line.tau0, " ", line)
+                line.dx = voigt_range(line.a, tau_limit / line.tau0)
+                d = isfinite(x_instr) ? 2 * x_instr : 0
+                i_min, i_max = binsearch(spec.x, (line.l - line.dx * line.ld) * (1 - d), type="min"), binsearch(spec.x, (line.l + line.dx * line.ld) * (1 + d), type="max")
+                #println(i_min, " ", i_max, " ", size(spec.x), " ", spec.x[end], " ", (line.l + line.dx * line.ld) * (1 + d))
+                if i_max > i_min
+                    x = mergesorted(x, mergesorted(spec.x[i_min:i_max], (spec.x[i_min+1:i_max] + spec.x[i_min:i_max-1]) / 2))
+                    #println(size(x)[1], " ", size(x)[1] - size(mergesorted(spec.x[i_min:i_max], (spec.x[i_min+1:i_max] + spec.x[i_min:i_max-1]) / 2))[1])
+                end
+                if timeit == 1
+                    println("add bins ", time() - start)
+                end
+                step = line.l .+ voigt_step(line.a, line.tau0, tau_limit=tau_limit, accuracy=accuracy)[1] .* line.ld
+                #println(line.name, " ", size(step))
+                #println(voigt_step(line.a, line.tau0, tau_limit=tau_limit)[1])
+                #i_min = binsearch(x, step[1], type="min"), i_min = binsearch(x, step[end], type="max")
+                if timeit == 1
+                    println("add step ", time() - start)
+                end
+                x = mergesorted(x, step)
+                if timeit == 1
+                    println("merge step ", time() - start)
+                end
+                #println(line.name, " ", size(x))
             end
-            if timeit == 1
-                println("add bins ", time() - start)
-            end
-            step = line.l .+ voigt_step(line.a, line.tau0, tau_limit=tau_limit, accuracy=accuracy)[1] .* line.ld
-            #println(line.name, " ", size(step))
-            #println(voigt_step(line.a, line.tau0, tau_limit=tau_limit)[1])
-            #i_min = binsearch(x, step[1], type="min"), i_min = binsearch(x, step[end], type="max")
-            if timeit == 1
-                println("add step ", time() - start)
-            end
-            x = mergesorted(x, step)
-            if timeit == 1
-                println("merge step ", time() - start)
-            end
-            #println(line.name, " ", size(x))
         end
         if timeit == 1
             println("add lines ", time() - start)
         end
-        #println("delete dup: ", size(x))
-        #for i in size(x)[1]:-1:2
-        #    if x[i-1] == x[i]
-        #        deleteat!(x, i-1)
-        #    end
-        #end
-        #if timeit == 1
-        #    println("delate dup ", time() - start)
-        #end
-        #println("delete dup: ", size(x))
     end
 
-    #i_min, i_max = searchsortedlast(x, spec.x[1]), searchsortedfirst(x, spec.x[end])
     i_min, i_max = binsearch(x, spec.x[1], type="max"), binsearch(x, spec.x[end], type="min")
-    #println(size(x), " ", i_min, " ", i_max)
-    #println(x)
     return x[i_min:i_max]
 end
 
