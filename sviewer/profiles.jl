@@ -68,7 +68,6 @@ function mergesorted(a, b)
                 splice!(a, i+1, vcat(b[k_ind:k-o-1], a[i+1]))
                 i += maximum([1, k + 1 - o - k_ind])
                 k_ind = k
-
                 #println(a[i], " ", a[i+1])
             end
         end
