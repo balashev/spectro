@@ -228,25 +228,27 @@ class distr2d():
             norm = np.abs(integrate.simpson(integrate.simpson(self.z, x=self.y, axis=0), x=self.x))
         else:
             # not working ???!!!
-            inter = interpolate.interp2d(self.x, self.y, self.z, kind='linear', fill_value=0)
+            inter = interpolate.RegularGridInterpolator((self.x, self.y), self.z, method='linear', fill_value=0)
             norm = integrate.dblquad(inter, self.x[0], self.x[-1], lambda x: self.y[0], lambda x: self.y[-1])
         if self.debug:
             print('norm:', norm)
         self.z = self.z / norm
 
     def interpolate(self):
-        if 0:
-            self.inter = interpolate.interp2d(self.x, self.y, self.z, kind='cubic', fill_value=0)
+        if 1:
+            self.inter = interpolate.RegularGridInterpolator((self.x, self.y), self.z.transpose(), method="linear", bounds_error=False, fill_value=0)
             #self.inter = interpolate.Rbf(self.x, self.y, self.z, function='multiquadric', smooth=0.1)
         else:
-            self.inter = interpolate.RectBivariateSpline(self.x, self.y, self.z, kx=3, ky=3)
+            self.inter = interpolate.RectBivariateSpline(self.x, self.y, self.z, kx=1, ky=1)
+
+        ind = np.argwhere(self.z == np.nanmax(self.z.flatten()))
         #xi, yi = 5, 14
         #print(self.inter(self.x[xi], self.y[yi]), self.z[yi, xi], self.x[xi], self.y[yi])
         #print(self.inter(self.x[xi+1], self.y[yi+1]), self.z[yi+1, xi+1], self.x[xi+1], self.y[yi+1])
         #print(self.inter((self.x[xi]+self.x[xi+1])/2, (self.y[yi]+self.y[yi+1])/2))
 
     def minter(self, x):
-        return -self.inter(x[0], x[1])[0]
+        return -self.inter((x[0], x[1]))
 
     #def level(self, x, level):
     #    return self.inter(x) - level
@@ -273,7 +275,11 @@ class distr2d():
         if z is None:
             z = self.z
         zs = np.copy(z)
+
+        #print("level:", level, np.where(zs >= self.zmax / 2))
+
         zs[zs < level] = 0
+        #print(level, integrate.simpson(integrate.simpson(zs, x=y, axis=0), x=x), conf)
         return integrate.simpson(integrate.simpson(zs, x=y, axis=0), x=x) - conf
 
     def dopoint(self, verbose=False):
@@ -285,7 +291,7 @@ class distr2d():
         """
         ind = np.argwhere(self.z == np.nanmax(self.z.flatten()))
         self.point = optimize.fmin(self.minter, [self.x[ind[0][1]], self.y[ind[0][0]]], xtol=self.xtol, disp=self.debug)
-        self.zmax = self.inter(self.point[0], self.point[1])
+        self.zmax = self.inter((self.point[0], self.point[1]))
         if self.debug or verbose:
             print('point estimate:', self.point[0], self.point[1], self.zmax)
         return self.point
@@ -303,7 +309,9 @@ class distr2d():
             return self.zmax
         else:
             x, y = np.linspace(np.min(self.x), np.max(self.x), 300), np.linspace(np.min(self.y), np.max(self.y), 300)
-            z = self.inter(x, y)
+            #x, y = np.meshgrid(x, y)
+            z = self.inter(np.meshgrid(x, y))
+            #print("zmax:", self.zmax)
             if 1:
                 res = optimize.bisect(self.func, 0, self.zmax, args=(conf, x, y, z), xtol=self.xtol, disp=self.debug)
             else:
@@ -399,7 +407,7 @@ class distr2d():
             my_cmap = ListedColormap(my_cmap)
             if not isinstance(levels, int):
                 levels = np.sort([self.level(c) for c in levels] / self.zmax)
-            cs = ax.contourf(self.X, self.Y, self.z / self.zmax, levels, cmap=my_cmap, zorder=zorder, lw=0, antialiased=True, alpha=alpha)
+            cs = ax.contourf(self.X, self.Y, self.z / self.zmax, levels, cmap=my_cmap, zorder=zorder, lw=0, ls=ls, antialiased=True, alpha=alpha)
             #for c in cs.collections:
             #    c.set_edgecolor("face")
             #    c.set_linewidth(0.000000000001)
@@ -409,10 +417,10 @@ class distr2d():
             if limits == None or limits == 0:
                 print("linewidths:", lw)
                 c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color,
-                               lw=lw, linestyles='-', zorder=zorder, label=label, alpha=alpha)
+                               lw=lw, linestyles=ls, zorder=zorder, label=label, alpha=alpha)
             else:
                 c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color,
-                               lw=lw, linestyles='-', zorder=zorder, alpha=alpha)
+                               lw=lw, linestyles=ls, zorder=zorder, alpha=alpha)
                 x, y = c.get_segments()[0][:,0], c.get_segments()[0][:, 1]
                 inter = interpolate.interp1d(x, y)
                 x = np.linspace(x[0], x[-1], 30)

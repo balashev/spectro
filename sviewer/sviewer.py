@@ -13,7 +13,7 @@ import corner
 import ctypes
 import emcee
 import h5py
-from importlib import reload
+#from importlib import reload
 from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs, Model
 from matplotlib.colors import to_hex
 import matplotlib
@@ -1387,7 +1387,7 @@ class preferencesWidget(QWidget):
                 setattr(self, f, QRadioButton(f if f == 'julia' else 'py:' + f + ':' * (f == 'uniform')))
                 if self.parent.fitType == f:
                     getattr(self, f).toggle()
-                getattr(self, f).toggled.connect(self.setFitType)
+                getattr(self, f).clicked.connect(self.setFitType)
                 self.fitGroup.addButton(getattr(self, f))
                 self.grid.addWidget(getattr(self, f), ind, i)
 
@@ -1566,18 +1566,9 @@ class preferencesWidget(QWidget):
                 self.parent.fitType = f
                 self.parent.options('fitType', self.parent.fitType)
                 if self.parent.fitType == 'julia':
-                    if self.parent.developer:
-                        self.parent.reload_julia()
-                    else:
-                        try:
-                            self.parent.reload_julia()
-                        except:
-                            self.parent.sendMessage('Julia is not installed')
-                            self.fitType = 'uniform'
-                            self.uniform.toggle()
+                    self.parent.reload_julia()
                 else:
                     self.parent.julia = None
-                return
 
     def setTabIndex(self):
         self.parent.preferencesTabIndex = self.tab.currentIndex()
@@ -6996,16 +6987,10 @@ class sviewer(QMainWindow):
         self.num_between = int(self.options('num_between'))
         self.tau_limit = float(self.options('tau_limit'))
         self.accuracy = float(self.options('accuracy'))
-        self.juliaFit = self.options('juliaFit')
+        self.message = None
         self.julia = None
-        if self.juliaFit:
-            try:
-                from julia import Main as julia
-                self.julia = julia #.Julia()
-                self.julia.include(self.folder + "profiles.jl")
-                self.options('juliaFit', True)
-            except:
-                self.options('juliaFit', False)
+        if self.options("fitType") == "julia":
+            if self.reload_julia() == False:
                 self.options('fitType', 'uniform')
         # self.specview sets the type of plot representation
         for l in ['specview', 'selectview', 'linelabels', 'showinactive', 'show_osc', 'fitType', 'fitComp', 'fitview', 'comp_view', 'animateFit', 'fit_method']:
@@ -7029,7 +7014,6 @@ class sviewer(QMainWindow):
         self.rescale_ind = 0
         self.compositeQSO_status = False
         self.compositeGal_status = False
-        self.message = None
         self.ErositaWidget = None
         self.fullscreen = bool(self.options('fullscreen'))
         # this is to set the spectro_logo in the taskbar for Windows
@@ -7810,29 +7794,32 @@ class sviewer(QMainWindow):
                 f.write(line)
 
     def reload_julia(self):
+        print("dev", self.developer)
         if self.developer:
-            try:
-                reload(julia)
-            except:
-                self.sendMessage("Julia was not imported. Importing")
-                from julia import Main as julia
-            self.julia = julia  # .Julia()
+            self.sendMessage("Julia was not imported. Importing")
+            from julia.api import Julia
+            from julia import Main
+
+            print("compiled modules: ", platform.system() != 'Linux')
+            Julia(compiled_modules=(platform.system() != 'Linux'), optimize=3)  # .Julia()
+            self.julia = Main
             self.julia.include(self.folder + "profiles.jl")
-            self.options('juliaFit', True)
         else:
             try:
-                try:
-                    reload(julia)
-                except:
-                    self.sendMessage("Julia was not imported. Importing")
-                    from julia import Main as julia
-                self.julia = julia  # .Julia()
+                self.sendMessage("Julia was not imported. Importing")
+                from julia.api import Julia
+                from julia import Main
+
+                print("compiled modules: ", platform.system() != 'Linux')
+                Julia(compiled_modules=(platform.system() != 'Linux'), optimize=3)  # .Julia()
+                self.julia = Main
                 self.julia.include(self.folder + "profiles.jl")
                 self.options('juliaFit', True)
             except:
                 self.sendMessage("There was a problems to import Julia was not imported.")
                 self.julia = None
-                self.options('juliaFit', False)
+                self.options("fitType", "uniform")
+                return False
 
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -9870,14 +9857,13 @@ class sviewer(QMainWindow):
                     temp = ExcitationTemp('H2', n)
 
                 if any(['COj' + str(x) in sys.sp.keys() for x in levels]):
-                    temp = ExcitationTemp('CO')
                     levels = np.arange(10)
                     levels = [int(k[k.index('j')+1:]) for k in sys.sp.keys() if int(k[k.index('j')+1:]) in levels and k.startswith('CO')]
                     print("levels:", levels)
                     n = [sys.sp['COj' + str(x)].N.unc for x in levels]
                     if any([ni.val == 0 for ni in n]):
                         n = [a(sys.sp['COj' + str(x)].N.val, 0, 0) for x in levels]
-                    temp = ExcitationTemp('H2', n)
+                    temp = ExcitationTemp('CO', n)
                 temp.calc(method='emcee')
                 #temp.temp, temp.ntot = temp.res['temp'].val, temp.res['ntot'].val
                 temp.temp_to_slope()

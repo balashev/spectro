@@ -1,21 +1,21 @@
-show CIj1
-show CIj2
-show CIIj1
-show CO
-high H2j5
-show CI
-show CIj1
-show CI
-show CIj1
-show CIj2
-hide H2
-y 0 1
-y 0 1
-y 0 1
-y 0 2
 x 10000 12000
 
 y 0 1
 show H2j4
 show CO
 show H2j2v1
+hide H2
+hide CO
+show CI
+
+hide CO
+hide 13CO
+show H2 0 1
+SiIIj1
+show SiIIj1
+x rescale 10000
+rescale x 10000
+rescale x 10000
+rescale x 0.1
+rescale x 1e8
+rescale x 0.1

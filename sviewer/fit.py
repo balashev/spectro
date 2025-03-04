@@ -285,7 +285,6 @@ class fitSystem:
                 #print('init', self.pr.pumping, self.pr.radiation,  self.pr.sed_type)
                 d = {'CO': [-1, 10], 'CI': [-1, 3], 'FeII': [-1, 13], 'H2': [-1, 3]}
                 for s in self.sp.keys():
-                    print(s)
                     if s.startswith('CO'):
                         d['CO'][0] = 0 if s[3:4].strip() == '' else max(d['CO'][0], int(s[3:4]))
                         pars = ['T', 'n', 'f', 'CMB']
@@ -300,7 +299,6 @@ class fitSystem:
                         d['H2'][0] = 0 if s[3:4].strip() == '' else max(d['H2'][0], int(s[3:4]))
                         pars = ['T', 'n', 'f', 'rad']
                 self.pr.set_pars(pars)
-                print(d)
                 for k, v in d.items():
                     if v[0] > -1:
                         self.pr.add_spec(k, num=v[1])
