@@ -7801,7 +7801,7 @@ class sviewer(QMainWindow):
             #t.time("imp")
             from julia import Main
             print("compiled modules: ", platform.system() != 'Linux')
-            Julia(compiled_modules=(platform.system() != 'Linux'), compile=True, optimize=0)  # .Julia()
+            Julia(compiled_modules=(platform.system() != 'Linux'), optimize=3)  # .Julia()
             #t.time("comp")
             self.julia = Main
             #t.time("second im")
