@@ -516,7 +516,6 @@ class fitPars:
         self.refreshSys()
 
     def swapSys(self, i1, i2):
-        print(i1, i2)
         if self.cf_fit:
             for i in range(self.cf_num):
                 if hasattr(self, 'cf_' + str(i)):
@@ -769,7 +768,6 @@ class fitPars:
             s.append('')
 
         if 'cont_' in s[0]:
-            print(self.cont_num, int(s[0].split('_')[1]))
             self.cont_num = max(self.cont_num, int(s[0].split('_')[1]) + 1)
             self.cont_fit = True
 

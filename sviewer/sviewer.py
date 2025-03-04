@@ -7794,32 +7794,27 @@ class sviewer(QMainWindow):
                 f.write(line)
 
     def reload_julia(self):
-        print("dev", self.developer)
-        if self.developer:
-            self.sendMessage("Julia was not imported. Importing")
+        #t = Timer("julia")
+        self.sendMessage("Julia was not imported. Importing")
+        try:
             from julia.api import Julia
+            #t.time("imp")
             from julia import Main
-
             print("compiled modules: ", platform.system() != 'Linux')
-            Julia(compiled_modules=(platform.system() != 'Linux'), optimize=3)  # .Julia()
+            Julia(compiled_modules=(platform.system() != 'Linux'), compile=True, optimize=0)  # .Julia()
+            #t.time("comp")
             self.julia = Main
+            #t.time("second im")
             self.julia.include(self.folder + "profiles.jl")
-        else:
-            try:
-                self.sendMessage("Julia was not imported. Importing")
-                from julia.api import Julia
-                from julia import Main
+            #t.time("include")
+            self.options('juliaFit', True)
 
-                print("compiled modules: ", platform.system() != 'Linux')
-                Julia(compiled_modules=(platform.system() != 'Linux'), optimize=3)  # .Julia()
-                self.julia = Main
-                self.julia.include(self.folder + "profiles.jl")
-                self.options('juliaFit', True)
-            except:
-                self.sendMessage("There was a problems to import Julia was not imported.")
-                self.julia = None
-                self.options("fitType", "uniform")
-                return False
+        except:
+            self.sendMessage("There was a problems to import Julia was not imported.")
+            self.julia = None
+            self.options("fitType", "uniform")
+            return False
+
 
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -8155,7 +8150,7 @@ class sviewer(QMainWindow):
                 num = int(d[i].split()[1])
                 for k in range(num):
                     i += 1
-                    print(int(d[i].split()[0]))
+                    #print(int(d[i].split()[0]))
                     self.fit.sys[int(d[i].split()[0])].exclude.append(' '.join(d[i].split()[1:]))
 
 
