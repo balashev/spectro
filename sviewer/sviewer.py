@@ -7796,10 +7796,12 @@ class sviewer(QMainWindow):
         #t = Timer("julia")
         self.sendMessage("Julia was not imported. Importing")
         try:
+        #    reload(Julia)
+        #except:
             from julia.api import Julia
             #t.time("imp")
             print("compiled modules: ", platform.system() != 'Linux')
-            Julia(comepiled_modules=(platform.system() != 'Linux'), optimize=3)  # .Julia()
+            Julia(compiled_modules=(platform.system() != 'Linux'), optimize=3)  # .Julia()
 
             from julia import Main
 
