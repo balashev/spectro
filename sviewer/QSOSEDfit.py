@@ -15,7 +15,7 @@ from functools import partial
 import json
 import itertools
 import matplotlib.pyplot as plt
-from nautilus import Prior, Sampler
+#from nautilus import Prior, Sampler
 from multiprocessing import Pool
 import numpy as np
 import lmfit

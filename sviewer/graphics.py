@@ -22,7 +22,6 @@ from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QFont, QTransform
 from PyQt6.QtWidgets import QApplication
 import re
-from skimage.filters.rank import median
 from scipy.interpolate import interp1d, interp2d, splrep, splev
 from scipy.integrate import cumulative_trapezoid as cumtrapz
 from scipy.optimize import curve_fit, least_squares

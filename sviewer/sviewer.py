@@ -1,4 +1,3 @@
-from adjustText import adjust_text
 import astroplan
 import astropy.coordinates
 from astropy.cosmology import Planck15
@@ -7799,9 +7798,11 @@ class sviewer(QMainWindow):
         try:
             from julia.api import Julia
             #t.time("imp")
-            from julia import Main
             print("compiled modules: ", platform.system() != 'Linux')
-            Julia(compiled_modules=(platform.system() != 'Linux'), optimize=3)  # .Julia()
+            Julia(comepiled_modules=(platform.system() != 'Linux'), optimize=3)  # .Julia()
+
+            from julia import Main
+
             #t.time("comp")
             self.julia = Main
             #t.time("second im")
@@ -9969,8 +9970,8 @@ class sviewer(QMainWindow):
                     text.append(self.ExcitationTemp(species='CO', levels=[0, 1, 2, 3], ind=self.fit.sys.index(sys), plot=False, ax=ax))
 
 
-        if len(text) > 0:
-            adjust_text([t[2] for t in text], [t[0] for t in text], [t[1] for t in text], ax=ax)
+        #if len(text) > 0:
+        #    adjust_text([t[2] for t in text], [t[0] for t in text], [t[1] for t in text], ax=ax)
         ax.set_xlabel(r'Energy, cm$^{-1}$')
         ax.set_ylabel(r'$\log\, N$ / g')
         ax.xaxis.set_minor_locator(AutoMinorLocator(5))

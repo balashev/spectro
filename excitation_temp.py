@@ -14,8 +14,12 @@ import os
 from scipy.optimize import minimize
 #import sys
 #sys.path.append('C:/science/spectro/')
-from a_unc import a
-from stats import distr1d, distr2d
+if __name__ in ["__main__", "__mp_main__"]:
+    from a_unc import a
+    from stats import distr1d
+else:
+    from .a_unc import a
+    from .stats import distr1d, distr2d
 
 def column(matrix, attr):
     return np.asarray([getattr(row,attr) for row in matrix])
