@@ -3240,6 +3240,7 @@ class fitMCMCWidget(QWidget):
 
     def importJulia(self, filename):
         print(filename)
+        self.parent.julia.include("MCMC.jl")
         pars = self.parent.julia.readJulia(filename)
         print(pars)
         for par in pars:
@@ -3317,7 +3318,7 @@ class fitMCMCWidget(QWidget):
                 chain, lns = self.parent.julia.fitMCMC(self.parent.julia_spec, self.parent.julia_pars, self.parent.julia_add, self.parent.fit.list_names(),
                                                        sampler=self.sampler.currentText(), prior=self.priors, nwalkers=nwalkers, nsteps=nsteps,
                                                        nthreads=nthreads, thinning=thinning, init=init, opts=opts)
-
+                chain, lns = np.asarray(chain), np.asarray(lns)
                 if self.sampler.currentText() == 'UltraNest':
                     from ultranest.plot import cornerplot
                     cornerplot(chain)
@@ -3331,7 +3332,7 @@ class fitMCMCWidget(QWidget):
                     g = f[backend.name]
                     g.attrs["iteration"] = nsteps // thinning
                     if lns is not None:
-                        print(lns)
+                        #print(lns)
                         g["log_prob"][...] = np.transpose(lns)
                     print(chain.shape, chain.transpose(2, 0, 1).shape)
                     g["chain"][...] = chain.transpose(2, 0, 1)

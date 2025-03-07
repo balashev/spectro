@@ -21,12 +21,20 @@ function initJulia(filename, spec, pars, add, parnames; sampler="Affine", prior=
 	save(File(format"JLD2", filename), "data", [spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts])
 end
 
-function initJulia2(filename, self; fit=nothing, fit_list=nothing, parnames=nothing, tieds=nothing, sampler="Affine", prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
+function initJulia2(filename, s; fit=nothing, fit_list=nothing, parnames=nothing, tieds=nothing, sampler="Affine", prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
     pars = make_pars(fit_list, tieds=tieds)
     add = prepare_add(fit, pars)
-    cos = prepare_COS(self)
-    spec = prepare(self, pars, add, cos)
+    cos = prepare_COS(s)
+    spec = prepare(s, pars, add, cos)
     priors = make_priors(prior)
+    parnames = pyconvert(Array, parnames)
+    sampler = typeof(sampler) != String ? pyconvert(String, sampler) : sampler
+    nwalkers = typeof(nwalkers) != Int64 ? pyconvert(Int64, nwalkers) : nwalkers
+    nsteps = typeof(nsteps) != Int64 ? pyconvert(Int64, nsteps) : nsteps
+    nthreads = typeof(nthreads) != Int64 ? pyconvert(Int64, nthreads) : nthreads
+    thinning = typeof(thinning) != Int64 ? pyconvert(Int64, thinning) : thinning
+    init = pyconvert(Array, init)
+    opts = pyconvert(Dict, opts)
 #     serialize(filename, [spec, pars, add, parnames, sampler, priors, nwalkers, nsteps, thinning, init, opts])
 	save(File(format"JLD2", filename), "data", [spec, pars, add, parnames, sampler, priors, nwalkers, nsteps, thinning, init, opts])
 end
@@ -132,7 +140,8 @@ function readMCMC(filename)
 end
 
 function readJulia(filename)
-	spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = deserialize(filename)
+	#spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = deserialize(filename)
+	spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts = load(filename)["data"]
 	return pars
 end
 
@@ -148,7 +157,8 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
     priors = make_priors(prior)
 	#println("priors: ", priors)
     params = [p.val for (k, p) in pars if p.vary == 1]
-	#println(init)
+	init = pyconvert(Array{Float64}, init)
+	opts = pyconvert(Dict, opts)
 
 	#lnlike = p->begin
 	function lnlike(p)
@@ -398,7 +408,7 @@ function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Intege
     Modified version of AffineInvariantMCMC by MADS (see copyright information in initial module)
     """
 	@assert length(size(x0)) == 2
-	print(filename)
+	println(filename)
 	#println(thinning)
 	#println("x0: ", x0)
 	x = copy(x0)
@@ -440,7 +450,8 @@ function sampleAffine(llhood::Function, nwalkers::Int, x0::Array, nsteps::Intege
 			save(File(format"JLD2", replace(filename, ".spj" => ".spl")), "data", chain[:, :, div(i, thinning)])
         end
 	end
-	return chain, llhoodvals
+
+	return PyArray{Float64, 3}(chain), PyArray{Float64, 2}(llhoodvals)
 end
 
 function sampleESS(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, thinning::Integer, bounds::Array; mu::Number=1.)
@@ -591,7 +602,7 @@ function sampleESS(llhood::Function, nwalkers::Int, x0::Array, nsteps::Integer, 
 		mu *= 2.0 * nexp / (nexp + ncon)
 		ncalls += ncall
 	end
-	return chain, llhoodvals
+	return PyArray{Float64, 3}(chain), PyArray{Float64, 2}(llhoodvals)
 end
 
 
