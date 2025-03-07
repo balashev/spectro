@@ -22,7 +22,7 @@ from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QP
 from scipy.stats import linregress
 
 from sklearn import linear_model
-import sfdmap
+#eimport sfdmap
 from .tables import *
 from .utils import Timer
 from .QSOSEDfit import QSOSEDfit

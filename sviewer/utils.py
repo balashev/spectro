@@ -407,8 +407,9 @@ def fetch_COS_files(det, grating, lpPos, cenwave, disptab):
     LSF_file_name (str): filename of the new downloaded LSF file
     disptab_path (str): path to the new downloaded disptab file
     """
-    print(os.getcwd())
-    datadir = os.getcwd() + '/data/COS/'
+    #print(os.path.dirname(os.path.abspath(__file__)))
+    #print(disptab)
+    datadir = os.path.dirname(os.path.abspath(__file__)) + '/data/COS/'
     disptab_path = str(datadir + disptab)
     COS_site_rootname = ("https://www.stsci.edu/files/live/sites/www/files/home/hst/instrumentation/cos/performance/spectral-resolution/_documents/")  # Link to where all the files live - split into 2 lines
     if det == "NUV":  # Only one file for NUV
@@ -416,9 +417,11 @@ def fetch_COS_files(det, grating, lpPos, cenwave, disptab):
     elif det == "FUV":  # FUV files follow a naming pattern
         LSF_file_name = f"aa_LSFTable_{grating}_{cenwave}_LP{lpPos}_cn.dat"
 
+    #print(datadir + LSF_file_name)
+    #print(os.path.exists(datadir + LSF_file_name))
     if not os.path.exists(datadir + LSF_file_name):
         LSF_file_webpath = COS_site_rootname + LSF_file_name  # Where to find file online
-        print(LSF_file_webpath)
+        #print(LSF_file_webpath)
         urllib.request.urlretrieve(LSF_file_webpath, str(datadir + LSF_file_name))  # Where to save file to locally
         print(f"Downloaded LSF file to {str(datadir + LSF_file_name)}")
 

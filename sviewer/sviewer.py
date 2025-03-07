@@ -37,7 +37,7 @@ from scipy.interpolate import interp1d, UnivariateSpline
 from scipy.signal import argrelextrema
 from scipy.special import erf
 from scipy.stats import gaussian_kde
-import sfdmap
+#import sfdmap
 from shutil import copyfile
 import subprocess
 import tarfile
@@ -512,7 +512,8 @@ class plotSpectrum(pg.PlotWidget):
                 self.z_status = False
         
             if any([event.key() == getattr(Qt.Key, 'Key_'+s) for s in 'ABCDERSWXZ']):
-                self.vb.removeItem(self.vb.rbScaleBox)
+                if self.vb.rbScaleBox in self.vb.addedItems:
+                    self.vb.removeItem(self.vb.rbScaleBox)
                 self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
 
@@ -541,7 +542,8 @@ class plotSpectrum(pg.PlotWidget):
 
     def mouseReleaseEvent(self, event):
         if any([getattr(self, s+'_status') for s in 'abcdersuwx']):
-            self.vb.removeItem(self.vb.rbScaleBox)
+            if self.vb.rbScaleBox in self.vb.addedItems:
+                self.vb.removeItem(self.vb.rbScaleBox)
             self.vb.setMouseMode(self.vb.PanMode)
         else:
             if event.button() == Qt.MouseButton.RightButton and self.menuEnabled() and self.customMenu:
@@ -842,7 +844,7 @@ class plotSpectrum(pg.PlotWidget):
         return (self.vb.getState()['viewRange'][0][0] < self.parent.abs.reference.line.l() * (1 + self.parent.z_abs)) * (self.parent.abs.reference.line.l() * (1 + self.parent.z_abs) < self.vb.getState()['viewRange'][0][1])
 
     def add_line(self, x, y):
-        if self.addline is not None:
+        if self.addline is not None and self.addline in self.vb.addedItems:
             self.vb.removeItem(self.addline)
         self.addline = pg.PlotCurveItem(x=x, y=y, clickable=True)
         #self.add_line.sigClicked.connect(self.specClicked)
@@ -918,9 +920,11 @@ class residualsWidget(pg.PlotWidget):
 
     def struct(self, x=None, y=None, clear=False):
         if clear:
-            for st in self.st:
-                self.removeItem(st[0])
-                self.removeItem(st[1])
+            if hasattr(self, 'st'):
+                for st in self.st:
+                    for si in st:
+                        if si in self.vb.addedItems:
+                            self.vb.removeItem(si)
         else:
             if x is not None and y is not None:
                 self.st.append([pg.PlotCurveItem(x=x, y=y, pen=pg.mkPen(190, 30, 70, 100, width=10)),
@@ -1125,11 +1129,11 @@ class spec2dWidget(pg.PlotWidget):
 
             if event.key() == Qt.Key.Key_E:
                 self.e_status = False
-                if self.parent.s[self.parent.s.ind].err2d is not None:
+                if self.parent.s[self.parent.s.ind].err2d is not None and self.parent.s[self.parent.s.ind].err2d in self.vb.addedItems:
                     self.vb.removeItem(self.parent.s[self.parent.s.ind].err2d)
 
             if event.key() == Qt.Key.Key_M:
-                if self.parent.s[self.parent.s.ind].mask2d is not None:
+                if self.parent.s[self.parent.s.ind].mask2d is not None and self.parent.s[self.parent.s.ind].mask2d in self.vb.addedItems:
                     self.vb.removeItem(self.parent.s[self.parent.s.ind].mask2d)
 
             if event.key() == Qt.Key.Key_R:
@@ -1144,7 +1148,7 @@ class spec2dWidget(pg.PlotWidget):
 
             if event.key() == Qt.Key.Key_Q:
                 self.q_status = False
-                if self.parent.s[self.parent.s.ind].sky2d is not None:
+                if self.parent.s[self.parent.s.ind].sky2d is not None and self.parent.s[self.parent.s.ind].sky2d in self.vb.addedItems:
                     self.vb.removeItem(self.parent.s[self.parent.s.ind].sky2d)
 
             if event.key() == Qt.Key.Key_X:
@@ -1188,7 +1192,8 @@ class spec2dWidget(pg.PlotWidget):
                 border, poly, model, conf = 5, 3, 'median', 0.03
             s.sky_model(x, x, border=border, poly=poly, model=model, conf=conf, plot=1, smooth=0)
 
-            self.parent.spec2dPanel.vb.removeItem(s.parent.sky2d)
+            if s.parent.sky2d in self.parent.spec2dPanel.vb.addedItems:
+                self.parent.spec2dPanel.vb.removeItem(s.parent.sky2d)
             s.parent.sky2d = s.set_image('sky', s.parent.colormap)
             self.parent.spec2dPanel.vb.addItem(s.parent.sky2d)
 
@@ -1202,13 +1207,15 @@ class spec2dWidget(pg.PlotWidget):
                           [np.min([self.mousePoint_saved.y(), self.mousePoint_saved.y()]),
                            np.max([self.mousePoint_saved.y(), self.mousePoint_saved.y()])]
                           ], add=(QApplication.keyboardModifiers() != Qt.KeyboardModifier.ControlModifier))
-            self.parent.spec2dPanel.vb.removeItem(self.parent.s[self.parent.s.ind].cr_mask2d)
+            if self.parent.s[self.parent.s.ind].cr_mask2d in self.parent.spec2dPanel.vb.addedItems:
+                self.parent.spec2dPanel.vb.removeItem(self.parent.s[self.parent.s.ind].cr_mask2d)
             self.parent.s[self.parent.s.ind].cr_mask2d = self.parent.s[self.parent.s.ind].spec2d.set_image('cr', self.parent.s[self.parent.s.ind].cr_maskcolormap)
             self.parent.spec2dPanel.vb.addItem(self.parent.s[self.parent.s.ind].cr_mask2d)
 
     def mouseReleaseEvent(self, event):
         if any([getattr(self, s+'_status') for s in 'brtx']):
-            self.vb.removeItem(self.vb.rbScaleBox)
+            if self.vb.rbScaleBox in self.vb.addedItems:
+                self.vb.removeItem(self.vb.rbScaleBox)
             self.vb.setMouseMode(self.vb.PanMode)
 
         if any([getattr(self, s + '_status') for s in 's']):
@@ -1564,10 +1571,10 @@ class preferencesWidget(QWidget):
             if getattr(self, f).isChecked():
                 self.parent.fitType = f
                 self.parent.options('fitType', self.parent.fitType)
-                if self.parent.fitType == 'julia':
-                    self.parent.reload_julia()
-                else:
+                if self.parent.fitType == 'julia' and not self.parent.reload_julia():
                     self.parent.julia = None
+                    self.parent.options('uniform', self.parent.fitType)
+                    self.uniform.toggle()
 
     def setTabIndex(self):
         self.parent.preferencesTabIndex = self.tab.currentIndex()
@@ -3196,8 +3203,6 @@ class fitMCMCWidget(QWidget):
                     #        self.parent.s[i].fit_comp[k].disp_corr[1].set(x=self.parent.s[i].fit.disp_corr[1].norm.x, y=self.parent.s[i].fit.disp_corr[1].norm.y)
 
         print("disp loaded")
-
-        # println()
 
     def loadJulia(self, filename):
         self.parent.julia.include("MCMC.jl")
@@ -7795,9 +7800,10 @@ class sviewer(QMainWindow):
     def reload_julia(self):
         #t = Timer("julia")
         self.sendMessage("Julia was not imported. Importing")
-        try:
+        #try:
         #    reload(Julia)
         #except:
+        if 0:
             from julia.api import Julia
             #t.time("imp")
             print("compiled modules: ", platform.system() != 'Linux')
@@ -7808,15 +7814,21 @@ class sviewer(QMainWindow):
             #t.time("comp")
             self.julia = Main
             #t.time("second im")
-            self.julia.include(self.folder + "profiles.jl")
-            #t.time("include")
-            self.options('juliaFit', True)
+        else:
+            from juliacall import Main as julia
+            self.julia = julia
 
-        except:
-            self.sendMessage("There was a problems to import Julia was not imported.")
-            self.julia = None
-            self.options("fitType", "uniform")
-            return False
+        self.julia.include(self.folder + "profiles.jl")
+
+        #t.time("include")
+        self.options('juliaFit', True)
+        return True
+
+        #except:
+        #    self.sendMessage("There was a problems to import Julia was not imported.")
+        #    self.julia = None
+        #    self.options("fitType", "uniform")
+        #    return False
 
 
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -7970,8 +7982,9 @@ class sviewer(QMainWindow):
 
         if self.photo is not None:
             for f in self.photo:
-                self.plot.vb.removeItem(f[0])
-                self.plot.vb.removeItem(f[1])
+                for fi in f:
+                    if fi in self.plot.vb.addedItems:
+                        self.plot.vb.removeItem(fi)
             self.photo = None
 
         self.fit = fitPars(self)
@@ -8634,10 +8647,8 @@ class sviewer(QMainWindow):
         data = np.genfromtxt(filename, unpack=True)
         if len(self.s) > 0:
             for attr in ['g_sky', 'g_sky_cont']:
-                try:
-                    self.vb.removeItem(getattr(self.s[self.s.ind], attr))
-                except:
-                    pass
+                if getattr(self.s[self.s.ind], attr) in self.vb.addedItems:
+                        self.vb.removeItem(getattr(self.s[self.s.ind], attr))
             try:
                 #print(data.shape[0])
                 if data.shape[0] == 2:
@@ -8999,11 +9010,10 @@ class sviewer(QMainWindow):
         if not self.UVESSetup.isChecked():
             self.UVESSetup_status = -1
         else:
-            try:
+            if self.UVES_setup.gobject in self.vb.addedItems:
                 self.vb.removeItem(self.UVES_setup.gobject)
+            if self.UVES_setup.label in self.vb.addedItems:
                 self.vb.removeItem(self.UVES_setup.label)
-            except:
-                pass
 
             self.UVESSetups = UVESSetups()
             if (self.UVESSetup_status == -1):
@@ -10690,8 +10700,10 @@ class sviewer(QMainWindow):
                 self.vb.addItem(f.label)
         else:
             for f in self.filters[name]:
-                self.vb.removeItem(f.gobject)
-                self.vb.removeItem(f.label)
+                if f.object in self.vb.addedItems:
+                    self.vb.removeItem(f.gobject)
+                if f.label in self.vb.addedItems:
+                    self.vb.removeItem(f.label)
 
     def SDSSPhot(self):
         if 1:

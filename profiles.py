@@ -7,17 +7,21 @@ Created on Tue Aug 23 19:20:44 2016
 import astropy.convolution as conv
 from astropy import constants as const
 from astropy import units as u
-#from dust_extinction.averages import G03_SMCBar
-from extinction import fitzpatrick99
+from dust_extinction.averages import G03_SMCBar
+from dust_extinction.parameter_averages import G23
 import matplotlib.pyplot as plt
 from numba import jit
 import numpy as np
 from scipy.integrate import simpson
 from scipy.interpolate import interp1d
 from scipy.special import wofz
-#from scipy.stats import lognormal
 
-from .stats import powerlaw
+if __name__ == '__main__':
+    import sys
+    sys.path.append('C:/science/spectro/')
+    from spectro.stats import powerlaw
+else:
+    from .stats import powerlaw
 
 #import sys
 #sys.path.append('D:/science/python/')
@@ -561,7 +565,7 @@ def add_ext(x, z_ext=0, Av=0, kind='SMC'):
     """
     calculate extinction at given redshift
     parameters: 
-        - x         : the wavelength grid in Angstrem
+        - x         : the wavelength grid in Angstrom
         - z_ext     : redshift of extinction applied
         - Av        : Av 
         - kind      : type of extinction curve, can be either 'SMC', 'LMC'
@@ -597,8 +601,10 @@ def add_ext(x, z_ext=0, Av=0, kind='SMC'):
                 # extinction parametrization from AGNfitter
                 return 10 ** (-0.4 * Av * (1.39 * (1e4 / np.asarray(x, dtype=np.float64) * (1 + z_ext)) ** 1.2 - 0.38) / 2.74)
 
-        elif kind in ['MW', 'fitzpatrick99']:
-            return 10 ** (-0.4 * fitzpatrick99(np.asarray(x, dtype=float64) / (1 + z_ext), Av))
+        elif kind in ['MW']:
+            ext = G23(Rv=3.1)
+            return ext.extinguish(1 / ((np.asarray(x, dtype=np.float64) * u.AA).to('um') / (1 + z_ext)), Av=Av)
+            #return 10 ** (-0.4 * fitzpatrick99(np.asarray(x, dtype=float64) / (1 + z_ext), Av))
 
 def add_ext_bump(x, z_ext=0, Av=0, Av_bump=0):
     print(Av, Av_bump)
@@ -726,25 +732,29 @@ def fisherbN(N, b, lines, ston=1, cgs=0, convolve=1, resolution=50000, z=2.67, t
 
 if __name__ == '__main__':
 
-    import sys
-    sys.path.append('C:/science/python')
-    from spectro.atomic import H2list
-    import matplotlib.pyplot as plt
-    
-    H2 = H2list.Malec(0)
-    
-    l = np.linspace(1000, 1120, 40000)
-    tau = np.zeros_like(l)    
-    
-    for line in H2:
-        print(line)
-        tau += calctau(l, line.l, line.f, line.g, 19, 3, z=0, vel=False)
-    
-    I = convolveflux(l, np.exp(-tau), res=1800)
-    
-    fig, ax = plt.subplots()
-    ax.plot(l, I)
-    ax.set_ylim([-0.1, 1.2])
+    if 0:
+        import sys
+        sys.path.append('C:/science/python')
+        from spectro.atomic import H2list
+        import matplotlib.pyplot as plt
+
+        H2 = H2list.Malec(0)
+
+        l = np.linspace(1000, 1120, 40000)
+        tau = np.zeros_like(l)
+
+        for line in H2:
+            print(line)
+            tau += calctau(l, line.l, line.f, line.g, 19, 3, z=0, vel=False)
+
+        I = convolveflux(l, np.exp(-tau), res=1800)
+
+        fig, ax = plt.subplots()
+        ax.plot(l, I)
+        ax.set_ylim([-0.1, 1.2])
+
+    if 1:
+        print(add_ext(np.linspace(1000, 2000, 10), z_ext=0, Av=0.0, kind='MW'))
     
     
     

@@ -55,7 +55,7 @@ class Speclist(list):
                 for i, s in enumerate(self):
                     if i != self.ind:
                         s.redraw()
-                print(self.ind)
+                #print(self.ind)
                 self[self.ind].redraw()
             else:
                 saved_ind = self.ind
@@ -222,10 +222,13 @@ class Speclist(list):
             if exp_ind in [-1, i] and hasattr(s, 'fit_mask') and s.fit_mask is not None:
                 n += np.sum(s.fit_mask.x())
         k = len(self.parent.fit.list_fit())
-        AIC = 2 * k - 2 * self.lnL()
-        AICc = AIC + (2 * k ** 2 + 2 * k) / (n - k - 1)
-        BIC = k * np.log(n) - 2 * self.lnL()
-        self.parent.chiSquare.setText('  chi2 / dof / AIC / AICc / BIC = {0:.2f} / {1:d} / {2:.2f} / {3:.2f} / {4:.2f}'.format(chi2, int(n - k), AIC, AICc, BIC))
+        try:
+            AIC = 2 * k - 2 * self.lnL()
+            AICc = AIC + (2 * k ** 2 + 2 * k) / (n - k - 1)
+            BIC = k * np.log(n) - 2 * self.lnL()
+            self.parent.chiSquare.setText('  chi2 / dof / AIC / AICc / BIC = {0:.2f} / {1:d} / {2:.2f} / {3:.2f} / {4:.2f}'.format(chi2, int(n - k), AIC, AICc, BIC))
+        except:
+            pass
         return chi2
 
     def chi(self, exp_ind=-1):
@@ -1104,10 +1107,11 @@ class spec2d():
         print('trace', self.trace)
     def set_trace(self):
         for attr in ['trace_pos', 'trace_width']:
-            try:
+            #try:
+            if getattr(self, attr) in self.parent.spec2dPanel.vb.addedItems:
                 self.parent.spec2dPanel.vb.removeItem(getattr(self, attr))
-            except:
-                pass
+            #except:
+            #    pass
         self.trace_pos = pg.PlotCurveItem(x=self.trace[0], y=self.trace[1], pen=pg.mkPen(255, 255, 255, width=3))
         self.parent.parent.spec2dPanel.vb.addItem(self.trace_pos)
         self.trace_width = pg.PlotCurveItem(x=np.concatenate((self.trace[0], np.array([np.inf]), self.trace[0])),
@@ -1596,6 +1600,7 @@ class Spectrum():
             self.residuals = pg.ScatterPlotItem(x=self.res.x, y=self.res.y, size=10,
                                                 brush=pg.mkBrush(52, 152, 219, 255))
             self.parent.residualsPanel.vb.addItem(self.residuals)
+
             self.kde_line = pg.PlotCurveItem(x=-self.kde.x, y=self.kde.y, pen=pg.mkPen(52, 152, 219, 255), fillLevel=0,
                                              brush=pg.mkBrush(52, 152, 219, 100))
             self.kde_line.setRotation(270)
@@ -1616,7 +1621,8 @@ class Spectrum():
                 #print("levels:", self.spec2d.raw.z_levels)
                 self.image2d.setLevels(self.spec2d.raw.z_levels)
                 self.parent.spec2dPanel.vb.addItem(self.image2d)
-                self.parent.spec2dPanel.vb.removeItem(self.parent.spec2dPanel.cursorpos)
+                if self.parent.spec2dPanel.cursorpos in self.parent.spec2dPanel.vb.addedItems:
+                    self.parent.spec2dPanel.vb.removeItem(self.parent.spec2dPanel.cursorpos)
                 self.parent.spec2dPanel.vb.addItem(self.parent.spec2dPanel.cursorpos, ignoreBounds=True)
 
                 if self.spec2d.raw.err is not None:
@@ -1644,69 +1650,51 @@ class Spectrum():
                 self.parent.spec2dPanel.vb.addItem(self.g_spline2d)
 
     def remove(self):
-        try:
-            if 'err' in self.view:
-                try:
-                    self.parent.vb.removeItem(self.g_err)
-                except:
-                    pass
-            if 'point' in self.view:
-                self.parent.vb.removeItem(self.g_point)
-            if 'step' in self.view:
-                self.parent.vb.removeItem(self.g_line)
-            if 'line' in self.view:
-                self.parent.vb.removeItem(self.g_line)
-        except:
-            pass
-        try:
-            self.remove_g_fit_comps()
-        except:
-            pass
+        #try:
+        if 'err' in self.view and hasattr(self, 'g_err') and self.g_err in self.parent.vb.addedItems:
+            self.parent.vb.removeItem(self.g_err)
+        if 'point' in self.view and hasattr(self, 'g_point') and self.g_point in self.parent.vb.addedItems:
+            self.parent.vb.removeItem(self.g_point)
+        if 'step' in self.view and hasattr(self, 'g_line') and self.g_line in self.parent.vb.addedItems:
+            self.parent.vb.removeItem(self.g_line)
+        if 'line' in self.view and hasattr(self, 'g_line') and self.g_line in self.parent.vb.addedItems:
+            self.parent.vb.removeItem(self.g_line)
+        self.remove_g_fit_comps()
+
         attrs = ['g_fit', 'g_fit_bin', 'g_sky', 'g_sky_cont', 'g_fit_comp', 'points', 'bad_pixels',
                  'g_cont', 'g_spline', 'normline', 'sm_line', 'g_cheb', 'rebin']
         for attr in attrs:
-            try:
+            if hasattr(self, attr) and getattr(self, attr) in self.parent.vb.addedItems:
                 self.parent.vb.removeItem(getattr(self, attr))
-            except:
-                pass
-        try:
-            if self.parent.selectview == 'regions':
+        if self.parent.selectview == 'regions':
+            if hasattr(self, 'regions'):
                 for r in self.regions:
-                    self.parent.vb.removeItem(r)
-        except:
-            pass
-
-        try:
+                    if r in self.parent.vb.addedItems:
+                        self.parent.vb.removeItem(r)
+        if hasattr(self, 'mask_regions'):
             for r in self.mask_regions:
-                self.parent.vb.removeItem(r)
-        except:
-            pass
+                if r in self.parent.vb.addedItems:
+                    self.parent.vb.removeItem(r)
 
-        try:
-            self.parent.residualsPanel.vb.removeItem(self.residuals)
-        except:
-            pass
-        try:
-            self.parent.residualsPanel.kde.removeItem(self.kde_line)
-            self.parent.residualsPanel.kde.removeItem(self.kde_gauss)
-            self.parent.residualsPanel.kde.removeItem(self.kde_local)
-            self.parent.residualsPanel.struct(clear=True)
-        except:
-            pass
+        if hasattr(self.parent, 'residualsPanel') and self.parent.residualsPanel != None:
+            if hasattr(self, 'residuals') and self.residuals in self.parent.residualsPanel.vb.addedItems:
+                self.parent.residualsPanel.vb.removeItem(self.residuals)
 
-        attrs = ['image2d', 'err2d', 'sky2d', 'mask2d', 'cr_mask2d', 'g_cont2d', 'g_spline2d', 'trace_pos', 'trace_width']
-        for attr in attrs:
-            try:
-                self.parent.spec2dPanel.vb.removeItem(getattr(self, attr))
-            except:
-                pass
+            for attr in ['kde_line', 'kde_gauss', 'kde_local']:
+                if hasattr(self, attr) and getattr(self, attr) in self.parent.residualsPanel.kde.addedItems:
+                    self.parent.residualsPanel.kde.removeItem(getattr(self, attr))
+                self.parent.residualsPanel.struct(clear=True)
 
-        for g in self.spec2d.gslits:
-            try:
-                self.parent.spec2dPanel.vb.removeItem(g[0])
-                self.parent.spec2dPanel.vb.removeItem(g[1])
-            except:
-                pass
+        if self.parent.show_2d:
+            attrs = ['image2d', 'err2d', 'sky2d', 'mask2d', 'cr_mask2d', 'g_cont2d', 'g_spline2d', 'trace_pos', 'trace_width']
+            for attr in attrs:
+                if hasattr(self, attr) and getattr(self, attr) in self.parent.spec2dPanel.vb.addedItems:
+                    self.parent.spec2dPanel.vb.removeItem(getattr(self, attr))
+
+            for g in self.spec2d.gslits:
+                for gi in g:
+                    if gi in self.parent.spec2dPanel.vb.addedItems:
+                        self.parent.spec2dPanel.vb.removeItem(gi)
 
     def redraw(self):
         self.remove()
@@ -1813,11 +1801,13 @@ class Spectrum():
         else:
             try:
                 for i in [0, 1, 2]:
-                    self.parent.vb.removeItem(self.fit.g_disp[i])
-                    if self.parent.fit.cont_fit:
+                    if hasattr(self.fit, 'g_disp') and self.fit.g_disp[i] in self.parent.vb.addedItems:
+                        self.parent.vb.removeItem(self.fit.g_disp[i])
+                    if self.parent.fit.cont_fit and hasattr(self.cheb, 'g_disp') and self.cheb.g_disp[i] in self.parent.vb.addedItems:
                         self.parent.vb.removeItem(self.cheb.g_disp[i])
                     for k in range(len(self.fit_comp)):
-                        self.parent.vb.removeItem(self.fit_comp[k].g_disp[i])
+                        if hasattr(self.fit_comp[k], 'g_disp') and self.fit_comp[k].g_disp[i] in self.parent.vb.addedItems:
+                            self.parent.vb.removeItem(self.fit_comp[k].g_disp[i])
             except:
                 pass
 
@@ -1854,14 +1844,13 @@ class Spectrum():
                     self.parent.vb.addItem(self.g_fit_comp[-1])
 
     def remove_g_fit_comps(self):
-        try:
+        #try:
+        if hasattr(self, 'g_fit_comp'):
             for g in self.g_fit_comp:
-                try:
+                if g in self.parent.vb.addedItems:
                     self.parent.vb.removeItem(g)
-                except:
-                    pass
-        except:
-            pass
+        #except:
+        #    pass
 
     def redrawFitComps(self):
         if self.active():
@@ -1949,11 +1938,10 @@ class Spectrum():
             self.updateRegions()
 
     def updateRegions(self):
-        try:
+        if hasattr(self, 'regions'):
             for r in self.regions:
-                self.parent.vb.removeItem(r)
-        except:
-            pass
+                if r in self.parent.vb.addedItems:
+                    self.parent.vb.removeItem(r)
 
         i = np.where(self.fit_mask.x())
         if i[0].shape[0] > 0:
@@ -1969,11 +1957,13 @@ class Spectrum():
                 self.parent.vb.addItem(self.regions[-1])
 
     def updateMask(self):
-        try:
+        #try:
+        if hasattr(self, 'mark_regions'):
             for r in self.mask_regions:
-                self.parent.vb.removeItem(r)
-        except:
-            pass
+                if r in self.parent.vb.addedItems:
+                    self.parent.vb.removeItem(r)
+        #except:
+        #    pass
 
         i = np.where(self.spec.mask())
         if i[0].shape[0] > 0:
@@ -2148,6 +2138,8 @@ class Spectrum():
 
         LSF_file_name, disptab_path = fetch_COS_files(*list(param_dict.values()))
 
+        print(LSF_file_name, disptab_path)
+
         def read_lsf(filename):
             # This is the table of all the LSFs: called "lsf"
             # The first column is a list of the wavelengths corresponding to the line profile, so we set our header accordingly
@@ -2167,7 +2159,7 @@ class Spectrum():
 
             return lsf, pix, lsf_wvlns
 
-        lsf, pix, lsf_wvlns = read_lsf(str(os.getcwd() + '/data/COS/' + LSF_file_name))
+        lsf, pix, lsf_wvlns = read_lsf(str(os.path.dirname(os.path.abspath(__file__)) + '/data/COS/' + LSF_file_name))
         #print(len(lsf[lsf.colnames[5]]))
         #print(lsf.colnames)
         #print(pix)
@@ -2187,7 +2179,7 @@ class Spectrum():
         #print(pix.shape, pix)
         #print(lsf_wvlns.shape, lsf_wvlns)
         #print(lsf.as_array().shape, np.lib.recfunctions.structured_to_unstructured(lsf.as_array()))
-        #print(disp_coeff)
+        #print(disp_coeff, type(disp_coeff))
         return pix, lsf_wvlns, np.lib.recfunctions.structured_to_unstructured(lsf.as_array()), disp_coeff
 
     def findFitLines(self, ind=-1, tlim=0.01, all=True, debug=True):
@@ -2494,7 +2486,6 @@ class Spectrum():
                         line.logN = sys.sp[line.name.split()[0]].N.val
                         line.z = sys.z.val
                         line.tau = tau(line, resolution=self.resolution)
-                print(line)
             if timer:
                 t.time('update')
 
@@ -2508,7 +2499,7 @@ class Spectrum():
                         if ind == -1 or ind == line.sys:
                             line.tau.getrange(tlim=tau_limit)
                             mask_glob = np.logical_or(mask_glob, ((x_spec > line.tau.range[0]) * (x_spec < line.tau.range[-1])))
-                    print("mask:", np.sum(mask_glob))
+                    #print("mask:", np.sum(mask_glob))
                     x = makegrid(x_spec, mask_glob.astype(int) * num_between)
                 else:
                     x = self.fit.line.norm.x
@@ -2576,7 +2567,7 @@ class Spectrum():
                         f = interp1d(x + (x - getattr(self.parent.fit, 'displ_' + str(i)).val) * getattr(self.parent.fit, 'disps_' + str(i)).val + getattr(self.parent.fit, 'dispz_' + str(i)).val, flux, bounds_error=False, fill_value=1)
                         flux = f(x)
 
-            print("flux:", x, flux)
+            #print("flux:", x, flux)
             # >>> set fit graphics
             if ind == -1:
                 self.set_fit(x=x, y=flux)
@@ -2847,7 +2838,7 @@ class regionList(list):
 
     def remove(self, reg):
         i = self.check(reg)
-        if i is not None:
+        if i is not None and self[i] in self.parent.vb.addedItems:
             self.parent.vb.removeItem(self[i])
             del self[i]
 
@@ -3296,7 +3287,8 @@ class CompositeSpectrum():
             if self.parent.compositeGal_status == len(self.gal_names) * 2: #12:
                 self.parent.compositeGal_status = 0
 
-        self.parent.vb.removeItem(self.gline)
+        if self.gline in self.parent.vb.addedItems:
+            self.parent.vb.removeItem(self.gline)
         del self
 
     def lineClicked(self):

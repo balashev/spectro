@@ -4,6 +4,7 @@ using ImageFiltering
 using LsqFit
 using PeriodicTable
 using Polynomials
+using PythonCall
 using Roots
 using SpecialFunctions
 
@@ -280,20 +281,19 @@ function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
         end
     else
         for p in p_pars
-            #println(p)
-            if occursin("z_", p.__str__()) * (z_ref == true)
-                pars[p.__str__()] = par(p.__str__(), 0.0, z_to_v(z=p.min, z_ref=p.val), z_to_v(z=p.max, z_ref=p.val), p.step, p.fit * p.vary, p.addinfo, "", p.val)
+            if occursin("z_", pyconvert(String, p.__str__())) * (z_ref == true)
+                pars[pyconvert(String, p.__str__())] = par(pyconvert(String, p.__str__()), 0.0, z_to_v(z=pyconvert(Float64, p.min), z_ref=pyconvert(Float64, p.val)), z_to_v(z=pyconvert(Float64, p.max), z_ref=pyconvert(Float64, p.val)), pyconvert(Float64, p.step), pyconvert(Bool, p.fit * p.vary), pyconvert(String, p.addinfo), "", pyconvert(Float64, p.val))
             else
-                pars[p.__str__()] = par(p.__str__(), p.val, p.min, p.max, p.step, p.fit * p.vary, p.addinfo, "", nothing)
+                pars[pyconvert(String, p.__str__())] = par(pyconvert(String, p.__str__()), pyconvert(Float64, p.val), pyconvert(Float64, p.min), pyconvert(Float64, p.max), pyconvert(Float64, p.step), pyconvert(Bool, p.fit * p.vary), pyconvert(String, p.addinfo), "", nothing)
             end
-            if occursin("cf", p.__str__())
-                pars[p.__str__()].min, pars[p.__str__()].max = 0, 1
+            if occursin("cf", pyconvert(String, p.__str__()))
+                pars[pyconvert(String, p.__str__())].min, pars[pyconvert(String, p.__str__())].max = 0, 1
             end
             #println(p, " ", pars[p.__str__()])
         end
         for (k, v) in tieds
-            pars[k].vary = false
-            pars[k].tied = v
+            pars[pyconvert(String, k)].vary = false
+            pars[pyconvert(String, k)].tied = pyconvert(String, v)
         end
     end
     return pars
@@ -432,7 +432,7 @@ end
 function make_priors(p_priors)
     priors = OrderedDict{String, prior}()
     for (k, p) in p_priors
-        priors[k] = prior(k, p.val, p.plus, p.minus)
+        priors[k] = prior(pyconvert(String, k), pyconvert(Float64, p.val), pyconvert(Float64, p.plus), pyconvert(Float64, p.minus))
     end
     return priors
 end
@@ -497,9 +497,22 @@ function update_lines(lines, pars; comp=0, tau_limit=0.001)
 end
 
 function prepare_lines(lines)
-    fit_lines = Vector{line}(undef, size(lines)[1])
+    fit_lines = Vector{line}(undef, pylen(lines))
     for (i, l) in enumerate(lines)
-        fit_lines[i] = line(l.name, l.sys, l.l(), l.f(), l.g(), l.b, l.logN, l.z, l.l()*(1+l.z), 0, 0, 0, 0, 0, l.cf, l.stack, Dict())
+        fit_lines[i] = line(pyconvert(String, l.name),
+                            pyconvert(Int64, l.sys),
+                            pyconvert(Float64, l.l()),
+                            pyconvert(Float64, l.f()),
+                            pyconvert(Float64, l.g()),
+                            pyconvert(Float64, l.b),
+                            pyconvert(Float64, l.logN),
+                            pyconvert(Float64, l.z),
+                            pyconvert(Float64, l.l()*(1+l.z)),
+                            0, 0, 0, 0, 0,
+                            pyconvert(Int64, l.cf),
+                            pyconvert(Int64, l.stack),
+                            Dict())
+        #fit_lines[i] = line(l.name, l.sys, l.l(), l.f(), l.g(), l.b, l.logN, l.z, l.l()*(1+l.z), 0, 0, 0, 0, 0, l.cf, l.stack, Dict())
     end
     return fit_lines
 end
@@ -526,19 +539,17 @@ end
 function prepare_coll(pr, s)
     #println(keys(pr.species[s].coll))
     c = Dict()
-    for sp in keys(pr.species[s].coll)
-        #println(sp)
-        c[sp] = Array{coll}(undef, pr.species[s].num, pr.species[s].num)
+    for sp in pr.species[s].coll.keys()
+        num = pyconvert(Int64, pr.species[s].num)
+        c[pyconvert(String, sp)] = Array{coll}(undef, num, num)
         #println(pr.species[s].num, " ", pr.species[s].coll[sp].c[1].rates)
-        for i in 1:pr.species[s].num
-            for j in 1:pr.species[s].num
+        for i in 1:num
+            for j in 1:num
                 if i != j
-                    if pr.species[s].coll[sp].c[1].rates == nothing
-                         coll(i, j, LinearInterpolation([0, 6], [0, 0], extrapolation_bc=Flat()))
+                    if pyconvert(Bool, pytype(pr.species[s].coll[sp].c[0].rates) == pytype(pybuiltins.None))
+                        coll(i, j, LinearInterpolation([0, 6], [0, 0], extrapolation_bc=Flat()))
                     else
-                        #println(pr.species[s].coll[sp].rate(i-1, j-1, 2), " ", pr.species[s].coll[sp].rate(j-1, i-1, 2))
-                        #println(pr.species[s].coll[sp].c[1].rates[1,:], " ", pr.species[s].coll[sp].rate(i-1, j-1, pr.species[s].coll[sp].c[1].rates[1,:]))
-                        c[sp][i,j] = coll(i, j, LinearInterpolation(pr.species[s].coll[sp].c[1].rates[1,:], pr.species[s].coll[sp].rate(i-1, j-1, pr.species[s].coll[sp].c[1].rates[1,:]), extrapolation_bc=Flat()))
+                        c[pyconvert(String, sp)][i,j] = coll(i, j, LinearInterpolation(pyconvert(Vector{Float64}, pr.species[s].coll[sp].c[1].rates[0]), pyconvert(Vector{Float64}, pr.species[s].coll[sp].rate(pyint(i-1), pyint(j-1), pr.species[s].coll[sp].c[1].rates[0])), extrapolation_bc=Flat()))
                     end
                 end
             end
@@ -552,15 +563,17 @@ end
 
 function prepare_add(fit, pars)
     add = Dict()
-    if any(occursin("Ntot", k) for k in keys(pars))
+    if any(occursin("Ntot", pyconvert(String, k)) for k in keys(pars))
         add["pyratio"] = Dict()
     end
     for (k, v) in pars
-        if occursin("Ntot", pars[k].name)
-            ind = split(pars[k].name, "_")[2]
+        if occursin("Ntot", pyconvert(String, pars[k].name))
+            ind = split(pyconvert(String, pars[k].name), "_")[2]
             #add["pyratio"][parse(Int, split(pars[k].name, "_")[2]) + 1] = fit.sys[parse(Int, split(pars[k].name, "_")[2])+1].pr
-            pr = fit.sys[parse(Int, ind)+1].pr
-            s = collect(keys(pr.species))[1]
+            pr = fit.sys[parse(Int, ind)].pr
+
+            #s = collect(keys(pr.species))[1]
+            s = pylist(pr.species.keys())[0]
             #println(prepare_coll(pr, s))
             #println(ind)
             #println(collect(keys(pr.pars)))
@@ -569,7 +582,17 @@ function prepare_add(fit, pars)
             #println(pr.balance(debug="C"))
             #println(pr.balance(debug="IR"))
             #println(pr.balance(debug="UV"))
-            add["pyratio"][parse(Int, ind) + 1] = pyratio(ind, collect(keys(pr.pars)), s, pr.species[s].num, pr.species[s].Eij, pr.species[s].Aij, pr.species[s].Bij, pr.balance(debug="C"), pr.species[s].rad_rate, pr.species[s].pump_rate, prepare_coll(pr, s))
+            add["pyratio"][parse(Int, ind) + 1] = pyratio(ind,
+                                                          collect(pyconvert(Array{String}, pr.pars.keys())),
+                                                          pyconvert(String, s),
+                                                          pyconvert(Int64, pr.species[s].num),
+                                                          pyconvert(Array{Float64, 2}, pr.species[s].Eij),
+                                                          pyconvert(Array{Float64, 2}, pr.species[s].Aij),
+                                                          pyconvert(Array{Float64, 2}, pr.species[s].Bij),
+                                                          pyconvert(Array{Float64, 2}, pr.balance(debug="C")),
+                                                          pyconvert(Array{Float64, 2}, pr.species[s].rad_rate),
+                                                          pyconvert(Array{Float64, 2}, pr.species[s].pump_rate),
+                                                          prepare_coll(pr, s))
         end
     end
     #println(add)
@@ -724,17 +747,20 @@ end
 function prepare_COS(s)
     cos = Dict()
     for (i, si) in enumerate(s)
-        if si.lsf_type == "cos"
-            cos[i] = si.prepare_COS()
+        if pyconvert(String, si.lsf_type) == "cos"
+            t = si.prepare_COS()
+            cos[i] = [pyconvert(Vector{Float64}, t[0]), pyconvert(Vector{Float64}, t[1]), pyconvert(Array{Float64}, t[2]), pyconvert(Float64, t[3])]
         else
             x = 0:1:1
             cos[i] = (x, x, [xs + ys for xs in x, ys in x], 0)
         end
     end
+    #println("cos ", cos)
     return cos #LinearInterpolation((lsf_cent, pix), lsf)
 end
 
 function prepare(s, pars, add, COS)
+    #print("COS ", COS)
     #c = Vector{Any}
     #println(append!(c,  [cheb([], 0, 0, 0)]))
     spec = Vector(undef, size(s)[1])
@@ -742,9 +768,21 @@ function prepare(s, pars, add, COS)
         #println("sky ", si.sky_cont.norm.x, " ", si.sky_cont.norm.y)
         #println(isempty(si.sky.norm.x), " ", isempty(si.sky_cont.norm.x))
         #println(size(si.sky.norm.x))
-        spec[i] = spectrum.spec(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, linear_interpolation(si.sky_cont.norm.x, si.sky_cont.norm.y, extrapolation_bc=Flat()), si.lsf_type, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0), linear_interpolation((COS[i][1], COS[i][2]), COS[i][3], extrapolation_bc=Flat()), COS[i][4])
+        spec[i] = spectrum.spec(pyconvert(Vector{Float64}, si.spec.norm.x),
+                                pyconvert(Vector{Float64}, si.spec.norm.y),
+                                pyconvert(Vector{Float64}, si.spec.norm.err),
+                                pyconvert(Vector{Int64}, si.mask.norm.x) .== 1,
+                                linear_interpolation(pyconvert(Vector{Float64}, si.sky_cont.norm.x), pyconvert(Vector{Float64}, si.sky_cont.norm.y), extrapolation_bc=Flat()),
+                                pyconvert(String, si.lsf_type),
+                                pyconvert(Float64, si.resolution),
+                                prepare_lines(si.fit_lines),
+                                NaN,
+                                NaN,
+                                NaN,
+                                prepare_cheb(pars, i),
+                                Vector(undef, 0), BitArray(0), linear_interpolation((COS[i][1], COS[i][2]), COS[i][3], extrapolation_bc=Flat()), COS[i][4])
         #spec[i] = spectrum.spec(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.lsf_type, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0), Spline2D(COS[i][1], COS[i][2], COS[i][3]; kx=3, ky=3, s=0.0), COS[i][4])
-        spec[i].bins = (si.spec.norm.x[2:end] + si.spec.norm.x[1:end-1]) / 2
+        spec[i].bins = (spec[i].x[2:end] + spec[i].x[1:end-1]) / 2
         spec[i].bin_mask = spec[i].mask[1:end-1] .|| spec[i].mask[2:end]
         #println(spec[i].sky)
     end
@@ -1041,7 +1079,6 @@ function calc_spectrum(spec, pars; comp=0, regular=-2, out="all", telluric=false
         y .+= pars["zero"].val
     end
 
-    #println("x:", size(x),  " ", spec.lsf_type)
     if (spec.resolution > 0) && (spec.lsf_type != "none")
         y = 1 .- y
         y_c = zero(y)
@@ -1088,39 +1125,10 @@ function calc_spectrum(spec, pars; comp=0, regular=-2, out="all", telluric=false
 
     elseif out in ["all", "binned", "init"]
 
-        #println("y_c:", y_c)
-        #println(spec.x[spec.mask])
-        #println(spec.bins[spec.bin_mask])
-        #println(x)
-        #println(size(spec.x[spec.mask]), " ", size(spec.bins[spec.bin_mask]), " ", size(x), " ", size(y_c))
         inds = searchsortedlast.(Ref(x), spec.bins[spec.bin_mask])
-        #println(inds)
-        #inds = binsearch.(Ref(x), spec.bins[spec.bin_mask], type="min")
-        #println("bins:", spec.bins[spec.bin_mask])
-        #println("indexes: ", inds, " ", size(inds))
-        #cumsum = zeros(size(x))
-        #@inbounds @fastmath for i in 2:size(x)[1] # not sure if @simd can do anything here
-        #    cumsum[i] = cumsum[i-1] + (x[i] - x[i-1]) * (2 - y_c[i] - y_c[i-1])
-        #end
-        #cumsum = cumsum .* 0.5
-        #println("cumsum:", cumsum)
-
-        #println(1 .- (cumsum[inds[2:end]] .- cumsum[inds[1:end-1]]) ./ (x[inds[2:end]] .- x[inds[1:end-1]]))
-
         binned = zero(spec.x[spec.mask])
         sind = searchsortedlast.(Ref(spec.bins[spec.bin_mask]), spec.x[spec.mask])
-        #println(sind)
         for (l, k) in enumerate(sind)
-
-        #for (k, xi) in enumerate(spec.x[spec.mask])
-            #ind = findmin.(abs.(spec.bins[spec.bin_mask] .- spec.x[spec.mask]))[2]
-            #println(xi, " ", ind)
-        #for (k, ind) in enumerate(searchsortedfirst.(Ref(x), spec.x[spec.mask] .* 1.000000001))
-            #ind_min, ind_max = searchsortedlast(inds, ind), searchsortedfirst(inds, ind)
-            #ind_min, ind_max = binsearch(inds, ind, type="min"), binsearch(inds, ind, type="max")
-            #ind_min = binsearch(inds, ind, type="min")
-            #println(k, " ",  spec.bins[spec.bin_mask][k])
-            #println(x[inds[k]], " ", x[inds[k+1]])
 
             for i in inds[k]:inds[k+1]-1
                 binned[l] += (x[i+1] - x[i]) * (2 - y_c[i+1] - y_c[i])
@@ -1128,11 +1136,9 @@ function calc_spectrum(spec, pars; comp=0, regular=-2, out="all", telluric=false
 
             binned[l] = 1 - binned[l] / (x[inds[k+1]] - x[inds[k]]) / 2
         end
-        #println("binned:", binned)
-        #println("specmask: ", spec.x[spec.mask])
 
         if out == "all"
-            return x, y_c, spec.x[spec.mask], binned #1 .- (cumsum[inds[2:end]] .- cumsum[inds[1:end-1]]) ./ (x[inds[2:end]] .- x[inds[1:end-1]])
+            return pylist(x), pylist(y_c), pylist(spec.x[spec.mask]), pylist(binned)
         elseif out == "binned"
             return binned
         elseif out == "init"
@@ -1147,7 +1153,6 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, re
 
     function cost(p)
         i = 1
-        #println(p)
         for (k, v) in pars
             if v.vary == 1
                 pars[k].val = p[i]
@@ -1196,7 +1201,7 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, re
                     end
                 end
             end
-			println("b_incr ", retval)
+			#println("b_incr ", retval)
 			append!(res, retval)
 		end
 
@@ -1256,9 +1261,10 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, re
         return res
     end
 
+    opts = pyconvert(Dict, opts)
+
     pars = make_pars(p_pars, tieds=tieds, z_ref=true)
 
-    println("fitLM ", pars)
     params = [p.val for (k, p) in pars if p.vary == true]
     lower = [p.min for (k, p) in pars if p.vary == true]
     upper = [p.max for (k, p) in pars if p.vary == true]

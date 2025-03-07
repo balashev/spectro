@@ -828,6 +828,9 @@ class cfLabel(pg.TextItem):
                 self.parent.value = 0
             self.parent.updateFitModel()
             self.parent.redraw()
+            if ev.isFinish():
+                self.parent.parent.parent.showFit()
+
             ev.accept()
 
     def mouseClickEvent(self, ev):
