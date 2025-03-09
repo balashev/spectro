@@ -1781,6 +1781,7 @@ class Spectrum():
     def set_fit_disp(self, show=True):
         if show:
             for i in [0, 1]:
+                print(type(self.fit.disp[i].x()), type(self.fit.disp[i].y()))
                 self.fit.g_disp[i] = pg.PlotCurveItem(x=self.fit.disp[i].x(), y=self.fit.disp[i].y(), pen=self.fit_disp_pen)
                 self.parent.vb.addItem(self.fit.g_disp[i])
             self.fit.g_disp[2] = pg.FillBetweenItem(self.fit.g_disp[0], self.fit.g_disp[1], brush=pg.mkBrush(tuple(list(self.fit_disp_pen.color().getRgb()[:3]) + [200])))

@@ -6,6 +6,7 @@ using Measures
 using Random
 using Serialization
 using Statistics
+using VectorizedStatistics
 @everywhere using SpecialFunctions
 @everywhere using Statistics
 @everywhere include("profiles.jl")
@@ -14,7 +15,6 @@ using Statistics
 @everywhere using AdvancedHMC, ForwardDiff
 using FileIO
 using JLD2
-
 
 function initJulia(filename, spec, pars, add, parnames; sampler="Affine", prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
 # 	serialize(filename, [spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts])
@@ -638,16 +638,19 @@ end
 @everywhere spectrum_comp(spectrum, s, x; comp=0) = p->spectrum(p, s, x, comp=comp)
 @everywhere spectrum_cheb(spectrum, s, x) = p->spectrum(p, s, x, cheb=1)
 
-function load_disp(filename)
-	fit, fit_comps, cheb = load(filename)["data"]
-	return fit, fit_comps, cheb
-end
-
 function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nthreads=1, savename="disp")
 	"""
 	Calculate the dispersion of the fit
 	"""
 	pars = make_pars(ppar, tieds=tieds)
+	x = [pyconvert(Array{Float64}, xi) for xi in x]
+	samples = pyconvert(Array{Float64}, samples)
+	convert!(sys, Int64)
+	convert!(nums, Int64)
+	convert!(nthreads, Int64)
+	convert!(savename, String)
+    #print(savename)
+
 	inds = hcat(rand(1:size(samples, 1), nums), rand(1:size(samples, 2), nums))
 	pp = map(i->samples[i[1], i[2], :], eachrow(inds))
 
@@ -664,6 +667,8 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nt
 
         if cheb == 0
             w, f = calc_spectrum(s, pars, comp=comp)
+            w = convert(w, Array{Float64})
+            f = convert(f, Array{Float64})
         else
             w, f = x, correct_continuum(s.cont, pars, x)
             if any([occursin("zero", p.first) for p in pars])
@@ -692,20 +697,66 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nt
     fit = Any[]
     cheb = Any[]
     for (i, s) in enumerate(spec)
-        push!(fit, pmap(spectrum_comp(spectrum, s, x[i], comp=0), pp))
-        push!(cheb, pmap(spectrum_cheb(spectrum, s, x[i]), pp))
+        push!(fit, reduce(hcat, pmap(spectrum_comp(spectrum, s, x[i], comp=0), pp)))
+        push!(cheb, reduce(hcat, pmap(spectrum_cheb(spectrum, s, x[i]), pp)))
     end
 
     fit_comps = Any[]
     for (i, s) in enumerate(spec)
         push!(fit_comps, Any[])
         for k in 1:sys
-            push!(fit_comps[i], reduce(vcat, transpose.(pmap(spectrum_comp(spectrum, s, x[i], comp=k), pp))))
+            push!(fit_comps[i], reduce(hcat, pmap(spectrum_comp(spectrum, s, x[i], comp=k), pp)))
         end
     end
 
     rmprocs(workers())
 
-	save(File(format"JLD2", "output\\"*savename*".spd"), "data", [fit, fit_comps, cheb])
-    return fit, fit_comps, cheb
+    #println(sys)
+    #println(size(fit))
+    for (i, s) in enumerate(spec)
+        #println(size(fit[i]))
+        #println(fit[i])
+        fit[i] = reduce(hcat, [vquantile!(fit[i], 0.158, dims=2), vquantile!(fit[i], 0.842, dims=2)])
+        #println(i, " ", size(fit[i]))
+        #println(size(fit[i][1]))
+        #println(size(cheb[i]))
+        cheb[i] = reduce(hcat, [vquantile!(cheb[i], 0.158, dims=2), vquantile!(cheb[i], 0.842, dims=2)])
+        #println(size(cheb[i]))
+        for k in 1:sys
+            fit_comps[i][k] = reduce(hcat, [vquantile!(fit_comps[i][k], 0.158, dims=2), vquantile!(fit_comps[i][k], 0.842, dims=2)])
+            #println(i, " ", k, " ", typeof(fit_comps[i][k]))
+        end
+    end
+
+    #println(size(fit))
+    #println(size(fit[1]))
+    #fit = reduce(vcat, fit)
+    #cheb = reduce(vcat, cheb)
+    #fit_comps = reduce(vcat, fit_comps)
+	#println(size(fit))
+	#println(size(cheb))
+	#println(size(fit_comps))
+	#println(size(fit_comps[1]))
+	#println(size(fit_comps[1][1]))
+	save(File(format"JLD2", savename), "data", [x, fit, fit_comps, cheb])
+	println("saved")
+	#save(File(format"JLD2", "output\\"*savename*".spd"), "data", [pylist(fit), pylist([pylist([fi for fi in f]) for f in fit_comps]), pylist(cheb)])
+    #return pylist(fit), pylist([pylist([fi for fi in f]) for f in fit_comps]), pylist(cheb)
 end
+
+function load_disp(filename="")
+    if pyconvert(String, filename) == ""
+        filename = "output\\disp.spd"
+    end
+    x, fit, fit_comps, cheb = load(filename)["data"]
+    for (i, f) in enumerate(fit)
+        x[i] = PyArray{Float64}(x[i])
+        fit[i] = PyArray{Float64}(f)
+        cheb[i] = PyArray{Float64}(cheb[i])
+        for k in 1:size(fit_comps[i])[1]
+            fit_comps[i][k] = PyArray{Float64}(fit_comps[i][k])
+        end
+    end
+    return pylist(x), pylist(fit), pylist([pylist([fi for fi in f]) for f in fit_comps]), pylist(cheb)
+end
+

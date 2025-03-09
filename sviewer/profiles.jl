@@ -12,6 +12,15 @@ function argclose2(x, value)
     return argmin(abs.(x .- value))
 end
 
+function convert(x, t)
+    return typeof(x) != t ? pyconvert(t, x) : x
+end
+
+function convert!(x, t)
+    x = typeof(x) != t ? pyconvert(t, x) : x
+    return nothing
+end
+
 function binsearch(x, item; type="close")
 
     if item <= x[1]
