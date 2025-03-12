@@ -342,9 +342,7 @@ class gline():
     def initial(self, save=True):
         if save:
             self.saved = [self.x[:], self.y[:], self.err[:]]
-            print('saved', self.saved)
         else:
-            print(self.saved)
             self.x, self.y, self.err = self.saved[0][:], self.saved[1][:], self.saved[2][:]
 
     def set_data(self, *args, **kwargs):
@@ -2824,7 +2822,7 @@ class regionList(list):
                 return self.index(reg)
 
     def add(self, reg=None, sort=True):
-        if reg is None or (self.check(reg) is None and len(re.findall('[\d\.]+\.\.[\d\.]+', reg))>0):
+        if reg is None or (self.check(reg) is None and len(re.findall(r"[\d\.]+\.\.[\d\.]+", reg))>0):
             if reg is None:
                 self.append(regionItem(self))
             else:

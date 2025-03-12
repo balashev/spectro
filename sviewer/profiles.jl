@@ -1300,4 +1300,3 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, re
 
     return dof(fit), param, sigma
 end
-

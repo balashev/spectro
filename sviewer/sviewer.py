@@ -373,7 +373,7 @@ class plotSpectrum(pg.PlotWidget):
                             self.vb.removeItem(getattr(self, attr))
                     self.w_region = None
                 else:
-                    self.vb.setMouseMode(self.vb.RectMode)
+                    self.vb.setMouseMode(self.vb.zz)
                     self.w_status = True
 
             if event.key() == Qt.Key.Key_X:
@@ -512,8 +512,9 @@ class plotSpectrum(pg.PlotWidget):
                 self.z_status = False
         
             if any([event.key() == getattr(Qt.Key, 'Key_'+s) for s in 'ABCDERSWXZ']):
-                if self.vb.rbScaleBox in self.vb.addedItems:
-                    self.vb.removeItem(self.vb.rbScaleBox)
+                #if self.vb.rbScaleBox in self.vb.addedItems:
+                #    self.vb.removeItem(self.vb.rbScaleBox())
+                self.vb.rbScaleBox.hide()
                 self.vb.setMouseMode(self.vb.PanMode)
                 self.parent.statusBar.setText('')
 
@@ -542,9 +543,17 @@ class plotSpectrum(pg.PlotWidget):
 
     def mouseReleaseEvent(self, event):
         if any([getattr(self, s+'_status') for s in 'abcdersuwx']):
-            if self.vb.rbScaleBox in self.vb.addedItems:
-                self.vb.removeItem(self.vb.rbScaleBox)
+            print("status")
+            #if self.vb.rbScaleBox in self.vb.addedItems:
+            #    print("in")
+            #self.vb.removeItem(self.vb.rbScaleBox)
+            print("panmode")
+            #print(self.vb.rbScaleBox)
+            self.vb.rbScaleBox.hide()
             self.vb.setMouseMode(self.vb.PanMode)
+            #del self.vb.rbScaleBox
+            print("panmode hided")
+            event.accept()
         else:
             if event.button() == Qt.MouseButton.RightButton and self.menuEnabled() and self.customMenu:
                 if self.mousePoint == self.mousePoint_saved:
@@ -1214,8 +1223,9 @@ class spec2dWidget(pg.PlotWidget):
 
     def mouseReleaseEvent(self, event):
         if any([getattr(self, s+'_status') for s in 'brtx']):
-            if self.vb.rbScaleBox in self.vb.addedItems:
-                self.vb.removeItem(self.vb.rbScaleBox)
+            self.vb.rbScaleBox.hide()
+            #if self.vb.rbScaleBox in self.vb.addedItems:
+            #    self.vb.removeItem(self.vb.rbScaleBox)
             self.vb.setMouseMode(self.vb.PanMode)
 
         if any([getattr(self, s + '_status') for s in 's']):
@@ -8678,7 +8688,7 @@ class sviewer(QMainWindow):
         data = np.genfromtxt(filename, unpack=True)
         if len(self.s) > 0:
             for attr in ['g_sky', 'g_sky_cont']:
-                if getattr(self.s[self.s.ind], attr) in self.vb.addedItems:
+                if hasattr(self.s[self.s.ind], attr) and getattr(self.s[self.s.ind], attr) in self.vb.addedItems:
                         self.vb.removeItem(getattr(self.s[self.s.ind], attr))
             try:
                 #print(data.shape[0])
@@ -11033,15 +11043,15 @@ class sviewer(QMainWindow):
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     
     def info_howto(self):
-        self.howto = infoWidget(self, 'How to', file='help/howto.txt')
+        self.howto = infoWidget(self, 'How to', file=os.path.dirname(os.path.realpath(__file__)) + '/help/howto.txt')
         self.howto.show()
     
     def info_tutorial(self):
-        self.tutorial = infoWidget(self, 'Tutorial', file='help/tutorial.txt')
+        self.tutorial = infoWidget(self, 'Tutorial', file=os.path.dirname(os.path.realpath(__file__)) + '/help/tutorial.txt')
         self.tutorial.show()
 
     def info_about(self):
-        self.about = infoWidget(self, 'About program', file='help/about.txt')
+        self.about = infoWidget(self, 'About program', file=os.path.dirname(os.path.realpath(__file__)) + '/help/about.txt')
         self.about.show()
 
     def closeEvent(self, event):

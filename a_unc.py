@@ -27,7 +27,7 @@ def column(matrix, attr):
         return matrix
 
 class a:
-    """
+    r"""
     This class provide basic arithmetic operations with the values
     in case of asymmetric uncertainties.
     
