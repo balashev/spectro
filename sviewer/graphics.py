@@ -632,6 +632,7 @@ class specline():
         self.current().interpolate()
 
     def normalize(self, norm=True, cont_mask=True, inter=False, action='normalize'):
+
         if cont_mask:
             if norm:
                 self.norm.x = self.raw.x[self.parent.cont_mask]
@@ -1545,7 +1546,7 @@ class Spectrum():
             self.parent.vb.addItem(self.g_sky_cont)
 
         # >>> plot bad point:
-        if len(self.bad_mask.x()) > 0 and len(self.spec.x()) > 0:
+        if len(self.bad_mask.x()) > 0 and len(self.spec.x()) > 0 and len(self.spec.x()) == len(self.bad_mask.x()):
             self.bad_pixels = pg.ScatterPlotItem(x=self.spec.x()[self.bad_mask.x()], y=self.spec.y()[self.bad_mask.x()],
                                                  size=30, symbol='d', brush=self.bad_brush)
             self.parent.vb.addItem(self.bad_pixels)
@@ -1866,7 +1867,7 @@ class Spectrum():
             self.g_cheb.setData(x=self.cheb.x(), y=self.cheb.y())
 
     def set_res(self):
-        if 1 and hasattr(self.parent, 'residualsPanel') and self.parent.s.ind < len(self.parent.s) and self.active() and len(self.fit.line.x()) > 0:
+        if 1 and hasattr(self.parent, 'residualsPanel') and self.parent.s.ind < len(self.parent.s) and self.active() and len(self.fit.line.x()) > 0 and len(self.fit_mask.x()) == len(self.spec.x()):
             self.res.x = self.spec.x()[self.fit_mask.x()]
             self.res.y = (self.spec.y()[self.fit_mask.x()] - self.fit.line.f(self.spec.x()[self.fit_mask.x()])) / self.spec.err()[self.fit_mask.x()]
             self.residuals.setData(x=self.res.x, y=self.res.y)
@@ -2056,8 +2057,10 @@ class Spectrum():
             if len(self.cheb.line.x()) > 0:
                 self.cheb.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
 
-        self.mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
-        self.bad_mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
+        if len(self.mask.x()) == len(self.cont_mask):
+            self.mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
+        if len(self.bad_mask.x()) == len(self.cont_mask):
+            self.bad_mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
         self.set_fit_mask()
 
     def calcCont(self, method='SG', xl=None, xr=None, iter=5, window=201, clip=2.5, sg_order=5, filter='flat', new=True, cont=False, sign=1):
@@ -2689,31 +2692,15 @@ class Spectrum():
         if (self.spec_save.mask is None) or len(mask) == 0:
             mask = None
         self.set_data([self.spec_save.x[0::self.spec_factor], y[0::self.spec_factor], err[0::self.spec_factor]], mask=mask)
+
+        if len(self.spec.raw.x) != len(self.cont_mask):
+            self.cont_mask = (self.spec.raw.x >= self.cont.x[0]) * (self.spec.raw.x <= self.cont.x[-1])
+        self.cont.set_data(x=self.spec.raw.x[self.cont_mask], y=self.cont.inter(self.spec.raw.x[self.cont_mask]))
+        #print(self.parent.normview)
+        if self.parent.normview:
+            self.spec.normalize()
+
         self.redraw()
-
-        if 0:
-            if factor == 0:
-                self.parent.vb.removeItem(self.rebin)
-                self.rebin = None
-            else:
-                if self.rebin is None:
-                    #self.rebin = plotStepSpectrum(x=[], y=[], stepMode=True)
-                    self.rebin = pg.PlotCurveItem(x=[], y=[], pen=pg.mkPen(250, 100, 0, width=4))
-                    self.parent.vb.addItem(self.rebin)
-
-                if 0:
-                    n = self.spec.raw.x.shape[0] // factor
-                    x = self.spec.raw.x[:n * factor].reshape(self.spec.raw.x.shape[0] // factor, factor).sum(1) / factor
-                    y = self.spec.raw.y[:n * factor].reshape(self.spec.raw.x.shape[0] // factor, factor).sum(1) / factor
-                else:
-                    if factor == 1:
-                        y = self.spec_save.y
-                    else:
-                    #y = np.convolve(self.spec.raw.y, np.ones((factor,)) / factor, mode='same')
-                        cumsum = np.cumsum(np.r_[np.zeros((int(factor/2),)), self.spec_save.y, np.zeros(int(factor/2))])
-                        y = (cumsum[factor:] - cumsum[:-factor]) / float(factor)
-                #y, err = spectres(self.spec.raw.x, self.spec.raw.y, x1, spec_errs=self.spec.raw.err)
-                self.rebin.setData(x=self.spec.raw.x, y=y)
 
     def crosscorrExposures(self, ind, dv=50):
         fig, ax = plt.subplots()

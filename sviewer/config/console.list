@@ -1,8 +1,3 @@
-y 0 1
-show H2j4
-show CO
-show H2j2v1
-hide H2
 hide CO
 show CI
 
@@ -19,3 +14,8 @@ rescale x 1e8
 rescale x 0.1
  HI
 high HI
+show H2O
+show H2O
+stats
+cont 1
+set cont 1

@@ -9051,9 +9051,9 @@ class sviewer(QMainWindow):
         if not self.UVESSetup.isChecked():
             self.UVESSetup_status = -1
         else:
-            if self.UVES_setup.gobject in self.vb.addedItems:
+            if hasattr(self, 'UVES_setup') and self.UVES_setup.gobject in self.vb.addedItems:
                 self.vb.removeItem(self.UVES_setup.gobject)
-            if self.UVES_setup.label in self.vb.addedItems:
+            if hasattr(self, 'UVES_setup') and self.UVES_setup.label in self.vb.addedItems:
                 self.vb.removeItem(self.UVES_setup.label)
 
             self.UVESSetups = UVESSetups()
@@ -10741,7 +10741,7 @@ class sviewer(QMainWindow):
                 self.vb.addItem(f.label)
         else:
             for f in self.filters[name]:
-                if f.object in self.vb.addedItems:
+                if f.gobject in self.vb.addedItems:
                     self.vb.removeItem(f.gobject)
                 if f.label in self.vb.addedItems:
                     self.vb.removeItem(f.label)
