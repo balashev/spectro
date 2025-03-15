@@ -512,7 +512,7 @@ class plotline():
         if self.gray_out:
             self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid', color='0.5', ecolor=ecolor, capsize=capsize, zorder=0)
             k = (self.points == 0)
-            self.spec.y[k] = np.NaN
+            self.spec.y[k] = np.nan
         self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid',  color='k', ecolor=ecolor, capsize=capsize, zorder=1)
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -620,7 +620,7 @@ class plotline():
                 self.ax.errorbar(self.spec.x, self.spec.y, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid',
                             color='0.5', capsize=capsize, zorder=0)
             k = (self.points == 0)
-            self.spec.y[k] = np.NaN
+            self.spec.y[k] = np.nan
 
         self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=elinewidth, drawstyle='steps-mid',
                         color='k', ecolor=ecolor, capsize=capsize, zorder=0)

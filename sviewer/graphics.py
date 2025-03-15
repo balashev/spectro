@@ -2057,9 +2057,8 @@ class Spectrum():
             if len(self.cheb.line.x()) > 0:
                 self.cheb.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
 
-        if len(self.mask.x()) == len(self.cont_mask):
-            self.mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
-        if len(self.bad_mask.x()) == len(self.cont_mask):
+        self.mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
+        if len(self.bad_mask.raw.x) == len(self.cont_mask):
             self.bad_mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
         self.set_fit_mask()
 
@@ -2668,15 +2667,16 @@ class Spectrum():
         #print(self.spec_factor)
         if self.spec_factor == 1:
             self.spec_save = self.spec.raw.copy()
+            self.mask_save = self.mask.raw.x[:]
+            self.bad_mask_save = self.bad_mask.raw.x[:]
         self.spec_factor *= factor
 
         if self.spec_factor < 1:
             self.spec_factor = 1
         self.spec_factor = int(self.spec_factor)
 
-        #print(factor, self.spec_factor)
         if self.spec_factor == 1:
-            y, err, mask = np.copy(self.spec_save.y), np.copy(self.spec_save.err), np.copy(self.spec_save.mask)
+            y, err, m, mask, bad_mask = np.copy(self.spec_save.y), np.copy(self.spec_save.err), np.copy(self.spec_save.mask), np.copy(self.mask_save), np.copy(self.bad_mask_save)
         else:
             # y = np.convolve(self.spec.raw.y, np.ones((factor,)) / factor, mode='same')
             err = self.spec_save.err
@@ -2685,21 +2685,38 @@ class Spectrum():
             y = (cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / float(self.spec_factor)
             cumsum = np.cumsum(np.r_[np.zeros((int(self.spec_factor / 2),)), err, np.zeros(int(self.spec_factor / 2))])
             err = (cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / float(self.spec_factor) / np.sqrt(float(self.spec_factor))
-            mask = []
+            m = []
             if (self.spec_save.mask is not None) and (len(self.spec_save.mask) > 0):
                 cumsum = np.cumsum(np.r_[np.zeros((int(self.spec_factor / 2),)), self.spec_save.mask, np.zeros(int(self.spec_factor / 2))])
+                m = ((cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / self.spec_factor > 0)[0::self.spec_factor]
+            mask = []
+            if len(self.mask_save) > 0:
+                cumsum = np.cumsum(np.r_[np.zeros((int(self.spec_factor / 2),)), self.mask_save, np.zeros(int(self.spec_factor / 2))])
                 mask = ((cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / self.spec_factor > 0)[0::self.spec_factor]
-        if (self.spec_save.mask is None) or len(mask) == 0:
-            mask = None
-        self.set_data([self.spec_save.x[0::self.spec_factor], y[0::self.spec_factor], err[0::self.spec_factor]], mask=mask)
+            bad_mask = []
+            if len(self.bad_mask_save) > 0:
+                cumsum = np.cumsum(np.r_[np.zeros((int(self.spec_factor / 2),)), self.bad_mask_save, np.zeros(int(self.spec_factor / 2))])
+                bad_mask = ((cumsum[self.spec_factor:] - cumsum[:-self.spec_factor]) / self.spec_factor > 0)[0::self.spec_factor]
 
-        if len(self.spec.raw.x) != len(self.cont_mask):
-            self.cont_mask = (self.spec.raw.x >= self.cont.x[0]) * (self.spec.raw.x <= self.cont.x[-1])
-        self.cont.set_data(x=self.spec.raw.x[self.cont_mask], y=self.cont.inter(self.spec.raw.x[self.cont_mask]))
-        #print(self.parent.normview)
+        if (self.spec_save.mask is None) or len(m) == 0:
+            m = None
+        self.set_data([self.spec_save.x[0::self.spec_factor], y[0::self.spec_factor], err[0::self.spec_factor]], mask=m)
+        self.mask.raw.x = mask
+        self.bad_mask.raw.x =bad_mask
+        #print(len(self.spec_save.x[0::self.spec_factor]), len(mask), len(bad_mask))
+
+        if hasattr(self, 'cont_mask') and self.cont_mask is not None:
+            #print('cont_mask:', len(self.cont_mask))
+            if len(self.spec.raw.x) != len(self.cont_mask):
+                self.cont_mask = (self.spec.raw.x >= self.cont.x[0]) * (self.spec.raw.x <= self.cont.x[-1])
+            self.cont.set_data(x=self.spec.raw.x[self.cont_mask], y=self.cont.inter(self.spec.raw.x[self.cont_mask]))
+
         if self.parent.normview:
             self.spec.normalize()
+            self.mask.normalize()
+            self.bad_mask.normalize()
 
+        self.set_fit_mask()
         self.redraw()
 
     def crosscorrExposures(self, ind, dv=50):

@@ -838,7 +838,7 @@ function make_grid(spec, lines; regular=-1, tau_limit=0.005, accuracy=0.2)
     x_instr = 1.0 / spec.resolution / 2.355
     #println(spec.lsf_type, " ", spec.resolution, " ", x_instr)
 
-    #println("spec_bins: ", size(spec.bins), " ", sum(spec.bin_mask))
+    println("spec_bins: ", size(spec.bins), " ", size(spec.bin_mask))
     x_grid = -1 .* ones(Int8, size(spec.bins)[1])
     x_grid[spec.bin_mask] = zeros(Int8, sum(spec.bin_mask))
     #println("x_grid-1: ", size(x_grid[x_grid .>= 0]))
