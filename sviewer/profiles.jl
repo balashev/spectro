@@ -828,103 +828,94 @@ function line_profile(line, x; toll=1e-6)
     end
 end
 
-function make_grid(spec, lines; regular=-1, tau_limit=0.005, accuracy=0.2)
+function make_grid(spec, lines; grid_type="uniform", grid_num=1, binned=true, tau_limit=0.005, accuracy=0.2)
 
     timeit = 0
     if timeit == 1
         start = time()
-        println("regular ", regular)
+        println("regular ", grid_type)
     end
     x_instr = 1.0 / spec.resolution / 2.355
     #println(spec.lsf_type, " ", spec.resolution, " ", x_instr)
 
     #println("spec_bins: ", size(spec.bins), " ", size(spec.bin_mask))
-    x_grid = -1 .* ones(Int8, size(spec.bins)[1])
-    x_grid[spec.bin_mask] = zeros(Int8, sum(spec.bin_mask))
+    if grid_type in ["uniform", "adaptive"]
+        if binned
+            xs, mask = copy(spec.bins), copy(spec.bin_mask)
+        else
+            xs, mask = copy(spec.x), copy(spec.mask)
+        end
+        x_grid = -1 .* ones(Int8, size(xs)[1])
+    end
     #println("x_grid-1: ", size(x_grid[x_grid .>= 0]))
 
     # >>> regular grid of the pixels:
-    if regular > -1
-        x_grid[spec.bin_mask] = ones(Int8, sum(spec.bin_mask)) .* regular
+    if grid_type == "uniform"
+        x_grid[mask] = ones(Int8, sum(mask)) .* grid_num
         for line in lines
             line.dx = voigt_range(line.a, tau_limit / line.tau0)
             d = isfinite(x_instr) ? 4 * x_instr : 0
-            i_min, i_max = binsearch(spec.bins, (line.l - line.dx * line.ld) * (1 - d), type="min"), binsearch(spec.bins, (line.l + line.dx * line.ld) * (1 + d), type="max")
-            if i_max - i_min > 0 && i_min > 0 && i_max <= length(spec.bins)
-                x_grid[i_min:i_max] .= regular
+            i_min, i_max = binsearch(xs, (line.l - line.dx * line.ld) * (1 - d), type="min"), binsearch(xs, (line.l + line.dx * line.ld) * (1 + d), type="max")
+            if i_max - i_min > 0 && i_min > 0 && i_max <= length(xs)
+                x_grid[i_min:i_max] .= grid_num
             end
         end
 
         #println(sum(x_grid[x_grid .> -1]), " ", x_grid[x_grid .> -1])
-        if regular == 0
-            x = spec.bins[x_grid .> -1]
+        if grid_num == 0
+            x = xs[x_grid .> -1]
         else
             x = [0.0]
             k = 1
             for i in 1:size(x_grid)[1]-1
                 if x_grid[i] > -1 && x_grid[i+1] > -1
                     #println(i, " ", spec.bins[i], " ", spec.bins[i+1])
-                    step = (spec.bins[i+1] - spec.bins[i]) / (regular + 1)
-                    splice!(x, k, range(spec.bins[i], stop=spec.bins[i+1], length=regular+2))
+                    step = (xs[i+1] - xs[i]) / (grid_num + 1)
+                    splice!(x, k, range(xs[i], stop=xs[i+1], length=grid_num+2))
                     k += x_grid[i] + 1
                 end
             end
         end
 
     # >>> adaptive grid pixel based:
-    elseif regular == -1
+    elseif grid_type == "adaptive"
+        x_grid[mask] = ones(Int8, sum(mask)) .* grid_num
         if isfinite(x_instr)
-            for i in findall(!=(0), spec.bin_mask[2:end])
+            for i in findall(!=(0), mask[2:end])
                 #println(round(Int, (spec.bins[i] - spec.bins[i-1]) / spec.bins[i] / x_instr * 2))
-                x_grid[i] = max(x_grid[i], round(Int, (spec.bins[i] - spec.bins[i-1]) / spec.bins[i] / x_instr * 2))
+                x_grid[i] = max(x_grid[i], round(Int, (1 - xs[i-1] / xs[i]) / x_instr * 2))
             end
-            for i in findall(!=(0), spec.bin_mask[1:end-1] - spec.bin_mask[2:end])
-                for k in binsearch(spec.bins, spec.bins[i] * (1 - 6 * x_instr), type="min"):binsearch(spec.bins, spec.bins[i] * (1 + 6 * x_instr), type="max")
-                    x_grid[k] = max(x_grid[k], round(Int, (spec.bins[i] - spec.bins[i-1]) / spec.bins[i] / x_instr * 2))
+            for i in findall(!=(0), mask[1:end-1] - mask[2:end])
+                for k in binsearch(xs, xs[i] * (1 - 6 * x_instr), type="min"):binsearch(xs, xs[i] * (1 + 6 * x_instr), type="max")
+                    x_grid[k] = max(x_grid[k], round(Int, (1 - xs[i-1] / xs[i]) / x_instr * 2))
                 end
             end
         end
 
-        #println("x_grid0: ", size(x_grid[x_grid .>= 0]))
         for line in lines
-            #println(line.l, " ", line.tau0, " ", line)
             line.dx = voigt_range(line.a, tau_limit / line.tau0)
-            #println("line span: ", line.dx, " ", line.l - line.dx * line.ld, " ", line.l + line.dx * line.ld, " ", line_profile(line, [line.l - line.dx * line.ld, line.l + line.dx * line.ld]))
-            #println(voigt_range_old(line.a, tau_limit / line.tau0))
-            #println(real(SpecialFunctions.erfcx(line.a - im * line.dx)) * line.tau0, " ", exp(-line.dx^2)* line.tau0, " ",  real(SpecialFunctions.erfcx(line.a - im * voigt_range_old(line.a, tau_limit / line.tau0))) * line.tau0)
             line.max_deriv = voigt_max_deriv(line.a, line.tau0)
-            #println("max deriv: ", line.max_deriv)
             d = isfinite(x_instr) ? 2 * x_instr : 0
-            #println("d: ", d, " ", line.l * (1 - d))
-            i_min, i_max = binsearch(spec.bins, (line.l - line.dx * line.ld) * (1 - d), type="min"), binsearch(spec.bins, (line.l + line.dx * line.ld) * (1 + d), type="max")
-            #println(i_min, " ", i_max, " ", spec.bins[i_min], " ", spec.bins[i_max])
+            i_min, i_max = binsearch(xs, (line.l - line.dx * line.ld) * (1 - d), type="min"), binsearch(xs, (line.l + line.dx * line.ld) * (1 + d), type="max")
             if i_max - i_min > 0 && i_min > 0 && i_max <= length(spec.bins)
-                t = (spec.bins[i_min:i_max] .- line.l) ./ line.ld
-                #println(size(t))
+                t = (xs[i_min:i_max] .- line.l) ./ line.ld
                 for i in i_min:i_max-1
-                    x_grid[i] = max(x_grid[i], Int(floor((t[i-i_min+2] - t[i-i_min+1]) / (accuracy / maximum([abs(voigt_deriv(t[i-i_min+1], line.a, line.tau0)), abs(voigt_deriv(t[i-i_min+2], line.a, line.tau0))])))+1))
-                    #println(spec.bins[i], " ", x_grid[i], " ", (t[i-i_min+2] - t[i-i_min+1]), " ", voigt_deriv(t[i-i_min+1], line.a, line.tau0), " ", voigt_deriv(t[i-i_min+2], line.a, line.tau0))
-                    #println(i, " ", (spec.bins[i+1] - spec.bins[i]), " ", (0.1 / maximum(r[k_min:k_max]) * line.ld))
+                    x_grid[i] = max(x_grid[i], Int(floor((t[i-i_min+2] - t[i-i_min+1]) / (accuracy / maximum([abs(voigt_deriv(t[i-i_min+1], line.a, line.tau0)), abs(voigt_deriv(t[i-i_min+2], line.a, line.tau0))])))+binned))
                 end
             end
             for m in [line.l - line.max_deriv * line.ld, line.l + line.max_deriv * line.ld]
-                #println("max_deriv: ", m, " ", voigt_deriv(line.max_deriv, line.a, line.tau0))
-                i_min = binsearch(spec.bins, m, type="min")
-                #println(i_min)
-                if i_min > 0 && i_min < size(spec.bins)[1]
-                    x_grid[i_min] = max(x_grid[i_min], Int(floor((spec.bins[i_min+1] - spec.bins[i_min]) / (accuracy / voigt_deriv(line.max_deriv, line.a, line.tau0) * line.ld)))+1)
+                i_min = binsearch(xs, m, type="min")
+                if i_min > 0 && i_min < size(xs)[1]
+                    x_grid[i_min] = max(x_grid[i_min], Int(floor((xs[i_min+1] - xs[i_min]) / (accuracy / voigt_deriv(line.max_deriv, line.a, line.tau0) * line.ld))) + binned)
                 end
             end
         end
         x_grid .+= iseven.(x_grid)
-        #println("x_grid: ", x_grid)
         if timeit == 1
             println("update ", time() - start)
         end
 
-        #println("x_grid: ", size(x_grid[x_grid .>= 0]))
         x_grid[x_grid .>= 0] = round.(imfilter(x_grid[x_grid .>= 0], ImageFiltering.Kernel.gaussian((2,))))
-        #println(size(x_grid[x_grid .>= 0]))
 
         if timeit == 1
             println("grid conv ", time() - start)
@@ -934,16 +925,16 @@ function make_grid(spec, lines; regular=-1, tau_limit=0.005, accuracy=0.2)
         k = 1
         for i in 1:size(x_grid)[1]-1
             if x_grid[i] == 0
-                splice!(x, k, [spec.bins[i], spec.bins[i]])
+                splice!(x, k, [xs[i], xs[i]])
                 k += 1
             elseif x_grid[i] > 0
-                splice!(x, k, range(spec.bins[i], length=x_grid[i]+2, step=(spec.bins[i+1] - spec.bins[i]) / (x_grid[i] + 1)))
+                splice!(x, k, range(xs[i], length=x_grid[i]+2, step=(xs[i+1] - xs[i]) / (x_grid[i] + 1)))
                 k += x_grid[i] + 1
             end
         end
 
-    # >>> adaptive grid pixel based:
-    elseif regular == -2
+    # >>> minimized grid pixel based:
+    elseif grid_type == "minimized"
 
         if timeit == 1
             println("merge ", time() - start)
@@ -955,9 +946,19 @@ function make_grid(spec, lines; regular=-1, tau_limit=0.005, accuracy=0.2)
             mask[1:end-i] .|= spec.mask[1+i:end]
         end
 
-        x = mergesorted(spec.bins[spec.bin_mask], spec.x[mask])
-        for i in size(x)[1]-1:-1:1
-            insert!(x, i+1, (x[i+1] + x[i]) / 2)
+        if binned
+            x = mergesorted(spec.bins[spec.bin_mask], spec.x[mask])
+        else
+            x = copy(spec.x[mask])
+        end
+
+        if grid_num > 0
+            for i in size(x)[1]-1:-1:1
+                d = x[i+1] - x[i]
+                for k in grid_num:-1:1
+                    insert!(x, i+1, (x[i] + d * k / (grid_num + 1)))
+                end
+            end
         end
 
         if timeit == 1
@@ -972,7 +973,11 @@ function make_grid(spec, lines; regular=-1, tau_limit=0.005, accuracy=0.2)
                 i_min, i_max = binsearch(spec.x, (line.l - line.dx * line.ld) * (1 - d), type="min"), binsearch(spec.x, (line.l + line.dx * line.ld) * (1 + d), type="max")
                 #println(i_min, " ", i_max, " ", size(spec.x), " ", spec.x[end], " ", (line.l + line.dx * line.ld) * (1 + d))
                 if i_max > i_min
-                    x = mergesorted(x, mergesorted(spec.x[i_min:i_max], (spec.x[i_min+1:i_max] + spec.x[i_min:i_max-1]) / 2))
+                    if binned
+                        x = mergesorted(x, mergesorted(spec.x[i_min:i_max], (spec.x[i_min+1:i_max] + spec.x[i_min:i_max-1]) / 2))
+                    else
+                        x = mergesorted(x, spec.x[i_min:i_max])
+                    end
                     #println(size(x)[1], " ", size(x)[1] - size(mergesorted(spec.x[i_min:i_max], (spec.x[i_min+1:i_max] + spec.x[i_min:i_max-1]) / 2))[1])
                 end
                 if timeit == 1
@@ -1001,16 +1006,17 @@ function make_grid(spec, lines; regular=-1, tau_limit=0.005, accuracy=0.2)
     return x[i_min:i_max]
 end
 
-function calc_spectrum(spec, pars; comp=0, regular=-2, out="all", telluric=false, tau_limit=0.005, accuracy=0.2)
+function calc_spectrum(spec, pars; comp=0, grid_type="minimized", grid_num=1, binned=true, out="all", telluric=false, tau_limit=0.005, accuracy=0.2)
 
     timeit = 0
     if timeit == 1
         start = time()
     end
+    #println(grid_type, " ", grid_num, " ", binned)
 
     line_mask = update_lines(spec.lines, pars, comp=comp)
 
-    x = make_grid(spec, spec.lines[line_mask], regular=regular, tau_limit=tau_limit, accuracy=accuracy)
+    x = make_grid(spec, spec.lines[line_mask], grid_type=grid_type, grid_num=grid_num, binned=binned, tau_limit=tau_limit, accuracy=accuracy)
 
     if timeit == 1
         println("make grid ", time() - start)
@@ -1133,17 +1139,20 @@ function calc_spectrum(spec, pars; comp=0, regular=-2, out="all", telluric=false
         return x, y_c
 
     elseif out in ["all", "binned", "init"]
+        if binned
+            inds = searchsortedlast.(Ref(x), spec.bins[spec.bin_mask])
+            binned = zero(spec.x[spec.mask])
+            sind = searchsortedlast.(Ref(spec.bins[spec.bin_mask]), spec.x[spec.mask])
+            for (l, k) in enumerate(sind)
 
-        inds = searchsortedlast.(Ref(x), spec.bins[spec.bin_mask])
-        binned = zero(spec.x[spec.mask])
-        sind = searchsortedlast.(Ref(spec.bins[spec.bin_mask]), spec.x[spec.mask])
-        for (l, k) in enumerate(sind)
+                for i in inds[k]:inds[k+1]-1
+                    binned[l] += (x[i+1] - x[i]) * (2 - y_c[i+1] - y_c[i])
+                end
 
-            for i in inds[k]:inds[k+1]-1
-                binned[l] += (x[i+1] - x[i]) * (2 - y_c[i+1] - y_c[i])
+                binned[l] = 1 - binned[l] / (x[inds[k+1]] - x[inds[k]]) / 2
             end
-
-            binned[l] = 1 - binned[l] / (x[inds[k+1]] - x[inds[k]]) / 2
+        else
+            binned = linear_interpolation(x, y_c, extrapolation_bc=Flat())[spec.x[spec.mask]]
         end
 
         if out == "all"
@@ -1158,7 +1167,7 @@ function calc_spectrum(spec, pars; comp=0, regular=-2, out="all", telluric=false
 end
 
 
-function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, regular=-2, telluric=false, tau_limit=0.001, accuracy=0.1)
+function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, grid_type="minimized", grid_num=1, binned=true, telluric=false, tau_limit=0.001, accuracy=0.1)
 
     function cost(p)
         i = 1
@@ -1175,7 +1184,7 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, re
         for s in spec
             if sum(s.mask) > 0
                 #println(calc_spectrum(s, pars, out="binned", regular=regular, telluric=telluric, tau_limit=tau_limit, accuracy=accuracy))
-                append!(res, (calc_spectrum(s, pars, out="binned", regular=regular, telluric=telluric, tau_limit=tau_limit, accuracy=accuracy) .- s.y[s.mask]) ./ s.unc[s.mask])
+                append!(res, (calc_spectrum(s, pars, out="binned", grid_type=grid_type, grid_num=grid_num, binned=binned, telluric=telluric, tau_limit=tau_limit, accuracy=accuracy) .- s.y[s.mask]) ./ s.unc[s.mask])
             end
         end
 

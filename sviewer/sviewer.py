@@ -1424,20 +1424,26 @@ class preferencesWidget(QWidget):
             self.grid.addWidget(QLabel("Julia grid method:"), ind, 0)
 
             self.julia_grid = QComboBox()
-            self.julia_grid.addItems(["minimized", "adaptive bins", "uniform"])
-            self.julia_grid.setCurrentIndex(int(self.parent.options("julia_grid")) + 2 if int(self.parent.options("julia_grid")) < 0 else 2)
+            self.julia_grid.addItems(["minimized", "adaptive", "uniform"])
+            #self.julia_grid.setCurrentIndex(int(self.parent.options("julia_grid")) + 2 if int(self.parent.options("julia_grid")) < 0 else 2)
+            self.julia_grid.setCurrentText(self.parent.options("julia_grid"))
             self.julia_grid.currentIndexChanged.connect(self.setJuliaGrid)
             self.julia_grid.setFixedSize(120, 30)
             self.grid.addWidget(self.julia_grid, ind, 1)
             self.julia_grid_num = QLineEdit(self.parent.options("julia_grid_num"))
-            self.julia_grid_num.setEnabled(int(self.parent.options("julia_grid")) > -1)
+            #self.julia_grid_num.setEnabled(int(self.parent.options("julia_grid")) > -1)
             self.julia_grid_num.setFixedSize(80, 30)
             self.julia_grid_num.setValidator(validator)
             self.julia_grid_num.textChanged[str].connect(self.setJuliaGridNum)
             self.grid.addWidget(self.julia_grid_num, ind, 2)
+            self.julia_binned = QCheckBox('binned')
+            self.julia_binned.setChecked(self.parent.options("julia_binned"))
+            self.julia_binned.stateChanged.connect(partial(self.setChecked, 'julia_binned'))
+            self.julia_binned.setFixedSize(80, 30)
+            self.grid.addWidget(self.julia_binned, ind, 3)
 
             ind += 1
-            self.grid.addWidget(QLabel('Fit method:'), ind, 0)
+            self.grid.addWidget(QLabel('Minimization method:'), ind, 0)
             self.fitmethod = QComboBox()
             self.fitmethod.addItems(['leastsq', 'least_squares', 'differential_evolution', 'brute', 'basinhopping',
                                      'ampgo', 'nelder', 'lbfgsb', 'powell', 'cg', 'newton', 'cobyla', 'bfgs',
@@ -1625,17 +1631,20 @@ class preferencesWidget(QWidget):
             pass
 
     def setJuliaGrid(self):
-        if self.julia_grid.currentText() == 'uniform':
-            self.julia_grid_num.setEnabled(True)
-            jd = int(self.julia_grid_num.text())
+        if 1:
+            self.parent.options("julia_grid", self.julia_grid.currentText())
         else:
-            self.julia_grid_num.setEnabled(False)
-            jd = self.julia_grid.currentIndex() - 2
-        self.parent.options("julia_grid", jd)
+            if self.julia_grid.currentText() == 'uniform':
+                self.julia_grid_num.setEnabled(True)
+                jd = int(self.julia_grid_num.text())
+            else:
+                self.julia_grid_num.setEnabled(False)
+                jd = self.julia_grid.currentIndex() - 2
+            self.parent.options("julia_grid", jd)
 
     def setJuliaGridNum(self):
-        if self.julia_grid.currentText() == 'uniform':
-            self.parent.options("julia_grid", int(self.julia_grid_num.text()))
+        #if self.julia_grid.currentText() == 'uniform':
+        self.parent.options("julia_grid_num", int(self.julia_grid_num.text()))
 
     def setMethod(self):
         self.parent.fit_method = self.fitmethod.currentText()
@@ -9316,7 +9325,9 @@ class sviewer(QMainWindow):
         dof, res, unc = self.julia.fitLM(self.julia_spec, self.fit.list(), self.julia_add, tieds=self.fit.tieds,
                                          opts=kwargs,
                                          blindMode=self.blindMode,
-                                         regular=int(self.options("julia_grid")),
+                                         grid_type=self.options("julia_grid"),
+                                         grid_num=int(self.options("julia_grid_num")),
+                                         binned=self.options("julia_binned"),
                                          telluric=self.options("telluric"),
                                          tau_limit=self.tau_limit,
                                          accuracy=self.accuracy)

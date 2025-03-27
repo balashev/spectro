@@ -2347,7 +2347,9 @@ class Spectrum():
 
             # >>> calculate the intrinsic absorption line spectrum
             x, flux, bins, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, comp=comp + 1,
-                                                                    regular=int(self.parent.options("julia_grid")),
+                                                                    grid_type=self.parent.options("julia_grid"),
+                                                                    grid_num=int(self.parent.options("julia_grid_num")),
+                                                                    binned=self.parent.options("julia_binned"),
                                                                     telluric=self.parent.options("telluric"),
                                                                     tau_limit=self.parent.tau_limit,
                                                                     accuracy=self.parent.accuracy)
