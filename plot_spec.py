@@ -583,7 +583,7 @@ class plotline():
             ha = 'left' if self.name_pos[0] < 0.5 else 'right'
             self.ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha=ha, va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
             if self.label is not None:
-                self.ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha='right', va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
+                self.ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha='left', va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
 
         if self.parent.add_ioniz:
             el = element(self.el.name)
@@ -677,8 +677,13 @@ class plotline():
                 self.ax.yaxis._autolabelpos = True
                 self.ax.yaxis.label.set_transform(tr)
         if self.xlabel is not None:
-            self.ax.set_xlabel(self.xlabel, fontsize=self.font_size, fontname=self.font, labelpad=-4)
-
+            self.ax.set_xlabel(self.xlabel, fontsize=self.font_size, fontname=self.font, labelpad=-2)
+            print("xlabel_pos", self.xlabel_pos)
+            if self.xlabel_pos is not None:
+                tr = self.ax.xaxis.label.get_transform()
+                self.ax.xaxis.set_label_coords(self.ax.xaxis.label.get_position()[0], self.xlabel_pos)
+                self.ax.xaxis._autolabelpos = True
+                self.ax.xaxis.label.set_transform(tr)
         # >>> add lines
         self.ax.plot([self.x_min, self.x_max], [0.0, 0.0], 'k--', lw=0.5)
 
@@ -888,14 +893,14 @@ class plotline():
                      for i in s]
         texts = []
         d_pos = dpos / (len(bands) + 1) * (ymax - ymin)
-        #print(bands)
+        print(bands)
 
         for i, b in enumerate(bands):
 
             band, levs = b[0], b[3]
             ls = '--' if b[2] != bands[0][2] else '-'
             for ind, z, color in zip(range(len(z_ref)), z_ref, z_col):
-                #print(z, color)
+                print(z, color)
                 ls = '-' if ind == self.num_comp * show_comps else '--'
                 lw = self.parent.lw_total if ind == self.num_comp * show_comps else self.parent.lw[0]
                 if species == 'H2':

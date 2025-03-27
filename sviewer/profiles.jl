@@ -838,7 +838,7 @@ function make_grid(spec, lines; regular=-1, tau_limit=0.005, accuracy=0.2)
     x_instr = 1.0 / spec.resolution / 2.355
     #println(spec.lsf_type, " ", spec.resolution, " ", x_instr)
 
-    println("spec_bins: ", size(spec.bins), " ", size(spec.bin_mask))
+    #println("spec_bins: ", size(spec.bins), " ", size(spec.bin_mask))
     x_grid = -1 .* ones(Int8, size(spec.bins)[1])
     x_grid[spec.bin_mask] = zeros(Int8, sum(spec.bin_mask))
     #println("x_grid-1: ", size(x_grid[x_grid .>= 0]))
@@ -1076,10 +1076,6 @@ function calc_spectrum(spec, pars; comp=0, regular=-2, out="all", telluric=false
         y = inter(x .+ (x .- spec.displ) .* spec.disps .+ spec.dispz)
     end
 
-    if (comp == 0) & (telluric==true) & ~isempty(knots(spec.sky))
-        y .*= spec.sky(x)
-    end
-
     if size(spec.cont)[1] > 0
         y .*= correct_continuum(spec.cont, pars, x)
     end
@@ -1127,6 +1123,10 @@ function calc_spectrum(spec, pars; comp=0, regular=-2, out="all", telluric=false
         y_c = 1 .- y_c
     else
         y_c = y
+    end
+
+    if (comp == 0) & (telluric==true) & ~isempty(knots(spec.sky))
+        y_c .*= spec.sky(x)
     end
 
     if out == "old all"

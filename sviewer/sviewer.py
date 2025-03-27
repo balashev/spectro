@@ -543,16 +543,8 @@ class plotSpectrum(pg.PlotWidget):
 
     def mouseReleaseEvent(self, event):
         if any([getattr(self, s+'_status') for s in 'abcdersuwx']):
-            print("status")
-            #if self.vb.rbScaleBox in self.vb.addedItems:
-            #    print("in")
-            #self.vb.removeItem(self.vb.rbScaleBox)
-            print("panmode")
-            #print(self.vb.rbScaleBox)
             self.vb.rbScaleBox.hide()
             self.vb.setMouseMode(self.vb.PanMode)
-            #del self.vb.rbScaleBox
-            print("panmode hided")
             event.accept()
         else:
             if event.button() == Qt.MouseButton.RightButton and self.menuEnabled() and self.customMenu:
@@ -2532,6 +2524,7 @@ class showLinesWidget(QWidget):
                             else:
                                 levels = [(speci + "j") * l.isdigit() + l for l in self.show_H2.split()]
                             levels = [l for l in levels if l.startswith(speci)]
+                            #print("line marks:", speci, levels)
                             if len(levels) > 0:
                                 p.showLineLabels(levels=levels, pos=self.pos_H2, kind='full', only_marks=self.only_marks, show_comps=self.all_comps_marks)
 
@@ -5905,6 +5898,13 @@ class ExportDataWidget(QWidget):
             hbox.addStretch(1)
             layout.addLayout(hbox)
 
+            hbox = QHBoxLayout()
+            self.normalized = QCheckBox('normalized')
+            self.normalized.setChecked(self.parent.normview)
+            hbox.addWidget(self.normalized)
+            hbox.addStretch(1)
+            layout.addLayout(hbox)
+
         self.okButton = QPushButton(self.type.title())
         self.okButton.clicked[bool].connect(getattr(self, self.type))
         self.okButton.setFixedSize(80, 30)
@@ -5988,6 +5988,9 @@ class ExportDataWidget(QWidget):
         print(np.sum(s.cont_mask))
         print(np.sum(fit_mask))
 
+        normview_saved = self.parent.normview
+        if self.parent.normview != self.normalized.isChecked():
+            self.parent.normalize(self.normalized.isChecked())
 
         if self.cheb_applied.isChecked() and self.parent.fit.cont_fit:
             cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
@@ -6023,6 +6026,9 @@ class ExportDataWidget(QWidget):
             #print([[len(c.x()), len(c.y())] for c in s.fit_comp])
             #print([c.y()[fit_mask] / cheb(s.fit.x()[fit_mask]) for c in s.fit_comp])
             #np.savetxt('_fit_comps.'.join(self.filename.rsplit('.', 1)), np.column_stack([s.fit.x()[fit_mask] / unit] + [c.y()[fit_mask] / cheb(s.fit.x()[fit_mask]) for c in s.fit_comp]), **kwargs)
+
+        if normview_saved != self.parent.normview:
+            self.parent.normalize(normview_saved)
 
     def save(self):
         self.parent.save_opt = self.opt
@@ -8692,10 +8698,11 @@ class sviewer(QMainWindow):
                         self.vb.removeItem(getattr(self.s[self.s.ind], attr))
             try:
                 #print(data.shape[0])
+                m = np.r_[np.diff(data[0]) != 0, True]
                 if data.shape[0] == 2:
-                    self.s[self.s.ind].sky.set(data[0], data[1])
+                    self.s[self.s.ind].sky.set(data[0][m], data[1][m])
                 elif data.shape[0] > 3:
-                    self.s[self.s.ind].sky.set(data[0], data[-1])
+                    self.s[self.s.ind].sky.set(data[0][m], data[-1][m])
                 #print(self.s[self.s.ind].sky.y())
                 print('load')
                 self.s[self.s.ind].sky.interpolate()

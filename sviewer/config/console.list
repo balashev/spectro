@@ -1,21 +1,21 @@
-rescale x 10000
-rescale x 0.1
-rescale x 1e8
-rescale x 0.1
- HI
+show H2j8
+show H2j9
+show H2j10
+show SiIIj1
+show NV
 high HI
-show H2O
-show H2O
-stats
-cont 1
-set cont 1
-show SiII*
-show H2 0 1
-show H2 0 1
-show SiIIj1
-show SiIIj1
-show H2 0 1
-show SiIIj1
+high H2j7
+high H2v1j1
+show H2j1v1
+show H2j0v1
+high H2j8
+show CO
 show CI
-show H2 0 1
-hide CO
+show CIj1
+show CIj2
+shwo ZnII
+ZnII
+
+show ZnII
+show SII
+show NV
