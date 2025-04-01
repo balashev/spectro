@@ -133,10 +133,14 @@ function plotChain(filename) #(pars, chain, llhoodvals)
     println("Marginalized distributions are plotted in ", replace(filename, ".spj" => "_1d.png"))
 end
 
-function readMCMC(filename)
+function readMCMC(filename; convert=false)
  	#parnames, chain, llhoodvals = deserialize(filename)
     parnames, chain, llhoodvals = load(filename)["data"]
-	return chain, llhoodvals
+    if convert
+        return pyarray(chain), pyarray(llhoodvals)
+    else
+	    return chain, llhoodvals
+    end
 end
 
 function readJulia(filename)

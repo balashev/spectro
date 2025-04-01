@@ -7,7 +7,7 @@ if size(ARGS)[1] >= 3 || endswith(strip(ARGS[end]), "plot")
     if endswith(strip(ARGS[end]), "plot")
         plotChain(ARGS[1])
     else
-        sample_type = nothing
+        sample_type = "Affine"
         if Bool(sum([occursin("ESS", a) for a in ARGS]))
             sampler_type = "ESS"
         end
