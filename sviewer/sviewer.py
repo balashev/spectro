@@ -2262,6 +2262,9 @@ class showLinesWidget(QWidget):
             if not self.parent.normview:
                 self.parent.normalize()
 
+            if len(self.parent.lines) > int(self.rows) * int(self.cols):
+                self.parent.sendMessage("The number of lines is larger than number of panels")
+                return
             self.ps = plot_spec(len(self.parent.lines), font=self.font, font_size=self.font_size, font_labels=self.font_labels,
                                 vel_scale=(self.units == 'v'), gray_out=self.gray_out, show_err=self.show_err, error_cap=self.error_cap, figure=fig)
             rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order,
@@ -2418,6 +2421,10 @@ class showLinesWidget(QWidget):
                     p.ax.text(self.title_x_pos, self.title_y_pos, str(self.title).strip(), ha='left', va='top', fontsize=self.font_title, fontname=self.font, transform=p.ax.transAxes)
 
         else:
+            if len(self.parent.plot.regions) > int(self.rows) * int(self.cols):
+                self.parent.sendMessage("The number of regions is larger than number of panels")
+                return
+
             self.ps = plot_spec(len(self.parent.plot.regions), font=self.font, font_size=self.font_size, font_labels=self.font_labels, vel_scale=False,
                                 gray_out=self.gray_out, show_err=self.show_err, error_cap=self.error_cap, figure=fig)
             rects = rect_param(n_rows=int(self.rows), n_cols=int(self.cols), order=self.order,
