@@ -135,9 +135,11 @@ end
 
 function readMCMC(filename; convert=false)
  	#parnames, chain, llhoodvals = deserialize(filename)
+ 	println("convert ", convert)
     parnames, chain, llhoodvals = load(filename)["data"]
     if convert
-        return pyarray(chain), pyarray(llhoodvals)
+        println(typeof(PyArray(chain)))
+        return PyArray(chain), PyArray(llhoodvals)
     else
 	    return chain, llhoodvals
     end

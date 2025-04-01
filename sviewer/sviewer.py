@@ -3161,11 +3161,11 @@ class fitMCMCWidget(QWidget):
         self.parent.julia.include("MCMC.jl")
 
         chain, lns = self.parent.julia.readMCMC(filename, convert=True)
+        chain, lns = np.asarray(chain), np.asarray(lns)
 
         if os.path.exists("output/mcmc.hdf5"):
             os.remove("output/mcmc.hdf5")
 
-        print(chain.shape, lns.shape)
         nwalkers, npars, nsteps = chain.shape[0], chain.shape[1], chain.shape[2]
         backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
         backend.reset(nwalkers, npars)
