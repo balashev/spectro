@@ -1445,14 +1445,24 @@ class preferencesWidget(QWidget):
             ind += 1
             self.grid.addWidget(QLabel('Minimization method:'), ind, 0)
             self.fitmethod = QComboBox()
-            self.fitmethod.addItems(['leastsq', 'least_squares', 'differential_evolution', 'brute', 'basinhopping',
+            self.fitmethod_py = ['leastsq', 'least_squares', 'differential_evolution', 'brute', 'basinhopping',
                                      'ampgo', 'nelder', 'lbfgsb', 'powell', 'cg', 'newton', 'cobyla', 'bfgs',
                                      'tnc', 'trust-ncg', 'trust-exact', 'trust-krylov', 'trust-constr', 'dogleg',
-                                     'slsqp', 'shgo', 'dual_annealing'])
+                                     'slsqp', 'shgo', 'dual_annealing']
+            self.fitmethod_jl = ["LsqFit.lmfit", "lmfit"]
+            self.fitmethod.addItems(self.fitmethod_jl if self.parent.fitType == 'julia' else self.fitmethod_py)
             self.fitmethod.setCurrentText(self.parent.fit_method)
             self.fitmethod.currentIndexChanged.connect(self.setMethod)
             self.fitmethod.setFixedSize(120, 30)
             self.grid.addWidget(self.fitmethod, ind, 1)
+
+            self.grid.addWidget(QLabel("tollerance:"), ind, 2)
+            self.fit_tol = QLineEdit(self.parent.options("fit_tollerance"))
+            # self.julia_grid_num.setEnabled(int(self.parent.options("julia_grid")) > -1)
+            self.fit_tol.setFixedSize(80, 30)
+            self.fit_tol.setValidator(validator)
+            self.fit_tol.textChanged[str].connect(self.setFitTollerance)
+            self.grid.addWidget(self.fit_tol, ind, 3)
 
             ind += 1
             self.grid.addWidget(QLabel('fit components:'), ind, 0)
@@ -1583,6 +1593,9 @@ class preferencesWidget(QWidget):
                     self.parent.julia = None
                     self.parent.options('uniform', self.parent.fitType)
                     self.uniform.toggle()
+        self.fitmethod.clear()
+        self.fitmethod.addItems(self.fitmethod_jl if self.parent.fitType == 'julia' else self.fitmethod_py)
+        self.parent.options("fit_method", self.fitmethod.itemText(0))
 
     def setTabIndex(self):
         self.parent.preferencesTabIndex = self.tab.currentIndex()
@@ -1646,8 +1659,13 @@ class preferencesWidget(QWidget):
         #if self.julia_grid.currentText() == 'uniform':
         self.parent.options("julia_grid_num", int(self.julia_grid_num.text()))
 
+    def setFitTollerance(self):
+        # if self.julia_grid.currentText() == 'uniform':
+        self.parent.options("fit_tollerance", float(self.fit_tol.text()))
+
     def setMethod(self):
         self.parent.fit_method = self.fitmethod.currentText()
+        self.parent.options("fit_method", self.parent.fit_method)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_F11:
@@ -6632,12 +6650,14 @@ class GenerateAbsWidget(QWidget):
             self.parent.fit.update()
 
             if 1:
-                dof, x, unc = self.parent.julia.fitLM(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add,
-                                                      tieds=self.parent.fit.tieds,
-                                                      regular=int(self.parent.options("julia_grid")),
-                                                      telluric=self.parent.options("telluric"),
-                                                      tau_limit=self.parent.tau_limit,
-                                                      accuracy=self.parent.accuracy)
+                x, unc = self.parent.julia.fitLM(self.parent.julia_spec, self.parent.fit.list(), self.parent.julia_add,
+                                                 method=self.parent.options("fit_method"),
+                                                 tieds=self.parent.fit.tieds,
+                                                 regular=int(self.parent.options("julia_grid")),
+                                                 telluric=self.parent.options("telluric"),
+                                                 tau_limit=self.parent.tau_limit,
+                                                 accuracy=self.parent.accuracy,
+                                                 toll=self.parent.options("fit_tollerance"))
                 res.append(x)
                 self.parent.s.calcFit(redraw=False)
                 lnprobs.append(self.parent.s.chi2())
@@ -7689,7 +7709,7 @@ class sviewer(QMainWindow):
         addAbsSystem.setStatusTip('generate spectrum based on the current fit model')
         addAbsSystem.triggered.connect(self.add_abs_system)
         
-        addDustSystem = QAction('&Appy dust extinction', self)
+        addDustSystem = QAction('&Apply dust extinction', self)
         addDustSystem.setStatusTip('apply dust extinction')
         addDustSystem.triggered.connect(self.add_dust_system)
 
@@ -9263,17 +9283,28 @@ class sviewer(QMainWindow):
         #self.reload_julia()
         self.s.prepareFit(all=False)
         #self.julia_spec = self.julia.prepare(self.s, self.julia_pars)
-        dof, res, unc = self.julia.fitLM(self.julia_spec, self.fit.list(), self.julia_add, tieds=self.fit.tieds,
-                                         opts=kwargs,
-                                         blindMode=self.blindMode,
-                                         grid_type=self.options("julia_grid"),
-                                         grid_num=int(self.options("julia_grid_num")),
-                                         binned=self.options("julia_binned"),
-                                         telluric=self.options("telluric"),
-                                         tau_limit=self.tau_limit,
-                                         accuracy=self.accuracy)
+        res, unc, converged = self.julia.fitLM(self.julia_spec, self.fit.list(), self.julia_add, tieds=self.fit.tieds,
+                                               opts=kwargs,
+                                               blindMode=self.blindMode,
+                                               method=self.options("fit_method"),
+                                               grid_type=self.options("julia_grid"),
+                                               grid_num=int(self.options("julia_grid_num")),
+                                               binned=self.options("julia_binned"),
+                                               telluric=self.options("telluric"),
+                                               tau_limit=self.tau_limit,
+                                               accuracy=self.accuracy,
+                                               toll=float(self.options("fit_tollerance"))
+                                               )
 
         s = self.fit.fromJulia(res, unc)
+
+        if not converged:
+            print("Minimization is not converged. You need to continue...")
+            self.sendMessage("Minimization is not converged. You need to continue")
+            s += "Minimization is not converged. You need to continue..."
+            if self.blindMode:
+                self.console.set("Minimization is not converged. You need to continue...")
+
         if not self.blindMode:
             self.console.set(s)
 

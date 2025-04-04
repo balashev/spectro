@@ -1,6 +1,8 @@
 using DataStructures
 using Interpolations
 using ImageFiltering
+using LeastSquaresOptim
+using LinearAlgebra
 using LsqFit
 using PeriodicTable
 using Polynomials
@@ -278,6 +280,8 @@ mutable struct par
     vary::Bool
     addinfo::String
     tied::String
+    fit::Bool
+    unc::Float64
     ref
 end
 
@@ -291,9 +295,9 @@ function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
     else
         for p in p_pars
             if occursin("z_", pyconvert(String, p.__str__())) * (z_ref == true)
-                pars[pyconvert(String, p.__str__())] = par(pyconvert(String, p.__str__()), 0.0, z_to_v(z=pyconvert(Float64, p.min), z_ref=pyconvert(Float64, p.val)), z_to_v(z=pyconvert(Float64, p.max), z_ref=pyconvert(Float64, p.val)), pyconvert(Float64, p.step), pyconvert(Bool, p.fit * p.vary), pyconvert(String, p.addinfo), "", pyconvert(Float64, p.val))
+                pars[pyconvert(String, p.__str__())] = par(pyconvert(String, p.__str__()), 0.0, z_to_v(z=pyconvert(Float64, p.min), z_ref=pyconvert(Float64, p.val)), z_to_v(z=pyconvert(Float64, p.max), z_ref=pyconvert(Float64, p.val)), pyconvert(Float64, p.step), pyconvert(Bool, p.fit * p.vary), pyconvert(String, p.addinfo), "", false, 0.0, pyconvert(Float64, p.val))
             else
-                pars[pyconvert(String, p.__str__())] = par(pyconvert(String, p.__str__()), pyconvert(Float64, p.val), pyconvert(Float64, p.min), pyconvert(Float64, p.max), pyconvert(Float64, p.step), pyconvert(Bool, p.fit * p.vary), pyconvert(String, p.addinfo), "", nothing)
+                pars[pyconvert(String, p.__str__())] = par(pyconvert(String, p.__str__()), pyconvert(Float64, p.val), pyconvert(Float64, p.min), pyconvert(Float64, p.max), pyconvert(Float64, p.step), pyconvert(Bool, p.fit * p.vary), pyconvert(String, p.addinfo), "", false, 0.0, nothing)
             end
             if occursin("cf", pyconvert(String, p.__str__()))
                 pars[pyconvert(String, p.__str__())].min, pars[pyconvert(String, p.__str__())].max = 0, 1
@@ -304,6 +308,9 @@ function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
             pars[pyconvert(String, k)].vary = false
             pars[pyconvert(String, k)].tied = pyconvert(String, v)
         end
+    end
+    for (k, p) in pars
+        pars[k].fit = copy(pars[k].vary)
     end
     return pars
 end
@@ -1167,12 +1174,14 @@ function calc_spectrum(spec, pars; comp=0, grid_type="minimized", grid_num=1, bi
 end
 
 
-function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, grid_type="minimized", grid_num=1, binned=true, telluric=false, tau_limit=0.001, accuracy=0.1)
+function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, method="LsqFit.lmfit", maxiter=50,
+               grid_type="minimized", grid_num=1, binned=true, telluric=false, tau_limit=0.001, accuracy=0.1, toll=1e-4)
 
+    println(toll)
     function cost(p)
         i = 1
         for (k, v) in pars
-            if v.vary == 1
+            if v.fit == 1
                 pars[k].val = p[i]
                 i += 1
             end
@@ -1283,29 +1292,66 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, gr
 
     pars = make_pars(p_pars, tieds=tieds, z_ref=true)
 
-    params = [p.val for (k, p) in pars if p.vary == true]
-    lower = [p.min for (k, p) in pars if p.vary == true]
-    upper = [p.max for (k, p) in pars if p.vary == true]
+    params = [p.val for (k, p) in pars if p.fit == true]
+    lower = [p.min for (k, p) in pars if p.fit == true]
+    upper = [p.max for (k, p) in pars if p.fit == true]
 
-    #println(params, " ", lower, " ", upper)
-    fit = LsqFit.lmfit(cost, params, Float64[]; maxIter=100, lower=lower, upper=upper, show_trace=true, x_tol=1e-5)
-    param, sigma, covar = copy(fit.param), stderror(fit), estimate_covar(fit)
+    if method == "LsqFit.lmfit"
+        fit = LsqFit.lmfit(cost, params, Float64[], maxIter=maxiter, lower=lower, upper=upper, show_trace=true, x_tol=toll, g_tol=toll)
+        converged = fit.converged
+    elseif method == "lmfit"
+        iter = true
+        while iter
+            iter = false
+            fit = optimize(cost, params, LevenbergMarquardt(), iterations=maxiter, lower=lower, upper=upper, show_trace=true, x_tol=toll, f_tol=toll)
+            for (i, p) in enumerate([p.name for (k, p) in pars if p.fit == true])
+                if (fit.minimizer[i] == pars[p].min) || (fit.minimizer[i] == pars[p].max)
+                    pars[p].fit = false
+                    pars[p].val = fit.minimizer[i]
+                    iter = true
+                end
+            end
+            params = [p.val for (k, p) in pars if p.fit == true]
+            lower = [p.min for (k, p) in pars if p.fit == true]
+            upper = [p.max for (k, p) in pars if p.fit == true]
+        end
+        converged = fit.converged
+        fit = LsqFit.lmfit(cost, copy(fit.minimizer), Float64[]; maxIter=1, lower=lower, upper=upper, show_trace=true, x_tol=toll, g_tol=toll)
+    end
 
-    #println(dof(fit))
+    A = fit.jacobian' * fit.jacobian
+    println(isfinite(cond(A)))
+    sigma = zeros(size([p.val for (k, p) in pars if p.vary == true]))
+    try
+        if isfinite(cond(A))
+            sigma = stderror(fit)
+        else
+            println((sum(A, dims=1) .!= 0)[:])
+            B = stack(filter(!iszero,eachcol(permutedims(stack(filter(!iszero,eachrow(A)))))))
+            sigma = zeros(size(A)[1])
+            sigma[(sum(A, dims=1) .!= 0)[:]] = sqrt.(abs.(diag(inv(B' * B))))
+        end
+    catch
+        println("The was a problem during calculation of the covariance matrix")
+    end
+    #param, sigma = copy(fit.param), stderror(fit)
     i = 1
     for (k, p) in pars
-        if p.vary == true
+        if p.fit
+            pars[k].val = fit.param[i]
+            pars[k].unc = sigma[i]
             if startswith(p.name, "z_")
-                param[i] = z_to_v(v=param[i], z_ref=p.ref)
-                sigma[i] = z_to_v(v=sigma[i], z_ref=p.ref) - p.ref
-            end
-            if !blindMode
-                println(k, ": ", param[i], " ± ", sigma[i])
+                pars[k].val = z_to_v(v=pars[k].val, z_ref=p.ref)
+                pars[k].unc = z_to_v(v=pars[k].unc, z_ref=p.ref) - p.ref
             end
             i += 1
         end
+        if p.vary
+            if !blindMode
+                println(k, ": ", p.val, " ± ", p.unc)
+            end
+        end
     end
-    #println(covar)
 
-    return dof(fit), param, sigma
+    return [p.val for (k, p) in pars if p.vary == true], [p.unc for (k, p) in pars if p.vary == true], pybool(converged)
 end

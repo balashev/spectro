@@ -1,21 +1,21 @@
-show H2j1v1
-show H2j0v1
-high H2j8
-show CO
-show CI
-show CIj1
-show CIj2
-shwo ZnII
-ZnII
-
+show SiII
+Me SII 20.9
+show SiII
+Me SiII 20.9
+Me FeII 20.9
 show ZnII
-show SII
-show NV
-show 13CO
-show 13COj0
-show 13COj1
-show 13COj2
-show SII
-show SII
-show ZnII
-show CrII
+Me ZnII 20.9
+Me SiII 20.9
+Me FeII 20.9
+Me SII 20.9
+Me SII 21
+Me SiII 21
+Me FeII 21
+Me SiII 21
+Me FeII 21
+Me SII 21
+Me ZnII 20.9
+Me SII 21
+Me ZnII 20.9
+Me FeII 21
+Me SiII 21

@@ -825,7 +825,8 @@ class fitPars:
     def fromJulia(self, res, unc):
         s = ''
         for i, p in enumerate(self.list_fit()):
-            print(i, p, res[i])
+            if not self.parent.blindMode:
+                print(i, p, res[i])
             self.setValue(p.__str__(), res[i])
             self.setValue(p.__str__(), unc[i], 'unc')
             self.setValue(p.__str__(), unc[i], 'step')
