@@ -3267,9 +3267,12 @@ class CompositeSpectrum():
         self.gline = CompositeGraph(self, x=self.spec[0] * (1 + self.z), y=self.spec[1] * self.f, pen=self.pen, clickable=True)
         self.gline.sigClicked.connect(self.lineClicked)
         self.parent.vb.addItem(self.gline)
+        self.parent.statusBar.setText("Composite redshift is z={:7.5f}".format(self.z))
 
     def redraw(self):
         self.gline.setData(x=self.spec[0] * (1 + self.z), y=self.spec[1] * self.f * add_ext(self.spec[0], z_ext=0, Av=self.av, kind='SMC'))
+        self.parent.statusBar.setText("Composite redshift is z={:7.5f}".format(self.z))
+
         #self.label.redraw()
 
     def calc_scale(self):

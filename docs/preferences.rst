@@ -25,19 +25,33 @@ Fit
 
 Provide setting that control the fit profile calculation and appearance:
 
-*  **Line profile type**: choose the type of the construction of line profiles between:
+*  **Line profile type**: choose the type of the construction of line profiles:
     
-    * **regular**: regular python calculation (this include non-uniform wavelength grid for calculation the sub pixel profiles)
+    * **julia**: line profiles calculated using  ``Julia``. This type is only developed and maintained for the moment.
 
-    * **fast**: python calculation with uniform wavelength grid, where number in adjacent Line Edit panel set the number of sub-pixels within the spectral pixel. This is typically faster, than regular fit, but can be inaccurate if the number of subpixels is not enough.
+    * **py:regular**: regular python calculation (this include non-uniform wavelength grid for calculation the sub pixel profiles)
 
-    * **julia**: line profiles calculated using  ``Julia``.
+    * **py:uniform**: python calculation with uniform wavelength grid, where number in adjacent Line Edit panel set the number of sub-pixels within the spectral pixel. This is typically faster, than regular fit, but can be inaccurate if the number of subpixels is not enough.
 
-    * **fft**: line profiles calculated using Fast Fourier Transform (for fast convolution with instrumental function). **Be careful, it is not fully tested yet!**
+* **tau limit**: set the characteristic lower limit until which the optical depth is calculated. Set the width od the absorption line.
 
-* **tau limit**: set the characteristic limit until which the optical depth is calculated.
+* **accuracy**: control the number of spectral points to calculate the line. Roughly accuracy=0.1 meaning that at least each dy=0.1 there will be a spectral point, where line profiles is calculated. Usually, the value of 0.1 - 0.05 is a trade of between speed and accuracy.
 
-* **Fit method**: choose the minimization method for least-squares estimation. This setting pass directly to ``minimize`` routine in ``optimize`` package within ``lmfit`` package. Works only for fit calculation using python.
+* **Julia grid method**: set the grid method when **Line profile type** is **julia** used to calculate the grid of spectral points. This impact on the accuracy and speed (since the larger number of points increase the calculation time). Can be
+
+    * **uniform**: uniform grid with <n> points, set in **number of fitting points** field. The most simple method.
+
+    * **adaptive**: number of equidistant points with each spectral bin decided by the maximum of derivative of line profile within the bin and desired accuracy. The tradeoff between stability of the line profile (as a grid is quasi-uniform) and speed of calculation
+
+    * **minimized**: grid related to spectral bins (i.e. bin boundaries + <n> points) and "minimal" set of points (unrelated to bin) for line given accuracy. May provide the fastest calculation time, including the minimized version when <n> set 0m and binned is unchecked.
+
+* **number of fitting points**: - number of points within each bin (<n>), used to calulate the
+
+* **binned** - if is checked, than calculate the binned spectrum (integrate profile within the bin) to compare with observed spectrum. If not than the binned boundaries do not included in **minimized** type of grid method.
+
+* **Minimization method**: choose the minimization method for least-squares estimation.
+
+* **tolerance**: the setting for minimization fitting, i.e. fit until tolerance is satisfied.
 
 * **Fit components**: choose the representation of individual fit component (besides the total fit profile). This also access by ``C + SHIFT``. Can be: 
 

@@ -1456,12 +1456,12 @@ class preferencesWidget(QWidget):
             self.fitmethod.setFixedSize(120, 30)
             self.grid.addWidget(self.fitmethod, ind, 1)
 
-            self.grid.addWidget(QLabel("tollerance:"), ind, 2)
-            self.fit_tol = QLineEdit(self.parent.options("fit_tollerance"))
+            self.grid.addWidget(QLabel("tolerance:"), ind, 2)
+            self.fit_tol = QLineEdit(self.parent.options("fit_tolerance"))
             # self.julia_grid_num.setEnabled(int(self.parent.options("julia_grid")) > -1)
             self.fit_tol.setFixedSize(80, 30)
             self.fit_tol.setValidator(validator)
-            self.fit_tol.textChanged[str].connect(self.setFitTollerance)
+            self.fit_tol.textChanged[str].connect(self.setFitTolerance)
             self.grid.addWidget(self.fit_tol, ind, 3)
 
             ind += 1
@@ -1617,7 +1617,7 @@ class preferencesWidget(QWidget):
         self.parent.options(attr, getattr(self, attr).isChecked())
         if attr == 'show_osc':
             self.parent.abs.redraw()
-        if self.parent.blindMode:
+        if attr == 'blindMode' and self.parent.blindMode:
             self.parent.sendMessage("Switch blind mode on. The fit results will be hidden.")
         self.parent.s.redraw()
 
@@ -1659,9 +1659,9 @@ class preferencesWidget(QWidget):
         #if self.julia_grid.currentText() == 'uniform':
         self.parent.options("julia_grid_num", int(self.julia_grid_num.text()))
 
-    def setFitTollerance(self):
+    def setFitTolerance(self):
         # if self.julia_grid.currentText() == 'uniform':
-        self.parent.options("fit_tollerance", float(self.fit_tol.text()))
+        self.parent.options("fit_tolerance", float(self.fit_tol.text()))
 
     def setMethod(self):
         self.parent.fit_method = self.fitmethod.currentText()
@@ -3812,14 +3812,10 @@ class fitMCMCWidget(QWidget):
 
             if self.parent.fitType == 'julia':
                 self.parent.julia.include("MCMC.jl")
-                filename = self.parent.options("filename_saved").replace(".spv", ".spd")
                 self.parent.julia.fit_disp([f.x for f in fit], samples[burnin:, :, :], self.parent.julia_spec, self.parent.fit.list(),
                                            self.parent.julia_add, sys=len(self.parent.fit.sys), tieds=self.parent.fit.tieds,
                                            nthreads=int(self.parent.options('MCMC_threads')), nums=int(self.parent.options('MCMC_disp_num')),
                                            savename=self.parent.options("filename_saved").replace(".spv", ".spd"))
-                filename = self.parent.options("filename_saved").replace(".spv", ".spd")
-                #filename = "output/disp.spd"
-                print(filename)
             else:
                 for i1, i2, k in zip(np.random.randint(burnin, high=samples.shape[0], size=num),
                                      np.random.randint(0, high=samples.shape[1], size=num), range(num)):
@@ -6657,7 +6653,7 @@ class GenerateAbsWidget(QWidget):
                                                  telluric=self.parent.options("telluric"),
                                                  tau_limit=self.parent.tau_limit,
                                                  accuracy=self.parent.accuracy,
-                                                 toll=self.parent.options("fit_tollerance"))
+                                                 toll=self.parent.options("fit_tolerance"))
                 res.append(x)
                 self.parent.s.calcFit(redraw=False)
                 lnprobs.append(self.parent.s.chi2())
@@ -8198,6 +8194,7 @@ class sviewer(QMainWindow):
                 num = int(d[i].split()[1])
                 for k in range(num):
                     i += 1
+                    print(d[i])
                     self.fit.setValue(self.atomic.correct_name(d[i].split()[0]), d[i].split()[2], 'unc')
 
         if zoom:
@@ -9293,7 +9290,7 @@ class sviewer(QMainWindow):
                                                telluric=self.options("telluric"),
                                                tau_limit=self.tau_limit,
                                                accuracy=self.accuracy,
-                                               toll=float(self.options("fit_tollerance"))
+                                               toll=float(self.options("fit_tolerance"))
                                                )
 
         s = self.fit.fromJulia(res, unc)
