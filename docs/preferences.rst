@@ -61,9 +61,17 @@ Provide setting that control the fit profile calculation and appearance:
 
     * **non**: do not show components.
 
-* **show fit points**: show explicitly the points in which fit profile is calculated.   
+* **Fit view**: the representation of the calculated line profile:
 
-* **animate fit**: animate fit minimization, i.e. update the fit each step. **Does not properly work yet!**
+    * **line**: continious line
+
+    * **one**: for the total component it shows the points at which line profile is calculated (note that this may heavily loaded the GUI)
+
+    * **bins**: shows the line profiles integrated within the bins
+
+* **add telluric/accompanying absorption**: multiply fit by telluric absorption, if it is provided in the GUI
+
+* **animate fit**: animate fit minimization, i.e. update the fit each step. **To be implement**
 
 Colors
 ------

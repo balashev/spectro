@@ -1465,7 +1465,7 @@ class preferencesWidget(QWidget):
             self.grid.addWidget(self.fit_tol, ind, 3)
 
             ind += 1
-            self.grid.addWidget(QLabel('fit components:'), ind, 0)
+            self.grid.addWidget(QLabel('Fit components:'), ind, 0)
             self.compGroup = QButtonGroup(self)
             self.compview = ['all', 'one', 'none']
             for i, f in enumerate(self.compview):
@@ -1477,12 +1477,14 @@ class preferencesWidget(QWidget):
 
             ind += 1
             self.grid.addWidget(QLabel('Fit view:'), ind, 0)
-            self.fitView = QComboBox()
-            self.fitView.addItems(['bins', 'line', 'points'])
-            self.fitView.setCurrentText(self.parent.fitview)
-            self.fitView.currentIndexChanged.connect(self.setFitView)
-            self.fitView.setFixedSize(120, 30)
-            self.grid.addWidget(self.fitView, ind, 1)
+            self.viewGroup = QButtonGroup(self)
+            self.fitView = ['line', 'points', 'bins']
+            for i, f in enumerate(self.fitView):
+                setattr(self, f, QRadioButton(f))
+                getattr(self, f).toggled.connect(self.setFitView)
+                self.viewGroup.addButton(getattr(self, f))
+                self.grid.addWidget(getattr(self, f), ind, i + 1)
+            getattr(self, self.parent.fitview).toggle()
 
             ind += 1
             self.telluric = QCheckBox('add telluric/accompanying asborption')
@@ -1609,9 +1611,12 @@ class preferencesWidget(QWidget):
                 return
 
     def setFitView(self):
-        self.parent.fitview = self.fitView.currentText()
-        self.parent.options('fitview', self.parent.fitview)
-        self.parent.s.redraw()
+        for f in self.fitView:
+            if getattr(self, f).isChecked():
+                self.parent.fitview = f
+                self.parent.options('fitview', self.parent.fitview)
+                self.parent.s.redraw()
+                return
 
     def setChecked(self, attr):
         self.parent.options(attr, getattr(self, attr).isChecked())
