@@ -45,7 +45,7 @@ Provide setting that control the fit profile calculation and appearance:
 
     * **minimized**: grid related to spectral bins (i.e. bin boundaries + <n> points) and "minimal" set of points (unrelated to bin) for line given accuracy. May provide the fastest calculation time, including the minimized version when <n> set 0m and binned is unchecked.
 
-* **number of fitting points**: - number of points within each bin (<n>), used to calulate the
+* **number of fitting points**: - number of points within each bin (<n>), used to calculate the
 
 * **binned** - if is checked, than calculate the binned spectrum (integrate profile within the bin) to compare with observed spectrum. If not than the binned boundaries do not included in **minimized** type of grid method.
 
