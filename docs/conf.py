@@ -26,6 +26,7 @@ author = "Serj Balashev"
 # -- General configuration
 
 extensions = [
+    "sphinx_rtd_theme",
     "sphinx.ext.duration",
     "sphinx.ext.doctest",
     "sphinx.ext.autodoc",
