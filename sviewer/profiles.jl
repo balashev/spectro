@@ -1163,6 +1163,7 @@ function calc_spectrum(spec, pars; comp=0, grid_type="minimized", grid_num=1, bi
         end
 
         if out == "all"
+            println(spec.x[spec.mask])
             return pylist(x), pylist(y_c), pylist(spec.x[spec.mask]), pylist(binned)
         elseif out == "binned"
             return binned

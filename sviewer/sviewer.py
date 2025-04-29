@@ -4092,30 +4092,30 @@ class fitExtWidget(QWidget):
         if self.template in ['SDSS', 'VandenBerk', 'HST', 'Selsing', 'power']:
             fill_value = 'extrapolate'
             if self.template == 'SDSS':
-                data = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
+                data = np.genfromtxt(self.folder + "/data/SDSS/medianQSO.dat", skip_header=2, unpack=True)
                 data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
                 fill_value = (1.3, 0.5)
             if self.template == 'VandenBerk':
-                data = np.genfromtxt('data/SDSS/QSO_composite.dat', unpack=True)
+                data = np.genfromtxt(self.folder + "/data/SDSS/QSO_composite.dat", unpack=True)
                 data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
             elif self.template == 'HST':
-                data = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
+                data = np.genfromtxt(self.folder + "/data/SDSS/hst_composite.dat", skip_header=2, unpack=True)
             elif self.template == 'Selsing':
-                data = np.genfromtxt('data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
+                data = np.genfromtxt(self.folder + "/data/SDSS/Selsing2016.dat", skip_header=0, unpack=True)
             elif self.template == 'power':
                 self.slope = float(self.slopeField.text())
                 data = np.ones((2, 10000))
                 data[0] = np.linspace(500, 25000, data.shape[1])
                 data[1] = np.power(data[0] / 2500, self.slope)
             elif self.template == 'composite':
-                data = np.genfromtxt('data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
+                data = np.genfromtxt(self.folder + "/data/SDSS/Selsing2016.dat", skip_header=0, unpack=True)
                 data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
                 if 0:
                     x = data[0][-1] + np.arange(1, int((25000 - data[0][-1]) / 0.4)) * 0.4
                     y = np.power(x / 2500, -1.9) * 6.542031
                     data = np.append(data, [x, y, y / 10], axis=1)
                 else:
-                    d2 = np.genfromtxt('data/SDSS/QSO1_template_norm.sed', skip_header=0, unpack=True)
+                    d2 = np.genfromtxt(self.folder + "/data/SDSS/QSO1_template_norm.sed", skip_header=0, unpack=True)
                     m = d2[0] > data[0][-1]
                     data = np.append(data, [d2[0][m], d2[1][m] * data[1][-1] / d2[1][m][0], d2[1][m] / 30], axis=1)
 
@@ -9944,7 +9944,7 @@ class sviewer(QMainWindow):
         """
         Show H2 excitation diagram for the selected component
         """
-        data_H2 = np.genfromtxt('data/H2/energy_X.dat', comments='#', unpack=True)
+        data_H2 = np.genfromtxt(self.folder + "/data/H2/energy_X.dat", comments='#', unpack=True)
         def data_CO(nu, j):
             we, we_xe, Be, De = 2169.81358, 13.28831, 1.93128087, 6.12147e-06
             return (nu + .5) * we - (nu + .5) ** 2 * we_xe + Be * j * (j + 1) - De * j * (j + 1)
@@ -10940,16 +10940,16 @@ class sviewer(QMainWindow):
         if template in ['Selsing', 'SDSS', 'VanDenBerk', 'HST', 'const']:
             s = Spectrum(self, name='mock')
             if template == 'Selsing':
-                data = np.genfromtxt('data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
+                data = np.genfromtxt(self.folder + "data/SDSS/Selsing2016.dat", skip_header=0, unpack=True)
                 fill_value = 'extrapolate'
             elif template == 'SDSS':
-                data = np.genfromtxt('data/SDSS/medianQSO.dat', skip_header=2, unpack=True)
+                data = np.genfromtxt(self.folder + "data/SDSS/medianQSO.dat", skip_header=2, unpack=True)
                 fill_value = (1.3, 0.5)
             elif template == 'VanDenBerk':
-                data = np.genfromtxt('data/SDSS/QSO_composite.dat', unpack=True)
+                data = np.genfromtxt(self.folder + "data/SDSS/QSO_composite.dat", unpack=True)
                 fill_value = 'extrapolate'
             elif template == 'HST':
-                data = np.genfromtxt('data/SDSS/hst_composite.dat', skip_header=2, unpack=True)
+                data = np.genfromtxt(self.folder + "data/SDSS/hst_composite.dat", skip_header=2, unpack=True)
                 fill_value = 'extrapolate'
             elif template == 'const':
                 data = np.ones((2, 10))
