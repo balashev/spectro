@@ -718,7 +718,7 @@ class pyratio():
 
         - z           : redshift of the medium, need for CMB calculations
         - f_He        : fraction of Helium nuclei, respect to hydrogen nuclei
-        - UVB         : include UV backgroun in calculation
+        - UVB         : include UV background in calculation
         - logs        : if logs==1 compare log values of ratios when calculating likelihood.
         - calctype    : type of calculation to be performed:
                             allowed:
@@ -1025,10 +1025,13 @@ class pyratio():
                 coll += 10 ** self.pars[p].value * otop/(1+otop) * speci.coll['oH2'].rate(u, l, self.pars['T'].value)
             if p in 'n':
                 m_fr = 10 ** self.pars['f'].value if 'f' in self.pars else mol_fr
+                #print("mol_fr:", self.pars['f'].value, m_fr)
                 f_HI, f_H2 = (1-m_fr) / (self.f_He + 1 - m_fr / 2), m_fr / 2 / (self.f_He + 1 - m_fr / 2)
+                #print("fractions:", f_HI, f_H2)
                 coll += 10 ** self.pars['n'].value * speci.coll['H'].rate(u, l, self.pars['T'].value) * f_HI
                 #print(coll, 10 ** (self.pars['T'].value), speci.coll['H'].rate(u, l, self.pars['T'].value))
                 otop = 9 * np.exp(-170.6 / 10 ** (self.pars['T'].value))
+                #print("otop", otop)
                 coll += 10 ** self.pars['n'].value * speci.coll['pH2'].rate(u, l, self.pars['T'].value) * f_H2 / (1 + otop)
                 #print(u, l, speci.coll['pH2'].rate(u, l, self.pars['T'].value), f_H2 / (1 + otop))
                 coll += 10 ** self.pars['n'].value * speci.coll['oH2'].rate(u, l, self.pars['T'].value) * f_H2 * otop / (1 + otop)
@@ -1315,7 +1318,31 @@ class pyratio():
                 if p.prior.plus != 0 and p.prior.minus != 0:
                     pri += p.prior.lnL(p.value)
         return pri
-    
+
+    def population(self, name=None, level=0, logN=None):
+        """
+            calculate population ratios (N_j/g_j) / (N_level/g_level)
+            parameters:
+                - name       : name of the species
+                - level      : level with known column density
+                                if level == -1, use total column density
+                - logN       : column density for the radiative trapping (very simplistic)
+            """
+        if name is None:
+            name = list(self.species.keys())[0]
+
+        x = self.balance(self.species[name].name, logN=logN)
+        #print("balance: ", x, self.species[name].g[:self.species[name].num])
+        x = x / self.species[name].g[:self.species[name].num]
+        #print(x)
+
+        if level == -1:
+            ref = np.sum(x)
+        else:
+            ref = x[level]
+
+        return x / ref
+
     def predict(self, name=None, level=0, logN=None, plot=None, ax=None, color='k'):
         """
         predict column densities on levels
@@ -2043,9 +2070,45 @@ if __name__ == '__main__':
         print(pr.predict('CO', level=0, logN=1., plot='energy', ax=ax, color='dodgerblue'))
         ax.set_ylabel("log (population of CO)")
         ax.set_xlabel("Energy of level [cm$^{-1}$]")
-        fig.savefig("C:/science/students/Yuldashev/CO_populations.png", bbox_inches='tight')
+        fig.savefig("C:/science/students/Yuldashev/CO_excitation_diagram.png", bbox_inches='tight')
         #print(pr.predict('CO', level=-1, logN=14., plot='energy'))
         #pr.calc_emission_CO(par='n', specific=1, coh2=4e-5)
+        plt.show()
+
+    # >>> check CO populations
+    if 1:
+        fig, ax = plt.subplots(figsize=(14, 6))
+        pr = pyratio(z=2.5, CMB=True)
+        pr.add_spec('CO', num=20)
+        d = {'T': 2, 'n': 1, 'f': 0}
+        pr.set_pars(list(d.keys()) + ['CMB'])
+        # pr.pars['n'].range = [1, 5]
+        for d in d.items():
+            pr.pars[d[0]].value = d[1]
+
+        #rint(pr.balance(debug="CMB", logN=None))
+        #print(pr.balance(debug="total", logN=None))
+
+        n = np.linspace(-1, 7, 100)
+        for f, ls in zip([0, -5], ['-', '--']):
+            plt.gca().set_prop_cycle(None)
+            pr.pars['f'].value = f
+            z = []
+            for i, ni in enumerate(n):
+                pr.pars['n'].value = ni
+                pop = pr.population()
+                #print(pop)
+                z.append(pop)
+            z = np.asarray(z)
+            print(z.shape)
+            for l in range(1, 4):
+                ax.plot(n, z[:,l], label=f'level = {l}', ls=ls)
+
+        ax.set_ylabel(r"$N_j$/$N_0$")
+        ax.set_xlabel(r"$\log n_{\rm H} [\rm cm^{-3}]$")
+        fig.savefig("C:/science/students/Yuldashev/CO_populations.png", bbox_inches='tight')
+        # print(pr.predict('CO', level=-1, logN=14., plot='energy'))
+        # pr.calc_emission_CO(par='n', specific=1, coh2=4e-5)
         plt.show()
 
     if 0:
@@ -2625,7 +2688,7 @@ if __name__ == '__main__':
             plt.show()
 
     # >>> CI calculations:
-    if 1:
+    if 0:
         pr = pyratio(z=0.0)
         pr.add_spec('CI', num=3)
         pr.set_pars(['T', 'n', 'f'])

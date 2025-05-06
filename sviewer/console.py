@@ -487,17 +487,17 @@ class Console(QTextEdit):
         elif args[0] == 'lines':
 
             if args[1] == 'save':
-                with open('data/lines/saved.dat', 'w') as f:
+                with open(self.parent.folder + 'data/lines/saved.dat', 'w') as f:
                     for line in self.parent.lines:
                         f.write(line + '\n')
 
             elif args[1] == 'load':
                 lines, addlines = [], []
                 if len(args) == 2 or (len(args) == 3 and args[-1] in ['0', '1']):
-                    with open('data/lines/saved.dat', 'r') as f:
+                    with open(self.parent.folder + 'data/lines/saved.dat', 'r') as f:
                         lines = f.readlines()
                 elif len(args) == 3 or (len(args) == 4 and args[-1] in ['0', '1']):
-                    with open('data/lines/' + args[2] + '.dat', 'r') as f:
+                    with open(self.parent.folder + 'data/lines/' + args[2] + '.dat', 'r') as f:
                         lines = f.readlines()
                 for line in lines:
                     line = line.strip()

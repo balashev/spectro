@@ -385,7 +385,7 @@ class line():
             d = {-2: 'O', -1: 'P', 0: 'Q', 1: 'R', 2: 'S'}
             return '{0} {1}{2}-{3}{4}{5}'.format(self.name, self.band, self.nu_u, self.nu_l, d[self.j_u - self.j_l], self.j_l)
         else:
-            return self.name + ' ' + str(self.l())[:str(self.l()).find('.')]
+            return self.name + ' ' + str(self.l())[:str(self.l()).find('.')+3]
     
     def __str__(self):
         if any([ind in self.name for ind in ['H2', 'HD', 'CO']]) and self.j_l is not None:
@@ -602,6 +602,16 @@ class atomicData(OrderedDict):
                             print(str(lin))
                         self[name].lines[self[name].lines.index(lin)].add(lam, float(l[105:113]), 1e+8, ref='Cashman2017', pos=pos)
 
+    def correct_lines(self):
+        lines = {'SII 1250.57': 1250.584, 'SII 1253.80': 1253.811, 'SII 1259.51': 1259.519}
+        for line in lines.keys():
+            name = line.split()[0]
+            if name in self:
+                print(line, self[name].lines)
+                if line in self[name].lines:
+                    ind = self[name].lines.index(line)
+                    self[name].lines[ind].wavelength[0] = lines[line]
+                    self[name].lines[ind].ref[0] = 'Ritz'
 
     def readH2(self, nu=0, j=[0,1], energy=None):
         j = np.asarray(j)
@@ -825,8 +835,8 @@ class atomicData(OrderedDict):
             mask = HD['level'] == j
             for l in HD[mask]:
                 #name = 'HD ' + l[1].decode('UTF-8') + str(l[2]) + '-0' + l[3].decode('UTF-8') + '(' + str(int(l[0])) + ')'
-                self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=l['level'], nu_l=0, j_u=l['level'] + j_u[l['PorR'].decode('UTF-8')], nu_u=l['band']))
-                self[name].lines[-1].band = l['LW'].decode('UTF-8')
+                self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=l['level'], nu_l=0, j_u=l['level'] + j_u[l['PorR']], nu_u=l['band']))
+                self[name].lines[-1].band = l['LW'] #.decode('UTF-8')
 
     def readCO(self):
         CO = np.genfromtxt(self.folder + r'/data/CO_data_Dapra_plus_Morton.dat', skip_header=1, names=True, dtype=None)
@@ -837,7 +847,7 @@ class atomicData(OrderedDict):
             mask = CO['level'] == i
             for l in CO[mask]:
                 self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'], nu_u=l['band']))
-                self[name].lines[-1].band = l['name'].decode('UTF-8')
+                self[name].lines[-1].band = l['name'] #.decode('UTF-8')
 
         CO = np.genfromtxt(self.folder + r'/data/13CO_Morton.dat', skip_header=1, names=True, dtype=None)
         for i in np.unique(CO['level']):
@@ -849,7 +859,7 @@ class atomicData(OrderedDict):
                 self[name].lines.append(
                     line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'],
                          nu_u=l['band']))
-                self[name].lines[-1].band = l['name'].decode('UTF-8')
+                self[name].lines[-1].band = l['name'] #.decode('UTF-8')
 
     def readH2O(self):
         H2O = np.genfromtxt(self.folder + r'/data/molec/H2O_plus.dat', names=True, dtype=None)
@@ -900,7 +910,7 @@ class atomicData(OrderedDict):
         BAL = np.genfromtxt(self.folder + r'/data/BAL.dat', skip_header=1, names=True, dtype=None, comments='-')
         for l in BAL:
             print(l)
-            name = l['species'].decode('UTF-8')
+            name = l['species'] #.decode('UTF-8')
             if name not in self.keys():
                 self[name] = e(name)
             self[name].lines.append(line(name, l['lambda'], l['f'], 1e-9, ref=''))
@@ -953,6 +963,7 @@ class atomicData(OrderedDict):
     def makedatabase(self):
         self.readMorton()
         self.readCashman()
+        self.correct_lines()
         self.fromNIST()
         self.readH2(j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
         self.readH2(nu=1, j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
@@ -1618,7 +1629,7 @@ def mean_molecular_weight(f=1, Z=0):
     return m / n
 
 if __name__ == '__main__':
-    if 0:
+    if 1:
         A = atomicData()
         #A.getfromNIST('CI', 4)
         #A.getfromNIST('CI', 5)
@@ -1628,6 +1639,7 @@ if __name__ == '__main__':
     if 0:
         A = atomicData()
         A.readdatabase()
+        print(A["SII"].lines)
         #A.writeH2(energy=3000)
         #A.toascii('sviewer/data/H2/H2cat.dat', els=[f'H2j{i}' for i in range(8)])
         #A.toascii('sviewer/data/H2/H2cat.dat', els=[f'H2j{i}' for i in range(13)] + [f'H2j{i}v1' for i in range(7)])
@@ -1661,7 +1673,7 @@ if __name__ == '__main__':
         HI = HIlist.HIset()
         for line in HI:
             print(line, line.l, line.f, line.g)
-    if 1:
+    if 0:
         N = a('13.8^{+0.07}_{-0.08}', 'l')
         print(N)
         HI = a('21.27^{+0.1}_{-0.1}', 'l')
