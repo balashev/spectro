@@ -9981,8 +9981,9 @@ class sviewer(QMainWindow):
                     x = np.array(x)[arg]
                     y = np.array(y)[arg]
 
-                    p = ax.plot(x, [v.val for v in y], marker, markersize=1, color=color) #, label='sys_' + str(self.fit.sys.index(sys)))
-                    ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]], fmt=marker, color=p[0].get_color(), label=label)
+                    if len(x) > 0:
+                        p = ax.plot(x, [v.val for v in y], marker, markersize=1, color=color) #, label='sys_' + str(self.fit.sys.index(sys)))
+                        ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]], fmt=marker, color=p[0].get_color(), label=label)
                 #temp = self.H2ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax)
                 if temp:
                     text.append(self.ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax))
