@@ -373,7 +373,7 @@ class plotSpectrum(pg.PlotWidget):
                             self.vb.removeItem(getattr(self, attr))
                     self.w_region = None
                 else:
-                    self.vb.setMouseMode(self.vb.zz)
+                    self.vb.setMouseMode(self.vb.RectMode)
                     self.w_status = True
 
             if event.key() == Qt.Key.Key_X:
@@ -5801,7 +5801,7 @@ class ExportDataWidget(QWidget):
 
         if self.type == 'export':
             self.check = OrderedDict([('spectrum', 'Spectrum'), ('cont', 'Continuum'),
-                                      ('fit', 'Fit model'), ('fit_comps', 'Fit comps')])
+                                      ('fit', 'Fit model'), ('fit_comps', 'Fit comps'), ('trans', 'Transmission')])
             self.opt = self.parent.export_opt
         elif self.type == 'save':
             self.check = OrderedDict([('spectrum', 'Spectrum'), ('cont', 'Continuum'),
@@ -5995,6 +5995,23 @@ class ExportDataWidget(QWidget):
             #print([[len(c.x()), len(c.y())] for c in s.fit_comp])
             #print([c.y()[fit_mask] / cheb(s.fit.x()[fit_mask]) for c in s.fit_comp])
             #np.savetxt('_fit_comps.'.join(self.filename.rsplit('.', 1)), np.column_stack([s.fit.x()[fit_mask] / unit] + [c.y()[fit_mask] / cheb(s.fit.x()[fit_mask]) for c in s.fit_comp]), **kwargs)
+        if self.trans.isChecked():
+            print("export tranmission")
+
+            tell = self.parent.options("telluric")
+            self.parent.options("telluric", False)
+            self.parent.showFit(all=True)
+            s = self.parent.s[self.parent.s.ind]
+            if hasattr(s, "sky_cont") and len(s.sky_cont.x()) > 0:
+                sky = s.sky_cont.norm.y
+                x = s.sky_cont.norm.x
+            else:
+                x = s.fit.x()
+                sky = np.ones_like(x)
+            fint = interp1d(s.fit.line.norm.x, s.fit.line.norm.y, bounds_error=False, fill_value=1.0)
+            np.savetxt('_trans.'.join(self.filename.rsplit('.', 1)), np.c_[x / unit, sky * fint(x) * np.power(cheb(x), -self.parent.normview)], **kwargs)
+
+            self.parent.options("telluric", tell)
 
         if normview_saved != self.parent.normview:
             self.parent.normalize(normview_saved)
