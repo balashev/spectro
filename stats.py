@@ -56,7 +56,7 @@ class distr1d():
     def level(self, x, level):
         return self.inter(x) - level
 
-    def plot(self, x=None, conf=None, kind='center', factor=1, color='orangered', ax=None, xlabel=None, ylabel=None, fontsize=16, alpha=0.3, lw=1.5, title=None):
+    def plot(self, x=None, conf=None, kind='center', factor=1, color='orangered', ax=None, xlabel=None, ylabel=None, fontsize=16, alpha=0.3, lw=1.5, title=None, savefig=None):
         if ax is None:
             fig, ax = plt.subplots()
         if x is None:
@@ -81,6 +81,9 @@ class distr1d():
             ax.set_ylabel('pdf', fontsize=fontsize)
         else:
             ax.set_ylabel(ylabel, fontsize=fontsize)
+
+        if savefig != None:
+            fig.savefig(savefig)
 
         return ax
 

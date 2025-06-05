@@ -932,13 +932,14 @@ class fitModelWidget(QWidget):
                 self.addContParent(self.cont, 'region_' + str(i), expanded=self.parent.fit.cont_fit)
             self.parent.fit.cont[i].left, self.parent.fit.cont[i].right = r.getRegion()
             s = self.parent.s[self.parent.fit.cont[i].exp]
-            if self.parent.normview:
+            if not self.parent.normview:
                 m = (s.spec.x() > self.parent.fit.cont[i].left) * (s.spec.x() < self.parent.fit.cont[i].right)
-                print(np.nanmean(s.spec.err()[m] / s.cont.y[m]))
+                #print(np.nanmean(s.spec.err()[m] / s.cont.y[m]))
                 self.parent.fit.cont[i].disp = np.nanmean(s.spec.err()[m] / s.cont.y[m])
             else:
                 m = (s.spec.x() > self.parent.fit.cont[i].left) * (s.spec.x() < self.parent.fit.cont[i].right)
                 self.parent.fit.cont[i].disp = np.nanmean(s.spec.err()[m])
+            #print(s.spec.err()[m], np.nanmean(s.spec.err()[m]))
             self.parent.fit.cont[i].update()
             getattr(self, 'region_' + str(i)).cont_left.setText('{0:6.1f}'.format(self.parent.fit.cont[i].left).strip())
             getattr(self, 'region_' + str(i)).cont_right.setText('{0:6.1f}'.format(self.parent.fit.cont[i].right).strip())

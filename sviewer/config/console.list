@@ -1,6 +1,3 @@
-show SII
-SII
-SII
 CI
 HI
 SiII
@@ -19,3 +16,6 @@ show H2 0 1
 show CI
 show CIIj1
 show H2 0 1
+logN
+logN H2
+stats
