@@ -1138,7 +1138,9 @@ function calc_spectrum(spec, pars; comp=0, grid_type="minimized", grid_num=1, bi
         y_c = y
     end
 
+    #println(~isempty(knots(spec.sky)))
     if (comp == 0) & (telluric==true) & ~isempty(knots(spec.sky))
+        #println("telluric: ", spec.sky(x))
         y_c .*= spec.sky(x)
     end
 

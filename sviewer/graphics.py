@@ -1723,6 +1723,7 @@ class Spectrum():
         self.wavelmin, self.wavelmax = self.spec.raw.x[0], self.spec.raw.x[-1]
         self.mask.set(x=np.zeros_like(self.spec.raw.x, dtype=bool))
         self.bad_mask.set(x=np.isnan(self.spec.raw.y))
+        print("set bad: ", self.bad_mask.x(), len(self.bad_mask.x()))
         self.set_res()
 
     def rescale(self, scaling_factor):
@@ -2034,6 +2035,7 @@ class Spectrum():
                     self.parent.vb.removeItem(getattr(self, attr))
 
     def set_fit_mask(self):
+        print(len(self.mask.x()), len(self.bad_mask.x()))
         self.fit_mask.set(x=np.logical_and(self.mask.x(), np.logical_not(self.bad_mask.x())))
 
     def normalize(self, action='normalize'):
@@ -2058,9 +2060,11 @@ class Spectrum():
                 self.cheb.normalize(self.parent.normview + self.parent.aodview, cont_mask=False, inter=True, action=action)
 
         self.mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
-        if len(self.bad_mask.raw.x) == len(self.cont_mask):
-            self.bad_mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
-        self.set_fit_mask()
+        #if self.cont_mask is not None:
+        #    if len(self.bad_mask.raw.x) == len(self.cont_mask):
+        self.bad_mask.normalize(self.parent.normview, cont_mask=self.cont_mask is not None, action=action)
+        if self.cont_mask is not None:
+            self.set_fit_mask()
 
     def calcCont(self, method='SG', xl=None, xr=None, iter=5, window=201, clip=2.5, sg_order=5, filter='flat', new=True, cont=False, sign=1):
         if self.spec.raw.n > 0:

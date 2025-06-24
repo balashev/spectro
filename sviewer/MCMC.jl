@@ -18,6 +18,7 @@ using JLD2
 
 function initJulia(filename, spec, pars, add, parnames; sampler="Affine", prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
 # 	serialize(filename, [spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts])
+	println(parnames, " ", typeof(parnames))
 	save(File(format"JLD2", filename), "data", [spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts])
 end
 
@@ -35,6 +36,7 @@ function initJulia2(filename, s; fit=nothing, fit_list=nothing, parnames=nothing
     thinning = typeof(thinning) != Int64 ? pyconvert(Int64, thinning) : thinning
     init = pyconvert(Array, init)
     opts = pyconvert(Dict, opts)
+    println(parnames, " ", typeof(parnames))
 #     serialize(filename, [spec, pars, add, parnames, sampler, priors, nwalkers, nsteps, thinning, init, opts])
 	save(File(format"JLD2", filename), "data", [spec, pars, add, parnames, sampler, priors, nwalkers, nsteps, thinning, init, opts])
 end
@@ -69,7 +71,10 @@ function runMCMC(filename, nthreads; nstep=nothing, cont=false, last=false, samp
 	#println(sampler, " ", parnames, " ", prior, " ", nwalkers, " ", nsteps, " ", thinning)
 	chain, llhoodvals = fitMCMC(spec, pars, add, parnames, sampler=sampler, prior=prior, nwalkers=nwalkers, nsteps=nsteps, nthreads=nthreads, thinning=thinning, init=init, opts=opts, filename=filename)
 # 	serialize(replace(filename, ".spj" => ".spr"), [parnames, chain, llhoodvals])
-	save(File(format"JLD2", replace(filename, ".spj" => ".spr")), "data", [parnames, chain, llhoodvals])
+    chain, llhoodvals = pyconvert(Array{Float64}, chain), pyconvert(Array{Float64}, llhoodvals)
+	println(parnames, " ", typeof(parnames))
+    println(typeof(chain), typeof(llhoodvals))
+    save(File(format"JLD2", replace(filename, ".spj" => ".spr")), "data", [parnames, chain, llhoodvals])
 
 	#plotChain(filename)
 end
@@ -165,6 +170,7 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
     params = [p.val for (k, p) in pars if p.vary == 1]
 	init = pyconvert(Array{Float64}, init)
 	opts = pyconvert(Dict, opts)
+    println(opts)
 
 	#lnlike = p->begin
 	function lnlike(p)
@@ -196,7 +202,7 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
 
 		for s in spec
 			if sum(s.mask) > 0
-				model = calc_spectrum(s, pars, out="binned")
+                model = calc_spectrum(s, pars, out="binned", telluric=opts["telluric"])
 				#println("model ", model)
 
 				retval -= .5 * sum(((model .- s.y[s.mask]) ./ s.unc[s.mask]) .^ 2)
@@ -644,7 +650,7 @@ end
 @everywhere spectrum_comp(spectrum, s, x; comp=0) = p->spectrum(p, s, x, comp=comp)
 @everywhere spectrum_cheb(spectrum, s, x) = p->spectrum(p, s, x, cheb=1)
 
-function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nthreads=1, savename="disp")
+function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), opts=Dict(), nums=100, nthreads=1, savename="disp")
 	"""
 	Calculate the dispersion of the fit
 	"""
@@ -655,6 +661,11 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nt
 	convert!(nums, Int64)
 	convert!(nthreads, Int64)
 	convert!(savename, String)
+	opts = pyconvert(Dict, opts)
+
+	println(sys, " ", nums, " ", nthreads)
+	println(size(samples))
+	println(opts)
     #print(savename)
 
 	inds = hcat(rand(1:size(samples, 1), nums), rand(1:size(samples, 2), nums))
@@ -672,7 +683,7 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), nums=100, nt
         update_pars(pars, spec, add)
 
         if cheb == 0
-            w, f = calc_spectrum(s, pars, comp=comp)
+            w, f = calc_spectrum(s, pars, comp=comp; telluric=opts["telluric"])
             w = convert(w, Array{Float64})
             f = convert(f, Array{Float64})
         else

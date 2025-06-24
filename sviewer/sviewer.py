@@ -2859,7 +2859,7 @@ class fitMCMCWidget(QWidget):
                  'Constraints:', '',
                  '', '',
                  ]
-        positions = [(i, j) for i in range(7) for j in range(2)]
+        positions = [(i, j) for i in range(8) for j in range(2)]
 
         for position, name in zip(positions, names):
             if name == '':
@@ -2911,6 +2911,11 @@ class fitMCMCWidget(QWidget):
             self.hier_continuum.setEnabled(False)
         # self.b_increase.clicked[bool].connect(partial(self.setOpts, 'smooth'))
         grid.addWidget(self.hier_continuum, 8, 1)
+
+        self.telluric = QCheckBox('take into account telluric')
+        self.telluric.setChecked(False)
+        self.telluric.setChecked(self.parent.options("telluric"))
+        grid.addWidget(self.telluric, 9, 1)
 
         self.chooseFit = chooseFitParsWidget(self.parent, closebutton=False)
         self.chooseFit.setFixedSize(200, 700)
@@ -3243,7 +3248,8 @@ class fitMCMCWidget(QWidget):
         #self.parent.setFit(comp=-1)
         nwalkers, nsteps, nthreads, thinning = int(self.parent.options('MCMC_walkers')), int(self.parent.options('MCMC_iters')), int(self.parent.options('MCMC_threads')), int(self.parent.options('MCMC_thinning'))
 
-        opts = {'b_increase': self.b_increase.isChecked(), 'H2_excitation': self.H2_excitation.isChecked(), 'hier_continuum': self.hier_continuum.isChecked()}
+        opts = {"b_increase": self.b_increase.isChecked(), "H2_excitation": self.H2_excitation.isChecked(),
+                "hier_continuum": self.hier_continuum.isChecked(), "telluric": self.telluric.isChecked()}
 
         if init:
             init = []
@@ -3796,6 +3802,9 @@ class fitMCMCWidget(QWidget):
         self.parent.s.calcFit(recalc=True)
         self.parent.s.calcFitComps(recalc=True)
 
+        opts = {"b_increase": self.b_increase.isChecked(), "H2_excitation": self.H2_excitation.isChecked(),
+                "hier_continuum": self.hier_continuum.isChecked(), "telluric": self.telluric.isChecked()}
+
         if calc:
             fit, fit_disp, fit_comp, fit_comp_disp = [], [], [], []
             for i, s in enumerate(self.parent.s):
@@ -3817,10 +3826,11 @@ class fitMCMCWidget(QWidget):
 
             if self.parent.fitType == 'julia':
                 self.parent.julia.include("MCMC.jl")
+                filename = self.parent.options("filename_saved").replace(".spv", ".spd")
                 self.parent.julia.fit_disp([f.x for f in fit], samples[burnin:, :, :], self.parent.julia_spec, self.parent.fit.list(),
-                                           self.parent.julia_add, sys=len(self.parent.fit.sys), tieds=self.parent.fit.tieds,
+                                           self.parent.julia_add, sys=len(self.parent.fit.sys), tieds=self.parent.fit.tieds, opts=opts,
                                            nthreads=int(self.parent.options('MCMC_threads')), nums=int(self.parent.options('MCMC_disp_num')),
-                                           savename=self.parent.options("filename_saved").replace(".spv", ".spd"))
+                                           savename=filename)
             else:
                 for i1, i2, k in zip(np.random.randint(burnin, high=samples.shape[0], size=num),
                                      np.random.randint(0, high=samples.shape[1], size=num), range(num)):
@@ -8420,6 +8430,8 @@ class sviewer(QMainWindow):
             filename = line.strip()
             s = Spectrum(self, name=filename)
 
+            telluric = None
+
             if spec is None:
 
                 if filename.endswith('tar.gz'):
@@ -8651,7 +8663,13 @@ class sviewer(QMainWindow):
                     # >>>> other ascii data, e.g. .dat, .txt, etc
                     try:
                         data = np.genfromtxt(filename, comments='#', unpack=True)
-                        s.set_data(data)
+                        if len(data) >= 3:
+                            s.set_data(data[:3])
+                        elif len(data) == 2:
+                            s.set_data(data)
+                        if len(data) == 4:
+                            telluric = np.transpose(np.c_[data[0], data[3]])
+
 
                     except Exception as inst:
                         #print(type(inst))    # the exception instance
@@ -8667,6 +8685,8 @@ class sviewer(QMainWindow):
             s.wavelmin = np.min(s.spec.raw.x)
             s.wavelmax = np.max(s.spec.raw.x)
             self.s.append(s)
+            self.importTelluric(data=telluric)
+
         if append:
             self.plot.vb.disableAutoRange()
             self.s.redraw()
@@ -8679,31 +8699,35 @@ class sviewer(QMainWindow):
                 for f in self.filters[name]:
                     f.update(m)
 
-    def importTelluric(self, filename):
-        data = np.genfromtxt(filename, unpack=True)
-        if len(self.s) > 0:
-            for attr in ['g_sky', 'g_sky_cont']:
-                if hasattr(self.s[self.s.ind], attr) and getattr(self.s[self.s.ind], attr) in self.vb.addedItems:
-                        self.vb.removeItem(getattr(self.s[self.s.ind], attr))
-            try:
-                #print(data.shape[0])
-                m = np.r_[np.diff(data[0]) != 0, True]
-                if data.shape[0] == 2:
-                    self.s[self.s.ind].sky.set(data[0][m], data[1][m])
-                elif data.shape[0] > 3:
-                    self.s[self.s.ind].sky.set(data[0][m], data[-1][m])
-                #print(self.s[self.s.ind].sky.y())
-                print('load')
-                self.s[self.s.ind].sky.interpolate()
-                print('inter')
-                self.s[self.s.ind].sky.filename = filename
-                self.s[self.s.ind].update_sky()
-                print('redraw')
-                self.s.redraw()
-                print('update')
-                self.s[self.s.ind].update_sky()
-            except:
-                self.sendMessage("Sky/telluric/nuisance absorption spectrum was not imported. Check the file")
+    def importTelluric(self, filename=None, data=None):
+        if filename is not None:
+            data = np.genfromtxt(filename, unpack=True)
+
+        print("telluric:", data, len(self.s))
+        if data is not None:
+            if len(self.s) > 0:
+                for attr in ['g_sky', 'g_sky_cont']:
+                    if hasattr(self.s[self.s.ind], attr) and getattr(self.s[self.s.ind], attr) in self.vb.addedItems:
+                            self.vb.removeItem(getattr(self.s[self.s.ind], attr))
+                try:
+                    #print(data.shape[0])
+                    m = np.r_[np.diff(data[0]) != 0, True]
+                    if data.shape[0] == 2:
+                        self.s[self.s.ind].sky.set(data[0][m], data[1][m])
+                    elif data.shape[0] > 3:
+                        self.s[self.s.ind].sky.set(data[0][m], data[-1][m])
+                    #print(self.s[self.s.ind].sky.y())
+                    print('load')
+                    self.s[self.s.ind].sky.interpolate()
+                    print('inter')
+                    self.s[self.s.ind].sky.filename = filename
+                    self.s[self.s.ind].update_sky()
+                    print('redraw')
+                    self.s.redraw()
+                    print('update')
+                    self.s[self.s.ind].update_sky()
+                except:
+                    self.sendMessage("Sky/telluric/nuisance absorption spectrum was not imported. Check the file")
 
 
     def import2dSpectrum(self, filelist, spec=None, header=0, dir_path='', ind=None, append=False):
