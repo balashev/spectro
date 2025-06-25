@@ -65,7 +65,7 @@ class plot_spec(list):
         - readlist    :  read the path to lines from the file with the list
         -
     """
-    def __init__(self, arg, vel_scale=False, font="Cambria", font_size=14, font_labels=16, fit=True, figure=None, gray_out=False, show_comps=True, show_err=True, error_cap=5):
+    def __init__(self, arg, vel_scale=False, font="Cambria", font_size=14, font_labels=16, fit=True, figure=None, gray_out=False, show_telluric=False, show_comps=True, show_err=True, error_cap=5):
         self.vel_scale = vel_scale
         self.name_pos = [0.02, 0.19]
         self.add_ioniz = False
@@ -76,9 +76,10 @@ class plot_spec(list):
         self.figure = figure
         self.color_total = "tab:red"
         self.show_comps = show_comps
+        self.gray_out = gray_out
+        self.show_telluric = show_telluric
         self.show_err = show_err
         self.error_cap = error_cap
-        self.gray_out = gray_out
         self.order = 'v'
         self.color_res = "tomato"
 
@@ -141,7 +142,8 @@ class plot_spec(list):
         self.comps = np.array(args)
         self.num_comp = len(self.comps)
 
-    def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, ls_total='solid', ind_ls='dotted', ind_lw=1.0,
+    def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, ls_total='solid',
+                       ind_ls='dotted', ind_lw=1.0, color_tell=None, lw_tell=1.0, tell_fill=0,
                        add_lines="0.0", add_ls='dotted', disp_alpha=0.7, res_style='scatter', res_color=None):
 
         if color_total is not None:
@@ -168,6 +170,12 @@ class plot_spec(list):
                         color[i] = tuple(ci / 255 for ci in c)
         self.color = color[:]
 
+        if color_tell is not None:
+            if not isinstance(color_tell, str):
+                if np.max(list(color_tell)) > 1:
+                    color_tell = tuple(c / 255 for c in color_tell)
+            self.color_tell = color_tell
+
         #d = {'solid': '-', 'dashed': '--', 'dotted': ':', 'dashdot': '-:'}
         if ls is None:
             ls = ['-'] * num
@@ -184,8 +192,10 @@ class plot_spec(list):
         self.lw_total = lw_total
         self.lw_spec = lw_spec
         self.ls_total = ls_total
+        self.lw_tell = lw_tell
         self.ind_ls = ind_ls
         self.ind_lw = ind_lw
+        self.tell_fill = tell_fill
         self.add_lines = float(add_lines) if add_lines.replace('.','',1).replace('-', '').isdigit() else 0
         self.add_ls = add_ls
         self.disp_alpha = disp_alpha
@@ -348,6 +358,7 @@ class plotline():
             self.wavelength = 0
         self.show_fit = fit
         self.add_errors = True
+        self.show_telluric = self.parent.show_telluric
         self.show_err = self.parent.show_err
         self.gray_out = self.parent.gray_out
         self.add_cont = True
@@ -376,7 +387,7 @@ class plotline():
         self.show_comps = self.parent.show_comps
         self.sig = 2
 
-    def loaddata(self, d=None, f=None, fit_comp=None, fit_disp=None, fit_comp_disp=None, z=None, filename=None, verbose=False):
+    def loaddata(self, d=None, f=None, fit_comp=None, fit_disp=None, fit_comp_disp=None, sky=None, z=None, filename=None, verbose=False):
 
         if filename is not None:
             self.filename = [filename]
@@ -435,6 +446,11 @@ class plotline():
                 self.fit_comp_disp[k] = [data(x=fit_comp_disp[k][0], y=fit_comp_disp[k][1]), data(x=fit_comp_disp[k][0], y=fit_comp_disp[k][2])]
         else:
             self.fit_comp_disp = None
+
+        if sky is not None:
+            self.sky = data(x=sky[0], y=sky[1])
+        else:
+            self.sky = None
 
         if z is not None:
             self.z = np.asarray(z)
@@ -499,9 +515,17 @@ class plotline():
         # >>> recalculate to velocity offset if necessary
         if self.vel_scale:
             self.spec.x = (self.spec.x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
+            self.sky.x = (self.sky.x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
 
         # >>> mask only selected wavelength range
         self.points = self.points[self.spec.mask(self.x_min, self.x_max)]
+
+        # >>> plot telluric
+        if self.show_telluric:
+            if self.parent.tell_fill:
+                self.ax.fill_between(self.sky.x, 1, self.sky.y, color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-', alpha=self.parent.lw_tell)
+            else:
+                self.ax.plot(self.sky.x, self.sky.y, color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-')
 
         # >>> plot spectrum
         if self.show_err:
@@ -605,6 +629,12 @@ class plotline():
         # >>> correct continuum
         if len(self.cont) > 0:
             self.correct_cont()
+
+        # >>> plot telluric
+        if self.parent.tell_fill:
+            self.ax.fill_between(self.sky.x, 1, self.sky.y, color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-', alpha=self.parent.lw_tell)
+        else:
+            self.ax.plot(self.sky.x, self.sky.y, color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-')
 
         # >>> plot spectrum
         if self.show_err:
