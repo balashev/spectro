@@ -1189,6 +1189,7 @@ class atomicData(OrderedDict):
                     'CIV 1550',
                     'FeII 1608',
                     'AlII 1670',
+                    'SiII 1808'
                     'FeII 2344',
                     'FeII 2374',
                     'FeII 2382',
@@ -1198,6 +1199,13 @@ class atomicData(OrderedDict):
                     'MgII 2803',
                     'MgI 2852',
                     ]
+        if lines:
+            return self.list(linelist=linelist)
+        else:
+            return linelist
+
+    def Low_Ioniz_list(self, lines=True):
+        linelist = [str(l) for l in self.list(els=["CI", "CIj1", "CIj2", "ClI", "SI", "SiI", "FeI", "MgI", "CaII", "NaI"])]
         if lines:
             return self.list(linelist=linelist)
         else:

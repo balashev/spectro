@@ -226,12 +226,8 @@ class LineLabel(pg.TextItem):
     def redraw(self, z):
         if len(self.parent.parent.s) > 0:
             ypos = self.parent.parent.s[self.parent.parent.s.ind].spec.inter(self.line.l() * (1 + z))
-            #print(self.line, self.line.l() * (1 + z), ypos)
             if ypos == 0:
-                for s in self.parent.parent.s:
-                    ypos = s.spec.inter(self.line.l() * (1 + z))
-                    if ypos != 0:
-                        break
+                ypos = self.parent.parent.s[self.parent.parent.s.ind].spec.inter(self.line.l() * (1 + z))
         else:
             ypos = self.parent.parent.vb.mapSceneToView(self.scenePos()).y()
         self.setPos(self.line.l() * (1 + z), ypos)

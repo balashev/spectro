@@ -7035,6 +7035,7 @@ class sviewer(QMainWindow):
         self.abs_H2_status = 0
         self.abs_DLA_status = 0
         self.abs_DLAmajor_status = 1
+        self.abs_LowIoniz_status = 0
         self.abs_Molec_status = 0
         self.abs_SF_status = 1
         self.normview = False
@@ -7337,6 +7338,11 @@ class sviewer(QMainWindow):
         self.linesDLAmajor.triggered.connect(partial(self.absLines, 'abs_DLAmajor_status'))
         self.linesDLAmajor.setChecked(self.abs_DLAmajor_status)
 
+        self.linesLowIon = QAction('&Low Ionization lines', self, checkable=True)
+        self.linesLowIon.setStatusTip('Add Low Ionization lines associated with CNM/H2-bearing gas')
+        self.linesLowIon.triggered.connect(partial(self.absLines, 'abs_LowIoniz_status'))
+        self.linesLowIon.setChecked(self.abs_LowIoniz_status)
+
         self.linesMolec = QAction('&Minor molecules', self, checkable=True)
         self.linesMolec.setStatusTip('Add various molecular lines')
         self.linesMolec.triggered.connect(partial(self.absLines, 'abs_Molec_status'))
@@ -7358,6 +7364,7 @@ class sviewer(QMainWindow):
         linesMenu.addAction(self.linesDLA)
         linesMenu.addAction(self.linesDLAmajor)
         linesMenu.addAction(self.linesH2)
+        linesMenu.addAction(self.linesLowIon)
         linesMenu.addAction(self.linesMolec)
         linesMenu.addAction(self.linesSF)
         linesMenu.addSeparator()
@@ -8003,6 +8010,8 @@ class sviewer(QMainWindow):
                 lines, color, va = self.atomic.DLA_list(), (105, 213, 105), 'down'
             if status == 'abs_DLAmajor_status':
                 lines, color, va = self.atomic.DLA_major_list(), (105, 213, 105), 'down'
+            if status == 'abs_LowIoniz_status':
+                lines, color, va = self.atomic.Low_Ioniz_list(), (39, 140, 245), 'down'
             if status == 'abs_Molec_status':
                 lines, color, va = self.atomic.Molecular_list(), (255, 111, 63), 'down'
             if status == 'abs_SF_status':
