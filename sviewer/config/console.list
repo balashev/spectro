@@ -1,21 +1,21 @@
+SI
+SiI
+MgI
+SI
 high SI
-high CI
-show CO
+SI
 high SI
+show H2 0 1 2 3
+show H2 4 5
+high COj4
 high SI
-show CO
-hide CO
-show CO
-show SiI
-show SiII
+SI
+13COj0
 show 13COj0
-show 13COj1
-SiI
-FeI
-SiI
-CIj2
-FeI
-SiI
-FeI
-show CO
-show CO
+SI
+show SiIIj1
+show OIj1
+show OIj2
+high SI
+show CIIj1
+show SiIIj1

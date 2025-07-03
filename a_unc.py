@@ -194,18 +194,25 @@ class a:
         """
 
         #print(self.val, self.plus, self.minus)
+
         if base == None and self.repr == 'dec':
             base = int(np.log10(abs(self.val)))
 
         # >>> set automatical number of significant digits, called <f>
         if f == None:
             d = np.asarray([self.plus, self.minus])
+            print(d, self.plus, self.minus)
             if len(np.nonzero(d)[0]) > 0:
                 if self.repr == 'log':
                     f = int(np.round(np.abs(np.log10(np.min(d[np.nonzero(d)]))) + 1.97)) - 1
                 if self.repr == 'dec':
                     #f = 1 if np.abs(np.min(d) / self.val) > 0.5 else 2
-                    f = 1 if int(np.floor(np.min(d) / (10 ** np.floor(np.log10(np.min(d)))))) > 2 else 2
+                    x = np.min(d[np.nonzero(d)])
+                    print(x)
+                    p = np.floor(np.log10(x))
+                    print(p)
+                    print(int(np.round(np.abs(np.log10(x / 10 ** p) + 1.97))) - 1, (p < 0) * p)
+                    f = int(int(np.round(np.abs(np.log10(x / 10 ** p) + 1.97))) - 1 - (p < 0) * p)
             else:
                 f = 2
             #print(self.repr, f, int(np.round(np.abs(np.log10(np.min(d[np.nonzero(d)]))) + 1.97)), base)
@@ -223,9 +230,10 @@ class a:
                 r = int(f - np.floor(np.log10(min(abs(self.plus), abs(self.minus))))) - 1 + base
             else:
                 r = f - 1 + base
-            val = round(self.val/10**base, r)
-            plus = round(round(self.val/10**base + self.plus/10**base, r) - round(self.val/10**base, r), r)
-            minus = round(round(self.val/10**base, r) - round(self.val/10**base - self.minus/10**base, r), r)
+            print(self.val, base, r)
+            val = round(self.val / 10 ** base, r)
+            plus = round(round(self.val / 10 ** base + self.plus / 10 ** base, r) - round(self.val / 10 ** base, r), r)
+            minus = round(round(self.val / 10 ** base, r) - round(self.val / 10 ** base - self.minus / 10 ** base, r), r)
 
         s = 'none'
         if np.isfinite(self.plus) and np.isfinite(self.minus) and self.type == 'm':

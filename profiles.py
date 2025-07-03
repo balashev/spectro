@@ -19,9 +19,9 @@ from scipy.special import wofz
 if __name__ == '__main__':
     import sys
     sys.path.append('C:/science/spectro/')
-    from spectro.stats import powerlaw
+    from spectro.stats import powerlaw, distr1d
 else:
-    from .stats import powerlaw
+    from .stats import powerlaw, distr1d
 
 #import sys
 #sys.path.append('D:/science/python/')
@@ -729,6 +729,47 @@ def fisherbN(N, b, lines, ston=1, cgs=0, convolve=1, resolution=50000, z=2.67, t
             db = np.sqrt(np.abs(cov))[1, 1] / 1e5 / ston
 
         return dN, db, F, min(F_con[0, :])
+1
+def dv90(x, y, err, resolution=np.inf, num=500, plot=0):
+    dv90, dv90_c = [], []
+    if plot:
+        #fig, ax = plt.subplots(nrows=2, ncols=2, figsize=(15, 10), width_ratios=[np.array([2, 1]), np.array([2, 1])]) # gridspec_kw={'width_ratios': [[2, 1], [2, 1]]})
+        fig, ax = plt.subplot_mosaic("AAC;BBD", figsize=(15, 10))
+        ax["A"].errorbar(x, y, yerr=err, ds='steps-mid', lw=2, color='k', capsize=0, zorder=10)
+        ax["A"].axhline(1.0, ls='--', lw=1)
+        tau = np.cumsum(-np.log(y))
+        ax["B"].step(x, tau/tau[-1], where='mid', ls='-', lw=2, zorder=10)
+
+    for i in range(num):
+        y_r = np.asarray(y) + np.random.randn(len(y)) * err
+        #print(y_r)
+        tau = np.cumsum(-np.log(y_r))
+        #print(tau / tau[-1])
+        dv = interp1d(tau / tau[-1], x, fill_value='extrapolate')
+        dv90.append(dv(0.95) - dv(0.05))
+        dv90_c.append(np.sqrt((dv(0.95) - dv(0.05)) ** 2 - (1.4 * const.c.to('km/s').value / resolution) ** 2))
+        #m = ((1 - y_r) / err) > 3
+        #vx.append(np.max(x[m]) - np.min(x[m]))
+        if plot:
+            ax["A"].step(x, y_r, where='mid', lw=0.5, color='gray', zorder=5, alpha=0.1)
+            ax["A"].axvspan(dv(0.05), dv(0.95), lw=0, color='salmon', alpha=1/num, zorder=0)
+            ax["B"].step(x, tau / tau[-1], where='mid', ls='-', color='gray', lw=0.5, alpha=0.1, zorder=5)
+            ax["B"].axvspan(dv(0.05), dv(0.95), lw=0, color='salmon', alpha=1/num, zorder=0)
+
+    text = ""
+    for s, axs, title in zip([dv90, dv90_c], [ax["C"], ax["D"]], ["dv90", "dv90_c"]):
+        print(np.quantile(s, [0.1585, 0.5, 0.8415]))
+        d = distr1d(s)
+        print(d.stats())
+        if plot:
+            axs.hist(s, density=1, alpha=0.3, color='k', zorder=0)
+            d.plot(ax=axs, title=title, conf=0.683)
+        text += f", {title} = {d.latex()}"
+    if plot:
+        fig.tight_layout()
+        plt.show()
+
+    return text
 
 if __name__ == '__main__':
 
@@ -753,8 +794,17 @@ if __name__ == '__main__':
         ax.plot(l, I)
         ax.set_ylim([-0.1, 1.2])
 
-    if 1:
+    if 0:
         print(add_ext(np.linspace(1000, 2000, 10), z_ext=0, Av=0.0, kind='MW'))
+
+    if 1:
+        def gauss(x, x0, s):
+            return np.exp(-.5 * ((x - x0) / s) ** 2)
+
+        x = np.linspace(-220, 350, 200)
+        y = 0.2 * gauss(x, -30, 30) + 0.4 * gauss(x, 0, 50) + 0.4 * gauss(x, 40, 30)
+        y = np.exp(-y) + np.random.randn(len(x)) * 0.05
+        print(dv90(x, y, np.ones_like(x) * 0.05, plot=1, resolution=5000))
     
     
     

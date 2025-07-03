@@ -46,7 +46,7 @@ from ..a_unc import a
 from ..absorption_systems import vel_offset
 from ..atomic import *
 from ..plot_spec import *
-from ..profiles import add_LyaForest, add_ext, add_ext_bump, add_LyaCutoff, convolveflux, tau
+from ..profiles import add_LyaForest, add_ext, add_ext_bump, add_LyaCutoff, convolveflux, tau, dv90
 from ..stats import distr1d, distr2d
 from ..XQ100 import load_QSO
 from .console import *
@@ -706,15 +706,11 @@ class plotSpectrum(pg.PlotWidget):
                     self.vb.addItem(self.w_region)
                     if hasattr(self.parent.abs, 'reference'):
                         if self.w_status:
-                            #print(self.parent.abs.reference.line.l(), 1 + self.parent.z_abs, (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value)
-                            dv = np.cumsum(np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])))
-                            dv90 = interp1d(dv/dv[-1], (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value, fill_value='extrapolate')
-                            m = np.log(s.spec.y()[mask] / cont(s.spec.x()[mask])) < -0.1
-                            vx = (s.spec.x()[mask][m] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value
-                            text += ', log(w/l)={0:0.2f}, w_r = {1:0.5f}+/-{2:0.5f}, dv90 = {3:0.2f}'.format(np.log10(2 * np.abs(w) / (x[0]+x[-1])), w / (1 + self.parent.z_abs), err_w / (1+self.parent.z_abs), dv90(0.95) - dv90(0.05))
-                            if self.parent.s[self.parent.s.ind].resolution not in [0, None]:
-                                text += ', d90_c = {:0.2f}'.format(np.sqrt((dv90(0.95) - dv90(0.05))**2 - (1.4 * ac.c.to('km/s').value / self.parent.s[self.parent.s.ind].resolution)**2))
-                            text += ', dv01={:0.2f}'.format(np.max(vx) - np.min(vx))
+                            text += ', log(w/l)={0:0.2f}, w_r = {1:0.5f}+/-{2:0.5f}'.format(np.log10(2 * np.abs(w) / (x[0] + x[-1])), w / (1 + self.parent.z_abs), err_w / (1 + self.parent.z_abs))
+                            text += dv90((s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value,
+                                         s.spec.y()[mask] / cont(s.spec.x()[mask]),
+                                         s.spec.err()[mask] / cont(s.spec.x()[mask]),
+                                         resolution=self.parent.s[self.parent.s.ind].resolution, plot=1)
                         else:
                             vx = (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s')
                             y = s.spec.y()[mask] - cont(s.spec.x()[mask])
@@ -9993,7 +9989,7 @@ class sviewer(QMainWindow):
 
                 if any(['COj' + str(x) in sys.sp.keys() for x in levels]):
                     levels = np.arange(4)
-                    levels = [int(k[k.index('j')+1:]) for k in sys.sp.keys() if int(k[k.index('j')+1:]) in levels and k.startswith('CO')]
+                    levels = [int(k[k.index('j')+1:]) for k in sys.sp.keys() if k.startswith('CO') and int(k[k.index('j')+1:]) in levels]
                     print("levels:", levels)
                     n = [sys.sp['COj' + str(x)].N.unc for x in levels]
                     if any([ni.val == 0 for ni in n]):
