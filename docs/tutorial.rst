@@ -24,6 +24,15 @@ The basic ``sviewer`` spectral format is plain ``ASCII`` file, which stores spec
 
 Additionally there is possibility to load the spectrum in ``FITS`` format. The program can automatically recognize several FITS format produced by standard reduction routines, such as UVES popler, SDSS, etc. 
 
+.. _show-lines:
+Show lines
+----------------------
+Once the spectrum is loaded can explore it in the main widget using ``RIGHT MOUSE BUTTON`` (zoom) and ``LEFT MOUSE BUTTON`` (pan). The program by default show some sample of the major absorption lines, by line labels (see :ref:'objects_labels'). To add a sample of the lines you can either use ``Lines/...`` menu in the Main menu, or print command in the console::
+
+>>> show <name of the element, e.g.: HI, SiII, CIV>
+
+Addtionally do not forget to set appropriate redshift in the redshift panel, or drag the line label with holding ``SHIFT``.
+
 .. _constructing-continuum:
 Constructing continuum
 ----------------------

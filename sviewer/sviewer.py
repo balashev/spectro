@@ -10122,6 +10122,7 @@ class sviewer(QMainWindow):
         plt.savefig(os.path.dirname(os.path.realpath(__file__)) + f'/output/{species}_Exc.pdf', bbox_inches='tight')
         plt.show()
         self.statusBar.setText('Excitation diagram for {0:s} rotational level for {1:d} component is shown'.format(species, self.comp))
+
     def showMetalAbundance(self, species=[], component=1, dep_ref='ZnII', HI=a(21,0,0)):
         """
         Show metal abundances, metallicity and depletion based on the fit

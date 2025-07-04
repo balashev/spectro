@@ -13,6 +13,7 @@ B-spline continuum
 
 The continuum that is constructed using B-spline with the point chosen by holding **b** key (see :ref:`tutorial` and :ref:`keyboard`). It is marked as object 1 on the Figure.
 
+.. _objects_labels:
 Line labels
 -----------
 

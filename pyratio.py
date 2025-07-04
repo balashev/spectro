@@ -24,9 +24,11 @@ from spectro.a_unc import a
 from spectro.profiles import tau, voigt
 from spectro.stats import distr1d, distr2d
 from spectro.sviewer.utils import printProgressBar, Timer, flux_to_mag
+
 def smooth_step(x, delta):
     x = np.clip(x/delta, 0, 1)
     return x**3 * (x * (x*6 - 15) + 10)
+
 class speci:
     """
     class of all necessary species data for calculations

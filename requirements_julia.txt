@@ -1,17 +1,27 @@
 DataStructures
 Interpolations
 ImageFiltering
+LeastSquaresOptim
+LinearAlgebra
 LsqFit
 PeriodicTable
 Polynomials
+PythonCall
 Roots
 SpecialFunctions
+AdvancedHMC
+ClusterManagers
+Combinatorics
 DelimitedFiles
 Distributed
-Random
-PyCall
-Combinatorics
-AdvancedHMC
+FileIO
 ForwardDiff
+JLD2
+Measures
+Plots
+Random
+Serialization
+Statistics
+VectorizedStatistics
 
-"DataStructures", "Interpolations", "ImageFiltering", "LsqFit", "PeriodicTable", "Polynomials", "Roots", "SpecialFunctions", "DelimitedFiles", "Distributed", "Random", "PyCall", "Combinatorics", "AdvancedHMC", "ForwardDiff", "ClusterManagers", "Plots", "Measures"
+"DataStructures" "Interpolations" "ImageFiltering" "LeastSquaresOptim" "LinearAlgebra" "LsqFit" "PeriodicTable" "Polynomials" "PythonCall" "Roots" "SpecialFunctions" "AdvancedHMC" "ClusterManagers" "Combinatorics" "DelimitedFiles" "Distributed" "FileIO" "ForwardDiff" "JLD2" "Measures" "Plots" "Random" "Serialization" "Statistics" "VectorizedStatistics"

@@ -1,20 +1,20 @@
+@everywhere using AdvancedHMC
 using ClusterManagers
+@everywhere using Combinatorics
 using DelimitedFiles
 using Distributed
+using FileIO
+@everywhere using ForwardDiff
+using JLD2
 using Measures
 #using Plots
 using Random
 using Serialization
 using Statistics
-using VectorizedStatistics
 @everywhere using SpecialFunctions
 @everywhere using Statistics
 @everywhere include("profiles.jl")
-#@everywhere using PyCall
-@everywhere using Combinatorics
-@everywhere using AdvancedHMC, ForwardDiff
-using FileIO
-using JLD2
+using VectorizedStatistics
 
 function initJulia(filename, spec, pars, add, parnames; sampler="Affine", prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
 # 	serialize(filename, [spec, pars, add, parnames, sampler, prior, nwalkers, nsteps, thinning, init, opts])
