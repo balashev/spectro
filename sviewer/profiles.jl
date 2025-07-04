@@ -800,7 +800,6 @@ function prepare(s, pars, add, COS)
         #spec[i] = spectrum.spec(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.lsf_type, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0), Spline2D(COS[i][1], COS[i][2], COS[i][3]; kx=3, ky=3, s=0.0), COS[i][4])
         spec[i].bins = (spec[i].x[2:end] + spec[i].x[1:end-1]) / 2
         spec[i].bin_mask = spec[i].mask[1:end-1] .|| spec[i].mask[2:end]
-        #println(spec[i].sky)
     end
     update_pars(pars, spec, add)
     return spec
@@ -1013,7 +1012,7 @@ function make_grid(spec, lines; grid_type="uniform", grid_num=1, binned=true, ta
     return x[i_min:i_max]
 end
 
-function calc_spectrum(spec, pars; comp=0, grid_type="minimized", grid_num=1, binned=true, out="all", telluric=false, tau_limit=0.005, accuracy=0.2)
+function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", grid_num=1, binned=true, out="all", telluric=false, tau_limit=0.005, accuracy=0.2)
 
     timeit = 0
     if timeit == 1
@@ -1023,7 +1022,9 @@ function calc_spectrum(spec, pars; comp=0, grid_type="minimized", grid_num=1, bi
 
     line_mask = update_lines(spec.lines, pars, comp=comp)
 
-    x = make_grid(spec, spec.lines[line_mask], grid_type=grid_type, grid_num=grid_num, binned=binned, tau_limit=tau_limit, accuracy=accuracy)
+    if x == nothing
+        x = make_grid(spec, spec.lines[line_mask], grid_type=grid_type, grid_num=grid_num, binned=binned, tau_limit=tau_limit, accuracy=accuracy)
+    end
 
     if timeit == 1
         println("make grid ", time() - start)

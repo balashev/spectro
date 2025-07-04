@@ -2169,13 +2169,11 @@ class chooseShowParsWidget(QWidget):
         self.scroll.setWidgetResizable(True)
         #self.scroll.setMaximumHeight(self.height()-150)
         self.scrollContent = QWidget(self.scroll)
-        print('showFit', hasattr(self.parent, 'fit'))
+        #print('showFit', hasattr(self.parent, 'fit'))
         if hasattr(self.parent, 'fit'):
             l = QVBoxLayout()
             self.saved = []
-            print(self.parent.fit.list())
             for par in self.parent.fit.list():
-                print(par)
                 par.show = (par.show | init) & par.fit & par.vary
                 if par.fit & par.vary:
                     self.saved.append(str(par))
@@ -2183,7 +2181,6 @@ class chooseShowParsWidget(QWidget):
                     getattr(self, str(par)).setChecked(par.show)
                     getattr(self, str(par)).clicked[bool].connect(partial(self.click, str(par)))
                     l.addWidget(getattr(self, str(par)))
-                print(self.saved)
             l.addStretch(0)
             self.scrollContent.setLayout(l)
             self.scroll.setWidget(self.scrollContent)

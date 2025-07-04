@@ -1,16 +1,16 @@
-@everywhere using AdvancedHMC
 using ClusterManagers
-@everywhere using Combinatorics
 using DelimitedFiles
 using Distributed
 using FileIO
-@everywhere using ForwardDiff
 using JLD2
 using Measures
 #using Plots
 using Random
 using Serialization
 using Statistics
+@everywhere using AdvancedHMC
+@everywhere using Combinatorics
+@everywhere using ForwardDiff
 @everywhere using SpecialFunctions
 @everywhere using Statistics
 @everywhere include("profiles.jl")
@@ -163,7 +163,7 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
 	#println("init: ", init)
 	println(parnames)
     pars = make_pars(pars, parnames=parnames)
-	println(pars)
+	println([k for (k, v) in pars if v.vary == 1])
 	println("pars length: ", length(pars))
     priors = make_priors(prior)
 	#println("priors: ", priors)
@@ -666,7 +666,7 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), opts=Dict(),
 	println(sys, " ", nums, " ", nthreads)
 	println(size(samples))
 	println(opts)
-    #print(savename)
+	#print(savename)
 
 	inds = hcat(rand(1:size(samples, 1), nums), rand(1:size(samples, 2), nums))
 	pp = map(i->samples[i[1], i[2], :], eachrow(inds))
@@ -683,8 +683,8 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), opts=Dict(),
         update_pars(pars, spec, add)
 
         if cheb == 0
-            w, f = calc_spectrum(s, pars, comp=comp; telluric=opts["telluric"])
-            w = convert(w, Array{Float64})
+            w, f = calc_spectrum(s, pars, comp=comp; x=x, telluric=opts["telluric"], out="old all")
+            #w = convert(w, Array{Float64})
             f = convert(f, Array{Float64})
         else
             w, f = x, correct_continuum(s.cont, pars, x)
@@ -692,11 +692,12 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), opts=Dict(),
                 f .+= pars["zero"].val
             end
         end
-        if size(f)[1] > 2
-            return LinearInterpolation(w, f, extrapolation_bc=Flat())(x)
-        else
-            return ones(size(x))
-        end
+        return f
+        #if size(f)[1] > 2
+        #    return LinearInterpolation(w, f, extrapolation_bc=Flat())(x)
+        #else
+        #    return ones(size(x))
+        #end
 	end
 
 	if 1 == 1
@@ -714,34 +715,41 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), opts=Dict(),
     fit = Any[]
     cheb = Any[]
     for (i, s) in enumerate(spec)
-        push!(fit, reduce(hcat, pmap(spectrum_comp(spectrum, s, x[i], comp=0), pp)))
-        push!(cheb, reduce(hcat, pmap(spectrum_cheb(spectrum, s, x[i]), pp)))
+        if size(s.x)[1] > 0
+            push!(fit, reduce(hcat, pmap(spectrum_comp(spectrum, s, x[i], comp=0), pp)))
+            push!(cheb, reduce(hcat, pmap(spectrum_cheb(spectrum, s, x[i]), pp)))
+        else
+            push!(fit, Any[])
+            push!(cheb, Any[])
+        end
     end
 
     fit_comps = Any[]
     for (i, s) in enumerate(spec)
         push!(fit_comps, Any[])
-        for k in 1:sys
-            push!(fit_comps[i], reduce(hcat, pmap(spectrum_comp(spectrum, s, x[i], comp=k), pp)))
+        if size(s.x)[1] > 0
+            for k in 1:sys
+                push!(fit_comps[end], reduce(hcat, pmap(spectrum_comp(spectrum, s, x[i], comp=k), pp)))
+            end
         end
     end
 
     rmprocs(workers())
 
     #println(sys)
-    #println(size(fit))
+    #println(size(fit), " ", size(cheb), " ", size(fit_comps))
     for (i, s) in enumerate(spec)
-        #println(size(fit[i]))
-        #println(fit[i])
-        fit[i] = reduce(hcat, [vquantile!(fit[i], 0.158, dims=2), vquantile!(fit[i], 0.842, dims=2)])
-        #println(i, " ", size(fit[i]))
-        #println(size(fit[i][1]))
-        #println(size(cheb[i]))
-        cheb[i] = reduce(hcat, [vquantile!(cheb[i], 0.158, dims=2), vquantile!(cheb[i], 0.842, dims=2)])
-        #println(size(cheb[i]))
-        for k in 1:sys
-            fit_comps[i][k] = reduce(hcat, [vquantile!(fit_comps[i][k], 0.158, dims=2), vquantile!(fit_comps[i][k], 0.842, dims=2)])
-            #println(i, " ", k, " ", typeof(fit_comps[i][k]))
+        if size(s.x)[1] > 0
+            fit[i] = reduce(hcat, [vquantile!(fit[i], 0.158, dims=2), vquantile!(fit[i], 0.842, dims=2)])
+            #println(i, " ", size(fit[i]))
+            #println(size(fit[i][1]))
+            #println(size(cheb[i]))
+            cheb[i] = reduce(hcat, [vquantile!(cheb[i], 0.158, dims=2), vquantile!(cheb[i], 0.842, dims=2)])
+            #println(size(cheb[i]))
+            for k in 1:sys
+                fit_comps[i][k] = reduce(hcat, [vquantile!(fit_comps[i][k], 0.158, dims=2), vquantile!(fit_comps[i][k], 0.842, dims=2)])
+                #println(i, " ", k, " ", typeof(fit_comps[i][k]))
+            end
         end
     end
 

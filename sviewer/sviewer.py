@@ -3265,8 +3265,6 @@ class fitMCMCWidget(QWidget):
         self.parent.julia.include("MCMC.jl")
         pars = self.parent.julia.readJulia(filename)
         print(pars)
-        for par in pars:
-            print(par)
 
     def stop(self):
         self.start_button.setChecked(False)
@@ -3868,7 +3866,7 @@ class fitMCMCWidget(QWidget):
             if self.parent.fitType == 'julia':
                 self.parent.julia.include("MCMC.jl")
                 filename = self.parent.options("filename_saved").replace(".spv", ".spd")
-                self.parent.julia.fit_disp([f.x for f in fit], samples[burnin:, :, :], self.parent.julia_spec, self.parent.fit.list(),
+                self.parent.julia.fit_disp([s.fit.line.norm.x if s.fit.line.norm.n > 0 else [] for s in self.parent.s], samples[burnin:, :, :], self.parent.julia_spec, self.parent.fit.list(),
                                            self.parent.julia_add, sys=len(self.parent.fit.sys), tieds=self.parent.fit.tieds, opts=opts,
                                            nthreads=int(self.parent.options('MCMC_threads')), nums=int(self.parent.options('MCMC_disp_num')),
                                            savename=filename)
@@ -3917,20 +3915,21 @@ class fitMCMCWidget(QWidget):
         if self.parent.fitType == 'julia':
             x, fit_disp, fit_comp_disp, cheb_disp = self.parent.julia.load_disp(filename)
             for i, s in enumerate(self.parent.s):
-                x[i] = np.asarray(x[i])
-                #if s.fit.line.norm.n > 0:
-                self.parent.s[i].fit.disp[0].set(x=x[i], y=np.asarray(fit_disp[i][:, 0]))
-                self.parent.s[i].fit.disp[1].set(x=x[i], y=np.asarray(fit_disp[i][:, 1]))
-                if self.parent.fit.cont_fit:
-                    self.parent.s[i].cheb.disp[0].set(x=x[i], y=np.asarray(cheb_disp[i][:, 0]))
-                    self.parent.s[i].cheb.disp[1].set(x=x[i], y=np.asarray(cheb_disp[i][:, 1]))
-                for k, sys in enumerate(self.parent.fit.sys):
-                    if len(fit_comp_disp[i][k]) > 0:
-                        self.parent.s[i].fit_comp[k].disp[0].set(x=x[i], y=np.asarray(fit_comp_disp[i][k][:, 0]))
-                        self.parent.s[i].fit_comp[k].disp[1].set(x=x[i], y=np.asarray(fit_comp_disp[i][k][:, 1]))
-                    else:
-                        self.parent.s[i].fit_comp[k].disp[0].set(x=self.parent.s[i].fit.disp[0].norm.x, y=self.parent.s[i].fit.disp[0].norm.y)
-                        self.parent.s[i].fit_comp[k].disp[1].set(x=self.parent.s[i].fit.disp[1].norm.x, y=self.parent.s[i].fit.disp[1].norm.y)
+                if s.fit.line.norm.n > 0:
+                    x[i] = np.asarray(x[i])
+                    #if s.fit.line.norm.n > 0:
+                    self.parent.s[i].fit.disp[0].set(x=x[i], y=np.asarray(fit_disp[i][:, 0]))
+                    self.parent.s[i].fit.disp[1].set(x=x[i], y=np.asarray(fit_disp[i][:, 1]))
+                    if self.parent.fit.cont_fit:
+                        self.parent.s[i].cheb.disp[0].set(x=x[i], y=np.asarray(cheb_disp[i][:, 0]))
+                        self.parent.s[i].cheb.disp[1].set(x=x[i], y=np.asarray(cheb_disp[i][:, 1]))
+                    for k, sys in enumerate(self.parent.fit.sys):
+                        if len(fit_comp_disp[i][k]) > 0:
+                            self.parent.s[i].fit_comp[k].disp[0].set(x=x[i], y=np.asarray(fit_comp_disp[i][k][:, 0]))
+                            self.parent.s[i].fit_comp[k].disp[1].set(x=x[i], y=np.asarray(fit_comp_disp[i][k][:, 1]))
+                        else:
+                            self.parent.s[i].fit_comp[k].disp[0].set(x=self.parent.s[i].fit.disp[0].norm.x, y=self.parent.s[i].fit.disp[0].norm.y)
+                            self.parent.s[i].fit_comp[k].disp[1].set(x=self.parent.s[i].fit.disp[1].norm.x, y=self.parent.s[i].fit.disp[1].norm.y)
 
         print("disp done")
 
