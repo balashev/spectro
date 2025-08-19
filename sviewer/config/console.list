@@ -1,21 +1,21 @@
-SI
-high SI
-SI
-high SI
-show H2 0 1 2 3
-show H2 4 5
-high COj4
-high SI
-SI
-13COj0
-show 13COj0
-SI
-show SiIIj1
-show OIj1
-show OIj2
-high SI
+Me FeII 21
+Me SiII 21
+Me FeII 21
+Me SiII 21
+Me SII 21
 show CIIj1
-show SiIIj1
-Me SiII 20.9
-Me ZnII 20.9
-Me FeII 20.9
+Me SII 21
+Me SiII 21
+Me FeII 21
+Me ZnII 21
+high SI
+show ClI
+SI
+show CIj2
+high CIj1
+show SiI
+SiI
+show Si
+show SI
+
+SI

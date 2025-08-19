@@ -1362,6 +1362,10 @@ class pyratio():
         if logN is None:
             logN = 0.0
 
+        if "Ntot" in self.pars:
+            logN = self.pars["Ntot"].value
+            level = -1
+
         if level == -1:
             ref = np.sum(x)
         else:

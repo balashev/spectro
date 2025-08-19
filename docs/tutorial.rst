@@ -31,7 +31,7 @@ Once the spectrum is loaded can explore it in the main widget using ``RIGHT MOUS
 
 >>> show <name of the element, e.g.: HI, SiII, CIV>
 
-Addtionally do not forget to set appropriate redshift in the redshift panel, or drag the line label with holding ``SHIFT``.
+Addtionally, don't forget to set appropriate redshift in the redshift panel, or drag the line label while holding ``SHIFT``.
 
 .. _constructing-continuum:
 Constructing continuum

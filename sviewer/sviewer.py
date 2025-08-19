@@ -4142,30 +4142,30 @@ class fitExtWidget(QWidget):
         if self.template in ['SDSS', 'VandenBerk', 'HST', 'Selsing', 'power']:
             fill_value = 'extrapolate'
             if self.template == 'SDSS':
-                data = np.genfromtxt(self.folder + "/data/SDSS/medianQSO.dat", skip_header=2, unpack=True)
+                data = np.genfromtxt(self.parent.folder + "/data/SDSS/medianQSO.dat", skip_header=2, unpack=True)
                 data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
                 fill_value = (1.3, 0.5)
             if self.template == 'VandenBerk':
-                data = np.genfromtxt(self.folder + "/data/SDSS/QSO_composite.dat", unpack=True)
+                data = np.genfromtxt(self.parent.folder + "/data/SDSS/QSO_composite.dat", unpack=True)
                 data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
             elif self.template == 'HST':
-                data = np.genfromtxt(self.folder + "/data/SDSS/hst_composite.dat", skip_header=2, unpack=True)
+                data = np.genfromtxt(self.parent.folder + "/data/SDSS/hst_composite.dat", skip_header=2, unpack=True)
             elif self.template == 'Selsing':
-                data = np.genfromtxt(self.folder + "/data/SDSS/Selsing2016.dat", skip_header=0, unpack=True)
+                data = np.genfromtxt(self.parent.folder + "/data/SDSS/Selsing2016.dat", skip_header=0, unpack=True)
             elif self.template == 'power':
                 self.slope = float(self.slopeField.text())
                 data = np.ones((2, 10000))
                 data[0] = np.linspace(500, 25000, data.shape[1])
                 data[1] = np.power(data[0] / 2500, self.slope)
             elif self.template == 'composite':
-                data = np.genfromtxt(self.folder + "/data/SDSS/Selsing2016.dat", skip_header=0, unpack=True)
+                data = np.genfromtxt(self.parent.folder + "/data/SDSS/Selsing2016.dat", skip_header=0, unpack=True)
                 data = data[:, np.logical_or(data[1] != 0, data[2] != 0)]
                 if 0:
                     x = data[0][-1] + np.arange(1, int((25000 - data[0][-1]) / 0.4)) * 0.4
                     y = np.power(x / 2500, -1.9) * 6.542031
                     data = np.append(data, [x, y, y / 10], axis=1)
                 else:
-                    d2 = np.genfromtxt(self.folder + "/data/SDSS/QSO1_template_norm.sed", skip_header=0, unpack=True)
+                    d2 = np.genfromtxt(self.parent.folder + "/data/SDSS/QSO1_template_norm.sed", skip_header=0, unpack=True)
                     m = d2[0] > data[0][-1]
                     data = np.append(data, [d2[0][m], d2[1][m] * data[1][-1] / d2[1][m][0], d2[1][m] / 30], axis=1)
 
@@ -5792,9 +5792,9 @@ class ShowListCombine(QWidget):
         self.show()
 
     def update(self):
-        dtype = [('filename', np.str_, 100), ('obs. date', np.str_, 30),
-                 ('wavelmin', np.float_), ('wavelmax', np.float_),
-                 ('resolution', np.int_)]
+        dtype = [('filename', str, 100), ('obs. date', str, 30),
+                 ('wavelmin', np.float64), ('wavelmax', np.float64),
+                 ('resolution', int)]
         zero = ('', '', np.nan, np.nan, 0)
         data = np.array([zero], dtype=dtype)
         self.edit_col = [4]
@@ -8498,7 +8498,7 @@ class sviewer(QMainWindow):
                     if self.IGMspecFile is not None:
                         s1 = filename.split('/')
                         data = self.IGMspec[s1[1]]
-                        d = np.empty([len(data['meta']['IGM_ID'])], dtype=[('SPEC_FILE', np.str_, 100)])
+                        d = np.empty([len(data['meta']['IGM_ID'])], dtype=[('SPEC_FILE', str, 100)])
                         d['SPEC_FILE'] = np.array([x[:] for x in data['meta']['SPEC_FILE']])
                         ind = [i for i, d in enumerate(d['SPEC_FILE']) if s1[2] in d][0]
                         s.set_data([data['spec'][ind]['wave'], data['spec'][ind]['flux'], data['spec'][ind]['sig']], mask=data['spec'][ind]['and_mask'])
@@ -10347,9 +10347,9 @@ class sviewer(QMainWindow):
     def showExpListCombine(self):
         
         if hasattr(self, 'importListFile'):
-            dtype = [('filename', np.str_, 100), ('DATE-OBS', np.str_, 20), 
-                     ('WAVELMIN', np.float_), ('WAVELMAX', np.float_),
-                     ('EXPTIME', np.float_), ('SPEC_RES', np.int_)]
+            dtype = [('filename', str, 100), ('DATE-OBS', str, 20),
+                     ('WAVELMIN', np.float64), ('WAVELMAX', np.float64),
+                     ('EXPTIME', np.float64), ('SPEC_RES', int)]
             zero = ('', '', np.nan, np.nan, np.nan, 0)
             x = np.array([zero], dtype=dtype)
             i = 0
@@ -10871,7 +10871,7 @@ class sviewer(QMainWindow):
         
         if not hasattr(self, 'XQ100data'):
             self.XQ100data = load_QSO()
-            dtype = [('id', np.str_, 10), ('z_em', np.float_), ('HighRes', np.str_, 1), ('cont', np.str_, 1),
+            dtype = [('id', str, 10), ('z_em', np.float64), ('HighRes', str, 1), ('cont', str, 1),
                     ('DLA', list), ('LLS', list)
                      ]
             x = []
@@ -10891,9 +10891,9 @@ class sviewer(QMainWindow):
         if not hasattr(self, 'P94data'):
             from H2_summary import load_P94
             self.P94data = load_P94()
-            dtype = [('name', np.str_, 20), ('z_em', np.float_), ('z_dla', np.str_, 9),
-                     ('HI', np.float_), ('H2', np.float_), ('Me', np.float_), ('SiII', np.float_),
-                     ('SII', np.float_), ('ZnII', np.float_), ('FeII', np.float_)]
+            dtype = [('name', str, 20), ('z_em', np.float64), ('z_dla', str, 9),
+                     ('HI', np.float64), ('H2', np.float64), ('Me', np.float64), ('SiII', np.float64),
+                     ('SII', np.float64), ('ZnII', np.float64), ('FeII', np.float64)]
             x = []
             for i, q in enumerate(self.P94data):
                 row = []
@@ -10918,8 +10918,8 @@ class sviewer(QMainWindow):
     def showDLAlist(self):
 
         if not hasattr(self, 'DLAdata'):
-            dtype = [('plate', np.int_), ('MJD', np.int_), ('fiber', np.int_),
-                     ('z_DLA', np.float_), ('HI', np.float_)]
+            dtype = [('plate', int), ('MJD', int), ('fiber', int),
+                     ('z_DLA', np.float64), ('HI', np.float64)]
 
             self.DLAdata = np.genfromtxt('C:/science/Noterdaeme/DLAs/DLA_catalogs/Garnett/Garnett_ESDLAs/DLA22.dat', unpack=False, dtype=dtype)
             self.statusBar.setText('P94 list was loaded')
