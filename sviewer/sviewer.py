@@ -184,8 +184,9 @@ class plotSpectrum(pg.PlotWidget):
 
     def showExportLine(self):
         if self.exportDialog is None:
-            fname = QFileDialog.getSaveFileName(self, 'Export line tau', self.parent.work_folder)
-            self.parent.exportLine(fname)
+            folder = QFileDialog.getExistingDirectory(self, 'Select export folder...', self.parent.work_folder)
+            #fname = QFileDialog.getSaveFileName(self, 'Export line tau', self.parent.work_folder)
+            self.parent.exportLine(folder)
 
         #self.exportDialog.show() #self.contextMenuItem)
 
@@ -9540,9 +9541,9 @@ class sviewer(QMainWindow):
         else:
             self.sendMessage("Blind mode is on. Disable it in Preference menu (F11)")
 
-    def exportLine(self, fname):
-        print("[Exporting optical depth of the selected line to the file:]", fname)
-        print(fname)
+    def exportLine(self, folder):
+        print("[Exporting optical depth of the selected line to the file:]", folder)
+        print(folder)
         if self.abs.reference.line is not None:
             print(self.abs.reference.line.name, self.abs.reference.line.l())
             print(self.z_abs)
@@ -9562,7 +9563,8 @@ class sviewer(QMainWindow):
                                                             optical_depth=True)
             x = (np.asarray(x) / (self.abs.reference.line.l() * (1 + self.z_abs)) - 1) * 299792.46
             m = (x > -1000) * (x < 1000)
-            np.savetxt(fname[0], np.c_[x[m] , np.asarray(flux)[m]], fmt='%.3f')
+            print(folder + '/' + self.abs.reference.line.name + '_' + str(self.abs.reference.line.l()) + '.dat')
+            np.savetxt(folder + '/' + self.abs.reference.line.name + '_' + str(self.abs.reference.line.l()) + '.dat', np.c_[x[m] , np.asarray(flux)[m]], fmt='%.3f')
             self.s[self.s.ind].resolution = res_saved
         else:
             self.sendMessage("Reference line is not specified")
