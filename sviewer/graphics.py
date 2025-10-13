@@ -137,7 +137,7 @@ class Speclist(list):
             s.normalize(action=action)
         self.redraw()
 
-    def prepareFit(self, ind=-1, exp_ind=-1, all=True):
+    def prepareFit(self, ind=-1, exp_ind=-1, all=True, selected_line=None):
         self.parent.fit.update()
 
         if self.parent.fitType == 'julia':
@@ -148,7 +148,7 @@ class Speclist(list):
 
         for i, s in enumerate(self):
             if exp_ind in [-1, i]:
-                s.findFitLines(ind, all=all, debug=False)
+                s.findFitLines(ind, all=all, debug=False, selected_line=selected_line)
 
         if self.parent.fitType == 'julia':
             self.parent.julia_spec = self.parent.julia.prepare(self, self.parent.julia_pars, self.parent.julia_add, self.parent.julia_cos)
@@ -2185,7 +2185,7 @@ class Spectrum():
         #print(disp_coeff, type(disp_coeff))
         return pix, lsf_wvlns, np.lib.recfunctions.structured_to_unstructured(lsf.as_array()), disp_coeff
 
-    def findFitLines(self, ind=-1, tlim=0.01, all=True, debug=True):
+    def findFitLines(self, ind=-1, tlim=0.01, all=True, debug=True, selected_line=None):
         """
         Function to prepare lines to fit.
           - ind         : specify component to fit
@@ -2213,39 +2213,40 @@ class Spectrum():
                     for sp in sys.sp.keys():
                         lin = self.parent.atomic.list(sp)
                         for l in lin:
-                            if str(l) not in sys.exclude:
-                                l.b = sys.sp[sp].b.val
-                                l.logN = sys.sp[sp].N.val
-                                l.z = sys.z.val
-                                l.recalc = True
-                                l.sys = sys.ind
-                                l.range = tau(l, resolution=self.resolution).getrange(tlim=tlim)
-                                l.cf = -1
-                                if self.parent.fit.cf_fit:
-                                    for i in range(self.parent.fit.cf_num):
-                                        cf = getattr(self.parent.fit, 'cf_'+str(i))
-                                        cf_sys = cf.addinfo.split('_')[0]
-                                        if cf_sys == 'all':
-                                            cf_sys = np.arange(len(self.parent.fit.sys))
-                                        else:
-                                            cf_sys = [int(s) for s in cf_sys.split('sys')[1:]]
-                                        cf_exp = cf.addinfo.split('_')[1] if len(cf.addinfo.split('_')) > 1 else 'all'
-                                        if (sys.ind in cf_sys) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l()*(1+l.z) > cf.left and l.l()*(1+l.z) < cf.right:
-                                            l.cf = i
-                                l.stack = -1
-                                if self.parent.fit.stack_num > 0:
-                                    for i in range(self.parent.fit.stack_num):
-                                        st = self.parent.fit.getValue('sts_'+str(i), 'addinfo')
-                                        if st.strip() == 'N_{0:d}_{1:s}'.format(l.sys, sp.strip()):
-                                            l.stack = i
+                            if selected_line is None or l == selected_line:
+                                if str(l) not in sys.exclude:
+                                    l.b = sys.sp[sp].b.val
+                                    l.logN = sys.sp[sp].N.val
+                                    l.z = sys.z.val
+                                    l.recalc = True
+                                    l.sys = sys.ind
+                                    l.range = tau(l, resolution=self.resolution).getrange(tlim=tlim)
+                                    l.cf = -1
+                                    if self.parent.fit.cf_fit:
+                                        for i in range(self.parent.fit.cf_num):
+                                            cf = getattr(self.parent.fit, 'cf_'+str(i))
+                                            cf_sys = cf.addinfo.split('_')[0]
+                                            if cf_sys == 'all':
+                                                cf_sys = np.arange(len(self.parent.fit.sys))
+                                            else:
+                                                cf_sys = [int(s) for s in cf_sys.split('sys')[1:]]
+                                            cf_exp = cf.addinfo.split('_')[1] if len(cf.addinfo.split('_')) > 1 else 'all'
+                                            if (sys.ind in cf_sys) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l()*(1+l.z) > cf.left and l.l()*(1+l.z) < cf.right:
+                                                l.cf = i
+                                    l.stack = -1
+                                    if self.parent.fit.stack_num > 0:
+                                        for i in range(self.parent.fit.stack_num):
+                                            st = self.parent.fit.getValue('sts_'+str(i), 'addinfo')
+                                            if st.strip() == 'N_{0:d}_{1:s}'.format(l.sys, sp.strip()):
+                                                l.stack = i
 
-                                if all:
-                                    #if l.range[0] < x[-1] and l.range[1] > x[0]:
-                                    if np.sum(l.range) / 2 < x[-1] and np.sum(l.range) / 2 > x[0]:
-                                        self.fit_lines += [l]
-                                else:
-                                    if np.sum(np.logical_and(x >= l.range[0], x <= l.range[1])) > 0:
-                                        self.fit_lines += [l]
+                                    if all:
+                                        #if l.range[0] < x[-1] and l.range[1] > x[0]:
+                                        if np.sum(l.range) / 2 < x[-1] and np.sum(l.range) / 2 > x[0]:
+                                            self.fit_lines += [l]
+                                    else:
+                                        if np.sum(np.logical_and(x >= l.range[0], x <= l.range[1])) > 0:
+                                            self.fit_lines += [l]
         if debug:
             print('findFitLines', self.fit_lines, [l.cf for l in self.fit_lines])
 
@@ -2348,7 +2349,9 @@ class Spectrum():
         if self.spec.norm.n > 0 and self.cont.n > 0:
 
             # >>> calculate the intrinsic absorption line spectrum
-            x, flux, bins, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()], self.parent.julia_pars, comp=comp + 1,
+            x, flux, bins, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[self.ind()],
+                                                                    self.parent.julia_pars,
+                                                                    comp=comp + 1,
                                                                     grid_type=self.parent.options("julia_grid"),
                                                                     grid_num=int(self.parent.options("julia_grid_num")),
                                                                     binned=self.parent.options("julia_binned"),
@@ -2406,7 +2409,7 @@ class Spectrum():
             if self.resolution not in [None, 0]:
                 x_mid = np.mean([x_min, x_max])
                 delta = x_mid / self.resolution / 10
-                x_min, x_max = x_min * (1 - 3/self.resolution), x_max * (1 + 3/self.resolution)
+                x_min, x_max = x_min * (1 - 3 / self.resolution), x_max * (1 + 3 / self.resolution)
             else:
                 delta = (self.spec.raw.x[1] - self.spec.raw.x[0])
                 # x_min, x_max = x_min - 3 * 2.5 * delta, x_max + 3 * 2.5 * delta
@@ -2445,8 +2448,8 @@ class Spectrum():
             if self.resolution not in [None, 0]:
                 f = np.fft.rfft(flux[mask])
                 if 0:
-                    freq = np.fft.rfftfreq(num, d=(x_max - x_min)/2/np.pi/num)
-                    f *= np.exp(- np.power(x_mid/self.resolution/2/np.sqrt(2*np.log(2)) * freq, 2) / 2)
+                    freq = np.fft.rfftfreq(num, d=(x_max - x_min) / 2 / np.pi / num)
+                    f *= np.exp(- np.power(x_mid / self.resolution / 2 / np.sqrt(2*np.log(2)) * freq, 2) / 2)
                 else:
                     freq = np.fft.rfftfreq(num, d=(num - 0) / 2 / np.pi / num)
                     f *= np.exp(- 0.5 * sigma_n**2 * freq**2)

@@ -1,21 +1,21 @@
-Me FeII 21
-Me SiII 21
-Me FeII 21
-Me SiII 21
-Me SII 21
-show CIIj1
-Me SII 21
-Me SiII 21
-Me FeII 21
-Me ZnII 21
-high SI
-show ClI
-SI
-show CIj2
-high CIj1
-show SiI
-SiI
-show Si
-show SI
-
-SI
+show H2Oj5
+show H2Oj6
+show H2Oj7
+logN H2
+show NV
+show H2O
+show CI
+show CO
+show MgII
+show SiII
+hide MgII
+MgII
+show NV
+show SiIIj1
+show OIj2
+show OIj1
+show SiIIJ1
+show SiIIj1
+show SiIIj1
+show H2 0 1
+high H2j0

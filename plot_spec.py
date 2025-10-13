@@ -2,8 +2,10 @@
 
 from adjustText import adjust_text
 from bisect import bisect_left
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import matplotlib.transforms as mtransforms
+from matplotlib.patches import Polygon
 from matplotlib import patches
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
 from mendeleev import element
@@ -55,6 +57,62 @@ class rect_param():
         self.h_indent = h_indent
         self.order = order
 
+
+def gradient_fill(x, y, fill_color=None, ax=None, direction='down', alpha=1.0, alpha_min=0.0, **kwargs):
+    """
+    Plot a line with a linear alpha gradient filled beneath it.
+
+    Parameters
+    ----------
+    x, y : array-like
+        The data values of the line.
+    fill_color : a matplotlib color specifier (string, tuple) or None
+        The color for the fill. If None, the color of the line will be used.
+    ax : a matplotlib Axes instance
+        The axes to plot on. If None, the current pyplot axes will be used.
+    Additional arguments are passed on to matplotlib's ``plot`` function.
+
+    Returns
+    -------
+    line : a Line2D instance
+        The line plotted.
+    im : an AxesImage instance
+        The transparent gradient clipped to just the area beneath the curve.
+    """
+    if ax is None:
+        ax = plt.gca()
+
+    line, = ax.plot(x, y, **kwargs)
+    if fill_color is None:
+        fill_color = line.get_color()
+
+    zorder = line.get_zorder()
+    #alpha = line.get_alpha()
+    #alpha = 1.0 if alpha else alpha
+
+    z = np.empty((100, 1, 4), dtype=float)
+    rgb = mcolors.colorConverter.to_rgb(fill_color)
+    z[:,:,:3] = rgb
+    if direction == 'down':
+        z[:,:,-1] = np.linspace(alpha, alpha_min, 100)[:,None]
+    elif direction == 'up':
+        z[:,:,-1] = np.linspace(alpha_min, alpha, 100)[:, None]
+
+    x, y = np.asarray(x), np.asarray(y)
+    xmin, xmax, ymin, ymax = x.min(), x.max(), y.min(), y.max()
+    im = ax.imshow(z, aspect='auto', extent=[xmin, xmax, ymin, ymax],
+                   origin='lower', zorder=zorder)
+
+    xy = np.column_stack([x, y])
+    #xy = np.vstack([[xmin, ymax], xy, [xmax, ymax], [xmin, ymax]])
+    xy = np.vstack([xy, xy[0]])
+    clip_path = Polygon(xy, facecolor='none', edgecolor='none', closed=True)
+    ax.add_patch(clip_path)
+    im.set_clip_path(clip_path)
+
+    #ax.autoscale(True)
+    return line, im
+
 class plot_spec(list):
     """
     Class to plot the figures with multiply panels each of them consists of line profiles:
@@ -76,6 +134,7 @@ class plot_spec(list):
         self.figure = figure
         self.color_total = "tab:red"
         self.show_comps = show_comps
+        self.gradient_fill = 0
         self.gray_out = gray_out
         self.show_telluric = show_telluric
         self.show_err = show_err
@@ -139,11 +198,13 @@ class plot_spec(list):
             line.rect = rects[i]
    
     def specify_comps(self, *args):
+        print("sp_comps:", args)
         self.comps = np.array(args)
         self.num_comp = len(self.comps)
+        print(self.comps, self.num_comp)
 
     def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, ls_total='solid',
-                       ind_ls='dotted', ind_lw=1.0, color_tell=None, lw_tell=1.0, tell_fill=0,
+                       ind_ls='dotted', ind_lw=1.0, color_tell=None, lw_tell=1.0, tell_fill=0, gradient_fill=0,
                        add_lines="0.0", add_ls='dotted', disp_alpha=0.7, res_style='scatter', res_color=None):
 
         if color_total is not None:
@@ -152,7 +213,7 @@ class plot_spec(list):
                     color_total = tuple(c / 255 for c in color_total)
             self.color_total = color_total
 
-        num = len(self.comps+1)
+        num = len(self.comps + 1)
         if color is None:
             cmap = plt.get_cmap('rainbow')
             color = cmap(np.linspace(0, 0.85, num))
@@ -193,6 +254,7 @@ class plot_spec(list):
         self.lw_spec = lw_spec
         self.ls_total = ls_total
         self.lw_tell = lw_tell
+        self.gradient_fill = gradient_fill
         self.ind_ls = ind_ls
         self.ind_lw = ind_lw
         self.tell_fill = tell_fill
@@ -395,6 +457,7 @@ class plotline():
         if self.filename is not None:
             print('filename:', self.filename)
             dir = os.path.dirname(self.filename[0])
+            basename = self.filename[0].replace(dir + '/', '').replace(".dat", '')
             d = np.genfromtxt(self.filename[0], skip_header=2, unpack=True)
             if Path(self.filename[0].replace('.dat', '_fit.dat')).exists():
                 f = np.genfromtxt(self.filename[0].replace('.dat', '_fit.dat'), skip_header=2, unpack=True)
@@ -404,10 +467,10 @@ class plotline():
             fit_comp, fit_comp_disp, comp_index, comp_disp_index = [], [], [], []
             for file in os.listdir(os.fsencode(dir)):
                 filename = os.fsdecode(file)
-                if 'fit_comps_' in filename and '_disp' not in filename:
+                if basename in filename and 'fit_comps_' in filename and '_disp' not in filename:
                     fit_comp.append(np.genfromtxt(dir + '/' + filename, skip_header=2, unpack=True))
                     comp_index.append(int(filename.partition('fit_comps_')[-1].replace('.dat', '')))
-                if 'fit_comps_' in filename and '_disp' in filename:
+                if basename in filename and 'fit_comps_' in filename and '_disp' in filename:
                     fit_comp_disp.append(np.genfromtxt(dir + '/' + filename, skip_header=2, unpack=True))
                     comp_disp_index.append(int(filename.partition('fit_comps_')[-1].replace('_disp.dat', '')))
             if len(fit_comp) > 0:
@@ -631,10 +694,11 @@ class plotline():
             self.correct_cont()
 
         # >>> plot telluric
-        if self.parent.tell_fill:
-            self.ax.fill_between(self.sky.x, 1, self.sky.y, color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-', alpha=self.parent.lw_tell)
-        else:
-            self.ax.plot(self.sky.x, self.sky.y, color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-')
+        if self.show_telluric:
+            if self.parent.tell_fill:
+                self.ax.fill_between(self.sky.x, 1, self.sky.y, color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-', alpha=self.parent.lw_tell)
+            else:
+                self.ax.plot(self.sky.x, self.sky.y, color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-')
 
         # >>> plot spectrum
         if self.show_err:
@@ -735,6 +799,7 @@ class plotline():
         self.fit.mask(self.x_min, self.x_max)
 
         # >>> plot fit components
+        print(self.show_comps, self.num_comp)
         if self.show_comps:
             for k in range(self.num_comp):
                 if self.fit_disp is None:
@@ -742,6 +807,9 @@ class plotline():
                         self.fit_comp[k].x = (self.fit_comp[k].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
                     self.fit_comp[k].mask(self.x_min, self.x_max)
                     self.ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
+                    print("grad", self.parent.gradient_fill)
+                    if self.parent.gradient_fill != 0:
+                        gradient_fill(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], alpha=self.parent.gradient_fill, lw=1, zorder=1)
                 else:
                     if self.vel_scale:
                         self.fit_comp_disp[k][0].x = (self.fit_comp_disp[k][0].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26

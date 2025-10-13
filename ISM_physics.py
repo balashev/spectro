@@ -359,7 +359,6 @@ class ISM():
         self.update_pars(T=x)
         return self.thermal_balance()
 
-
     def phase_diagram(self, n=[], method='Nelder-Mead'):
         if len(n) == 0:
             n = np.logspace(-2, 4, 50)

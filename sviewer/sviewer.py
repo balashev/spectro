@@ -170,18 +170,24 @@ class plotSpectrum(pg.PlotWidget):
             self.viewAll = QAction("View all", self.menu)
             self.viewAll.triggered.connect(self.autoRange)
             self.menu.addAction(self.viewAll)
-            self.export = QAction("Export...", self.menu)
-            self.export.triggered.connect(self.showExportDialog)
-            self.exportDialog = None
             self.menu.addSeparator()
-            self.menu.addAction(self.export)
+
+            self.export = QMenu("Export...", self.menu)
+            self.menu.addMenu(self.export)
+
+            self.exportLine = QAction("Line tau", self.export)
+            self.export.addAction(self.exportLine)
+            self.exportLine.triggered.connect(self.showExportLine)
+            self.exportDialog = None
 
         return self.menu
 
-    def showExportDialog(self):
+    def showExportLine(self):
         if self.exportDialog is None:
-            self.exportDialog = exportDialog.ExportDialog(self)
-        self.exportDialog.show() #self.contextMenuItem)
+            fname = QFileDialog.getSaveFileName(self, 'Export line tau', self.parent.work_folder)
+            self.parent.exportLine(fname)
+
+        #self.exportDialog.show() #self.contextMenuItem)
 
     def keyPressEvent(self, event):
         super(plotSpectrum, self).keyPressEvent(event)
@@ -9533,6 +9539,33 @@ class sviewer(QMainWindow):
                 self.fitResults.refresh()
         else:
             self.sendMessage("Blind mode is on. Disable it in Preference menu (F11)")
+
+    def exportLine(self, fname):
+        print("[Exporting optical depth of the selected line to the file:]", fname)
+        print(fname)
+        if self.abs.reference.line is not None:
+            print(self.abs.reference.line.name, self.abs.reference.line.l())
+            print(self.z_abs)
+            res_saved = copy.copy(self.s[self.s.ind].resolution)
+            self.s[self.s.ind].resolution = 0
+            self.s.prepareFit(ind=-1, exp_ind=self.s.ind, all=True, selected_line=self.abs.reference.line)
+            #self.s.calcFit(ind=-1, exp_ind=self.s.ind, recalc=True)
+            x, flux, bins, binned = self.julia.calc_spectrum(self.julia_spec[self.s.ind],
+                                                            self.julia_pars,
+                                                            comp=0,
+                                                            grid_type=self.options("julia_grid"),
+                                                            grid_num=int(self.options("julia_grid_num")),
+                                                            binned=self.options("julia_binned"),
+                                                            telluric=self.options("telluric"),
+                                                            tau_limit=self.tau_limit,
+                                                            accuracy=self.accuracy,
+                                                            optical_depth=True)
+            x = (np.asarray(x) / (self.abs.reference.line.l() * (1 + self.z_abs)) - 1) * 299792.46
+            m = (x > -1000) * (x < 1000)
+            np.savetxt(fname[0], np.c_[x[m] , np.asarray(flux)[m]], fmt='%.3f')
+            self.s[self.s.ind].resolution = res_saved
+        else:
+            self.sendMessage("Reference line is not specified")
 
     def resAnal(self):
         res = self.s[self.s.ind].res

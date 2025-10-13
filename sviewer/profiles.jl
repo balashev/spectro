@@ -821,9 +821,13 @@ function correct_continuum(conts, pars, x)
     return c
 end
 
-function line_profile(line, x; toll=1e-6)
+function line_profile(line, x; toll=1e-6, optical_depth=false)
     if line.stack == -1
-        return exp.( - line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x .- line.l) ./ line.ld)))
+        if ~optical_depth
+            return exp.( - line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x .- line.l) ./ line.ld)))
+        else
+            return line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x .- line.l) ./ line.ld))
+        end
     else
         tau = line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x .- line.l) ./ line.ld))
         tau_low =  tau .* 10 ^ (line.stv["stNl"] - line.logN)
@@ -1012,8 +1016,9 @@ function make_grid(spec, lines; grid_type="uniform", grid_num=1, binned=true, ta
     return x[i_min:i_max]
 end
 
-function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", grid_num=1, binned=true, out="all", telluric=false, tau_limit=0.005, accuracy=0.2)
+function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", grid_num=1, binned=true, out="all", telluric=false, tau_limit=0.005, accuracy=0.2, optical_depth=false)
 
+    #print("opt_dep ", optical_depth)
     timeit = 0
     if timeit == 1
         start = time()
@@ -1031,14 +1036,17 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
     end
 
     if ~any([occursin("cf", p.first) for p in pars])
-        y = ones(size(x))
+        y = zeros(size(x))
         for line in spec.lines[line_mask]
             if (line.tau0 > tau_limit)
                 i_min, i_max = binsearch(x, line.l - line.dx * line.ld, type="min"), binsearch(x, line.l + line.dx * line.ld, type="max")
-                t = line_profile(line, x[i_min:i_max])
+                t = line_profile(line, x[i_min:i_max], optical_depth=true)
                 #println("t: ", t)
-                @. @views y[i_min:i_max] = y[i_min:i_max] .* t
+                @. @views y[i_min:i_max] = y[i_min:i_max] .+ t
             end
+        end
+        if ~optical_depth
+            y = exp.(-y)
         end
     else
         y = zero(x)
