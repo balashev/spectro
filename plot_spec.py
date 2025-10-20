@@ -668,9 +668,10 @@ class plotline():
         # >>> add text
         if self.name_pos is not None:
             ha = 'left' if self.name_pos[0] < 0.5 else 'right'
+            ha_l = 'right' if self.name_pos[0] < 0.5 else 'left'
             self.ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha=ha, va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
             if self.label is not None:
-                self.ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha='left', va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
+                self.ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha=ha_l, va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
 
         if self.parent.add_ioniz:
             el = element(self.el.name)
@@ -783,9 +784,11 @@ class plotline():
 
         # >>> add text
         if self.name_pos is not None:
-            self.ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha='left', va='top', fontsize=self.font_size, transform=self.ax.transAxes)
+            ha = 'left' if self.name_pos[0] < 0.5 else 'right'
+            ha_l = 'right' if self.name_pos[0] < 0.5 else 'left'
+            self.ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha=ha, va='top', fontsize=self.font_size, transform=self.ax.transAxes)
             if self.label is not None:
-                self.ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha='right', va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
+                self.ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha=ha_l, va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
 
         return self.ax
 

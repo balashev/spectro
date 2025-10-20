@@ -72,8 +72,6 @@ class distr1d():
         if xlabel is not None:
             ax.set_xlabel(xlabel, fontsize=fontsize)
 
-        print('title: ', title)
-
         if title is not None:
             ax.set_title(title, fontsize=fontsize)
 

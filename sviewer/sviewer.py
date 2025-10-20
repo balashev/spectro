@@ -7228,6 +7228,10 @@ class sviewer(QMainWindow):
         import2dAction.setStatusTip('Import 2d spectrum')
         import2dAction.triggered.connect(self.show2dImportDialog)
 
+        importDispAction = QAction('&Import Profile Dispersion...', self)
+        importDispAction.setStatusTip('Import the fit profile in a view of the confidence bands from Bayessian inference (obtained through MCMC widget)')
+        importDispAction.triggered.connect(self.showDispImportDialog)
+
         exportAction = QAction('&Export spectrum...', self)
         exportAction.setStatusTip('Export spectrum')
         exportAction.triggered.connect(self.showExportDialog)
@@ -7262,6 +7266,7 @@ class sviewer(QMainWindow):
         fileMenu.addAction(importAction)
         fileMenu.addAction(importTelluric)
         fileMenu.addAction(import2dAction)
+        fileMenu.addAction(importDispAction)
         fileMenu.addAction(importList)
         fileMenu.addAction(importFolder)
         fileMenu.addSeparator()
@@ -8468,6 +8473,42 @@ class sviewer(QMainWindow):
             self.import2dSpectrum(fname[0])
             self.statusBar.setText('2d spectrum is imported from ' + fname[0])
 
+    def showDispImportDialog(self):
+
+        fname = QFileDialog.getOpenFileName(self, 'Import confidence band profiles', self.work_folder)
+
+        if fname[0]:
+            self.load_fit_disp(fname[0])
+            self.statusBar.setText('Confidence band profile is imported from ' + fname[0])
+
+    def load_fit_disp(self, filename=''):
+
+        self.julia.include(self.folder + "MCMC.jl")
+
+        self.s.prepareFit(-1, all=all)
+        self.s.calcFit(recalc=True)
+        self.s.calcFitComps(recalc=True)
+
+        if self.fitType == 'julia':
+            x, fit_disp, fit_comp_disp, cheb_disp = self.julia.load_disp(filename)
+            for i, s in enumerate(self.s):
+                if s.fit.line.norm.n > 0:
+                    x[i] = np.asarray(x[i])
+                    #if s.fit.line.norm.n > 0:
+                    self.s[i].fit.disp[0].set(x=x[i], y=np.asarray(fit_disp[i][:, 0]))
+                    self.s[i].fit.disp[1].set(x=x[i], y=np.asarray(fit_disp[i][:, 1]))
+                    if self.fit.cont_fit:
+                        self.s[i].cheb.disp[0].set(x=x[i], y=np.asarray(cheb_disp[i][:, 0]))
+                        self.s[i].cheb.disp[1].set(x=x[i], y=np.asarray(cheb_disp[i][:, 1]))
+                    for k, sys in enumerate(self.fit.sys):
+                        if len(fit_comp_disp[i][k]) > 0:
+                            self.s[i].fit_comp[k].disp[0].set(x=x[i], y=np.asarray(fit_comp_disp[i][k][:, 0]))
+                            self.s[i].fit_comp[k].disp[1].set(x=x[i], y=np.asarray(fit_comp_disp[i][k][:, 1]))
+                        else:
+                            self.s[i].fit_comp[k].disp[0].set(x=self.s[i].fit.disp[0].norm.x, y=self.s[i].fit.disp[0].norm.y)
+                            self.s[i].fit_comp[k].disp[1].set(x=self.s[i].fit.disp[1].norm.x, y=self.s[i].fit.disp[1].norm.y)
+
+        print("load disp done")
 
     def importSpectrum(self, filelist, spec=None, mask=None, header=0, dir_path='', scale_factor=1, append=False, corr=True):
 

@@ -1,11 +1,3 @@
-show H2Oj5
-show H2Oj6
-show H2Oj7
-logN H2
-show NV
-show H2O
-show CI
-show CO
 show MgII
 show SiII
 hide MgII
@@ -19,3 +11,11 @@ show SiIIj1
 show SiIIj1
 show H2 0 1
 high H2j0
+y 0 1
+3.6896 * 2.7245
+high SI
+SI
+show MgI
+MgI
+high SI
+show ClI
