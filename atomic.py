@@ -838,27 +838,48 @@ class atomicData(OrderedDict):
                 self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=l['level'], nu_l=0, j_u=l['level'] + j_u[l['PorR']], nu_u=l['band']))
                 self[name].lines[-1].band = l['LW'] #.decode('UTF-8')
 
-    def readCO(self):
-        CO = np.genfromtxt(self.folder + r'/data/CO_data_Dapra_plus_Morton.dat', skip_header=1, names=True, dtype=None)
-        for i in np.unique(CO['level']):
-            name = 'COj'+str(i)
-            self[name] = e(name)
-            self[name].lines = []
-            mask = CO['level'] == i
-            for l in CO[mask]:
-                self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'], nu_u=l['band']))
-                self[name].lines[-1].band = l['name'] #.decode('UTF-8')
+    def readCO(self, kind='mixed'):
+        if kind == 'mixed':
+            CO = np.genfromtxt(self.folder + r'/data/CO/CO_data_Dapra_plus_Morton.dat', skip_header=1, names=True, dtype=None)
+            for i in np.unique(CO['level']):
+                name = 'COj'+str(i)
+                self[name] = e(name)
+                self[name].lines = []
+                mask = CO['level'] == i
+                for l in CO[mask]:
+                    self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'], nu_u=l['band']))
+                    self[name].lines[-1].band = l['name'] #.decode('UTF-8')
+        if kind == 'Dapra':
+            CO = np.genfromtxt(self.folder + r'/data/CO/CO_data_Dapra.dat', skip_header=1, names=True, dtype=None)
+            for i in np.unique(CO['level']):
+                name = 'COj'+str(i)
+                self[name] = e(name)
+                self[name].lines = []
+                mask = CO['level'] == i
+                for l in CO[mask]:
+                    self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'], nu_u=l['band']))
+                    self[name].lines[-1].band = l['name'] #.decode('UTF-8')
 
-        CO = np.genfromtxt(self.folder + r'/data/13CO_Morton.dat', skip_header=1, names=True, dtype=None)
+        if kind == 'Morton':
+            CO = np.genfromtxt(self.folder + r'/data/CO/CO_data_Morton.dat', skip_header=1, names=True, dtype=None)
+            for i in np.unique(CO['level']):
+                d = {'P': -1, 'Q': 0, 'R': 1}
+                name = 'COj'+str(i)
+                self[name] = e(name)
+                self[name].lines = []
+                mask = CO['level'] == i
+                for l in CO[mask]:
+                    self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + d[l['PQR'][-1]], nu_u=l['band']))
+                    self[name].lines[-1].band = l['name'] #.decode('UTF-8')
+
+        CO = np.genfromtxt(self.folder + r'/data/CO/13CO_Morton.dat', skip_header=1, names=True, dtype=None)
         for i in np.unique(CO['level']):
             name = '13COj' + str(i)
             self[name] = e(name)
             self[name].lines = []
             mask = CO['level'] == i
             for l in CO[mask]:
-                self[name].lines.append(
-                    line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'],
-                         nu_u=l['band']))
+                self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'], nu_u=l['band']))
                 self[name].lines[-1].band = l['name'] #.decode('UTF-8')
 
     def readH2O(self):
@@ -969,7 +990,7 @@ class atomicData(OrderedDict):
         self.readH2(nu=1, j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
         #self.readH2(nu=2, j=[0, 1, 2, 3])
         self.readHD()
-        self.readCO()
+        self.readCO(kind='Morton')
         self.readH2O()
         #self.readHF()
         self.readBAL()

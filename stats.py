@@ -408,7 +408,7 @@ class distr2d():
             my_cmap = ListedColormap(my_cmap)
             if not isinstance(levels, int):
                 levels = np.sort([self.level(c) for c in levels] / self.zmax)
-            cs = ax.contourf(self.X, self.Y, self.z / self.zmax, levels, cmap=my_cmap, zorder=zorder, lw=0, ls=ls, antialiased=True, alpha=alpha)
+            cs = ax.contourf(self.X, self.Y, self.z / self.zmax, levels, cmap=my_cmap, zorder=zorder, lw=0, ls=ls, antialiased=True)
             #for c in cs.collections:
             #    c.set_edgecolor("face")
             #    c.set_linewidth(0.000000000001)
@@ -418,10 +418,10 @@ class distr2d():
             if limits == None or limits == 0:
                 print("linewidths:", lw)
                 c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color,
-                               lw=lw, linestyles=ls, zorder=zorder, label=label, alpha=alpha)
+                               lw=lw, linestyles=ls, zorder=zorder, label=label, alpha=1.0)
             else:
                 c = ax.contour(self.X, self.Y, self.z / self.zmax, levels=levels / self.zmax, colors=color,
-                               lw=lw, linestyles=ls, zorder=zorder, alpha=alpha)
+                               lw=lw, linestyles=ls, zorder=zorder, alpha=1.0)
                 x, y = c.get_segments()[0][:,0], c.get_segments()[0][:, 1]
                 inter = interpolate.interp1d(x, y)
                 x = np.linspace(x[0], x[-1], 30)
@@ -449,15 +449,21 @@ class distr2d():
         return ax
 
     def plot(self, fig=None, frac=0.1, indent=0.15, x_shift=0.0, y_shift=0.0,
-             conf_levels=None, xlabel='', ylabel='', limits=None, ls=None, lw=1.0, stats=False,
+             conf_levels=None, xlabel='', ylabel='', limits=None, ls=None, lw=1.0,
+             stats=False, stats_pos=[0.05, 0.05], stats_color='k',
              color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False, color_marg='dodgerblue',
              font=14, title=None, zorder=1):
 
         if fig is None:
             fig = plt.figure()
-
-        frac = frac if isinstance(frac, list) else [frac, frac]
-        ax = fig.add_axes([x_shift + indent, y_shift + indent, 1 - indent - frac[0] - x_shift, 1 - indent - frac[1] - y_shift])
+            frac = frac if isinstance(frac, list) else [frac, frac]
+            ax = fig.add_axes([x_shift + indent, y_shift + indent, 1 - indent - frac[0] - x_shift, 1 - indent - frac[1] - y_shift])
+            ax1 = fig.add_axes([1 - frac[0], y_shift + indent, frac[0], 1 - indent - frac[1] - y_shift])
+            ax1.set_axis_off()
+            ax2 = fig.add_axes([x_shift + indent, 1 - frac[1], 1 - indent - frac[0] - x_shift, frac[1]])
+            ax2.set_axis_off()
+        else:
+            ax, ax1, ax2 = fig.axes
         #ax.set_position([indent, indent, 1 - indent - frac, 1 - indent - frac])
         self.plot_contour(ax=ax, conf_levels=conf_levels, xlabel=xlabel, ylabel=ylabel, limits=limits, ls=ls, lw=lw,
                      color=color, color_point=color_point, cmap=cmap, alpha=alpha, colorbar=colorbar,
@@ -467,26 +473,22 @@ class distr2d():
 
         dy = self.marginalize('x')
 
-        ax1 = fig.add_axes([1 - frac[0], y_shift + indent, frac[0], 1 - indent - frac[1] - y_shift])
         #ax.set_position([1 - frac, indent, frac, 1 - indent - frac])
-        ax1.set_axis_off()
         ax1.plot(dy.inter(dy.x), dy.x, '-', color=color_marg, lw=lw + 0.5)
         if stats:
             dy.stats()
-            ax1.text(0.05, 0.95, dy.latex(f=int(stats)), rotation=-90, transform=ax1.transAxes, va='top', ha='left')
+            ax1.text(0.05, 1 - stats_pos[0], dy.latex(f=int(stats)), rotation=-90, transform=ax1.transAxes, va='top' if 1 - stats_pos[0] > 0.5 else 'bottom', ha='left', color=stats_color)
             mask = np.logical_and(dy.x >= dy.interval[0], dy.x <= dy.interval[1])
             ax1.fill_betweenx(dy.x[mask], dy.inter(dy.x)[mask], facecolor=color_marg, alpha=0.3, interpolate=True)
         ax1.set_ylim(y)
         ax1.set_xlim([0 + ax1.get_xlim()[1]/50, ax1.get_xlim()[1]])
 
         dx = self.marginalize('y')
-        ax2 = fig.add_axes([x_shift + indent, 1 - frac[1], 1 - indent - frac[0] - x_shift, frac[1]])
         #ax.set_position([indent, 1 - frac, 1 - indent - frac, frac])
-        ax2.set_axis_off()
         ax2.plot(dx.x, dx.inter(dx.x), '-', color=color_marg, lw=lw + 0.5)
         if stats:
             dx.stats()
-            ax2.text(0.05, 0.05, dx.latex(f=int(stats)), transform=ax2.transAxes, va='bottom', ha='left')
+            ax2.text(stats_pos[1], 0.05, dx.latex(f=int(stats)), transform=ax2.transAxes, va='bottom', ha='left'  if 1 - stats_pos[1] > 0.5 else 'right', color=stats_color)
             mask = np.logical_and(dx.x >= dx.interval[0], dx.x <= dx.interval[1])
             ax2.fill_between(dx.x[mask], dx.inter(dx.x)[mask], facecolor=color_marg, alpha=0.3, interpolate=True)
         ax2.set_xlim(x)
