@@ -1,21 +1,21 @@
-show SiIIj1
-show H2 0 1
-high H2j0
-y 0 1
-3.6896 * 2.7245
-high SI
-SI
-show MgI
-MgI
-high SI
 show ClI
-show COj4
-high COj4
-show SI
-high COj4
-high COj0
+show PII
+show ZnII
+show CrII
+show FeII
+show MgII
+show MgI
+show SiIIj1
+show CIIj1
+show ZnII
+show CrII
 show CI
 show CIj1
 show CIj2
-CIV
-SiIV
+show FeII
+show FeIIj1
+show FeIIj2
+OIj1
+show OIj1
+OIj2
+show OIj2

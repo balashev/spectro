@@ -8,7 +8,7 @@ Created on Thu Dec 22 13:36:40 2016
 from PyQt6.QtWidgets import (QApplication)
 
 import sys, os
-sys.path.append(os.path.dirname(os.path.realpath(__file__))[:-16])
+sys.path.append(os.sep.join(os.path.normpath(os.path.realpath(__file__)).split(os.sep)[:-3]))
 import spectro.sviewer.sviewer as sv
 
 
