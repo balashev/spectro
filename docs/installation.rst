@@ -10,11 +10,12 @@ Downloading
 
 Since the ``Spectro`` package is still developing the most straightforward way is to install spectro from github, which provides you access to the latest features and bugfixes:
 
-1. Clone ``Spectro`` from github::
+1. Clone ``Spectro`` from github. Print in cmd or bash::
 
-    $ git clone https://github.com/balashev/spectro
+    >>> git clone https://github.com/balashev/spectro
  
-   
+(to run this you need to install ``git``)
+
 2. You can simply place the ``Spectro`` folder someplace importable, such as
    inside the root of another project. Spectro does not need to be "built" or
    compiled in any way.
@@ -24,7 +25,9 @@ Dependencies
    
 ``Spectro`` heavily depends on the list of python packages, that you will need to install::
 
-* Python 3.12+ (the current stable version works on 3.12.7, and it seems that python 3.14.x has conflicted packages)
+* Python 3.12+
+
+(the current stable version works on 3.12.7, and it seems that python 3.14.x has conflicted packages)
 
 and::
 
@@ -61,12 +64,12 @@ and::
 
 For convenience, this package list is automatically stored in ``requirements.txt``, therefore you can simply use::
 
-    $ pip install -r /path/to/requirements.txt
+>>> pip install -r /path/to/requirements.txt
 
-The exact versions of the packages listed here are not obligatory (it was generated from the working build), and the code can work with some old/new versions. However, there are sometimes inconsistencies with previous verisons of the packages, e.g. for ``matplotlib`` and ``chainconsumer``. Therefore we highly recommended to install and use the code within virtual environment (either venv or conda), e.g. run following before package installation:
+The exact versions of the packages listed here are not obligatory (it was generated from the working build), and the code can work with some old/new versions. However, there are sometimes inconsistencies with previous verisons of the packages, e.g. for ``matplotlib`` and ``chainconsumer``. Therefore we highly recommended to install and use the code within virtual environment (using e.g. ``venv`` or ``conda``), i.e. run following before package installation::
 
-    $ conda create spectro
-    $ conda activate spectro
+>>> conda create spectro
+>>> conda activate spectro
 
 Config
 ------
