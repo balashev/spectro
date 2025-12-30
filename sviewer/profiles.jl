@@ -389,7 +389,7 @@ function update_pars(pars, spec, add)
         end
         if occursin("res", pars[k].name)
             #println(pars[k].name, " ", pars[k].val, " ", parse(Int, pars[k].addinfo[5:end]))
-            spec[parse(Int, pars[k].addinfo[5:end]) + 1].resolution = pars[k].val
+            spec[parse(Int, pars[k].addinfo[5:end]) + 1].resolution = linear_interpolation([spec[parse(Int, pars[k].addinfo[5:end]) + 1].x[1], spec[parse(Int, pars[k].addinfo[5:end]) + 1].x[end]], [pars[k].val, pars[k].val], extrapolation_bc=Flat())
         end
         if occursin("displ", pars[k].name)
             spec[parse(Int, split(pars[k].addinfo, "_")[2]) + 1].displ = pars[k].val
@@ -732,7 +732,7 @@ module spectrum
         mask::BitArray
         sky::Interpolations.Extrapolation
         lsf_type::String
-        resolution::Float64
+        resolution::Interpolations.Extrapolation
         lines::Vector{line}
         displ::Float64
         disps::Float64
@@ -790,7 +790,8 @@ function prepare(s, pars, add, COS)
                                 pyconvert(Vector{Int64}, si.mask.norm.x) .== 1,
                                 linear_interpolation(pyconvert(Vector{Float64}, si.sky_cont.norm.x), pyconvert(Vector{Float64}, si.sky_cont.norm.y), extrapolation_bc=Flat()),
                                 pyconvert(String, si.lsf_type),
-                                pyconvert(Float64, si.resolution),
+                                linear_interpolation([pyconvert(Float64, si.spec.raw.x[0]), pyconvert(Float64, si.spec.raw.x[-1])], pyconvert(Vector{Float64}, si.resolution_linear), extrapolation_bc=Flat()),
+                                #pyconvert(Vector{Float64}, si.resolution),
                                 prepare_lines(si.fit_lines),
                                 NaN,
                                 NaN,
@@ -845,7 +846,7 @@ function make_grid(spec, lines; grid_type="uniform", grid_num=1, binned=true, ta
         start = time()
         println("regular ", grid_type)
     end
-    x_instr = 1.0 / spec.resolution / 2.355
+    x_instr = 1.0 / spec.resolution((spec.x[1] + spec.x[end]) / 2) / 2.355
     #println(spec.lsf_type, " ", spec.resolution, " ", x_instr)
 
     #println("spec_bins: ", size(spec.bins), " ", size(spec.bin_mask))
@@ -1106,12 +1107,13 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
         y .+= pars["zero"].val
     end
 
-    if (spec.resolution > 0) && (spec.lsf_type != "none")
+    if (spec.lsf_type != "none")
         y = 1 .- y
         y_c = zero(y)
-        if spec.lsf_type == "gauss" # Gaussian function
+        if occursin("gauss", spec.lsf_type) # Gaussian function
             for (i, xi) in enumerate(x)
-                sigma_r = xi / spec.resolution / 1.66511
+                #println(xi, " ", spec.resolution(xi))
+                sigma_r = xi / spec.resolution(xi) / 1.66511
                 k_min, k_max = binsearch(x, xi - 3 * sigma_r), binsearch(x, xi + 3 * sigma_r)
                 #println(k_min, "  ", k_max)
                 instr = exp.( -1 .* ((view(x, k_min:k_max) .- xi) ./ sigma_r ) .^ 2)
@@ -1125,7 +1127,7 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
 
         elseif spec.lsf_type == "cos" # COS line spread function
             for (i, xi) in enumerate(x)
-                sigma_r = xi / spec.resolution / 1.66511
+                sigma_r = xi / spec.resolution(xi) / 1.66511
                 k_min, k_max = binsearch(x, xi - 7 * sigma_r), binsearch(x, xi + 7 * sigma_r)
                 #println(k_min, "  ", k_max)
                 instr = spec.COS(view(x, k_min:k_max), xi)

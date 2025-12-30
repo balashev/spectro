@@ -717,7 +717,7 @@ class plotSpectrum(pg.PlotWidget):
                             text += dv90((s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s').value,
                                          s.spec.y()[mask] / cont(s.spec.x()[mask]),
                                          s.spec.err()[mask] / cont(s.spec.x()[mask]),
-                                         resolution=self.parent.s[self.parent.s.ind].resolution, plot=1)
+                                         resolution=self.parent.s[self.parent.s.ind].resolution(), plot=1)
                         else:
                             vx = (s.spec.x()[mask] / self.parent.abs.reference.line.l() / (1 + self.parent.z_abs) - 1) * ac.c.to('km/s')
                             y = s.spec.y()[mask] - cont(s.spec.x()[mask])
@@ -5806,9 +5806,9 @@ class ShowListCombine(QWidget):
         data = np.array([zero], dtype=dtype)
         self.edit_col = [4]
         for s in self.parent.parent.s:
-            print(s.filename, s.date, s.wavelmin, s.wavelmax, s.resolution)
+            print(s.filename, s.date, s.wavelmin, s.wavelmax, s.resolution())
             data = np.insert(data, len(data), np.array(
-                [('  ' + s.filename + '  ', '  ' + s.date + '  ', s.wavelmin, s.wavelmax, s.resolution)],
+                [('  ' + s.filename + '  ', '  ' + s.date + '  ', s.wavelmin, s.wavelmax, s.resolution())],
                 dtype=dtype), axis=0)
         data = np.delete(data, (0), axis=0)
         self.table.setdata(data)
@@ -6162,7 +6162,7 @@ class combineWidget(QWidget):
         frame = QFrame(self)
         l = QGridLayout()
         l.addWidget(QLabel('Resolution: '), 0, 0)
-        self.resolution = QLineEdit(str(int(self.parent.s[0].resolution)))
+        self.resolution = QLineEdit(str(int(self.parent.s[0].resolution())))
         l.addWidget(self.resolution, 0, 1)
         l.addWidget(QLabel('pixels pe FWHM: '), 1, 0)
         self.pp_fwhm = QLineEdit('3')
@@ -6472,7 +6472,7 @@ class rebinWidget(QWidget):
                                            spec_errs=self.parent.s[self.exp_ind].spec.raw.err)
 
                 self.parent.s.append(Spectrum(self.parent, name='rebinned '+str(self.exp_ind+1), data=[x, y, err]))
-                self.parent.s[-1].Resolution = np.median(self.parent.s[-1].spec.raw.x)/(float(self.binsize.text()) * 2.5)
+                self.parent.s[-1].set_resolution(np.median(self.parent.s[-1].spec.raw.x)/(float(self.binsize.text()) * 2.5))
 
         elif self.fixedres_item.isExpanded():
             print('fixed res')
@@ -6489,7 +6489,7 @@ class rebinWidget(QWidget):
 
                 self.parent.s.append(Spectrum(self.parent, name='rebinned '+str(self.exp_ind+1)))
                 self.parent.s[-1].set_data([x, y, err])
-                self.parent.s[-1].resolution = float(self.resolution.text())
+                self.parent.s[-1].set_resolution(float(self.resolution.text()))
 
         elif self.loglinear_item.isExpanded():
             print('loglinear')
@@ -6525,10 +6525,10 @@ class rebinWidget(QWidget):
                 self.parent.s[-1].set_data([x, y, err])
             else:
                 self.parent.s[-1].set_data([x, y])
-            if self.parent.s[self.exp_ind].resolution not in [0, None]:
-                self.parent.s[-1].resolution = 1 / np.sqrt(1 / float(self.resol.text())**2 + 1 / self.parent.s[self.exp_ind].resolution**2)
+            if self.parent.s[self.exp_ind].resolution_linear[0] not in [0, None]:
+                self.parent.s[-1].set_resolution(1 / np.sqrt(1 / float(self.resol.text())**2 + 1 / self.parent.s[self.exp_ind].resolution()**2))
             else:
-                self.parent.s[-1].resolution = float(self.resol.text())
+                self.parent.s[-1].set_resolution(float(self.resol.text()))
 
         self.parent.s.redraw()
         self.parent.s[-1].specClicked()
@@ -8205,7 +8205,12 @@ class sviewer(QMainWindow):
                             self.import2dSpectrum(d[i].split()[1], ind=ind)
 
                         if 'resolution' in d[i]:
-                            self.s[ind].resolution = int(float(d[i].split()[1]))
+                            print(d[i].split()[1], )
+                            if ".." in d[i].split()[1]:
+                                print(d[i].split()[1].split(".."))
+                                self.s[ind].set_resolution(float(d[i].split()[1].split("..")[0]), float(d[i].split()[1].split("..")[1]))
+                            else:
+                                self.s[ind].set_resolution(float(d[i].split()[1]))
 
                         if 'lsf_type' in d[i]:
                             self.s[ind].lsf_type = d[i].split()[1]
@@ -8359,8 +8364,8 @@ class sviewer(QMainWindow):
 
                     # >>> save resolution amd scaling factor:
                     if 'others' in self.save_opt:
-                        if s.resolution not in [0, None]:
-                            f.write('resolution:   {}\n'.format(s.resolution))
+                        if s.resolution_linear[0] not in [0, None]:
+                            f.write('resolution:   {}\n'.format(s.resolution(out='spv')))
                         if s.lsf_type != 'gauss':
                             f.write('lsf_type:   {}\n'.format(s.lsf_type))
                         if s.scaling_factor not in [0, None]:
@@ -8553,7 +8558,7 @@ class sviewer(QMainWindow):
                         if s1[1] == 'KODIAQ_DR1':
                             s.spec.raw.clean(min=-1, max=2)
                             s.set_data()
-                        s.resolution = data['meta']['R'][ind]
+                        s.set_resolution(data['meta']['R'][ind])
 
                 elif hdulist is not None or filename.endswith('.fits') or filename.endswith('.fit'):
                     if hdulist is None:
@@ -8571,10 +8576,10 @@ class sviewer(QMainWindow):
                             coef = 1e17 if 'VIMOS' in hdulist[0].header['INSTRUME'] else 1
                             s.set_data([l, prihdr[0][1][:]*coef, prihdr[0][2][:]*coef])
                             if 'SPEC_RES' in hdulist[0].header:
-                                s.resolution = hdulist[0].header['SPEC_RES']
+                                s.set_resolution(hdulist[0].header['SPEC_RES'])
                             if 'DATE-OBS' in hdulist[0].header:
                                 s.date = hdulist[0].header['DATE-OBS']
-                            print(s.resolution, s.date)
+                            print(s.resolution_linear, s.date)
 
                         if 'STIS' in hdulist[0].header['INSTRUME']:
                             prihdr = hdulist[1].data
@@ -8606,7 +8611,7 @@ class sviewer(QMainWindow):
                                         ])
                             s.filename = filename
                             s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
-                            s.resolution = 20000
+                            s.set_resolution(20000)
                             s.rescale(1e13)
                             s.lsf_type = 'cos'
                             #self.s.append(s)
@@ -8682,7 +8687,7 @@ class sviewer(QMainWindow):
                                 print(l, fl, sig)
                             s.set_data([l, fl, sig])
                             s.cont.set_data(l, cont)
-                            s.resolution = 2000
+                            s.set_resolution(2000)
                         elif 'FUSE' in hdulist[0].header['TELESCOP']:
                             x = np.linspace(hdulist[0].header['CRVAL1'], hdulist[0].header['CRVAL1']+hdulist[0].header['CDELT1']*(hdulist[0].header['NAXIS1']-1), hdulist[0].header['NAXIS1'])
                             print(len(x), len(hdulist[0].data))
@@ -9300,7 +9305,7 @@ class sviewer(QMainWindow):
                 self.normalize(False)
                 ind = self.s.ind
                 m = (self.s[ind].spec.x() > xmin) * (self.s[ind].spec.x() < xmax)
-                s = Spectrum(self, name='temp', resolution=self.s[ind].resolution)
+                s = Spectrum(self, name='temp', resolution=self.s[ind].resolution())
                 s.set_data([self.s[ind].spec.x()[m], self.s[ind].spec.norm.y[m], self.s[ind].spec.norm.err[m]])
                 s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
                 s.cont_mask = np.ones_like(s.spec.raw.x, dtype=bool)
@@ -9588,8 +9593,8 @@ class sviewer(QMainWindow):
         if self.abs.reference.line is not None:
             print(self.abs.reference.line.name, self.abs.reference.line.l())
             print(self.z_abs)
-            res_saved = copy.copy(self.s[self.s.ind].resolution)
-            self.s[self.s.ind].resolution = 0
+            res_saved = copy.copy(self.s[self.s.ind].resolution_linear)
+            self.s[self.s.ind].set_resolution(0)
             self.s.prepareFit(ind=-1, exp_ind=self.s.ind, all=True, selected_line=self.abs.reference.line)
             #self.s.calcFit(ind=-1, exp_ind=self.s.ind, recalc=True)
             x, flux, bins, binned = self.julia.calc_spectrum(self.julia_spec[self.s.ind],
@@ -9606,7 +9611,7 @@ class sviewer(QMainWindow):
             m = (x > -1000) * (x < 1000)
             print(folder + '/' + self.abs.reference.line.name + '_' + str(self.abs.reference.line.l()) + '.dat')
             np.savetxt(folder + '/' + self.abs.reference.line.name + '_' + str(self.abs.reference.line.l()) + '.dat', np.c_[x[m] , np.asarray(flux)[m]], fmt='%.3f')
-            self.s[self.s.ind].resolution = res_saved
+            self.s[self.s.ind].set_resolution(*res_saved)
         else:
             self.sendMessage("Reference line is not specified")
 
@@ -10363,7 +10368,7 @@ class sviewer(QMainWindow):
 
         s = self.s[self.s.ind]
         dv = 200
-        x = np.linspace(-dv, dv, int(2 * dv / 299792.46 * s.resolution) * 4)
+        x = np.linspace(-dv, dv, int(2 * dv / 299792.46 * s.resolution()) * 4)
         y, err, fs = np.zeros_like(x), np.zeros_like(x), 0
         for line in self.lines:
             print(line)
@@ -10372,7 +10377,7 @@ class sviewer(QMainWindow):
                 if name == str(l.line):
                     wavelength, f = l.line.l(), l.line.f()
             xv = (s.spec.x() / wavelength / (1 + self.z_abs) - 1) * 299792.46
-            mask = (xv > x[0] - 299792.46 / s.resolution) * (xv < x[-1] + 299792.46 / s.resolution)
+            mask = (xv > x[0] - 299792.46 / s.resolution()) * (xv < x[-1] + 299792.46 / s.resolution())
             yi, erri = spectres.spectres((s.spec.x()[mask] / wavelength / (1 + self.z_abs) - 1) * 299792.46, s.spec.y()[mask], x, spec_errs=s.spec.err()[mask])
             y += (1 - yi) * f / erri ** 2
             fs += f
@@ -10624,7 +10629,7 @@ class sviewer(QMainWindow):
         else:
             out = False
         if out:
-            self.s[-1].resolution = resolution
+            self.s[-1].set_resolution(resolution)
             self.vb.enableAutoRange()
             self.z_abs = z_abs
             self.abs.redraw()
@@ -11124,7 +11129,7 @@ class sviewer(QMainWindow):
                 fill_value = 1
             data[0] *= (1 + z)
             inter = interp1d(data[0], data[1], bounds_error=False, fill_value=fill_value, assume_sorted=True)
-            s.resolution = resolution
+            s.set_resolution(resolution)
             bin = (xmin + xmax) / 2 / resolution / 4
             x = np.linspace(xmin, xmax, int((xmax - xmin) / bin))
             #debug(len(x), 'lenx')

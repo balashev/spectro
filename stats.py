@@ -448,14 +448,14 @@ class distr2d():
             ax.set_title(title, fontdict={'fontsize': font})
         return ax
 
-    def plot(self, fig=None, frac=0.1, indent=0.15, x_shift=0.0, y_shift=0.0,
+    def plot(self, fig=None, figsize=(8, 6), frac=0.1, indent=0.15, x_shift=0.0, y_shift=0.0,
              conf_levels=None, xlabel='', ylabel='', limits=None, ls=None, lw=1.0,
              stats=False, stats_pos=[0.05, 0.05], stats_color='k',
              color='greenyellow', color_point='gold', cmap='PuBu', alpha=1.0, colorbar=False, color_marg='dodgerblue',
              font=14, title=None, zorder=1):
 
         if fig is None:
-            fig = plt.figure()
+            fig = plt.figure(figsize=figsize)
             frac = frac if isinstance(frac, list) else [frac, frac]
             ax = fig.add_axes([x_shift + indent, y_shift + indent, 1 - indent - frac[0] - x_shift, 1 - indent - frac[1] - y_shift])
             ax1 = fig.add_axes([1 - frac[0], y_shift + indent, frac[0], 1 - indent - frac[1] - y_shift])

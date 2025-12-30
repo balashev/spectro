@@ -78,7 +78,7 @@ class expTableWidget(TableWidget):
         #self.setWindowFlags(Qt.FramelessWindowHint)
         self.setSortingEnabled(False)
         self.setWidth = None
-        self.LSFtypes = ['none', 'gauss', 'cos', 'espresso']
+        self.LSFtypes = ['none', 'gauss', 'gauss_linear', 'cos', 'espresso']
         self.update()
         self.show()
         self.setSortingEnabled(True)
@@ -94,13 +94,13 @@ class expTableWidget(TableWidget):
     def update(self):
         dtype = [('filename', str, 100), ('obs. date', str, 20),
                  ('wavelmin', float), ('wavelmax', float), ('lsf_type', str, 10),
-                 ('resolution', int), ('scaling factor', float)]
+                 ('resolution', str, 20), ('scaling factor', float)]
         zero = ('', '', np.nan, np.nan, 'Gaussian', 0, 1)
         data = np.array([zero], dtype=dtype)
         self.edit_col = [4, 5, 6]
         for s in self.parent.s:
-            #print(s.filename, s.date, s.wavelmin, s.wavelmax, s.resolution)
-            data = np.insert(data, len(data), np.array([('  '+s.filename+'  ', '  '+s.date+'  ', s.wavelmin, s.wavelmax, s.lsf_type, s.resolution, s.scaling_factor)], dtype=dtype), axis=0)
+            #print(s.filename, s.date, s.wavelmin, s.wavelmax, s.resolution())
+            data = np.insert(data, len(data), np.array([('  '+s.filename+'  ', '  '+s.date+'  ', s.wavelmin, s.wavelmax, s.lsf_type, s.resolution(out='spv'), s.scaling_factor)], dtype=dtype), axis=0)
         if len(self.parent.s) > 0:
             data = np.delete(data, (0), axis=0)
         self.setData(data)
@@ -150,8 +150,16 @@ class expTableWidget(TableWidget):
 
     def cell_Changed(self, row, col):
 
-        if (col == 5) and (self.parent.s[row].resolution != int(self.cell_value('resolution'))):
-            self.parent.s[row].resolution = int(self.cell_value('resolution'))
+        if (col == 5):
+            #print(self.cell_value('resolution'))
+            if ".." in self.cell_value('resolution'):
+                self.comb[row].setCurrentIndex(self.LSFtypes.index('gauss_linear'))
+                self.parent.s[row].set_resolution(int(self.cell_value('resolution').split('..')[0]), int(self.cell_value('resolution').split('..')[1]))
+                print(self.comb[row].currentText(), self.parent.s[row].resolution())
+            elif self.cell_value('resolution').isdigit() and (self.parent.s[row].resolution_linear[0] != int(self.cell_value('resolution'))):
+                self.comb[row].setCurrentIndex(self.LSFtypes.index('gauss'))
+                self.parent.s[row].set_resolution(int(self.cell_value('resolution')))
+
             #self.parent.s.calcFit(-1, recalc=True)
             #self.parent.s.calcFitComps()
             #self.parent.s.redraw()
@@ -179,7 +187,7 @@ class expTableWidget(TableWidget):
         headercount = self.columnCount()
         for x in range(0, headercount, 1):
             headertext = self.horizontalHeaderItem(x).text()
-            print(x, headertext, columnname)
+            #print(x, headertext, columnname)
             if columnname.strip() == headertext.strip():
                 matchcol = x
                 break
@@ -715,7 +723,7 @@ class QSOlistTable(pg.TableWidget):
                 self.parent.importSpectrum(self.folder + '/spectra/' + filename + '.dat')
                 #self.parent.s[-1].spec.raw.clean(min=-1, max=2)
                 self.parent.s[-1].set_data()
-                self.parent.s[-1].resolution = float(self.cell_value('resolution'))
+                self.parent.s[-1].set_resolution(float(self.cell_value('resolution')))
                 self.parent.s.redraw()
                 try:
                     with open(self.folder + '/cont/' + filename + '.spv') as f:
@@ -743,7 +751,7 @@ class QSOlistTable(pg.TableWidget):
                             skip_header = 1 if '%' in f.readline() else 0
                         self.parent.openFile(self.folder + '/cont/' + filename.replace('.dat', '.spv'), skip_header=skip_header, remove_regions=True, remove_doublets=True)
                     self.parent.normalize()
-                    self.parent.s[-1].resolution = 48000 #float(self.cell_value('resolution'))
+                    self.parent.s[-1].set_resolution(48000) #float(self.cell_value('resolution'))
                     self.filename_saved = filename
                 #self.parent.s.redraw()
                 self.parent.s[-1].mask.set(x=np.zeros_like(self.parent.s[-1].spec.x(), dtype=bool))
@@ -989,7 +997,7 @@ class IGMspecTable(pg.TableWidget):
             if self.cat == 'KODIAQ_DR1':
                 self.parent.s[-1].spec.raw.clean(min=-1, max=2)
             try:
-                self.parent.s[-1].resolution = int(self.cell_value('R'))
+                self.parent.s[-1].set_resolution(int(self.cell_value('R')))
             except:
                 pass
             self.parent.s[-1].set_data()

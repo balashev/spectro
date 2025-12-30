@@ -27,6 +27,7 @@ from scipy.integrate import cumulative_trapezoid as cumtrapz
 from scipy.optimize import curve_fit, least_squares
 from scipy.signal import savgol_filter, lombscargle, medfilt
 from scipy.stats import gaussian_kde
+from shapely.lib import bounds
 
 from ..profiles import tau, convolveflux, makegrid, add_ext
 from .external import sg_smooth as sg
@@ -1404,7 +1405,7 @@ class Spectrum():
         self.parent = parent
         self.filename = name
         self.name = name
-        self.resolution = resolution
+        self.resolution_linear = [resolution, resolution]
         self.lsf_type = 'gauss'
         self.scaling_factor = 1
         self.date = ''
@@ -1460,6 +1461,32 @@ class Spectrum():
 
     def active(self):
         return self == self.parent.s[self.parent.s.ind]
+
+    def set_resolution(self, v, v2=None):
+        if v2 == None:
+            v2 = v
+        self.resolution_linear = [v, v2]
+        print(self.resolution_linear)
+        print(self.resolution)
+        self.resolution_inter = interp1d([self.spec.raw.x[0], self.spec.raw.x[-1]], self.resolution_linear, fill_value="extrapolate")
+
+    def resolution(self, x=None, out='value'):
+        """
+        Args:
+            x:
+            out: can be 'value', 'julia', 'spv'
+
+        Returns: resolution
+
+        """
+        if out == 'julia':
+            return [[self.spec.raw.x[0], self.spec.raw.x[-1]], self.resolution_linear]
+        elif out == 'spv':
+            return f"{self.resolution_linear[0]}" if self.resolution_linear[0] == self.resolution_linear[1] else f"{self.resolution_linear[0]}..{self.resolution_linear[1]}"
+        elif out == 'value':
+            if x is None:
+                x = (self.spec.raw.x[-1] + self.spec.raw.x[0]) / 2
+            return self.resolution_inter(x)
 
     def initGUI(self):
         #print('caller name:', inspect.stack()[1][3], inspect.stack()[2][3], inspect.stack()[3][3], inspect.stack()[4][3])
@@ -2220,7 +2247,7 @@ class Spectrum():
                                     l.z = sys.z.val
                                     l.recalc = True
                                     l.sys = sys.ind
-                                    l.range = tau(l, resolution=self.resolution).getrange(tlim=tlim)
+                                    l.range = tau(l, resolution=self.resolution()).getrange(tlim=tlim)
                                     l.cf = -1
                                     if self.parent.fit.cf_fit:
                                         for i in range(self.parent.fit.cf_num):
@@ -2270,7 +2297,7 @@ class Spectrum():
                         line.b = sys.sp[line.name.split()[0]].b.val
                         line.logN = sys.sp[line.name.split()[0]].N.val
                         line.z = sys.z.val
-                        line.tau = tau(line, resolution=self.resolution)
+                        line.tau = tau(line, resolution=self.resolution())
             if timer:
                 t.time('update')
 
@@ -2305,8 +2332,8 @@ class Spectrum():
 
             # >>> convolve the spectrum with instrument function
             #self.resolution = None
-            if self.resolution not in [None, 0]:
-                flux = convolveflux(x, flux, self.resolution, kind='direct')
+            if self.resolution_linear[0] not in [None, 0]:
+                flux = convolveflux(x, flux, self.resolution(), kind='direct')
             if timer:
                 t.time('convolve')
 
@@ -2396,7 +2423,7 @@ class Spectrum():
                         line.b = sys.sp[line.name.split()[0]].b.val
                         line.logN = sys.sp[line.name.split()[0]].N.val
                         line.z = sys.z.val
-                        line.tau = tau(line, resolution=self.resolution)
+                        line.tau = tau(line, resolution=self.resolution())
 
             # >>> create lambda grid:
             for line in self.fit_lines:
@@ -2406,10 +2433,10 @@ class Spectrum():
             if len(self.spec.x()[self.mask.x()]) > 0:
                 x_min = np.min([x_min, np.min(self.spec.x()[self.mask.x()])])
                 x_max = np.max([x_max, np.max(self.spec.x()[self.mask.x()])])
-            if self.resolution not in [None, 0]:
+            if self.resolution_linear[0] not in [None, 0]:
                 x_mid = np.mean([x_min, x_max])
-                delta = x_mid / self.resolution / 10
-                x_min, x_max = x_min * (1 - 3 / self.resolution), x_max * (1 + 3 / self.resolution)
+                delta = x_mid / self.resolution() / 10
+                x_min, x_max = x_min * (1 - 3 / self.resolution()), x_max * (1 + 3 / self.resolution())
             else:
                 delta = (self.spec.raw.x[1] - self.spec.raw.x[0])
                 # x_min, x_max = x_min - 3 * 2.5 * delta, x_max + 3 * 2.5 * delta
@@ -2422,7 +2449,7 @@ class Spectrum():
             mask = np.zeros_like(x, dtype=bool)
             for line in self.fit_lines:
                 mask = np.logical_or(mask, np.logical_and(x > line.tau.range[0], x < line.tau.range[1]))
-            sigma_n = (x_max + x_min) / 2 / delta / self.resolution / 2 / np.sqrt(2*np.log(2))
+            sigma_n = (x_max + x_min) / 2 / delta / self.resolution() / 2 / np.sqrt(2*np.log(2))
             #mask = np.ones(len(x), dtype=bool)
             if np.sum(mask) % 2 == 1:
                 mask[np.nonzero(mask == True)[0][0]] = False
@@ -2445,11 +2472,11 @@ class Spectrum():
             flux = np.exp(-flux)
 
             # >>> convolve the spectrum with instrument function
-            if self.resolution not in [None, 0]:
+            if self.resolution_linear[0] not in [None, 0]:
                 f = np.fft.rfft(flux[mask])
                 if 0:
                     freq = np.fft.rfftfreq(num, d=(x_max - x_min) / 2 / np.pi / num)
-                    f *= np.exp(- np.power(x_mid / self.resolution / 2 / np.sqrt(2*np.log(2)) * freq, 2) / 2)
+                    f *= np.exp(- np.power(x_mid / self.resolution() / 2 / np.sqrt(2*np.log(2)) * freq, 2) / 2)
                 else:
                     freq = np.fft.rfftfreq(num, d=(num - 0) / 2 / np.pi / num)
                     f *= np.exp(- 0.5 * sigma_n**2 * freq**2)
@@ -2493,12 +2520,12 @@ class Spectrum():
                         line.b = sys.sp[line.name.split()[0]].b.val
                         line.logN = sys.sp[line.name.split()[0]].N.val
                         line.z = sys.z.val
-                        line.tau = tau(line, resolution=self.resolution)
+                        line.tau = tau(line, resolution=self.resolution())
             if timer:
                 t.time('update')
 
             # >>> create lambda grid:
-            if self.resolution not in [None, 0]:
+            if self.resolution_linear[0] not in [None, 0]:
                 if ind == -1:
                     x_spec = self.spec.norm.x
                     mask_glob = np.zeros_like(x_spec)
@@ -2559,8 +2586,8 @@ class Spectrum():
 
             # >>> convolve the spectrum with instrument function
             #self.resolution = None
-            if self.resolution not in [None, 0]:
-                flux = convolveflux(x, flux, self.resolution, kind='direct')
+            if self.resolution_linear[0] not in [None, 0]:
+                flux = convolveflux(x, flux, self.resolution(), kind='direct')
             if timer:
                 t.time('convolve')
 

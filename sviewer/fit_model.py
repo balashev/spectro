@@ -1103,7 +1103,7 @@ class fitModelWidget(QWidget):
 
         if 'res' in s:
             print(getattr(self.parent.fit, s).addinfo, getattr(self.parent.fit, s).addinfo[4:])
-            self.parent.s[int(getattr(self.parent.fit, s).addinfo[4:])].resolution = self.parent.fit.getValue(s)
+            self.parent.s[int(getattr(self.parent.fit, s).addinfo[4:])].set_resolution(self.parent.fit.getValue(s))
 
         if self.refr:
             self.refresh(s + '_' + attr)

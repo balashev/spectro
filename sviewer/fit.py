@@ -587,7 +587,7 @@ class fitPars:
             if self.res_num > 0:
                 for i in range(self.res_num):
                     if i < len(self.parent.s):
-                        self.parent.s[int(getattr(self, 'res_'+str(i)).addinfo[4:])].resolution = self.getValue('res_'+str(i))
+                        self.parent.s[int(getattr(self, 'res_'+str(i)).addinfo[4:])].set_resolution(self.getValue('res_'+str(i)))
 
         if what in ['all', 'cf']:
             if redraw and self.cf_fit:
@@ -899,7 +899,7 @@ class spec:
                         l.z = sys.z.val
                         l.recalc = True
                         l.sys = sys.ind
-                        l.range = tau(l, resolution=self.resolution).getrange(tlim=tlim)
+                        l.range = tau(l, resolution=self.resolution()).getrange(tlim=tlim)
                         l.cf = -1
                         if self.parent.fit.cf_fit:
                             for i in range(self.parent.fit.cf_num):
