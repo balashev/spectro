@@ -747,7 +747,10 @@ class plotSpectrum(pg.PlotWidget):
                     self.vb.addItem(self.w_label)
 
         if self.x_status:
-            self.parent.s[self.parent.s.ind].add_points(self.mousePoint_saved.x(), self.mousePoint_saved.y(), self.mousePoint.x(), self.mousePoint.y(), remove=(QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier), bad=True)
+            for s in self.parent.s:
+                #if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier or i == self.parent.s.ind:
+                if (Qt.KeyboardModifier.ControlModifier in QApplication.keyboardModifiers()) or s.active():
+                    s.add_points(self.mousePoint_saved.x(), self.mousePoint_saved.y(), self.mousePoint.x(), self.mousePoint.y(), remove=(Qt.KeyboardModifier.ShiftModifier in QApplication.keyboardModifiers()), bad=True)
 
         if event.isAccepted():
             super(plotSpectrum, self).mouseReleaseEvent(event)
@@ -6240,15 +6243,16 @@ class combineWidget(QWidget):
             zero = np.log10(float(self.zeropoint_res.text()))
             step = np.log10(1 + 1 / float(self.resolution.text()) / float(self.pp_fwhm.text()))
             print(zero, step)
-            num = int((np.log10(self.parent.s.minmax()[1]) - zero) / step)
-            print(num)
-            x = np.logspace(zero, zero + step * (num - 1), num)
+            num = int((np.log10(self.parent.s.minmax()[1]) - zero) / step) + 1
+            print(self.parent.s.minmax(), num)
+            x = np.logspace(zero, zero + step * num, num + 1)
 
         elif self.tab.currentIndex() == 3:
             zero = np.log10(float(self.zeropoint_log.text()))
             step = float(self.binsize_log.text())
-            num = int((np.log10(self.parent.s.minmax()[1]) - zero) / step)
-            x = np.logspace(zero, zero + step * (num - 1), num)
+            num = int((np.log10(self.parent.s.minmax()[1]) - zero) / step) + 1
+            x = np.logspace(zero, zero + step * num, num + 1)
+            print(x[-1])
 
         elif self.tab.currentIndex() == 4:
             x = self.file_grid
@@ -6282,6 +6286,9 @@ class combineWidget(QWidget):
                     mask_s = (s.spec.err() != 0)
                     mask = (x > s.spec.x()[mask_s][2]) * (x < s.spec.x()[mask_s][-3])
                     comb[i][mask], e_comb[i][mask] = spectres.spectres(s.spec.x()[mask_s], s.spec.y()[mask_s], x[mask], spec_errs=s.spec.err()[mask_s])
+                print(np.where(s.bad_mask.x())[0])
+                print(s.spec.x()[np.where(s.bad_mask.x())[0]])
+                print(np.searchsorted(x, s.spec.x()[np.where(s.bad_mask.x())[0]]))
                 e_comb[i][np.searchsorted(x, s.spec.x()[np.where(s.bad_mask.x())[0]])] = np.nan
 
         print(comb, e_comb)
@@ -8522,6 +8529,9 @@ class sviewer(QMainWindow):
                 s.remove()
             self.s = Speclist(self)
 
+        if len(self.s) == 0:
+            append = False
+
         if isinstance(filelist, str):
             filelist = [filelist]
 
@@ -8590,16 +8600,32 @@ class sviewer(QMainWindow):
                                 else:
                                     s.set_data([prihdr['WAVE'][0], prihdr['FLUX'][0], prihdr['ERROR'][0]])
                             else:
-                                for k in [0, 1]:
-                                    s = Spectrum(self, name=filename + f'_{k}')
-                                    r = range(k, hdulist[1].header['NAXIS2'], 2)
-                                    s.set_data([np.concatenate([np.r_[prihdr['WAVELENGTH'][i], 2 * prihdr['WAVELENGTH'][i][-1] - prihdr['WAVELENGTH'][i][-2]] for i in r]),
-                                                np.concatenate([np.r_[prihdr['FLUX'][i], np.inf] for i in r]),
-                                                np.concatenate([np.r_[prihdr['ERROR'][i], np.inf] for i in r])])
-                                    if k == 0:
-                                        s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
-                                        s.rescale(1e13)
-                                        self.s.append(s)
+                                if 1:
+                                    for k in range(hdulist[1].header['NAXIS2']):
+                                        s = Spectrum(self, name=filename + f'_{k}')
+                                        s.set_data([prihdr['WAVELENGTH'][k], prihdr['FLUX'][k], prihdr['ERROR'][k]])
+                                        res = 0 if "SPECRES" not in hdulist[0].header else hdulist[0].header["SPECRES"]
+                                        s.set_resolution(res)
+                                        if k < hdulist[1].header['NAXIS2'] - 1:
+                                            s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
+                                            s.rescale(1e13)
+                                            self.s.append(s)
+
+                                else:
+                                    for k in [0, 1]:
+                                        s = Spectrum(self, name=filename + f'_{k}')
+                                        r = range(k, hdulist[1].header['NAXIS2'], 2)
+                                        s.set_data([np.concatenate([np.r_[prihdr['WAVELENGTH'][i], 2 * prihdr['WAVELENGTH'][i][-1] - prihdr['WAVELENGTH'][i][-2]] for i in r]),
+                                                    np.concatenate([np.r_[prihdr['FLUX'][i], np.inf] for i in r]),
+                                                    np.concatenate([np.r_[prihdr['ERROR'][i], np.inf] for i in r])])
+
+                                        res = 0 if "SPECRES" not in hdulist[0].header else hdulist[0].header["SPECRES"]
+                                        s.set_resolution(res)
+                                        if k == 0:
+                                            s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
+                                            s.rescale(1e13)
+                                            self.s.append(s)
+
                             s.rescale(1e13)
 
                         if 'COS' in hdulist[0].header['INSTRUME']:
@@ -8793,6 +8819,7 @@ class sviewer(QMainWindow):
             self.s.redraw()
         else:
             self.s.draw()
+            self.plot.vb.setRange(xRange=self.s.minmax())
             
         for name, status in self.filters_status.items():
             if status:
