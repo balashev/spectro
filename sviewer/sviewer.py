@@ -2480,7 +2480,7 @@ class showLinesWidget(QWidget):
                                     color = to_hex(tuple(c / 255 for c in self.cf_color.to_bytes(4, byteorder='big')))
                                     if p.fit_disp is None:
                                         print([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], [1 - cf.val, 1 - cf.val])
-                                        p.ax.plot([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], [1 - cf.val, 1 - cf.val], '--', lw=0.5, color=color)
+                                        p.ax.plot([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], [1 - cf.val, 1 - cf.val], '--', lw=1.0, color=color)
                                     else:
                                         p.ax.plot([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], [1 - cf.unc.val, 1 - cf.unc.val], '--', lw=0.5, color=color)
                                         p.ax.fill_between([np.max([conv(cf.left), p.x_min]), np.min([conv(cf.right), p.x_max])], 1 - cf.unc.val - cf.unc.plus, 1 - cf.unc.val + cf.unc.minus, ls=':', color=color, alpha=0.1)
@@ -8814,13 +8814,14 @@ class sviewer(QMainWindow):
             self.s.append(s)
             self.importTelluric(data=telluric)
 
+        print("Append:", append)
         if append:
             self.plot.vb.disableAutoRange()
             self.s.redraw()
         else:
             self.s.draw()
             self.plot.vb.setRange(xRange=self.s.minmax())
-            
+
         for name, status in self.filters_status.items():
             if status:
                 m = max([max(s.spec.raw.y) for s in self.s])
@@ -8834,6 +8835,7 @@ class sviewer(QMainWindow):
         print("telluric:", data, len(self.s))
         if data is not None:
             if len(self.s) > 0:
+                print(len(self.s), self.s.ind)
                 for attr in ['g_sky', 'g_sky_cont']:
                     if hasattr(self.s[self.s.ind], attr) and getattr(self.s[self.s.ind], attr) in self.vb.addedItems:
                             self.vb.removeItem(getattr(self.s[self.s.ind], attr))
@@ -8851,11 +8853,12 @@ class sviewer(QMainWindow):
                     self.s[self.s.ind].sky.filename = filename
                     self.s[self.s.ind].update_sky()
                     print('redraw')
-                    self.s.redraw()
-                    print('update')
-                    self.s[self.s.ind].update_sky()
+                    #self.s.redraw()
+                    #print('update')
+                    #self.s[self.s.ind].update_sky()
                 except:
                     self.sendMessage("Sky/telluric/nuisance absorption spectrum was not imported. Check the file")
+        print(len(self.s), self.s.ind)
 
 
     def import2dSpectrum(self, filelist, spec=None, header=0, dir_path='', ind=None, append=False):

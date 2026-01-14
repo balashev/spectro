@@ -27,7 +27,7 @@ def column(matrix, attr):
         return matrix
 
 class a:
-    r"""
+    """
     This class provide basic arithmetic operations with the values
     in case of asymmetric uncertainties.
     
@@ -666,14 +666,15 @@ if __name__ == '__main__':
     if 0:
         print('hmmm')
         print(a(14.26, 0.02, 0.02) + a(14.02, 0.02, 0.02) + a(13.10, 0.02, 0.02))
-    if 0:
-        print(a(20.06, 0.10, 0.07, 'l') + a(19.99, 0.10, 0.11, 'l'))
-        print(a(15.01, 0.47, 0.47, 'l') + a(14.55, 0.38, 0.38, 'l'))
+
+    if 1:
+        print(a(20.19, 0.12, 0.12, 'l') * 2 / a(21.94, 0.09, 0.09, 'l'))
+        #print(a(15.01, 0.47, 0.47, 'l') + a(14.55, 0.38, 0.38, 'l'))
 
     if 0:
         print((a(16.75, 0.02, 0.02) - a(20.92, 0.09, 0.09, f='l')).dec().latex(f=2, base=-5))
 
-    if 1:
+    if 0:
         #print(a(6.1, 0.5, 0.3, 'd') / a(1.64, 0.14, 0.12, 'd'))
         n1 = a(1.43, 0.88, 0.04, 'l')
         n2 = a(2.8, 0.2, 0.2, 'l')

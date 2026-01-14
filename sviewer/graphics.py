@@ -1565,12 +1565,13 @@ class Spectrum():
                 self.updateRegions()
 
         # >>> plot sky/telluric/nuisance absorption:
-        if len(self.sky.x()) > 0 and len(self.sky_cont.x()) == 0 and not self.parent.normview:
-            self.g_sky = pg.PlotCurveItem(x=self.sky.x(), y=self.sky.y(), pen=self.sky_pen)
-            self.parent.vb.addItem(self.g_sky)
-        if len(self.sky_cont.x()) > 0:
-            self.g_sky_cont = pg.PlotCurveItem(x=self.sky_cont.x(), y=self.sky_cont.y(), pen=self.sky_pen)
-            self.parent.vb.addItem(self.g_sky_cont)
+        if self.active() and len(self.sky.raw.x) > 0:
+            if len(self.sky_cont.x()) == 0 and not self.parent.normview:
+                self.g_sky = pg.PlotCurveItem(x=self.sky.x(), y=self.sky.y(), pen=self.sky_pen)
+                self.parent.vb.addItem(self.g_sky)
+            if len(self.sky_cont.x()) > 0:
+                self.g_sky_cont = pg.PlotCurveItem(x=self.sky_cont.x(), y=self.sky_cont.y(), pen=self.sky_pen)
+                self.parent.vb.addItem(self.g_sky_cont)
 
         # >>> plot bad point:
         if len(self.bad_mask.x()) > 0 and len(self.spec.x()) > 0 and len(self.spec.x()) == len(self.bad_mask.x()):
