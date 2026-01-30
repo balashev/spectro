@@ -642,11 +642,12 @@ class Console(QTextEdit):
             except:
                 return f"Can't open {self.parent.s[self.parent.s.ind].filename} as a fits file"
 
-        elif args[0] == 'Tkin':
+        elif args[0] == 'Texc':
             levels = [0, 1]
             if len(args) > 1:
                 levels = [int(a) for a in args[1:]]
-            self.parent.H2ExcitationTemp(levels=levels)
+            print(levels)
+            self.parent.ExcitationTemp(levels=levels, plot=True)
 
         elif args[0] == 'qso':
             if args[1] == 'lum':

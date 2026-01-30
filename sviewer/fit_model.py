@@ -273,7 +273,7 @@ class fitModelWidget(QWidget):
         #layout.addStretch(1)
         layout_left.addLayout(hbox)
         layout_right = QVBoxLayout()
-        layout_right.addWidget(QLabel('add additional tied: '))
+        layout_right.addWidget(QLabel('additional ties: '))
         self.tieWindow = QTextEdit()
         self.tieWindow.setFixedSize(400, 100)
         self.tieWindow.textChanged.connect(partial(self.updateTieWindow, init=False))

@@ -10083,7 +10083,7 @@ class sviewer(QMainWindow):
 
         self.statusBar.setText('H2 upper limit is: ' + str(self.fit.sys[0].Ntot.val))
 
-    def ExcitationTemp(self, species='H2', levels=[0, 1, 2], E=None, ind=None, plot=True, ax=None):
+    def ExcitationTemp(self, levels=[0, 1, 2], E=None, ind=None, plot=True, ax=None):
         from ..excitation_temp import ExcitationTemp
 
         text = None
@@ -10098,7 +10098,7 @@ class sviewer(QMainWindow):
                     temp = ExcitationTemp('H2', n)
 
                 if any(['COj' + str(x) in sys.sp.keys() for x in levels]):
-                    levels = np.arange(4)
+                    #levels = np.arange(3)
                     levels = [int(k[k.index('j')+1:]) for k in sys.sp.keys() if k.startswith('CO') and int(k[k.index('j')+1:]) in levels]
                     print("levels:", levels)
                     n = [sys.sp['COj' + str(x)].N.unc for x in levels]
@@ -10213,7 +10213,7 @@ class sviewer(QMainWindow):
                 p = ax.plot(x, [v.val for v in y], 'o', markersize=1) #, label='sys_' + str(self.fit.sys.index(sys)))
                 ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]],  fmt='o', color = p[0].get_color(), label=label)
                 if temp:
-                    text.append(self.ExcitationTemp(species='CO', levels=[0, 1, 2, 3], ind=self.fit.sys.index(sys), plot=False, ax=ax))
+                    text.append(self.ExcitationTemp(levels=[0, 1, 2, 3], ind=self.fit.sys.index(sys), plot=False, ax=ax))
 
 
         #if len(text) > 0:

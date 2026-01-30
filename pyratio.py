@@ -1844,11 +1844,13 @@ class pyratio():
             L = np.zeros(len(n))
             for ni, Ti, i in zip(n, T, range(len(n))):
                 self.pars['n'].value, self.pars['T'].value = ni, Ti
+                x = self.balance(sp.name)
                 for u in range(sp.num - 1, 0, -1):
                     for l in range(u):
+                        hu = (sp.E[u] - sp.E[l]) / au.cm * ac.c.cgs * ac.h.cgs  # in ergs
                         #print(ni, Ti, self.balance(sp.name), self.cooling_rate(sp, u, l).value)
-                        L[i] += self.cooling_rate(sp, u, l).value
-
+                        L[i] += (sp.A[u, l] / au.s * hu * x[u]).value
+                        #L[i] += self.cooling_rate(sp, u, l).value
             return L
 
 

@@ -1,12 +1,3 @@
-show FeII
-show FeIIj1
-show FeIIj2
-OIj1
-show OIj1
-OIj2
-show OIj2
-show COj0
-show COj1
 show COj2
 show COj3
 show CO
@@ -19,3 +10,12 @@ show H2 0 1 2 3 4
 high H2j1
 show H2j1
 high H2j1
+show CrII
+show ZnII
+show FeII
+high COJ5
+high COj5
+Texc 
+Texc 0 1 2 3
+Texc 0 1
+Texc 0 1 2
