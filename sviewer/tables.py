@@ -151,14 +151,18 @@ class expTableWidget(TableWidget):
     def cell_Changed(self, row, col):
 
         if (col == 5):
-            #print(self.cell_value('resolution'))
+            #print(self.cell_value('resolution'), self.cell_value('resolution').isdigit(), self.parent.s[row].resolution_linear[0])
             if ".." in self.cell_value('resolution'):
                 self.comb[row].setCurrentIndex(self.LSFtypes.index('gauss_linear'))
                 self.parent.s[row].set_resolution(int(self.cell_value('resolution').split('..')[0]), int(self.cell_value('resolution').split('..')[1]))
-                print(self.comb[row].currentText(), self.parent.s[row].resolution())
+                #print(self.comb[row].currentText(), self.parent.s[row].resolution())
             elif self.cell_value('resolution').isdigit() and (self.parent.s[row].resolution_linear[0] != int(self.cell_value('resolution'))):
-                self.comb[row].setCurrentIndex(self.LSFtypes.index('gauss'))
-                self.parent.s[row].set_resolution(int(self.cell_value('resolution')))
+                if int(self.cell_value('resolution')) == 0:
+                    self.comb[row].setCurrentIndex(self.LSFtypes.index('none'))
+                    self.item(row, col).setText('')
+                else:
+                    self.comb[row].setCurrentIndex(self.LSFtypes.index('gauss'))
+                    self.parent.s[row].set_resolution(int(self.cell_value('resolution')))
 
             #self.parent.s.calcFit(-1, recalc=True)
             #self.parent.s.calcFitComps()

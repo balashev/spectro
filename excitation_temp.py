@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from chainconsumer import Chain, ChainConsumer
 import copy
 import corner
 import emcee
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import scipy.optimize as opt
 
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator
@@ -183,7 +185,7 @@ class ExcitationTemp():
             print(self.res)
 
         if method == 'emcee':
-            ndim, nwalkers, nsteps = 2, 10, 5000
+            ndim, nwalkers, nsteps = 2, 50, 5000
             self.calc(method='freq')
 
             print("mins:", np.min([(n.minus + n.plus) for n in self.n]))
@@ -260,11 +262,17 @@ class ExcitationTemp():
 
                     print(all_samples.shape)
 
-                    labels = ["logNtot", "Texc", "log prob"] + [f"logN_{i}" for i in range(self.num)]
+                    labels = ["logNtot", "Texc", "log prob"] + [f"logN(J={i})" for i in range(self.num)]
+                    print(labels)
 
                     if plot:
-                        fig = corner.corner(all_samples, labels=labels, quantiles=[0.1585, 0.5, 0.8415], show_titles=True,)
-                        # Extract the axes
+                        if 1:
+                            c = ChainConsumer()
+                            c.add_chain(Chain(samples=pd.DataFrame(all_samples, columns=labels), name="Excitation temperature"))
+                            fig = c.plotter.plot()
+                        else:
+                            fig = corner.corner(all_samples, labels=labels, quantiles=[0.1585, 0.5, 0.8415], show_titles=True,)
+                            # Extract the axes
                         axes = np.array(fig.axes).reshape((all_samples.shape[1], all_samples.shape[1]))
 
                         # Loop over the diagonal

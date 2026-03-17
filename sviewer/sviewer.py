@@ -62,28 +62,6 @@ from .obs_tool import *
 from .colorcolor import *
 from .utils import *
 
-def lnprob(x, pars, prior, self):
-    return lnprior(x, pars, prior) + lnlike(x, pars, self)
-
-def lnprior(x, pars, prior):
-    lp = 0
-    for k, v in prior.items():
-        if k in pars:
-            lp += v.lnL(x[pars.index(k)])
-    return lp
-
-def lnlike(x, pars, self):
-    res = True
-    for xi, p in zip(x, pars):
-        res *= self.parent.fit.setValue(p, xi)
-    self.parent.fit.update()
-    self.parent.s.calcFit(recalc=True, redraw=False, timer=False)
-    chi = self.parent.s.chi2()
-    if res and not np.isnan(chi):
-        return -chi
-    else:
-        return -np.inf
-
 class plotSpectrum(pg.PlotWidget):
     """
     class for plotting main spectrum widget
@@ -1774,12 +1752,14 @@ class showLinesWidget(QWidget):
                     ('col_offset', float), ('row_offset', float),
                     ('units', str), ('regions', int),
                     ('xmin', float), ('xmax', float), ('ymin', float), ('ymax', float),
-                    ('spec_lw', float), ('show_err', int), ('error_cap', float),
-                    ('residuals', int), ('res_sigma', int), ('gray_out', int),
+                    ('z_ref', float), ('sys_ind', int),
+                    ('spec_lw', float), ('spec_color', int), ('gray_out', int),
+                    ('show_err', int), ('error_cap', float),
+                    ('residuals', int), ('res_sigma', int),
                     ('fit_color', int), ('fit_lw', float), ('fit_ls', str),
                     ('show_telluric', int), ('tell_color', int), ('telluric_fill', int), ('telluric_lw', float),
                     ('show_comps', int), ('comp_lw', float), ('comp_ls', str),
-                    ('z_ref', float), ('sys_ind', int),
+                    ('grad_fill', int), ('grad_fill_comps', int), ('grad_fill_up', float), ('grad_fill_down', float),
                     ('show_disp', int), ('disp_alpha', float), ('res_style', str),
                     ('res_color', int), ('comp_colors', str),
                     ('font', str), ('font_size', int),
@@ -1794,6 +1774,7 @@ class showLinesWidget(QWidget):
                     ('show_cf', int), ('cfs', str), ('show_cf_value', int),
                     ('cf_color', int),
                     ('over_file', str), ('over_color', int),
+                    ('show_species_colors', int), ('species_colors', str),
                     ])
 
         for opt, func in self.opts.items():
@@ -1848,11 +1829,13 @@ class showLinesWidget(QWidget):
                  'X-units:', '', '', '', '',
                  'X-scale:', 'min:', '', 'max:', '',
                  'Y-scale:', 'min:', '', 'max:', '',
-                 'Spectrum:', '', '', 'error caps:', '',
+                 'Reference z:', '', '', '', '',
+                 'Spectrum:', '', '', '', '',
+                 'Uncertainties:', '', '', 'caps', '',
                  'Telluric:', '', '', '', '',
                  'Fit:', '', '', 'linestyle:', '',
                  'Comps:', '', '', 'linestyle:', '',
-                 'Reference z:', '', '', '', '',
+                 'Gradient fill:', '', '', '', '',
                  'Residuals:', '', '', 'sig:', '',
                  'Disp:' , '', '', 'style:', '',
                  'Fonts:', '', '', 'size:', '',
@@ -1869,34 +1852,39 @@ class showLinesWidget(QWidget):
                  'Continuum', '', '', '', '',
                  'Covering factor:', '', '', '', '',]
 
-        positions = [(i, j) for i in range(28) for j in range(5)]
+        positions = [(i, j) for i in range(30) for j in range(5)]
 
         for position, name in zip(positions, names):
             if name == '':
                 continue
             grid.addWidget(QLabel(name), *position)
 
-        self.opt_but = OrderedDict([('width', [0, 2]), ('height', [0, 4]), ('cols', [1, 2]), ('rows', [1, 4]),
-                                    ('v_indent', [2, 2]), ('h_indent', [2, 4]), ('col_offset', [4, 2]), ('row_offset', [4, 4]),
-                                    ('xmin', [6, 2]), ('xmax', [6, 4]), ('ymin', [7, 2]), ('ymax', [7, 4]),
-                                    ('spec_lw', [8, 1]), ('error_cap', [8, 4]),
-                                    ('telluric_lw', [9, 4]),
-                                    ('fit_lw', [10, 1]),
-                                    ('comp_lw', [11, 2]),
-                                    ('z_ref', [12, 1]),
-                                    ('res_sigma', [13, 4]),
-                                    ('disp_alpha', [14, 2]),
-                                    ('font_size', [15, 4]),
-                                    ('xlabel', [16, 2]), ('ylabel', [16, 4]),
-                                    ('x_ticks', [17, 2]), ('xnum', [17, 4]),
-                                    ('y_ticks', [18, 2]), ('ynum', [18, 4]),
-                                    ('title', [19, 2]), ('font_title', [19, 4]),
-                                    ('title_x_pos', [20, 2]), ('title_y_pos', [20, 4]),
-                                    ('font_labels', [21, 4]),
-                                    ('name_x_pos', [22, 2]), ('name_y_pos', [22, 4]),
-                                    ('indlines_lw', [23, 2]),
-                                    ('add_lines', [24, 2]),
-                                    ('show_H2', [25, 1]), ('pos_H2', [25, 4])])
+        self.opt_but = OrderedDict([('width', [0, 2]), ('height', [0, 4]),
+                                    ('cols', [1, 2]), ('rows', [1, 4]),
+                                    ('v_indent', [2, 2]), ('h_indent', [2, 4]),
+                                    ('col_offset', [4, 2]), ('row_offset', [4, 4]),
+                                    ('xmin', [6, 2]), ('xmax', [6, 4]),
+                                    ('ymin', [7, 2]), ('ymax', [7, 4]),
+                                    ('z_ref', [8, 1]),
+                                    ('spec_lw', [9, 1]),
+                                    ('error_cap', [10, 4]),
+                                    ('telluric_lw', [11, 4]),
+                                    ('fit_lw', [12, 1]),
+                                    ('comp_lw', [13, 2]),
+                                    ('grad_fill_up', [14, 3]), ('grad_fill_down', [14, 4]),
+                                    ('res_sigma', [15, 4]),
+                                    ('disp_alpha', [16, 2]),
+                                    ('font_size', [17, 4]),
+                                    ('xlabel', [18, 2]), ('ylabel', [18, 4]),
+                                    ('x_ticks', [19, 2]), ('xnum', [19, 4]),
+                                    ('y_ticks', [20, 2]), ('ynum', [20, 4]),
+                                    ('title', [21, 2]), ('font_title', [21, 4]),
+                                    ('title_x_pos', [22, 2]), ('title_y_pos', [22, 4]),
+                                    ('font_labels', [23, 4]),
+                                    ('name_x_pos', [24, 2]), ('name_y_pos', [24, 4]),
+                                    ('indlines_lw', [25, 2]),
+                                    ('add_lines', [26, 2]),
+                                    ('show_H2', [27, 1]), ('pos_H2', [27, 4])])
         self.buttons = {}
         for opt, v in self.opt_but.items():
             self.buttons[opt] = QLineEdit(str(getattr(self, opt)))
@@ -1924,15 +1912,35 @@ class showLinesWidget(QWidget):
         grid.addWidget(self.unitsv, 5, 2)
         grid.addWidget(self.unitsl, 5, 4)
 
-        self.showerr = QCheckBox('show err')
+        self.refcomp = QComboBox(self)
+        self.refcomp.addItems([str(i) for i in range(len(self.parent.fit.sys))])
+        self.sys_ind = min(self.sys_ind, len(self.parent.fit.sys)-1)
+        self.refcomp.setCurrentIndex(self.sys_ind)
+        self.refcomp.activated.connect(self.onIndChoose)
+        grid.addWidget(self.refcomp, 8, 2)
+
+        self.speccolor = pg.ColorButton()
+        # self.fitcolor = QColorDialog()
+        self.speccolor.setFixedSize(30, 30)
+        self.speccolor.setColor(color=self.spec_color.to_bytes(4, byteorder='big'))
+        self.speccolor.sigColorChanged.connect(partial(self.setColor, comp="spec"))
+        self.speccolor.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
+        grid.addWidget(self.speccolor, 9, 2)
+
+        self.gray = QCheckBox('gray out')
+        self.gray.setChecked(self.gray_out)
+        self.gray.clicked[bool].connect(self.setGray)
+        grid.addWidget(self.gray, 9, 4)
+
+        self.showerr = QCheckBox('show')
         self.showerr.setChecked(self.show_err)
         self.showerr.clicked[bool].connect(self.setErr)
-        grid.addWidget(self.showerr, 8, 2)
+        grid.addWidget(self.showerr, 10, 1)
 
         self.telluric = QCheckBox('show')
         self.telluric.setChecked(self.show_telluric)
         self.telluric.clicked[bool].connect(self.setTelluric)
-        grid.addWidget(self.telluric, 9, 1)
+        grid.addWidget(self.telluric, 11, 1)
 
         self.tellcolor = pg.ColorButton()
         # self.fitcolor = QColorDialog()
@@ -1940,12 +1948,12 @@ class showLinesWidget(QWidget):
         self.tellcolor.setColor(color=self.tell_color.to_bytes(4, byteorder='big'))
         self.tellcolor.sigColorChanged.connect(partial(self.setColor, comp="tell"))
         self.tellcolor.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
-        grid.addWidget(self.tellcolor, 9, 2)
+        grid.addWidget(self.tellcolor, 11, 2)
 
         self.telluricFill = QCheckBox('fill')
         self.telluricFill.setChecked(self.telluric_fill)
         self.telluricFill.clicked[bool].connect(self.setFillTelluric)
-        grid.addWidget(self.telluricFill, 9, 3)
+        grid.addWidget(self.telluricFill, 11, 3)
 
         self.fitcolor = pg.ColorButton()
         #self.fitcolor = QColorDialog()
@@ -1953,18 +1961,18 @@ class showLinesWidget(QWidget):
         self.fitcolor.setColor(color=self.fit_color.to_bytes(4, byteorder='big'))
         self.fitcolor.sigColorChanged.connect(partial(self.setColor, comp=-1))
         self.fitcolor.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
-        grid.addWidget(self.fitcolor, 10, 2)
+        grid.addWidget(self.fitcolor, 12, 2)
 
         self.lsfit = QComboBox(self)
         self.lsfit.addItems(['solid', 'dashed', 'dotted', 'dashdot'])
         self.lsfit.setCurrentText(self.fit_ls)
         self.lsfit.currentIndexChanged.connect(self.onFitLsChoose)
-        grid.addWidget(self.lsfit, 10, 4)
+        grid.addWidget(self.lsfit, 12, 4)
 
         self.plotcomps = QCheckBox('show')
         self.plotcomps.setChecked(self.show_comps)
         self.plotcomps.clicked[bool].connect(self.setPlotComps)
-        grid.addWidget(self.plotcomps, 11, 1)
+        grid.addWidget(self.plotcomps, 13, 1)
 
         #self.colorcomps = colorComboBox(self, len(self.parent.fit.sys))
         #grid.addWidget(self.colorcomps, 11, 2)
@@ -1973,24 +1981,22 @@ class showLinesWidget(QWidget):
         self.lscomp.addItems(['solid', 'dashed', 'dotted', 'dashdot'])
         self.lscomp.setCurrentText(self.comp_ls)
         self.lscomp.currentIndexChanged.connect(self.onCompLsChoose)
-        grid.addWidget(self.lscomp, 11, 4)
+        grid.addWidget(self.lscomp, 13, 4)
 
-        self.refcomp = QComboBox(self)
-        self.refcomp.addItems([str(i) for i in range(len(self.parent.fit.sys))])
-        self.sys_ind = min(self.sys_ind, len(self.parent.fit.sys)-1)
-        self.refcomp.setCurrentIndex(self.sys_ind)
-        self.refcomp.activated.connect(self.onIndChoose)
-        grid.addWidget(self.refcomp, 12, 2)
+        self.gradfill = QCheckBox('show')
+        self.gradfill.setChecked(self.grad_fill)
+        self.gradfill.clicked[bool].connect(self.setGradFill)
+        grid.addWidget(self.gradfill, 14, 1)
 
-        self.gray = QCheckBox('gray')
-        self.gray.setChecked(self.gray_out)
-        self.gray.clicked[bool].connect(self.setGray)
-        grid.addWidget(self.gray, 12, 4)
+        self.gradfillcomps = QCheckBox('comps')
+        self.gradfillcomps.setChecked(self.grad_fill_comps)
+        self.gradfillcomps.clicked[bool].connect(self.setGradFillComps)
+        grid.addWidget(self.gradfillcomps, 14, 2)
 
         self.resid = QCheckBox('')
         self.resid.setChecked(self.residuals)
         self.resid.clicked[bool].connect(self.setResidual)
-        grid.addWidget(self.resid, 13, 1)
+        grid.addWidget(self.resid, 15, 1)
 
         self.rescolor = pg.ColorButton()
         # self.fitcolor = QColorDialog()
@@ -1998,86 +2004,86 @@ class showLinesWidget(QWidget):
         self.rescolor.setColor(color=self.res_color.to_bytes(4, byteorder='big'))
         self.rescolor.sigColorChanged.connect(partial(self.setColor, comp='res'))
         self.rescolor.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
-        grid.addWidget(self.rescolor, 13, 2)
+        grid.addWidget(self.rescolor, 15, 2)
 
-        self.showdisp = QCheckBox('show disp')
+        self.showdisp = QCheckBox('show')
         self.showdisp.setChecked(self.show_disp)
         self.showdisp.clicked[bool].connect(self.setDisp)
-        grid.addWidget(self.showdisp, 14, 1)
+        grid.addWidget(self.showdisp, 16, 1)
 
         self.resstyle = QComboBox(self)
         self.resstyle.addItems(['scatter', 'step'])
         self.resstyle.setCurrentText(self.res_style)
         self.resstyle.currentIndexChanged.connect(self.onResStyleChoose)
-        grid.addWidget(self.resstyle, 14, 4)
+        grid.addWidget(self.resstyle, 16, 4)
 
         self.fontname = QComboBox(self) #QFontComboBox(self)
         self.fontname.addItems([f.name for f in matplotlib.font_manager.fontManager.ttflist])
         self.fontname.setCurrentText(self.font)
         self.fontname.currentIndexChanged.connect(self.onFontChoose)
-        grid.addWidget(self.fontname, 15, 1)
+        grid.addWidget(self.fontname, 17, 1)
 
         self.showtitle = QCheckBox('show')
         self.showtitle.setChecked(self.show_title)
         self.showtitle.clicked[bool].connect(self.setTitle)
-        grid.addWidget(self.showtitle, 19, 1)
+        grid.addWidget(self.showtitle, 21, 1)
 
         self.showlabels = QCheckBox('show')
         self.showlabels.setChecked(self.show_labels)
         self.showlabels.clicked[bool].connect(self.setLabels)
-        grid.addWidget(self.showlabels, 21, 1)
+        grid.addWidget(self.showlabels, 23, 1)
 
         self.labelscorr = QCheckBox('j1 -> *')
         self.labelscorr.setChecked(self.labels_corr)
         self.labelscorr.clicked[bool].connect(self.setLabelsCorr)
-        grid.addWidget(self.labelscorr, 21, 2)
+        grid.addWidget(self.labelscorr, 23, 2)
 
         self.lsindlines = QComboBox(self)
         self.lsindlines.addItems(['solid', 'dashed', 'dotted', 'dashdot'])
         self.lsindlines.setCurrentText(self.indlines_ls)
         self.lsindlines.currentIndexChanged.connect(self.onIndLinesLsChoose)
-        grid.addWidget(self.lsindlines, 23, 4)
+        grid.addWidget(self.lsindlines, 25, 4)
 
         self.lsaddlines = QComboBox(self)
         self.lsaddlines.addItems(['solid', 'dashed', 'dotted', 'dashdot'])
         self.lsaddlines.setCurrentText(self.addlines_ls)
         self.lsaddlines.currentIndexChanged.connect(self.onAddLinesLsChoose)
-        grid.addWidget(self.lsaddlines, 24, 4)
+        grid.addWidget(self.lsaddlines, 26, 4)
 
         self.onlyLineMarks = QCheckBox('only marks')
         self.onlyLineMarks.setChecked(self.only_marks)
         self.onlyLineMarks.clicked[bool].connect(self.onlyMarks)
-        grid.addWidget(self.onlyLineMarks, 25, 2)
+        grid.addWidget(self.onlyLineMarks, 27, 2)
 
         self.allCompsMarks = QCheckBox('all comps')
         self.allCompsMarks.setChecked(self.all_comps_marks)
         self.allCompsMarks.clicked[bool].connect(self.allComps)
-        grid.addWidget(self.allCompsMarks, 26, 3)
+        grid.addWidget(self.allCompsMarks, 28, 3)
 
         self.showcont = QCheckBox('show')
         self.showcont.setChecked(self.show_cont)
         self.showcont.clicked[bool].connect(self.setCont)
-        grid.addWidget(self.showcont, 26, 1)
+        grid.addWidget(self.showcont, 28, 1)
 
         self.corrcheb = QCheckBox('cheb. applied')
         self.corrcheb.setChecked(self.corr_cheb)
         self.corrcheb.clicked[bool].connect(self.setCheb)
-        grid.addWidget(self.corrcheb, 26, 2)
+        grid.addWidget(self.corrcheb, 28, 2)
 
         self.showcf = QCheckBox('show')
         self.showcf.setChecked(self.show_cf)
         self.showcf.clicked[bool].connect(self.setCf)
-        grid.addWidget(self.showcf, 27, 1)
+        grid.addWidget(self.showcf, 29, 1)
 
         self.cf = choosePC(self)
         self.cf.fromtext(self.cfs)
         self.cf.triggered.connect(self.setcfs)
-        grid.addWidget(self.cf, 27, 2)
+        grid.addWidget(self.cf, 29, 2)
 
         self.showcfvalue = QCheckBox('value')
         self.showcfvalue.setChecked(self.show_cf_value)
         self.showcfvalue.clicked[bool].connect(self.setCfValue)
-        grid.addWidget(self.showcfvalue, 27, 3)
+        grid.addWidget(self.showcfvalue, 29, 3)
 
         self.cfcolor = pg.ColorButton()
         # self.fitcolor = QColorDialog()
@@ -2085,10 +2091,13 @@ class showLinesWidget(QWidget):
         self.cfcolor.setColor(color=self.cf_color.to_bytes(4, byteorder='big'))
         self.cfcolor.sigColorChanged.connect(partial(self.setColor, comp='cf'))
         self.cfcolor.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
-        grid.addWidget(self.cfcolor, 27, 4)
+        grid.addWidget(self.cfcolor, 29, 4)
 
         self.colorComps = colorCompBox(self, num=len(self.parent.fit.sys))
         layout.addLayout(self.colorComps)
+
+        self.colorSpecies = colorSpeciesBox(self, species=self.parent.fit.list_species())
+        layout.addLayout(self.colorSpecies)
 
         layout.addStretch(1)
         l = QHBoxLayout()
@@ -2194,6 +2203,8 @@ class showLinesWidget(QWidget):
         self.units = s
 
     def setColor(self, color, comp=-1):
+        if comp == 'spec':
+            self.spec_color = int.from_bytes(color.color(mode="byte"), byteorder='big')
         if comp == -1:
             self.fit_color = int.from_bytes(color.color(mode="byte"), byteorder='big')
         if comp == 'cf':
@@ -2231,6 +2242,12 @@ class showLinesWidget(QWidget):
 
     def setPlotComps(self):
         self.show_comps = int(self.plotcomps.isChecked())
+
+    def setGradFill(self):
+        self.grad_fill = int(self.gradfill.isChecked())
+
+    def setGradFillComps(self):
+        self.grad_fill_comps = int(self.gradfillcomps.isChecked())
 
     def setLabelsCorr(self):
         self.labels_corr = int(self.labelscorr.isChecked())
@@ -2308,8 +2325,8 @@ class showLinesWidget(QWidget):
         self.file.setText(fname)
 
     def chooseOverFile(self):
-        fname = QFileDialog.getSaveFileName(self, 'Select overplot file...', self.parent.plot_set_folder)
-        self.over_file.setText(fname)
+        fname = QFileDialog.getOpenFileName(self, 'Select overplot file...', self.parent.plot_set_folder)
+        self.overFile.setText(str(fname[0]))
 
     def showPlot(self, savefig=True):
         fig = plt.figure(figsize=(self.width, self.height), dpi=300)
@@ -2323,6 +2340,12 @@ class showLinesWidget(QWidget):
             over = np.genfromtxt(self.over_file, unpack=True)
         except:
             over = None
+
+        if self.show_species_colors:
+            color_species = {sp: tuple(int(c).to_bytes(4, byteorder='big')) for sp, c in zip(self.parent.fit.list_species(), self.species_colors.split(', '))}
+        else:
+            color_species = None
+
         if not self.regions:
             if not self.parent.normview:
                 self.parent.normalize()
@@ -2343,11 +2366,15 @@ class showLinesWidget(QWidget):
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
             self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw, lw_tell=self.telluric_lw,
                                    ls=self.comp_ls, ls_total=self.fit_ls, tell_fill=self.telluric_fill,
+                                   grad_fill=self.grad_fill, grad_fill_comps=self.grad_fill_comps,
+                                   grad_fill_up=self.grad_fill_up, grad_fill_down=self.grad_fill_down,
                                    ind_ls=self.indlines_ls, ind_lw=self.indlines_lw,
                                    add_lines=self.add_lines, add_ls=self.addlines_ls,
+                                   color_spec=self.spec_color.to_bytes(4, byteorder='big'),
                                    color_total=self.fit_color.to_bytes(4, byteorder='big'),
                                    color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')],
                                    color_tell=self.tell_color.to_bytes(4, byteorder='big'),
+                                   color_species=color_species,
                                    disp_alpha=self.disp_alpha, res_style=self.res_style, res_color=self.res_color.to_bytes(4, byteorder='big')
                                    )
             if len(self.parent.fit.sys) > 0:
@@ -2395,6 +2422,13 @@ class showLinesWidget(QWidget):
                     fit = None
                     fit_comp = None
 
+                if self.show_species_colors:
+                    fit_species = {}
+                    for k, v in s.fit_species.items():
+                        fit_species[k] = [v[0], v[1] / cheb(v[0])]
+                else:
+                    fit_species = None
+
                 if self.show_disp and len(s.fit.disp[0].norm.x) > 0:
                     fit_disp = [s.fit.disp[0].norm.x, s.fit.disp[0].norm.y / cheb(s.fit.disp[0].norm.x), s.fit.disp[1].norm.y / cheb(s.fit.disp[0].norm.x)]
                     fit_comp_disp = []
@@ -2404,7 +2438,9 @@ class showLinesWidget(QWidget):
                     fit_disp, fit_comp_disp = None, None
 
                 p.loaddata(d=np.array([s.spec.x(), s.spec.y() / cheb(s.spec.x()), s.spec.err() / cheb(s.spec.x()), s.mask.x()]),
-                           f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp, sky=sky, z=[sys.z.val for sys in self.parent.fit.sys])
+                           f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp, fit_species=fit_species,
+                           sky=sky, z=[sys.z.val for sys in self.parent.fit.sys])
+
                 if len(self.parent.lines[self.ps.index(p)].split()) > 3:
                     for s in self.parent.lines[self.ps.index(p)].split()[2:]:
                         if 'ymin' in s:
@@ -2444,11 +2480,13 @@ class showLinesWidget(QWidget):
                         x = conv(over[0])
                     else:
                         x = over[0]
-                    p.ax.plot(x, over[1], ls='-', color=to_hex(tuple(c / 255 for c in self.over_color.to_bytes(4, byteorder='big'))), lw=self.fit_lw, zorder=12)
+                    p.ax.plot(x, over[1], ls='-', color=to_hex(tuple(c / 255 for c in self.over_color.to_bytes(4, byteorder='big'))), lw=self.fit_lw, zorder=8)
+                    #print("plot_residuals")
+                    p.plot_residuals(line=[x, over[1]], color=to_hex(tuple(c / 255 for c in self.over_color.to_bytes(4, byteorder='big'))), zorder=8)
+                    #p.ax.plot(x, over[1], ls='-', color=to_hex(tuple(c / 255 for c in self.over_color.to_bytes(4, byteorder='big'))), lw=self.fit_lw, zorder=8)
 
 
                 if self.show_cont:
-
                     if not self.show_disp or len(s.fit.disp[0].norm.x) == 0:
                         if p.vel_scale:
                             x = conv(s.cheb.x())
@@ -2509,9 +2547,14 @@ class showLinesWidget(QWidget):
             self.ps.specify_comps(*(sys.z.val for sys in self.parent.fit.sys))
             self.ps.specify_styles(lw=self.comp_lw, lw_total=self.fit_lw, lw_spec=self.spec_lw,
                                    lw_tell=self.telluric_lw, tell_fill=self.telluric_fill,
-                                   ls=self.comp_ls, ls_total=self.fit_ls, color_total=self.fit_color.to_bytes(4, byteorder='big'),
+                                   grad_fill=self.grad_fill, grad_fill_comps=self.grad_fill_comps,
+                                   grad_fill_up=self.grad_fill_up, grad_fill_down=self.grad_fill_down,
+                                   ls=self.comp_ls, ls_total=self.fit_ls,
+                                   color_spec=self.spec_color.to_bytes(4, byteorder='big'),
+                                   color_total=self.fit_color.to_bytes(4, byteorder='big'),
                                    color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')],
                                    color_tell=self.tell_color.to_bytes(4, byteorder='big'),
+                                   color_species=color_species,
                                    disp_alpha=self.disp_alpha, res_style=self.res_style, res_color=self.res_color.to_bytes(4, byteorder='big')
                                    )
             if len(self.parent.fit.sys) > 0:
@@ -2549,6 +2592,9 @@ class showLinesWidget(QWidget):
                 else:
                     cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1, bounds_error=False)
 
+                mask = (s.sky.raw.x > s.spec.raw.x[s.cont_mask][0]) * (s.sky.raw.x < s.spec.raw.x[s.cont_mask][-1])
+                sky = [s.sky.raw.x[mask], s.sky.raw.y[mask] / cheb(s.sky.raw.x[mask])]
+
                 if s.fit.n() > 0:
                     fit = np.array([s.fit.x(), s.fit.y() / cheb(s.fit.x())])
                     if self.show_comps:
@@ -2560,6 +2606,13 @@ class showLinesWidget(QWidget):
                 else:
                     fit = None
                     fit_comp = None
+
+                if self.show_species_colors:
+                    fit_species = {}
+                    for k, v in s.fit_species.items():
+                        fit_species[k] = [v[0], v[1] / cheb(v[0])]
+                else:
+                    fit_species = None
 
                 if self.show_disp and len(s.fit.disp[0].norm.x) > 0:
                     fit_comp_disp = []
@@ -2576,7 +2629,9 @@ class showLinesWidget(QWidget):
                     fit_disp, fit_comp_disp = None, None
 
                 p.loaddata(d=np.array([s.spec.x(), s.spec.y() / cheb(s.spec.x()), s.spec.err() / cheb(s.spec.x()), s.mask.x()]),
-                           f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp, z=[sys.z.val for sys in self.parent.fit.sys])
+                           f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp, fit_species=fit_species,
+                           sky=sky, z=[sys.z.val for sys in self.parent.fit.sys])
+
                 p.show_comps = self.show_comps
                 if self.show_labels:
                     p.name_pos = [self.name_x_pos, self.name_y_pos]
@@ -2587,7 +2642,8 @@ class showLinesWidget(QWidget):
                 p.plot_line()
 
                 if over is not None:
-                    p.ax.plot(over[0], over[1], ls='-', color=to_hex(tuple(c / 255 for c in self.over_color.to_bytes(4, byteorder='big'))), lw=self.fit_lw, zorder=12)
+                    p.ax.plot(over[0], over[1], ls='-', color=to_hex(tuple(c / 255 for c in self.over_color.to_bytes(4, byteorder='big'))), lw=self.fit_lw, zorder=8)
+                    p.plot_residuals(line=[over[0], over[1]], color=to_hex(tuple(c / 255 for c in self.over_color.to_bytes(4, byteorder='big'))), zorder=5)
 
                 if self.show_cf and p.show_fit:
                     for k in range(self.parent.fit.cf_num):
@@ -2673,7 +2729,7 @@ class showLinesWidget(QWidget):
             subprocess.call(('xdg-open', plotfile))
 
     def saveSettings(self):
-        fname = QFileDialog.getSaveFileName(self, 'Save settings...', self.parent.plot_set_folder)[0]
+        fname = QFileDialog.getSaveFileName(self, 'Save settings...', self.parent.work_folder, "spectro plot settings (*.sps)")[0]
         self.parent.options('plot_set_folder', os.path.dirname(fname))
 
         if fname:
@@ -2688,16 +2744,16 @@ class showLinesWidget(QWidget):
             #else:
             pickle.dump(str(self.parent.plot.regions), f)
             f.close()
+            #self.parent.settings['show_lines_settings'] = fname
 
     def showContCorr(self, ax):
         for i in range(5,15):
-            print(i)
             self.parent.fitPoly(i)
             ax.plot(self.parent.s[self.parent.s.ind].cheb.x(), self.parent.s[self.parent.s.ind].cheb.y(), '-', lw=0.5, color='mediumseagreen')
 
     def loadSettings(self, fname=None):
         if fname is None:
-            fname = QFileDialog.getOpenFileName(self, 'Load settings...', self.parent.plot_set_folder)[0]
+            fname = QFileDialog.getOpenFileName(self, 'Load settings...', self.parent.work_folder, "spectro plot settings (*.sps)")[0]
             self.parent.options('plot_set_folder', os.path.dirname(fname))
         if fname:
             f = open(fname, "rb")
@@ -2707,6 +2763,7 @@ class showLinesWidget(QWidget):
             self.parent.lines.fromText(str(pickle.load(f)))
             self.parent.plot.regions.fromText(str(pickle.load(f)), sort=False)
             f.close()
+            #self.parent.settings['show_lines_settings'] = fname
         self.close()
         self.parent.showLines()
 
@@ -5866,7 +5923,8 @@ class ExportDataWidget(QWidget):
         elif self.type == 'save':
             self.check = OrderedDict([('spectrum', 'Spectrum'), ('cont', 'Continuum'),
                                       ('points', 'Selected points'), ('fit', 'Fit model'),
-                                      ('others', 'Other data'), ('fit_results', 'Fit results')])
+                                      ('fit_results', 'Fit results'), ('others', 'Other data'),
+                                      ('settings', 'Settings')])
             self.opt = self.parent.save_opt
         elif self.type == 'export2d':
             self.check = OrderedDict([('spectrum', 'Spectrum'), ('err', 'Error'),
@@ -7049,58 +7107,30 @@ class sviewer(QMainWindow):
         self.abs_SF_status = 1
         self.normview = False
         self.aodview = False
+        self.settings = {}
+        self.message = None
+        self.julia = None
         if platform.system() == 'Windows':
             self.config = 'config/options.ini'
         elif platform.system() == 'Linux':
             self.config = 'config/options_linux.ini'
         self.developer = os.path.isfile(self.folder + 'config/developer.ini')
-        self.blindMode = self.options('blindMode')
-        self.SDSSfolder = self.options('SDSSfolder', config=self.config)
-        self.SDSSDR14 = self.options('SDSSDR14', config=self.config)
-        if self.SDSSDR14 is not None and os.path.isfile(self.SDSSDR14):
-            self.SDSSDR14 = h5py.File(self.SDSSDR14, 'r')
-        self.SDSSLeefolder = self.options('SDSSLeefolder', config=self.config)
         self.SDSSdata = []
         self.SDSSquery = None
         self.filters_status = {'SDSS': 0, 'Gaia': 0, '2MASS': 0, 'VISTA':0, 'UKIDSS': 0, 'WISE': 0, 'GALEX': 0}
         self.filters = {'SDSS': None, 'Gaia': None, '2MASS': None, 'VISTA': None, 'UKIDSS': None, 'WISE': None, 'GALEX': None}
         self.photo = None
         self.UVESSetup_status = False
-        self.XQ100folder = self.options('XQ100folder', config=self.config)
-        self.P94folder = self.options('P94folder', config=self.config)
-        self.work_folder = self.options('work_folder', config=self.config)
-        self.plot_set_folder = self.options('plot_set_folder', config=self.config)
-        self.VandelsFile = self.options('VandelsFile', config=self.config)
-        self.KodiaqFile = self.options('KodiaqFile', config=self.config)
-        self.UVESfolder = self.options('UVESfolder', config=self.config)
-        self.ErositaFile = self.options('ErositaFile', config=self.config)
-        self.MALSfolder = self.options('MALSfolder', config=self.config)
-        self.IGMspecFile = self.options('IGMspecFile', config=self.config)
-        self.SFDMapPath = self.options('SFDMapPath', config=self.config)
         self.MCMC_output = 'output/mcmc.hdf5'
         self.z_abs = 0
         self.lines = lineList(self)
         #self.line_reper = line('HI', 1215.6701, 0.4164, 6.265e8, ref='???')
         self.regions = []
-        self.show_residuals = self.options('show_residuals')
-        self.show_2d = self.options('show_2d')
         self.bary, self.heli = 0, 0
         self.save_opt = ['cont', 'points', 'fit', 'others', 'fit_results']
         self.export_opt = ['cont', 'fit']
         self.export2d_opt = ['spectrum', 'err', 'mask', 'cr', 'sky', 'trace']
-        self.num_between = int(self.options('num_between'))
-        self.tau_limit = float(self.options('tau_limit'))
-        self.accuracy = float(self.options('accuracy'))
-        self.message = None
-        self.julia = None
-        if self.options("fitType") == "julia":
-            if self.reload_julia() == False:
-                self.options('fitType', 'uniform')
-        # self.specview sets the type of plot representation
-        for l in ['specview', 'selectview', 'linelabels', 'showinactive', 'show_osc', 'fitType', 'fitComp', 'fitview', 'comp_view', 'animateFit', 'fit_method']:
-            setattr(self, l, self.options(l))
-        self.polyDeg = int(self.options('polyDeg'))
-        self.SDSScat = self.options('SDSScat')
+
         self.comp = 0
         self.fitprocess = None
         self.fitModel = None
@@ -7119,11 +7149,45 @@ class sviewer(QMainWindow):
         self.compositeQSO_status = False
         self.compositeGal_status = False
         self.ErositaWidget = None
-        self.fullscreen = bool(self.options('fullscreen'))
+        self.threadpool = QThreadPool()
         # this is to set the spectro_logo in the taskbar for Windows
         myapp = u'spectro.0.8'
         if platform.system() == 'Windows':
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myapp)
+        self.load_options()
+
+    def load_options(self):
+        self.blindMode = self.options('blindMode')
+        self.SDSSfolder = self.options('SDSSfolder', config=self.config)
+        self.SDSSDR14 = self.options('SDSSDR14', config=self.config)
+        if self.SDSSDR14 is not None and os.path.isfile(self.SDSSDR14):
+            self.SDSSDR14 = h5py.File(self.SDSSDR14, 'r')
+        self.SDSSLeefolder = self.options('SDSSLeefolder', config=self.config)
+        self.XQ100folder = self.options('XQ100folder', config=self.config)
+        self.P94folder = self.options('P94folder', config=self.config)
+        self.work_folder = self.options('work_folder', config=self.config)
+        self.plot_set_folder = self.options('plot_set_folder', config=self.config)
+        self.VandelsFile = self.options('VandelsFile', config=self.config)
+        self.KodiaqFile = self.options('KodiaqFile', config=self.config)
+        self.UVESfolder = self.options('UVESfolder', config=self.config)
+        self.ErositaFile = self.options('ErositaFile', config=self.config)
+        self.MALSfolder = self.options('MALSfolder', config=self.config)
+        self.IGMspecFile = self.options('IGMspecFile', config=self.config)
+        self.SFDMapPath = self.options('SFDMapPath', config=self.config)
+        self.show_residuals = self.options('show_residuals')
+        self.show_2d = self.options('show_2d')
+        self.num_between = int(self.options('num_between'))
+        self.tau_limit = float(self.options('tau_limit'))
+        self.accuracy = float(self.options('accuracy'))
+        # self.specview sets the type of plot representation
+        for l in ['specview', 'selectview', 'linelabels', 'showinactive', 'show_osc', 'fitType', 'fitComp', 'fitview', 'comp_view', 'animateFit', 'fit_method']:
+            setattr(self, l, self.options(l))
+        self.polyDeg = int(self.options('polyDeg'))
+        self.SDSScat = self.options('SDSScat')
+        if self.options("fitType") == "julia":
+            if self.reload_julia() == False:
+                self.options('fitType', 'uniform')
+        self.fullscreen = bool(self.options('fullscreen'))
 
     def initUI(self):
         #dbg = pg.dbg()
@@ -7250,7 +7314,15 @@ class sviewer(QMainWindow):
         exportDataAction = QAction('&Export data...', self)
         exportDataAction.setStatusTip('Export data')
         exportDataAction.triggered.connect(self.showExportDataDialog)
-        
+
+        exportSettingsAction = QAction('&Export settings...', self)
+        exportSettingsAction.setStatusTip('Export settings')
+        exportSettingsAction.triggered.connect(self.showExportSettingsDialog)
+
+        importSettingsAction = QAction('&Import settings...', self)
+        importSettingsAction.setStatusTip('Inport settings')
+        importSettingsAction.triggered.connect(self.showImportSettingsDialog)
+
         importList = QAction('&Import List...', self)
         importList.setStatusTip('Import list of spectra')
         importList.triggered.connect(self.showImportListDialog)
@@ -7276,10 +7348,12 @@ class sviewer(QMainWindow):
         fileMenu.addAction(importDispAction)
         fileMenu.addAction(importList)
         fileMenu.addAction(importFolder)
+        fileMenu.addAction(importSettingsAction)
         fileMenu.addSeparator()
         fileMenu.addAction(exportAction)
         fileMenu.addAction(export2dAction)
         fileMenu.addAction(exportDataAction)
+        fileMenu.addAction(exportSettingsAction)
         fileMenu.addSeparator()
         fileMenu.addAction(exitAction)
         
@@ -8175,7 +8249,7 @@ class sviewer(QMainWindow):
                         ind = len(self.s) - 1
 
                 if ind > -1:
-                    while all([x not in d[i] for x in ['%', '----', 'doublet', 'region', 'fit_model']]):
+                    while all([x not in d[i] for x in ['%', '----', 'doublet', 'region', 'fit_model', 'global_settings']]):
                         if 'Bcont' in d[i]:
                             self.s[ind].spline = gline()
                             n = int(d[i].split()[1])
@@ -8260,6 +8334,15 @@ class sviewer(QMainWindow):
                     self.lines.add(d[i].strip())
                     self.abs.lines[-1].setActive(bool=True)
 
+            if 'global_settings' in d[i]:
+                print("gs:", d[i].split()[1])
+                self.settings["global_settings"] = d[i].split()[1]
+                self.settingsActions(self.settings["global_settings"], 'import')
+
+            #if 'show_lines_settings' in d[i]:
+            #    print("ps:", d[i].split()[1])
+            #    self.settings["show_lines_settings"] = d[i].split()[1]
+
             if 'fit_model' in d[i]:
                 self.plot.remove_pcRegion()
                 self.fit = fitPars(self)
@@ -8286,7 +8369,6 @@ class sviewer(QMainWindow):
                     i += 1
                     #print(int(d[i].split()[0]))
                     self.fit.sys[int(d[i].split()[0])].exclude.append(' '.join(d[i].split()[1:]))
-
 
             #print(d[i])
             #if 'cheb' in d[i]:
@@ -8389,6 +8471,11 @@ class sviewer(QMainWindow):
                             f.write('2d:   {}\n'.format(s.spec2d.filename))
 
                     f.write('-------------------------\n')
+
+            # >>> save settings:
+            if 'settings' in self.save_opt:
+                for k, v in self.settings.items():
+                    f.write('{0:s}:   {1:s}\n'.format(k, v))
 
             # >>> save other parameters
             if 'others' in self.save_opt:
@@ -8981,7 +9068,48 @@ class sviewer(QMainWindow):
 
         self.exportData = ExportDataWidget(self, 'export')
         self.exportData.show()
-              
+
+    def showExportSettingsDialog(self):
+
+        fname = QFileDialog.getSaveFileName(self, 'Export settings', self.work_folder +  "/config.ini", "Config Files (*.ini)")
+
+        if fname[0]:
+            self.settings['global_settings'] = fname[0]
+            self.settingsActions(fname[0], 'export')
+            self.statusBar.setText('Settings is written to ' + fname[0])
+
+    def showImportSettingsDialog(self):
+
+        fname = QFileDialog.getOpenFileName(self, 'Import settings', self.work_folder)
+
+        if fname[0]:
+            self.settings['global_settings'] = fname[0]
+            self.settingsActions(fname[0], 'import')
+            self.statusBar.setText('Settings is imported from' + fname[0])
+
+    def settingsActions(self, fname, action):
+        if action == 'export':
+            try:
+                copyfile(self.folder + '/config/options.ini', fname)
+                self.statusBar.setText(f"Config file was copied as '{fname}'")
+            except FileNotFoundError:
+                self.sendMessage("Source file or destination directory not found.")
+            except PermissionError:
+                self.sendMessage("Permission denied.")
+            except Exception as e:
+                self.sendMessage(f"An error occurred: {e}")
+        elif action == 'import':
+            try:
+                copyfile(fname, self.folder + '/config/options.ini')
+                self.load_options()
+                self.statusBar.setText(f"Config file was updated from '{fname}'")
+            except FileNotFoundError:
+                self.sendMessage("Source file or destination directory not found.")
+            except PermissionError:
+                self.sendMessage("Permission denied.")
+            except Exception as e:
+                self.sendMessage(f"An error occurred: {e}")
+
     def exportSpectrum(self, filename):
         if len(self.s[self.s.ind].spec.err()) > 0:
             data = np.c_[self.s[self.s.ind].spec.x(), self.s[self.s.ind].spec.y(), self.s[self.s.ind].spec.err()]
@@ -9452,6 +9580,51 @@ class sviewer(QMainWindow):
         self.panel.fitbutton.setChecked(False)
         QApplication.restoreOverrideCursor()
 
+    def execute_fit_in_parallel(self, *args, **kwargs):
+        print(args, kwargs)
+        self.s.prepareFit(all=False)
+
+        res, unc, converged = self.julia.fitLM(*args, **kwargs)
+
+        s = self.fit.fromJulia(res, unc)
+        #progress_callback.emit((thread_id, progress))
+        print("Done:", res)
+        #return None
+
+    def print_output(self, s):
+        print(s)
+
+    def thread_complete(self, thread_id):
+        print(f"THREAD #{thread_id} COMPLETE!")
+
+    def progress_fn(self):
+        pass
+
+    def fitJulia_parall(self, **kwargs):
+        # Pass the function to execute
+        #self.thread_id += 1
+        worker = Worker(self.execute_fit_in_parallel,
+                        self.julia_spec,
+                        self.fit.list(),
+                        self.julia_add,
+                        tieds=self.fit.tieds,
+                        opts=kwargs,
+                        blindMode=self.blindMode,
+                        method=self.options("fit_method"),
+                        grid_type=self.options("julia_grid"),
+                        grid_num=int(self.options("julia_grid_num")),
+                        binned=self.options("julia_binned"),
+                        telluric=self.options("telluric"),
+                        tau_limit=self.tau_limit,
+                        accuracy=self.accuracy,
+                        toll=float(self.options("fit_tolerance"))
+                        )
+        worker.signals.result.connect(self.print_output)
+        worker.signals.finished.connect(self.thread_complete)
+        worker.signals.progress.connect(self.progress_fn)
+        # Execute
+        self.threadpool.start(worker)
+
     def fitJulia(self, **kwargs):
 
         #self.reload_julia()
@@ -9722,26 +9895,21 @@ class sviewer(QMainWindow):
                 self.normalize()
 
     def aod_ratios(self):
-        print('aod_ratios')
         if self.normview and len(self.plot.regions) == 1:
             range = self.plot.regions[0].getRegion()
             mask = (self.s[self.s.ind].spec.x() > range[0]) * (self.s[self.s.ind].spec.x() < range[1])
             v = vel_offset(self.s[self.s.ind].spec.x()[mask], self.abs.reference.line.l() * (self.z_abs + 1))
-            print(v)
 
             for line in self.abs.activelist:
-                print(line.line, line.line != self.abs.reference.line, line.exp)
                 if line.line != self.abs.reference.line:
                     v_1 = vel_offset(self.s[line.exp].spec.x(), line.line.l() * (self.z_abs + 1))
                     y_1 = spectres.spectres(v_1, self.s[line.exp].spec.y(), v)
-                    print(y_1)
                     m = (v_1 >= v[0]) * (v_1 <= v[-1])
                     if 1:
                         plt.step(v, np.log(self.s[line.exp].spec.y()[mask]) / np.log(y_1), where='mid')
                     else:
                         plt.step(v, -np.log(self.s[line.exp].spec.y()[mask]), where='mid')
                         plt.step(v, -np.log(y_1), where='mid')
-                    print(self.abs.reference.line.f(), line.line.f())
                     plt.axhline(self.abs.reference.line.f() / line.line.f(), ls='--', color='k')
                     plt.axhline(1, ls='--', color='tab:red')
                     #plt.ylim([-0.1, max(1, self.abs.reference.line.f() / line.line.f()) * 1.3])
@@ -10140,7 +10308,7 @@ class sviewer(QMainWindow):
             text = [0, 0, ax.text(0, 0, "not constrained", va='top', ha='right', fontsize=16)]
         return text
 
-    def ExcDiag(self, temp=1):
+    def ExcDiag(self, temp=1, levels=None):
         """
         Show H2 excitation diagram for the selected component
         """
@@ -10186,7 +10354,9 @@ class sviewer(QMainWindow):
                         ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]], fmt=marker, color=p[0].get_color(), label=label)
                 #temp = self.H2ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax)
                 if temp:
-                    text.append(self.ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax))
+                    if levels is None:
+                        levels = [0, 1]
+                    text.append(self.ExcitationTemp(levels=levels if levels is not None else [0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax))
 
             if any([name.startswith('CO') for name in sys.sp.keys()]):
                 species = 'CO'
@@ -10213,7 +10383,7 @@ class sviewer(QMainWindow):
                 p = ax.plot(x, [v.val for v in y], 'o', markersize=1) #, label='sys_' + str(self.fit.sys.index(sys)))
                 ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]],  fmt='o', color = p[0].get_color(), label=label)
                 if temp:
-                    text.append(self.ExcitationTemp(levels=[0, 1, 2, 3], ind=self.fit.sys.index(sys), plot=False, ax=ax))
+                    text.append(self.ExcitationTemp(levels=levels if levels is not None else [0, 1, 2, 3], ind=self.fit.sys.index(sys), plot=False, ax=ax))
 
 
         #if len(text) > 0:
@@ -11159,11 +11329,12 @@ class sviewer(QMainWindow):
                 fill_value = 1
             data[0] *= (1 + z)
             inter = interp1d(data[0], data[1], bounds_error=False, fill_value=fill_value, assume_sorted=True)
-            s.set_resolution(resolution)
             bin = (xmin + xmax) / 2 / resolution / 4
             x = np.linspace(xmin, xmax, int((xmax - xmin) / bin))
             #debug(len(x), 'lenx')
             s.set_data([x, inter(x), np.ones_like(x) * 0.01])
+            s.lsf_type = 'gauss'
+            s.set_resolution(resolution)
             self.s.append(s)
             self.s.ind = len(self.s) - 1
         s = self.s[self.s.ind]

@@ -1,5 +1,6 @@
 from astropy.cosmology import Planck15
 from astropy.io import fits
+import matplotlib.pyplot as plt
 from mendeleev import element
 import numpy as np
 from PyQt6.QtCore import Qt
@@ -647,7 +648,9 @@ class Console(QTextEdit):
             if len(args) > 1:
                 levels = [int(a) for a in args[1:]]
             print(levels)
-            self.parent.ExcitationTemp(levels=levels, plot=True)
+            self.parent.ExcDiag(temp=1, levels=levels)
+            #self.parent.ExcitationTemp(levels=levels, ind=self.parent.fit.sys.ind, plot=False, ax=ax)
+            plt.show()
 
         elif args[0] == 'qso':
             if args[1] == 'lum':

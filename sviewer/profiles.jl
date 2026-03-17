@@ -951,6 +951,8 @@ function make_grid(spec, lines; grid_type="uniform", grid_num=1, binned=true, ta
             println("merge ", time() - start)
         end
 
+        x = [spec.x[1], spec.x[end]]
+        #println("spec_mask: ", x, " ", spec.mask)
         mask = copy(spec.mask)
         for i in 1:5
             mask[1+i:end] .|= spec.mask[1:end-i]
@@ -958,9 +960,9 @@ function make_grid(spec, lines; grid_type="uniform", grid_num=1, binned=true, ta
         end
 
         if binned
-            x = mergesorted(spec.bins[spec.bin_mask], spec.x[mask])
+            x = mergesorted(x, mergesorted(spec.bins[spec.bin_mask], spec.x[mask]))
         else
-            x = copy(spec.x[mask])
+            x = mergesorted(x, copy(spec.x[mask]))
         end
 
         if grid_num > 0

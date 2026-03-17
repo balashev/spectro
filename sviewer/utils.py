@@ -12,18 +12,76 @@ from itertools import compress
 from math import atan2, degrees
 import numpy as np
 import os
+from PyQt6.QtCore import (QObject, QRunnable, QThreadPool, pyqtSignal, pyqtSlot)
 from scipy.interpolate import interp1d
 from scipy.stats import rv_continuous
 import sys
 #sys.path.append('C:/science/python')
 #from spectro.sviewer.utils import *
 import threading
+import traceback
 import time
 import urllib
 
 def include(filename):
     if os.path.exists(filename):
         exec(open(filename).read())
+
+class WorkerSignals(QObject):
+    """Signals from a running worker thread.
+
+    finished
+        int thread_id
+    error
+        tuple (exctype, value, traceback.format_exc())
+    result
+        object data returned from processing, anything
+    progress
+        tuple (thread_id, progress_value)
+    """
+
+    finished = pyqtSignal(int)  # thread_id
+    error = pyqtSignal(tuple)
+    result = pyqtSignal(object)
+    progress = pyqtSignal(tuple)  # (thread_id, progress_value)
+
+class Worker(QRunnable):
+    """Worker thread.
+
+    Inherits from QRunnable to handler worker thread setup, signals and wrap-up.
+
+    :param callback: The function callback to run on this worker thread.
+                     Supplied args and
+                     kwargs will be passed through to the runner.
+    :type callback: function
+    :param args: Arguments to pass to the callback function
+    :param kwargs: Keywords to pass to the callback function
+    """
+
+    def __init__(self, fn, *args, **kwargs):
+        super().__init__()
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+        print("init worker:", self.args, self.kwargs)
+        self.signals = WorkerSignals()
+        self.thread_id = kwargs.get("thread_id", 0)
+        # Add the callback to our kwargs
+        self.kwargs["progress_callback"] = self.signals.progress
+
+    @pyqtSlot()
+    def run(self):
+        print("run worker", self.fn, self.args, self.kwargs)
+        try:
+            result = self.fn(*self.args, **self.kwargs)
+        except Exception:
+            traceback.print_exc()
+            exctype, value = sys.exc_info()[:2]
+            self.signals.error.emit((exctype, value, traceback.format_exc()))
+        else:
+            self.signals.result.emit(result)
+        finally:
+            self.signals.finished.emit(self.thread_id)
 
 class Timer:
     """

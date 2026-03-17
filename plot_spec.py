@@ -100,6 +100,7 @@ def gradient_fill(x, y, fill_color=None, ax=None, direction='down', alpha=1.0, a
 
     x, y = np.asarray(x), np.asarray(y)
     xmin, xmax, ymin, ymax = x.min(), x.max(), y.min(), y.max()
+    print(xmin, xmax, ymin, ymax)
     im = ax.imshow(z, aspect='auto', extent=[xmin, xmax, ymin, ymax],
                    origin='lower', zorder=zorder)
 
@@ -134,7 +135,7 @@ class plot_spec(list):
         self.figure = figure
         self.color_total = "tab:red"
         self.show_comps = show_comps
-        self.gradient_fill = 0
+        self.grad_fill = 0
         self.gray_out = gray_out
         self.show_telluric = show_telluric
         self.show_err = show_err
@@ -203,8 +204,10 @@ class plot_spec(list):
         self.num_comp = len(self.comps)
         print(self.comps, self.num_comp)
 
-    def specify_styles(self, color_total=None, color=None, ls=None, lw=None, lw_total=2, lw_spec=1.0, ls_total='solid',
-                       ind_ls='dotted', ind_lw=1.0, color_tell=None, lw_tell=1.0, tell_fill=0, gradient_fill=0,
+    def specify_styles(self, color_spec='k', color_total=None, color=None, color_tell=None, color_species=None,
+                       ls=None, lw=None, lw_total=2, lw_spec=1.0, ls_total='solid',
+                       ind_ls='dotted', ind_lw=1.0, lw_tell=1.0, tell_fill=0,
+                       grad_fill=0, grad_fill_comps=0, grad_fill_up=0, grad_fill_down=1,
                        add_lines="0.0", add_ls='dotted', disp_alpha=0.7, res_style='scatter', res_color=None):
 
         if color_total is not None:
@@ -212,6 +215,12 @@ class plot_spec(list):
                 if np.max(list(color_total)) > 1:
                     color_total = tuple(c / 255 for c in color_total)
             self.color_total = color_total
+
+        if color_spec is not None:
+            if not isinstance(color_spec, str):
+                if np.max(list(color_spec)) > 1:
+                    color_spec = tuple(c / 255 for c in color_spec)
+            self.color_spec = color_spec
 
         num = len(self.comps + 1)
         if color is None:
@@ -237,6 +246,14 @@ class plot_spec(list):
                     color_tell = tuple(c / 255 for c in color_tell)
             self.color_tell = color_tell
 
+        self.color_species = color_species
+        if color_species is not None:
+            for sp, v in color_species.items():
+                if not isinstance(v, str):
+                    if np.max(list(v)) > 1:
+                        v = tuple(c / 255 for c in v)
+                self.color_species[sp] = v
+
         #d = {'solid': '-', 'dashed': '--', 'dotted': ':', 'dashdot': '-:'}
         if ls is None:
             ls = ['-'] * num
@@ -254,7 +271,10 @@ class plot_spec(list):
         self.lw_spec = lw_spec
         self.ls_total = ls_total
         self.lw_tell = lw_tell
-        self.gradient_fill = gradient_fill
+        self.grad_fill = grad_fill
+        self.grad_fill_comps = grad_fill_comps
+        self.grad_fill_up = grad_fill_up
+        self.grad_fill_down = grad_fill_down
         self.ind_ls = ind_ls
         self.ind_lw = ind_lw
         self.tell_fill = tell_fill
@@ -449,7 +469,7 @@ class plotline():
         self.show_comps = self.parent.show_comps
         self.sig = 2
 
-    def loaddata(self, d=None, f=None, fit_comp=None, fit_disp=None, fit_comp_disp=None, sky=None, z=None, filename=None, verbose=False):
+    def loaddata(self, d=None, f=None, fit_comp=None, fit_disp=None, fit_comp_disp=None, fit_species=None, sky=None, z=None, filename=None, verbose=False):
 
         if filename is not None:
             self.filename = [filename]
@@ -494,9 +514,15 @@ class plotline():
         if fit_comp is not None:
             self.fit_comp = []
             for c in fit_comp:
-                fit = data(x=c[0], y=c[1])
-                self.fit_comp.append(fit)
+                self.fit_comp.append(data(x=c[0], y=c[1]))
             self.num_comp = len(self.fit_comp)
+
+        if fit_species is not None:
+            self.fit_species = {}
+            for sp, v in fit_species.items():
+                self.fit_species[sp] = data(x=v[0], y=v[1])
+        else:
+            self.fit_species = None
 
         if fit_disp is not None:
             self.fit_disp = [data(x=fit_disp[0], y=fit_disp[1]), data(x=fit_disp[0], y=fit_disp[2])]
@@ -600,7 +626,7 @@ class plotline():
             self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid', color='0.5', ecolor=ecolor, capsize=capsize, zorder=0)
             k = (self.points == 0)
             self.spec.y[k] = np.nan
-        self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid',  color='k', ecolor=ecolor, capsize=capsize, zorder=1)
+        self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid',  color=self.parent.color_spec, ecolor=ecolor, capsize=capsize, zorder=1)
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         # >>> plot fit
@@ -718,7 +744,7 @@ class plotline():
             self.spec.y[k] = np.nan
 
         self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=elinewidth, drawstyle='steps-mid',
-                        color='k', ecolor=ecolor, capsize=capsize, zorder=0)
+                        color=self.parent.color_spec, ecolor=ecolor, capsize=capsize, zorder=0)
 
         # >>> correct continuum
         try:
@@ -802,7 +828,6 @@ class plotline():
         self.fit.mask(self.x_min, self.x_max)
 
         # >>> plot fit components
-        print(self.show_comps, self.num_comp)
         if self.show_comps:
             for k in range(self.num_comp):
                 if self.fit_disp is None:
@@ -810,9 +835,8 @@ class plotline():
                         self.fit_comp[k].x = (self.fit_comp[k].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
                     self.fit_comp[k].mask(self.x_min, self.x_max)
                     self.ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
-                    print("grad", self.parent.gradient_fill)
-                    if self.parent.gradient_fill != 0:
-                        gradient_fill(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], alpha=self.parent.gradient_fill, lw=1, zorder=1)
+                    if self.parent.grad_fill and self.parent.grad_fill_comps:
+                        gradient_fill(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], alpha=self.parent.grad_fill_down, alpha_min=self.parent.grad_fill_up, lw=0, zorder=1)
                 else:
                     if self.vel_scale:
                         self.fit_comp_disp[k][0].x = (self.fit_comp_disp[k][0].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
@@ -823,9 +847,21 @@ class plotline():
                     self.ax.plot(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
                     self.ax.plot(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][1].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
 
+        if self.parent.color_species is not None:
+            for sp, color in self.parent.color_species.items():
+                if self.vel_scale:
+                    self.fit_species[sp].x = (self.fit_species[sp].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
+                self.fit_species[sp].mask(self.x_min, self.x_max)
+                self.ax.plot(self.fit_species[sp].x, self.fit_species[sp].y, color=color, ls=self.parent.ls[0], lw=self.parent.lw[0], zorder=10)
+                if self.parent.grad_fill and self.parent.grad_fill_comps:
+                    gradient_fill(self.fit_species[sp].x, self.fit_species[sp].y, color=color,
+                                  alpha=self.parent.grad_fill_down, alpha_min=self.parent.grad_fill_up, lw=0, zorder=1)
         # >>> plot joint fit
         if self.fit_disp is None:
             self.ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=15)
+            print("grad", self.parent.grad_fill)
+            if self.parent.grad_fill and not self.parent.grad_fill_comps:
+                gradient_fill(self.fit.x, self.fit.y, color=self.parent.color_total, alpha=self.parent.grad_fill_down, alpha_min=self.parent.grad_fill_up, lw=0, zorder=1)
         else:
             # >>> plot fit dispersion
             if self.vel_scale:
@@ -833,54 +869,55 @@ class plotline():
                 self.fit_disp[1].x = (self.fit_disp[1].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
             self.fit_disp[0].mask(self.x_min, self.x_max)
             self.fit_disp[1].mask(self.x_min, self.x_max)
-            self.ax.fill_between(self.fit_disp[0].x, self.fit_disp[0].y, self.fit_disp[1].y, fc=self.parent.color_total, alpha=self.parent.disp_alpha, zorder=11)
-            self.ax.plot(self.fit_disp[0].x, self.fit_disp[0].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=10)
-            self.ax.plot(self.fit_disp[0].x, self.fit_disp[1].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=10)
+            self.ax.fill_between(self.fit_disp[0].x, self.fit_disp[0].y, self.fit_disp[1].y, fc=self.parent.color_total, alpha=self.parent.disp_alpha, zorder=16)
+            self.ax.plot(self.fit_disp[0].x, self.fit_disp[0].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=15)
+            self.ax.plot(self.fit_disp[0].x, self.fit_disp[1].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=15)
 
-    def plot_residuals(self):
+    def plot_residuals(self, line=None, color=None, zorder=10):
         color_linres = 'lightseagreen'  # 'mediumpurple' #col.tableau20[5]
-        null_res = self.y_max + (self.y_max - self.y_min) * 0.10
-        delt_res = (self.y_max - self.y_min) * 0.08
-        self.y_max = self.y_max + self.add_residual * (self.y_max - self.y_min) * 0.28
-        self.ax.axhline(null_res, color=color_linres, ls='-', lw=0.5, zorder=0)
-        self.ax.axhline(null_res + delt_res, color=color_linres, ls='--', lw=0.5, zorder=0)
-        self.ax.axhline(null_res - delt_res, color=color_linres, ls='--', lw=0.5, zorder=0)
-        # ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res-1.1*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
-        # ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res+0.9*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
-        x_pos = self.x_max - 0.01 * (self.x_max - self.x_min)
-        self.ax.text(x_pos, null_res + delt_res, r'$+$' + str(self.sig) + '$\sigma$', fontsize=self.font_size - 4,
-                color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
-        self.ax.text(x_pos, null_res - delt_res, r'$-$' + str(self.sig) + '$\sigma$', fontsize=self.font_size - 4,
-                color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
+
+        if line is None:
+            self.null_res = self.y_max + (self.y_max - self.y_min) * 0.10
+            self.delt_res = (self.y_max - self.y_min) * 0.08
+            self.y_max = self.y_max + self.add_residual * (self.y_max - self.y_min) * 0.28
+
+        if line is None:
+            self.ax.axhline(self.null_res, color=color_linres, ls='-', lw=0.5, zorder=0)
+            self.ax.axhline(self.null_res + self.delt_res, color=color_linres, ls='--', lw=0.5, zorder=0)
+            self.ax.axhline(self.null_res - self.delt_res, color=color_linres, ls='--', lw=0.5, zorder=0)
+            # ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res-1.1*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
+            # ax.add_patch(patches.Rectangle((0.94*self.x_max, null_res+0.9*delt_res), 0.04*self.x_max, 0.2*delt_res, edgecolor='none', facecolor='w', zorder=20))
+            x_pos = self.x_max - 0.01 * (self.x_max - self.x_min)
+            self.ax.text(x_pos, self.null_res + self.delt_res, r'$+$' + str(self.sig) + r'$\sigma$', fontsize=self.font_size - 4,
+                    color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
+            self.ax.text(x_pos, self.null_res - self.delt_res, r'$-$' + str(self.sig) + r'$\sigma$', fontsize=self.font_size - 4,
+                    color=color_linres, backgroundcolor='w', clip_on=True, ha='right', va='center', zorder=1)
         if sum(self.points) > 0:
             k = (self.points != 1)
             size = 10
-            if self.fit_disp is None:
-                fit = interpolate.interp1d(self.fit.x, self.fit.y, bounds_error=False, fill_value=1)
-                y = np.ma.masked_where(k, (
-                            (self.spec.y - fit(self.spec.x)) / self.spec.err) / self.sig * delt_res + null_res)
+            if self.fit_disp is None or line is not None:
+                if line is None:
+                    fit = interpolate.interp1d(self.fit.x, self.fit.y, bounds_error=False, fill_value=1)
+                    color = self.parent.color_res
+                else:
+                    fit = interpolate.interp1d(line[0], line[1], bounds_error=False, fill_value=1)
+                y = np.ma.masked_where(k, ((self.spec.y - fit(self.spec.x)) / self.spec.err) / self.sig * self.delt_res + self.null_res)
                 if self.parent.res_style == 'scatter':
-                    self.ax.scatter(self.spec.x, y, color=self.parent.color_res, s=size)
+                    self.ax.scatter(self.spec.x, y, color=color, s=size, zorder=zorder)
                 if self.parent.res_style == 'step':
-                    self.ax.step(self.spec.x, y, where='mid', color=self.parent.color_res, ls=self.parent.ls_total,
-                            lw=self.parent.lw_total)
+                    self.ax.step(self.spec.x, y, where='mid', color=color, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=zorder)
                 # ax.step(self.spec.x[k], ((self.spec.y[k] - fit_0(self.spec.x[k])) / self.spec.err[k]) / self.sig * delt_res + null_res, lw=1, where='mid', color=color_res)
             else:
-                fit_0 = interpolate.interp1d(self.fit_disp[0].x, self.fit_disp[0].y, bounds_error=False,
-                                             fill_value=1)
-                fit_1 = interpolate.interp1d(self.fit_disp[0].x, self.fit_disp[1].y, bounds_error=False,
-                                             fill_value=1)
+                fit_0 = interpolate.interp1d(self.fit_disp[0].x, self.fit_disp[0].y, bounds_error=False, fill_value=1)
+                fit_1 = interpolate.interp1d(self.fit_disp[0].x, self.fit_disp[1].y, bounds_error=False, fill_value=1)
                 if self.parent.res_style == 'scatter':
-                    y = np.ma.masked_where(k, ((self.spec.y - (fit_0(self.spec.x) + fit_1(
-                        self.spec.x)) / 2) / self.spec.err) / self.sig * delt_res + null_res)
-                    self.ax.scatter(self.spec.x, y, color=self.parent.color_res, s=size)
+                    y = np.ma.masked_where(k, ((self.spec.y - (fit_0(self.spec.x) + fit_1(self.spec.x)) / 2) / self.spec.err) / self.sig * self.delt_res + self.null_res)
+                    self.ax.scatter(self.spec.x, y, color=self.parent.color_res, s=size, zorder=zorder)
                 elif self.parent.res_style == 'step':
-                    y0 = np.ma.masked_where(k, ((self.spec.y - fit_0(
-                        self.spec.x)) / self.spec.err) / self.sig * delt_res + null_res)
-                    y1 = np.ma.masked_where(k, ((self.spec.y - fit_1(
-                        self.spec.x)) / self.spec.err) / self.sig * delt_res + null_res)
+                    y0 = np.ma.masked_where(k, ((self.spec.y - fit_0(self.spec.x)) / self.spec.err) / self.sig * self.delt_res + self.null_res)
+                    y1 = np.ma.masked_where(k, ((self.spec.y - fit_1(self.spec.x)) / self.spec.err) / self.sig * self.delt_res + self.null_res)
                     self.ax.fill_between(self.spec.x, y0, y1, step='mid', facecolor=self.parent.color_res, ls=self.parent.ls_total,
-                                    lw=self.parent.lw_total, alpha=0.9, edgecolor=self.parent.color_res)
+                                    lw=self.parent.lw_total, alpha=0.9, edgecolor=self.parent.color_res, zorder=zorder)
 
 
     def correct_cont(self):

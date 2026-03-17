@@ -5,7 +5,7 @@ import matplotlib.colors as mcolors
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import (QFont)
 from PyQt6.QtWidgets import (QWidget, QLabel, QGridLayout, QPushButton, QApplication,
-                             QHBoxLayout, QVBoxLayout, QComboBox)
+                             QHBoxLayout, QVBoxLayout, QComboBox, QCheckBox)
 import pyqtgraph as pg
 from ..atomic import *
 from ..profiles import tau
@@ -854,12 +854,17 @@ class colorCompBox(QHBoxLayout):
         self.addWidget(self.default)
         self.cmap = QComboBox()
         self.cmap.setFixedSize(80, 30)
-        cmaplist = ['', 'rainbow', 'viridis', 'plasma', 'inferno', 'magma', 'cividis', 'spring', 'summer', 'autumn', 'winter', 'cool', 'Wistia', 'PiYG', 'PRGn', 'BrBG', 'PuOr', 'RdGy', 'RdBu',
+        cmaplist = ['rainbow', 'viridis', 'plasma', 'inferno', 'magma', 'cividis', 'spring', 'summer', 'autumn', 'winter', 'cool', 'Wistia', 'PiYG', 'PRGn', 'BrBG', 'PuOr', 'RdGy', 'RdBu',
             'RdYlBu', 'RdYlGn', 'Spectral', 'coolwarm', 'bwr', 'seismic', 'twilight', 'twilight_shifted', 'hsv', 'flag', 'prism', 'ocean', 'gist_earth', 'terrain', 'gist_stern',
             'gnuplot', 'gnuplot2', 'CMRmap', 'cubehelix', 'brg', 'gist_rainbow', 'jet', 'nipy_spectral', 'gist_ncar']
         self.cmap.addItems([''] + [j for i in [[cmap, cmap + '_r'] for cmap in cmaplist] for j in i])
         self.cmap.currentTextChanged.connect(self.set_default)
         self.addWidget(self.cmap)
+        self.comp_uniform = pg.ColorButton(self.parent)
+        self.comp_uniform.setFixedSize(30, 30)
+        self.comp_uniform.sigColorChanged.connect(partial(self.setUniformColors))
+        self.addWidget(self.comp_uniform)
+        #self.comp_uniform.setColor(color)
 
     def init_colors(self):
         #print(self.num)
@@ -906,6 +911,13 @@ class colorCompBox(QHBoxLayout):
         for i in range(self.num):
             self.comp[i].setColor(color=self.colors[i])
 
+    def setUniformColors(self, color):
+        color = tuple([int(c*255) for c in color.color(mode="float")])
+        for i in range(self.num):
+            self.colors[i] = color[:]
+            self.comp[i].setColor(color=self.colors[i])
+        self.saveColors()
+
     def setColor(self, color, comp=None):
         self.colors[comp] = tuple([int(c*255) for c in color.color(mode="float")])
         self.saveColors()
@@ -913,3 +925,108 @@ class colorCompBox(QHBoxLayout):
     def saveColors(self):
         # note: self.colors is the list of the tuples in RGBA format, i.e. (255, 255, 255, 255)
         self.parent.comp_colors = ', '.join([str(int.from_bytes(bytes(self.colors[i]), byteorder='big')) for i in range(self.num)])
+
+
+class colorSpeciesBox(QHBoxLayout):
+    def __init__(self, parent, species):
+        super(colorSpeciesBox, self).__init__()
+        self.parent = parent
+        self.species = list(species)
+        self.num = len(species)
+        self.ind = 0
+        self.init_colors()
+        self.showSpecies = QCheckBox('species profiles:')
+        self.showSpecies.setChecked(self.parent.show_species_colors)
+        self.showSpecies.clicked[bool].connect(self.setSpecies)
+        self.addWidget(self.showSpecies)
+        self.choseSpecies = QComboBox()
+        self.choseSpecies.setFixedSize(80, 30)
+        self.choseSpecies.addItems(species)
+        self.choseSpecies.currentTextChanged.connect(self.changedSpecies)
+        self.choseSpecies.setCurrentIndex(self.ind)
+        self.addWidget(self.choseSpecies)
+        self.speciesColor = pg.ColorButton(self.parent)
+        self.speciesColor.setFixedSize(30, 30)
+        self.speciesColor.setColor(color=self.colors[self.ind])
+        self.speciesColor.sigColorChanged.connect(partial(self.setColor))
+        self.addWidget(self.speciesColor)
+        self.addStretch(1)
+        self.addWidget(QLabel('Set:'))
+        self.default = QPushButton("default")
+        self.default.setFixedSize(60, 30)
+        self.default.pressed.connect(partial(self.set_default, kind='tab'))
+        self.addWidget(self.default)
+        self.cmap = QComboBox()
+        self.cmap.setFixedSize(80, 30)
+        cmaplist = ['rainbow', 'viridis', 'plasma', 'inferno', 'magma', 'cividis', 'spring', 'summer', 'autumn', 'winter', 'cool', 'Wistia', 'PiYG', 'PRGn', 'BrBG', 'PuOr', 'RdGy', 'RdBu',
+            'RdYlBu', 'RdYlGn', 'Spectral', 'coolwarm', 'bwr', 'seismic', 'twilight', 'twilight_shifted', 'hsv', 'flag', 'prism', 'ocean', 'gist_earth', 'terrain', 'gist_stern',
+            'gnuplot', 'gnuplot2', 'CMRmap', 'cubehelix', 'brg', 'gist_rainbow', 'jet', 'nipy_spectral', 'gist_ncar']
+        self.cmap.addItems([''] + [j for i in [[cmap, cmap + '_r'] for cmap in cmaplist] for j in i])
+        self.cmap.currentTextChanged.connect(self.set_default)
+        self.addWidget(self.cmap)
+        self.comp_uniform = pg.ColorButton(self.parent)
+        self.comp_uniform.setFixedSize(30, 30)
+        self.comp_uniform.sigColorChanged.connect(partial(self.setUniformColors))
+        self.addWidget(self.comp_uniform)
+        #self.comp_uniform.setColor(color)
+
+    def init_colors(self):
+        #print(self.num)
+        self.colors = [''] * self.num
+        if len(self.parent.species_colors.split(',')) < self.num:
+            self.get_default()
+        #print(self.colors)
+        #print(self.parent.comp_colors.split(','))
+        for i, c in enumerate(self.parent.species_colors.split(',')):
+            #print(i, c)
+            #print(tuple(int(c.strip()).to_bytes(4, byteorder='big')))
+            if i < self.num:
+                if c.strip() != '':
+                    self.colors[i] = tuple(int(c.strip()).to_bytes(4, byteorder='big'))
+                else:
+                    self.colors[i] = 000000 #, tuple(int(111111).to_bytes(4, byteorder='big'))
+        #print(self.colors)
+        self.saveColors()
+
+    def changedSpecies(self):
+        self.ind = self.species.index(self.choseSpecies.currentText())
+        self.speciesColor.setColor(self.colors[self.ind])
+
+    def setSpecies(self):
+        self.parent.show_species_colors = int(self.showSpecies.isChecked())
+        if self.parent.show_species_colors:
+            self.parent.parent.s.calcFitSpecies()
+
+    def get_default(self, kind='tab'):
+        if kind != 'tab':
+            cmap = cm.get_cmap(kind)
+            color = cmap(np.linspace(0, 0.85, self.num))
+        color_tab = ['tab:blue', 'tab:green', 'tab:orange', 'tab:purple', 'tab:cyan', 'tab:pink', 'tab:gray',
+                     'tab:olive', 'tab:brown', 'tab:red', 'dodgerblue']
+        for i in range(self.num):
+            if kind == 'tab':
+                k = i if i < len(color_tab) else i % len(color_tab)
+                self.colors[i] = tuple([int(c * 255) for c in mcolors.to_rgba(color_tab[k])])
+            else:
+                self.colors[i] = tuple([int(max(0, c - 0.20)*255) for c in color[i][:3]] + [255])
+
+    def set_default(self, kind='tab'):
+        self.get_default(kind=kind)
+        self.speciesColor.setColor(self.colors[self.ind])
+
+    def setUniformColors(self, color):
+        color = tuple([int(c*255) for c in color.color(mode="float")])
+        for i in range(self.num):
+            self.colors[i] = color[:]
+        self.speciesColor.setColor(self.colors[self.ind])
+        self.saveColors()
+
+    def setColor(self, color):
+        self.colors[self.ind] = tuple([int(c*255) for c in color.color(mode="float")])
+        self.saveColors()
+
+    def saveColors(self):
+        # note: self.colors is the list of the tuples in RGBA format, i.e. (255, 255, 255, 255)
+        self.parent.species_colors = ', '.join([str(int.from_bytes(bytes(self.colors[i]), byteorder='big')) for i in range(self.num)])
+        print('saveColors:', self.parent.species_colors)
+        self.parent.parent.options('species_colors', self.parent.species_colors)

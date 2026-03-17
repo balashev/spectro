@@ -138,7 +138,7 @@ class Speclist(list):
             s.normalize(action=action)
         self.redraw()
 
-    def prepareFit(self, ind=-1, exp_ind=-1, all=True, selected_line=None):
+    def prepareFit(self, ind=-1, exp_ind=-1, all=True, selected_species=None, selected_line=None):
         self.parent.fit.update()
 
         if self.parent.fitType == 'julia':
@@ -149,7 +149,7 @@ class Speclist(list):
 
         for i, s in enumerate(self):
             if exp_ind in [-1, i]:
-                s.findFitLines(ind, all=all, debug=False, selected_line=selected_line)
+                s.findFitLines(ind, all=all, debug=False, selected_species=selected_species, selected_line=selected_line)
 
         if self.parent.fitType == 'julia':
             self.parent.julia_spec = self.parent.julia.prepare(self, self.parent.julia_pars, self.parent.julia_add, self.parent.julia_cos)
@@ -171,7 +171,7 @@ class Speclist(list):
                         s.calcFit_uniform(ind=ind, recalc=recalc, redraw=redraw, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit, timer=timer)
 
                     elif self.parent.fitType == 'julia':
-                        s.calcFit_julia(comp=ind, recalc=recalc, redraw=redraw, tau_limit=self.parent.tau_limit, timer=timer)
+                        s.calcFit_julia(comp=ind, redraw=redraw, timer=timer)
 
                 else:
                     s.set_fit(x=self[self.ind].spec.raw.x[self[self.ind].cont_mask], y=np.ones_like(self[self.ind].spec.raw.x[self[self.ind].cont_mask]))
@@ -196,10 +196,30 @@ class Speclist(list):
                             s.calcFit_uniform(ind=sys.ind, recalc=recalc, num_between=self.parent.num_between, tau_limit=self.parent.tau_limit)
 
                         elif self.parent.fitType == 'julia':
-                            s.calcFit_julia(comp=sys.ind, recalc=recalc, tau_limit=self.parent.tau_limit, timer=False)
+                            s.calcFit_julia(comp=sys.ind, timer=False)
 
                 elif len(self.parent.fit.sys) == 1:
                         s.set_fit_comp(x=s.fit.x(), y=s.fit.y(), ind=0)
+
+    def calcFitSpecies(self, ind=-1, exp_ind=-1):
+        for i, s in enumerate(self):
+            s.fit_species = {}
+
+        for sp in self.parent.fit.list_species():
+            self.prepareFit(ind=ind, exp_ind=exp_ind, selected_species=sp)
+            for i, s in enumerate(self):
+                if s.spec.norm.n > 0 and s.cont.n > 0:
+                    # >>> calculate the intrinsic absorption line spectrum
+                    x, flux, bins, binned = self.parent.julia.calc_spectrum(self.parent.julia_spec[i],
+                                                                            self.parent.julia_pars,
+                                                                            comp=0,
+                                                                            grid_type=self.parent.options("julia_grid"),
+                                                                            grid_num=int(self.parent.options("julia_grid_num")),
+                                                                            binned=self.parent.options("julia_binned"),
+                                                                            telluric=self.parent.options("telluric"),
+                                                                            tau_limit=self.parent.tau_limit,
+                                                                            accuracy=self.parent.accuracy)
+                    s.fit_species[sp] = [np.asarray(x), np.asarray(flux)]
 
     def reCalcFit(self, ind=-1, exp_ind=-1):
         #self.prepareFit(ind=-1)
@@ -1466,8 +1486,6 @@ class Spectrum():
         if v2 == None:
             v2 = v
         self.resolution_linear = [v, v2]
-        print(self.resolution_linear)
-        print(self.resolution)
         self.resolution_inter = interp1d([self.spec.raw.x[0], self.spec.raw.x[-1]], self.resolution_linear, fill_value="extrapolate")
 
     def resolution(self, x=None, out='value'):
@@ -1484,6 +1502,7 @@ class Spectrum():
         elif out == 'spv':
             return f"{self.resolution_linear[0]}" if self.resolution_linear[0] == self.resolution_linear[1] else f"{self.resolution_linear[0]}..{self.resolution_linear[1]}"
         elif out == 'value':
+            #print("res_linear:", self.resolution_linear)
             if x is None:
                 x = (self.spec.raw.x[-1] + self.spec.raw.x[0]) / 2
             return self.resolution_inter(x)
@@ -2213,7 +2232,7 @@ class Spectrum():
         #print(disp_coeff, type(disp_coeff))
         return pix, lsf_wvlns, np.lib.recfunctions.structured_to_unstructured(lsf.as_array()), disp_coeff
 
-    def findFitLines(self, ind=-1, tlim=0.01, all=True, debug=True, selected_line=None):
+    def findFitLines(self, ind=-1, tlim=0.01, all=True, debug=True, selected_species=None, selected_line=None):
         """
         Function to prepare lines to fit.
           - ind         : specify component to fit
@@ -2239,42 +2258,43 @@ class Spectrum():
             for sys in self.parent.fit.sys:
                 if ind == -1 or sys.ind == ind:
                     for sp in sys.sp.keys():
-                        lin = self.parent.atomic.list(sp)
-                        for l in lin:
-                            if selected_line is None or l == selected_line:
-                                if str(l) not in sys.exclude:
-                                    l.b = sys.sp[sp].b.val
-                                    l.logN = sys.sp[sp].N.val
-                                    l.z = sys.z.val
-                                    l.recalc = True
-                                    l.sys = sys.ind
-                                    l.range = tau(l, resolution=self.resolution()).getrange(tlim=tlim)
-                                    l.cf = -1
-                                    if self.parent.fit.cf_fit:
-                                        for i in range(self.parent.fit.cf_num):
-                                            cf = getattr(self.parent.fit, 'cf_'+str(i))
-                                            cf_sys = cf.addinfo.split('_')[0]
-                                            if cf_sys == 'all':
-                                                cf_sys = np.arange(len(self.parent.fit.sys))
-                                            else:
-                                                cf_sys = [int(s) for s in cf_sys.split('sys')[1:]]
-                                            cf_exp = cf.addinfo.split('_')[1] if len(cf.addinfo.split('_')) > 1 else 'all'
-                                            if (sys.ind in cf_sys) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l()*(1+l.z) > cf.left and l.l()*(1+l.z) < cf.right:
-                                                l.cf = i
-                                    l.stack = -1
-                                    if self.parent.fit.stack_num > 0:
-                                        for i in range(self.parent.fit.stack_num):
-                                            st = self.parent.fit.getValue('sts_'+str(i), 'addinfo')
-                                            if st.strip() == 'N_{0:d}_{1:s}'.format(l.sys, sp.strip()):
-                                                l.stack = i
+                        if selected_species is None or sp == selected_species:
+                            lin = self.parent.atomic.list(sp)
+                            for l in lin:
+                                if selected_line is None or l == selected_line:
+                                    if str(l) not in sys.exclude:
+                                        l.b = sys.sp[sp].b.val
+                                        l.logN = sys.sp[sp].N.val
+                                        l.z = sys.z.val
+                                        l.recalc = True
+                                        l.sys = sys.ind
+                                        l.range = tau(l, resolution=self.resolution()).getrange(tlim=tlim)
+                                        l.cf = -1
+                                        if self.parent.fit.cf_fit:
+                                            for i in range(self.parent.fit.cf_num):
+                                                cf = getattr(self.parent.fit, 'cf_'+str(i))
+                                                cf_sys = cf.addinfo.split('_')[0]
+                                                if cf_sys == 'all':
+                                                    cf_sys = np.arange(len(self.parent.fit.sys))
+                                                else:
+                                                    cf_sys = [int(s) for s in cf_sys.split('sys')[1:]]
+                                                cf_exp = cf.addinfo.split('_')[1] if len(cf.addinfo.split('_')) > 1 else 'all'
+                                                if (sys.ind in cf_sys) and (cf_exp == 'all' or self.ind() == int(cf_exp[3:])) and l.l()*(1+l.z) > cf.left and l.l()*(1+l.z) < cf.right:
+                                                    l.cf = i
+                                        l.stack = -1
+                                        if self.parent.fit.stack_num > 0:
+                                            for i in range(self.parent.fit.stack_num):
+                                                st = self.parent.fit.getValue('sts_'+str(i), 'addinfo')
+                                                if st.strip() == 'N_{0:d}_{1:s}'.format(l.sys, sp.strip()):
+                                                    l.stack = i
 
-                                    if all:
-                                        #if l.range[0] < x[-1] and l.range[1] > x[0]:
-                                        if np.sum(l.range) / 2 < x[-1] and np.sum(l.range) / 2 > x[0]:
-                                            self.fit_lines += [l]
-                                    else:
-                                        if np.sum(np.logical_and(x >= l.range[0], x <= l.range[1])) > 0:
-                                            self.fit_lines += [l]
+                                        if all:
+                                            #if l.range[0] < x[-1] and l.range[1] > x[0]:
+                                            if np.sum(l.range) / 2 < x[-1] and np.sum(l.range) / 2 > x[0]:
+                                                self.fit_lines += [l]
+                                        else:
+                                            if np.sum(np.logical_and(x >= l.range[0], x <= l.range[1])) > 0:
+                                                self.fit_lines += [l]
         if debug:
             print('findFitLines', self.fit_lines, [l.cf for l in self.fit_lines])
 
@@ -2363,7 +2383,7 @@ class Spectrum():
             if timer:
                 t.time('set_fit')
 
-    def calcFit_julia(self, comp=-1, x=None, recalc=False, redraw=True, timer=True, tau_limit=0.01):
+    def calcFit_julia(self, comp=-1, redraw=True, timer=True):
         """
             calculate the absorption profile using Julia interface
            - comp            : specify the component for which fit is calculated
@@ -3248,7 +3268,7 @@ class CompositeSpectrum():
 
     def setData(self):
         if self.type == 'QSO':
-            self.qso_names = ['X-shooter', 'SDSS', 'VandenBerk',  'HST', 'power', 'power+FeII']
+            self.names = ['X-shooter', 'SDSS', 'VandenBerk',  'HST', 'power', 'power+FeII']
             if self.parent.compositeQSO_status == 1:
                 self.spec = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r'/data/SDSS/Selsing2016.dat', skip_header=0, unpack=True)
                 self.spec = self.spec[:, np.logical_or(self.spec[1] != 0, self.spec[1] != 0)]
@@ -3283,7 +3303,8 @@ class CompositeSpectrum():
                     fe_uv = interp1d(10 ** fe_uv[0], convolveflux(10 ** fe_uv[0], fe_uv[1] * 5e13, res=100, vel=False, kind='gauss'), bounds_error=False, fill_value=0)
                     print(self.spec[0][2000], self.spec[1][2000], fe_uv(self.spec[0][2000]), fe_opt(self.spec[0][2000]))
                     self.spec[1] += fe_uv(self.spec[0]) + fe_opt(self.spec[0])
-            self.parent.statusBar.setText(f'QSO template {self.qso_names[self.parent.compositeQSO_status // 2]} is loaded' )
+            self.parent.statusBar.setText(f'QSO template {self.names[self.parent.compositeQSO_status // 2]} is loaded' )
+
         elif self.type == 'Galaxy':
             #print('gal_status: ', self.parent.compositeGal_status)
             if self.parent.compositeGal_status % 2:
@@ -3291,20 +3312,22 @@ class CompositeSpectrum():
                     f = fits.open(os.path.dirname(os.path.realpath(__file__)) + f"/data/SDSS/spDR2-0{23 + self.parent.compositeGal_status // 2}.fit")
                     self.spec = 10 ** (f[0].header['COEFF0'] + f[0].header['COEFF1'] * np.arange(f[0].header['NAXIS1'])), f[0].data[0]
                 else:
-                    self.gal_names = ['S0', 'Sa', 'Sb', 'Sc', 'Sd', 'Sdm', 'Ell2', 'Ell5', 'Ell13', 'Sey2', 'Sey18']
-                    self.spec = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + f'/data/SDSS/{self.gal_names[self.parent.compositeGal_status // 2]}_template_norm.sed', unpack=True)
-                    self.parent.statusBar.setText(f'Galaxy composite loaded {self.gal_names[self.parent.compositeGal_status // 2]}_template_norm.sed')
+                    self.names = ['S0', 'Sa', 'Sb', 'Sc', 'Sd', 'Sdm', 'Ell2', 'Ell5', 'Ell13', 'Sey2', 'Sey18']
+                    self.spec = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + f'/data/SDSS/{self.names[self.parent.compositeGal_status // 2]}_template_norm.sed', unpack=True)
+                    self.parent.statusBar.setText(f'Galaxy composite loaded {self.names[self.parent.compositeGal_status // 2]}_template_norm.sed')
 
     def draw(self):
         #self.gline = pg.PlotCurveItem(x=self.spec[0] * (1 + self.z), y=self.spec[1] * (1 + self.f), pen=pg.mkPen(color=self.color, width=2), clickable=True)
         self.gline = CompositeGraph(self, x=self.spec[0] * (1 + self.z), y=self.spec[1] * self.f, pen=self.pen, clickable=True)
         self.gline.sigClicked.connect(self.lineClicked)
         self.parent.vb.addItem(self.gline)
-        self.parent.statusBar.setText("Composite redshift is z={0:7.5f} and Av={1:5.3f}".format(self.z, self.av))
+        ind_name = self.parent.compositeQSO_status // 2 if self.type == 'QSO' else self.parent.compositeGal_status // 2
+        self.parent.statusBar.setText("Composite {2:s} at redshift z={0:7.5f} and with Av={1:5.3f}".format(self.z, self.av, self.names[ind_name]))
 
     def redraw(self):
         self.gline.setData(x=self.spec[0] * (1 + self.z), y=self.spec[1] * self.f * add_ext(self.spec[0], z_ext=0, Av=self.av, kind='SMC'))
-        self.parent.statusBar.setText("Composite redshift is z={0:7.5f} and Av={1:5.3f}".format(self.z, self.av))
+        ind_name = self.parent.compositeGal_status // 2 if self.type == 'QSO' else self.parent.compositeGal_status // 2
+        self.parent.statusBar.setText("Composite {2:s} at redshift z={0:7.5f} and with Av={1:5.3f}".format(self.z, self.av, self.names[ind_name]))
 
         #self.label.redraw()
 
@@ -3325,7 +3348,7 @@ class CompositeSpectrum():
                 self.parent.compositeQSO_status = 0
         if self.type == 'Galaxy':
             self.parent.compositeGal_status += 1
-            if self.parent.compositeGal_status == len(self.gal_names) * 2: #12:
+            if self.parent.compositeGal_status == len(self.names) * 2: #12:
                 self.parent.compositeGal_status = 0
 
         if self.gline in self.parent.vb.addedItems:

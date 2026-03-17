@@ -104,7 +104,11 @@ class tau:
                 if k in ['l', 'f', 'g']:
                     setattr(self, k, getattr(line, k)())
                 else:
-                    setattr(self, k, getattr(line, k))
+                    if getattr(line, k) is not None:
+                        setattr(self, k, getattr(line, k))
+                    else:
+                        setattr(self, k, locals()[k])
+
         self.resolution = resolution
         self.update()
 

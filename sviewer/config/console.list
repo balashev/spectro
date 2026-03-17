@@ -1,21 +1,21 @@
-show COj2
-show COj3
-show CO
-show CO
-show CO
-high H2j1
-show H2j0
-show H2j0
-show H2 0 1 2 3 4
-high H2j1
-show H2j1
-high H2j1
-show CrII
+SII
 show ZnII
-show FeII
-high COJ5
-high COj5
-Texc 
-Texc 0 1 2 3
-Texc 0 1
-Texc 0 1 2
+Me Si
+Me Si 21
+Me SiII 21
+Me FeII 21
+Me ZnII 21
+Me ZnII 21
+Me ZnII 21
+Me ZnII 21
+Me FeII 21
+Me SiII 21
+Me AlII 21
+Me AlII 21
+Me SiII 21
+Me FeII 21
+Me ZnII 21
+show H2j8
+high H2j8
+show H2j9
+HD

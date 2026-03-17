@@ -682,10 +682,11 @@ class fitPars:
         return [str(par) for par in self.list()]
 
     def list_species(self):
-        species = set()
+        species = []
         for sys in self.sys:
-            species.update(list(sys.sp.keys()))
-
+            for sp in sys.sp.keys():
+                if sp not in species:
+                    species.append(sp)
         return species
 
     def pars(self, ind=None):
