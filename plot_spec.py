@@ -397,9 +397,9 @@ class data():
         self.x = x
         self.y = y
 
-    def mask(self, xmin, xmax):
-        imin = max(0, bisect_left(self.x, xmin)-1)
-        imax = min(len(self.x), bisect_left(self.x, xmax)+1)
+    def mask(self, xmin, xmax, indent=1):
+        imin = max(0, bisect_left(self.x, xmin)-indent)
+        imax = min(len(self.x), bisect_left(self.x, xmax)+indent)
         mask = np.zeros_like(self.x, dtype=bool)
         mask[imin:imax] = True
         #mask = np.logical_and(self.x > xmin, self.x < xmax)
@@ -825,7 +825,8 @@ class plotline():
             self.fit.x = (self.fit.x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
 
         # >>> mask only selected wavelength range
-        self.fit.mask(self.x_min, self.x_max)
+        self.fit.mask(self.x_min, self.x_max, indent=1-self.show_telluric)
+        print('fit:', self.fit.x)
 
         # >>> plot fit components
         if self.show_comps:
@@ -833,7 +834,7 @@ class plotline():
                 if self.fit_disp is None:
                     if self.vel_scale:
                         self.fit_comp[k].x = (self.fit_comp[k].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
-                    self.fit_comp[k].mask(self.x_min, self.x_max)
+                    self.fit_comp[k].mask(self.x_min, self.x_max, indent=1-self.show_telluric)
                     self.ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
                     if self.parent.grad_fill and self.parent.grad_fill_comps:
                         gradient_fill(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], alpha=self.parent.grad_fill_down, alpha_min=self.parent.grad_fill_up, lw=0, zorder=1)
@@ -841,8 +842,8 @@ class plotline():
                     if self.vel_scale:
                         self.fit_comp_disp[k][0].x = (self.fit_comp_disp[k][0].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
                         self.fit_comp_disp[k][1].x = (self.fit_comp_disp[k][1].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
-                    self.fit_comp_disp[k][0].mask(self.x_min, self.x_max)
-                    self.fit_comp_disp[k][1].mask(self.x_min, self.x_max)
+                    self.fit_comp_disp[k][0].mask(self.x_min, self.x_max, indent=1-self.show_telluric)
+                    self.fit_comp_disp[k][1].mask(self.x_min, self.x_max, indent=1-self.show_telluric)
                     self.ax.fill_between(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, self.fit_comp_disp[k][1].y, fc=self.parent.color[k], alpha=self.parent.disp_alpha, zorder=11)
                     self.ax.plot(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][0].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
                     self.ax.plot(self.fit_comp_disp[k][0].x, self.fit_comp_disp[k][1].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
@@ -851,7 +852,7 @@ class plotline():
             for sp, color in self.parent.color_species.items():
                 if self.vel_scale:
                     self.fit_species[sp].x = (self.fit_species[sp].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
-                self.fit_species[sp].mask(self.x_min, self.x_max)
+                self.fit_species[sp].mask(self.x_min, self.x_max, indent=1-self.show_telluric)
                 self.ax.plot(self.fit_species[sp].x, self.fit_species[sp].y, color=color, ls=self.parent.ls[0], lw=self.parent.lw[0], zorder=10)
                 if self.parent.grad_fill and self.parent.grad_fill_comps:
                     gradient_fill(self.fit_species[sp].x, self.fit_species[sp].y, color=color,
@@ -867,8 +868,8 @@ class plotline():
             if self.vel_scale:
                 self.fit_disp[0].x = (self.fit_disp[0].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
                 self.fit_disp[1].x = (self.fit_disp[1].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
-            self.fit_disp[0].mask(self.x_min, self.x_max)
-            self.fit_disp[1].mask(self.x_min, self.x_max)
+            self.fit_disp[0].mask(self.x_min, self.x_max, indent=1-self.show_telluric)
+            self.fit_disp[1].mask(self.x_min, self.x_max, indent=1-self.show_telluric)
             self.ax.fill_between(self.fit_disp[0].x, self.fit_disp[0].y, self.fit_disp[1].y, fc=self.parent.color_total, alpha=self.parent.disp_alpha, zorder=16)
             self.ax.plot(self.fit_disp[0].x, self.fit_disp[0].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=15)
             self.ax.plot(self.fit_disp[0].x, self.fit_disp[1].y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=15)
