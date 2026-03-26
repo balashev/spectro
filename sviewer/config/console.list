@@ -1,21 +1,21 @@
-Me SiII 21
-Me FeII 21
-Me ZnII 21
-Me ZnII 21
-Me ZnII 21
-Me ZnII 21
-Me FeII 21
-Me SiII 21
-Me AlII 21
-Me AlII 21
-Me SiII 21
-Me FeII 21
-Me ZnII 21
-show H2j8
-high H2j8
-show H2j9
-HD
-high H2j2
-logN H2
-show HD
-show HDj1
+stats
+rescale err 0.7
+stats
+stats
+show CH
+CH
+show CH+
+show CH+
+stats
+rescale err 0.5
+CH+
+CH
+CH+
+CH+
+show CH
+show CH+
+CH+
+CH
+show CH
+show CH+
+CH+

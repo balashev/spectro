@@ -58,7 +58,7 @@ class rect_param():
         self.order = order
 
 
-def gradient_fill(x, y, fill_color=None, ax=None, direction='down', alpha=1.0, alpha_min=0.0, **kwargs):
+def gradient_fill(x, y, direction=0, fill_color=None, ax=None, alpha=1.0, alpha_min=0.0, **kwargs):
     """
     Plot a line with a linear alpha gradient filled beneath it.
 
@@ -66,6 +66,9 @@ def gradient_fill(x, y, fill_color=None, ax=None, direction='down', alpha=1.0, a
     ----------
     x, y : array-like
         The data values of the line.
+    direction: {0, 1}
+        Specify the region of the gradient, i.e.
+        0: above the line (kind of absorption lines), 1: below the line (emission lines)
     fill_color : a matplotlib color specifier (string, tuple) or None
         The color for the fill. If None, the color of the line will be used.
     ax : a matplotlib Axes instance
@@ -93,20 +96,17 @@ def gradient_fill(x, y, fill_color=None, ax=None, direction='down', alpha=1.0, a
     z = np.empty((100, 1, 4), dtype=float)
     rgb = mcolors.colorConverter.to_rgb(fill_color)
     z[:,:,:3] = rgb
-    if direction == 'down':
-        z[:,:,-1] = np.linspace(alpha, alpha_min, 100)[:,None]
-    elif direction == 'up':
-        z[:,:,-1] = np.linspace(alpha_min, alpha, 100)[:, None]
+    z[:,:,-1] = np.linspace(alpha, alpha_min, 100)[:,None]
 
     x, y = np.asarray(x), np.asarray(y)
     xmin, xmax, ymin, ymax = x.min(), x.max(), y.min(), y.max()
-    print(xmin, xmax, ymin, ymax)
     im = ax.imshow(z, aspect='auto', extent=[xmin, xmax, ymin, ymax],
                    origin='lower', zorder=zorder)
-
-    xy = np.column_stack([x, y])
+    v = 1 - direction # or direction * ymax + (1 - direction) * ymin
+    xy = np.column_stack([np.concatenate([[xmin], x, [xmax]]), np.concatenate([[v], y, [v]])])
     #xy = np.vstack([[xmin, ymax], xy, [xmax, ymax], [xmin, ymax]])
     xy = np.vstack([xy, xy[0]])
+    #print(xy)
     clip_path = Polygon(xy, facecolor='none', edgecolor='none', closed=True)
     ax.add_patch(clip_path)
     im.set_clip_path(clip_path)
@@ -279,6 +279,7 @@ class plot_spec(list):
         self.ind_lw = ind_lw
         self.tell_fill = tell_fill
         self.add_lines = float(add_lines) if add_lines.replace('.','',1).replace('-', '').isdigit() else 0
+        print("add_lines:", self.add_lines)
         self.add_ls = add_ls
         self.disp_alpha = disp_alpha
         self.res_style = res_style
@@ -826,7 +827,6 @@ class plotline():
 
         # >>> mask only selected wavelength range
         self.fit.mask(self.x_min, self.x_max, indent=1-self.show_telluric)
-        print('fit:', self.fit.x)
 
         # >>> plot fit components
         if self.show_comps:
@@ -837,7 +837,7 @@ class plotline():
                     self.fit_comp[k].mask(self.x_min, self.x_max, indent=1-self.show_telluric)
                     self.ax.plot(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], ls=self.parent.ls[k], lw=self.parent.lw[k], zorder=10)
                     if self.parent.grad_fill and self.parent.grad_fill_comps:
-                        gradient_fill(self.fit_comp[k].x, self.fit_comp[k].y, color=self.parent.color[k], alpha=self.parent.grad_fill_down, alpha_min=self.parent.grad_fill_up, lw=0, zorder=1)
+                        gradient_fill(self.fit_comp[k].x, self.fit_comp[k].y, direction=self.parent.grad_fill-1, color=self.parent.color[k], alpha=self.parent.grad_fill_down, alpha_min=self.parent.grad_fill_up, lw=0, zorder=1)
                 else:
                     if self.vel_scale:
                         self.fit_comp_disp[k][0].x = (self.fit_comp_disp[k][0].x / self.wavelength / (1 + self.parent.z_ref) - 1) * 299794.26
@@ -855,14 +855,14 @@ class plotline():
                 self.fit_species[sp].mask(self.x_min, self.x_max, indent=1-self.show_telluric)
                 self.ax.plot(self.fit_species[sp].x, self.fit_species[sp].y, color=color, ls=self.parent.ls[0], lw=self.parent.lw[0], zorder=10)
                 if self.parent.grad_fill and self.parent.grad_fill_comps:
-                    gradient_fill(self.fit_species[sp].x, self.fit_species[sp].y, color=color,
-                                  alpha=self.parent.grad_fill_down, alpha_min=self.parent.grad_fill_up, lw=0, zorder=1)
+                    gradient_fill(self.fit_species[sp].x, self.fit_species[sp].y, direction=self.parent.grad_fill-1, color=color, alpha=self.parent.grad_fill_down, alpha_min=self.parent.grad_fill_up, lw=0, zorder=1)
+
         # >>> plot joint fit
         if self.fit_disp is None:
             self.ax.plot(self.fit.x, self.fit.y, color=self.parent.color_total, ls=self.parent.ls_total, lw=self.parent.lw_total, zorder=15)
-            print("grad", self.parent.grad_fill)
+            #print("grad", self.parent.grad_fill)
             if self.parent.grad_fill and not self.parent.grad_fill_comps:
-                gradient_fill(self.fit.x, self.fit.y, color=self.parent.color_total, alpha=self.parent.grad_fill_down, alpha_min=self.parent.grad_fill_up, lw=0, zorder=1)
+                gradient_fill(self.fit.x, self.fit.y, direction=self.parent.grad_fill-1, color=self.parent.color_total, alpha=self.parent.grad_fill_down, alpha_min=self.parent.grad_fill_up, lw=0, zorder=1)
         else:
             # >>> plot fit dispersion
             if self.vel_scale:

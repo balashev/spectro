@@ -101,7 +101,7 @@ class plotSpectrum(pg.PlotWidget):
         self.getPlotItem().sigRangeChanged.connect(self.updateVelocityAxis)
 
     def initstatus(self):
-        for l in 'abcdehiklmprsuwxyz':
+        for l in 'abcdeghiklmprsuwxyz':
             setattr(self, l+"_status", False)
         self.mouse_moved = False
         self.saveState = None
@@ -264,7 +264,7 @@ class plotSpectrum(pg.PlotWidget):
 
             if event.key() == Qt.Key.Key_G:
                 self.g_status = True
-                self.parent.fitGauss(kind='integrate')
+                #self.parent.fitGauss(kind='integrate')
 
             if event.key() == Qt.Key.Key_H:
                 self.h_status = True
@@ -439,6 +439,9 @@ class plotSpectrum(pg.PlotWidget):
             if event.key() == Qt.Key.Key_E:
                 self.e_status = False
 
+            if event.key() == Qt.Key.Key_G:
+                self.g_status = False
+
             if event.key() == Qt.Key.Key_H:
                 self.h_status = False
 
@@ -579,7 +582,10 @@ class plotSpectrum(pg.PlotWidget):
                     if self.mousePoint.y() != self.mousePoint_saved.y():
                         sp = self.parent.fit.sys[self.parent.comp].sp[self.parent.abs.reference.line.name]
                         # sp.b.set(sp.b.val + (self.mousePoint_saved.x() / self.mousePoint.x() - 1) * 299794.26)
-                        sp.N.set(sp.N.val + np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * 2 * np.abs((self.mousePoint_saved.y() - self.mousePoint.y()) / (self.viewRange()[1][-1] - self.viewRange()[1][0])))
+                        if sp.type == "abs":
+                            sp.N.set(sp.N.val + np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * 2 * np.abs((self.mousePoint_saved.y() - self.mousePoint.y()) / (self.viewRange()[1][-1] - self.viewRange()[1][0])))
+                        elif sp.type == "em":
+                            sp.I.set(sp.I.val - np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * 2 * np.abs((self.mousePoint_saved.y() - self.mousePoint.y()) / (self.viewRange()[1][-1] - self.viewRange()[1][0])))
                     try:
                         self.parent.fitModel.refresh()
                     except:
@@ -597,6 +603,9 @@ class plotSpectrum(pg.PlotWidget):
             else:
                 self.c_status = 0
             #    pass
+
+        if self.g_status:
+            self.parent.fitGauss(kind='integrate', add=1 - 2 * (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier), pos=self.mousePoint.x())
 
         if self.i_status:
             self.parent.console.exec_command('show HI')
@@ -1983,8 +1992,9 @@ class showLinesWidget(QWidget):
         self.lscomp.currentIndexChanged.connect(self.onCompLsChoose)
         grid.addWidget(self.lscomp, 13, 4)
 
-        self.gradfill = QCheckBox('show')
-        self.gradfill.setChecked(self.grad_fill)
+        self.gradfill = QCheckBox("")
+        self.gradfill.setChecked(self.grad_fill > 0)
+        self.gradfill.setText({0: "show", 1: "abs", 2: "em"}[self.grad_fill])
         self.gradfill.clicked[bool].connect(self.setGradFill)
         grid.addWidget(self.gradfill, 14, 1)
 
@@ -2244,7 +2254,12 @@ class showLinesWidget(QWidget):
         self.show_comps = int(self.plotcomps.isChecked())
 
     def setGradFill(self):
-        self.grad_fill = int(self.gradfill.isChecked())
+        self.grad_fill += 1
+        if self.grad_fill > 2:
+            self.grad_fill = 0
+        self.gradfill.setText({0: "show", 1: "abs", 2: "em"}[self.grad_fill])
+        self.gradfill.setChecked(self.grad_fill > 0)
+
 
     def setGradFillComps(self):
         self.grad_fill_comps = int(self.gradfillcomps.isChecked())
@@ -7604,12 +7619,12 @@ class sviewer(QMainWindow):
 
         CompositeQSO = QAction('&QSO composite', self)
         CompositeQSO.setStatusTip('Show composite qso spectrum')
-        CompositeQSO.setShortcut('Ctrl+Q')
+        CompositeQSO.setShortcut('Shift+Q')
         CompositeQSO.triggered.connect(partial(self.showCompositeQSO))
 
         CompositeGal = QAction('&Galaxy template', self)
         CompositeGal.setStatusTip('Show galaxy template spectrum')
-        CompositeGal.setShortcut('Ctrl+G')
+        CompositeGal.setShortcut('Shift+G')
         CompositeGal.triggered.connect(partial(self.showCompositeGal))
 
         rescaleErrs = QAction('&Adjust errors', self)
@@ -7939,7 +7954,7 @@ class sviewer(QMainWindow):
         self.atomic.readdatabase()
         self.abs = absSystemIndicator(self)
         for s in ['H2', 'DLAmajor', 'DLA', 'Molec', 'SF']:
-            self.absLines('abs_'+s+'_status', value=getattr(self, 'abs_'+s+'_status'))
+            self.absLines('abs_' + s + '_status', value=getattr(self, 'abs_' + s + '_status'))
 
         filename = self.options('loadfile', config=self.config)
         if os.path.exists(filename):
@@ -8667,11 +8682,23 @@ class sviewer(QMainWindow):
                             scale = 10 if prihdr[0][0][0] < 2000 else 1
                             s.set_data([prihdr[0][0][:] * scale, prihdr[0][1][:] * 1e17, prihdr[0][2][:] * 1e17])
 
-                        if any([instr in hdulist[0].header['INSTRUME'] for instr in ['UVES', 'VIMOS']]):
+                        if 'VIMOS' in hdulist[0].header['INSTRUME']:
                             prihdr = hdulist[1].data
                             l = prihdr[0][0][:]
-                            coef = 1e17 if 'VIMOS' in hdulist[0].header['INSTRUME'] else 1
+                            coef = 1e17
                             s.set_data([l, prihdr[0][1][:]*coef, prihdr[0][2][:]*coef])
+                            if 'SPEC_RES' in hdulist[0].header:
+                                s.set_resolution(hdulist[0].header['SPEC_RES'])
+                            if 'DATE-OBS' in hdulist[0].header:
+                                s.date = hdulist[0].header['DATE-OBS']
+
+                        if 'UVES' in hdulist[0].header['INSTRUME']:
+                            prihdr = hdulist[1].data
+                            h = hdulist[1].header
+                            f_ind = [int(k[-1:]) for k in h.keys() if ('TTYPE' in k) and h[k].strip() == "FLUX"][0]-1
+                            err_ind = [int(k[-1:]) for k in h.keys() if ('TTYPE' in k) and h[k].strip() == "ERR"][0]-1
+                            l = prihdr[0][0][:]
+                            s.set_data([l, prihdr[0][f_ind][:], prihdr[0][err_ind][:]])
                             if 'SPEC_RES' in hdulist[0].header:
                                 s.set_resolution(hdulist[0].header['SPEC_RES'])
                             if 'DATE-OBS' in hdulist[0].header:
@@ -8763,8 +8790,10 @@ class sviewer(QMainWindow):
                             prihdr = hdulist[1].data[0]
                             s.set_data([prihdr[0], prihdr[1] * 1e17, prihdr[2] * 1e17])
                         try:
-                            if corr:
+                            print("correction:", corr)
+                            if corr and 0:
                                 s.bary_vel = hdulist[0].header['HIERARCH ESO QC VRAD BARYCOR']
+                                print(s.bary_vel)
                                 s.apply_shift(s.bary_vel)
                                 s.airvac()
                                 s.spec.raw.interpolate()
@@ -8773,6 +8802,15 @@ class sviewer(QMainWindow):
                         #except:
                         #    print('fits file was not loaded')
                         #    return False
+                    elif  len(hdulist) > 1 and 'FIRE' in hdulist[1].header['INSTRUME']:
+                        #print("FIRE")
+                        d = np.asarray(hdulist[1].data)
+                        for k, dk in enumerate(d):
+                            #print(k)
+                            s = Spectrum(self, name=filename + f'_{k}')
+                            s.set_data([dk['WAVE'], dk['FX'], np.sqrt(dk['VAR'])])
+                            s.wavelmin, s.wavelmax = np.min(s.spec.raw.x), np.max(s.spec.raw.x)
+                            self.s.append(s)
 
                     elif 'TELESCOP' in hdulist[0].header:
                         if 'SDSS' in hdulist[0].header['TELESCOP']:
@@ -8819,7 +8857,7 @@ class sviewer(QMainWindow):
                         if hdulist[0].header['HIERARCH ESO PRO CATG'] == 'MOS_SCIENCE_REDUCED':
                             x = np.linspace(hdulist[0].header['CRVAL1'], hdulist[0].header['CRVAL1']+hdulist[0].header['CDELT1']*(hdulist[0].header['NAXIS1']-1), hdulist[0].header['NAXIS1'])
                             s.set_data([x, hdulist[0].data[0]*1e20, np.ones_like(x)])
-                    elif 'UVES_popler' in str(hdulist[0].header['HISTORY']):
+                    elif "HISTORY" in hdulist[0].header and 'UVES_popler' in str(hdulist[0].header['HISTORY']):
                         header = hdulist[0].header
                         if 'LOGLIN' in header['CTYPE1']:
                             x = 10 ** (header['CRVAL1'] + np.arange(header['NAXIS1'] + 1 - header['CRPIX1']) * header['CD1_1'])
@@ -9388,7 +9426,7 @@ class sviewer(QMainWindow):
                 self.panel.subtract.setChecked(self.normview)
                 self.panel.normalize.setEnabled(not self.normview)
                 self.panel.aod.setEnabled(not self.normview)
-                self.panel.fitbutton.setEnabled(not self.normview)
+                #self.panel.fitbutton.setEnabled(not self.normview)
             elif action == 'aod':
                 self.panel.aod.setChecked(self.normview)
                 self.panel.normalize.setEnabled(not self.normview)
@@ -10012,7 +10050,138 @@ class sviewer(QMainWindow):
             d.plot(conf=0.683)
         plt.show()
 
-    def fitGauss(self, kind='integrate'):
+    def fitGauss(self, type='lmfit', kind='integrate', add=1, pos=0):
+        """
+        fit spectrum with simple gaussian line (emission)
+        """
+        print(kind, add, pos)
+        s = self.s[self.s.ind]
+        n = np.sum(s.mask.x())
+        if n > 0:
+            def profile(x, params, kind='integrate'):
+                if kind == 'integrate':
+                    x_bin = np.insert(np.insert(x[:-1] + np.diff(x) / 2, 0, x[0] - (x[1] - x[0]) / 2), len(x), x[-1] + (x[-1] - x[-2]) / 2)
+                y = np.zeros_like(x)
+                for i in range(int(params / 3)):
+                    if kind == 'integrate':
+                        y += gauss_integ(x_bin, params[f'amp_{i}'].value, params[f'cen_{i}'].value,
+                                         params[f'disp_{i}'].value)
+                    if kind == 'integrate':
+                        y += gaussian(x, params[f'amp_{i}'].value, params[f'cen_{i}'].value, params[f'disp_{i}'].value)
+
+            def gaussian(x, amp, cen, disp):
+                """1-d gaussian: gaussian(x, amp, cen, disp)"""
+                return amp / ((2 * np.pi) ** 0.5 * disp) * np.exp(-(x - cen) ** 2 / (2 * disp ** 2))
+
+            def gauss_integ(x_int, amp, cen, disp):
+                errf = erf((x_int - cen) / np.sqrt(2) / disp)
+                return amp / 2 * (errf[1:] - errf[:-1]) / np.diff(x_int)
+
+            def fcn2min(params, x, y, err, cont, kind='integrate'):
+                return (y - cont - gaussian(x, params, kind=kind)) / err
+
+            x, y, err = np.array(s.spec.x()[s.mask.x()], dtype=float), np.array(s.spec.y()[s.mask.x()], dtype=float), np.array(s.spec.err()[s.mask.x()], dtype=float)
+            if self.normview:
+                cont = np.zeros_like(x, dtype=float)
+            else:
+                cont = np.array(s.cont.y[s.mask.x()[s.cont_mask]], dtype=float)
+            #np.savetxt('output/fit_gauss_spec.dat', np.c_[s.spec.x(), s.spec.y(), s.spec.err(), s.mask.x()])
+            #np.savetxt('output/fit_gauss_cont.dat', np.c_[s.cont.x, s.cont.y])
+            #np.savetxt('output/fit_gauss_data.dat', np.c_[x, y, err])
+
+            dy = (y - cont - profile(x, self.g_pars, kind=kind))
+            ymax = max(0, dy[np.argmin(np.abs(x - pos))])
+            
+            m = dy > ymax / 2
+            if len(x[m]) > 1:
+                fwhm = (x[m][-1] - x[m][0])
+            else:
+                fwhm = x[np.where(y == ymax)[0]] - x[np.where(y == ymax)[0]+1]
+                sigma = fwhm / 2 / np.sqrt(2 * np.log(2))
+                amp = ymax * np.sqrt(2 * np.pi) * sigma
+                #print(amp, sigma, mean, y - cont)
+
+
+
+                if self.g_pars is None:
+                    params = Parameters()
+                else:
+                    params = copy(self.g_pars)
+                    if add:
+                        names = ['amp', 'cen', 'disp']
+                        for name, value in zip(names, [amp, pos, sigma]):
+                            name += f'_{int(params / 3)}'
+                            params.add(name, value=value, min=0, max=np.inf)
+                    elif len(params) > 0:
+                            params = params[:-3]
+
+                if 1:
+                    if kind == 'integrate':
+                        x_bin = np.insert(np.insert(x[:-1] + np.diff(x) / 2, 0, x[0] - (x[1] - x[0]) / 2), len(x), x[-1] + (x[-1] - x[-2]) / 2)
+                        #print(np.diff(x), x_bin)
+                        minner = Minimizer(fcn2min, params, fcn_args=(x_bin, y, err, cont, kind))
+                    else:
+                        minner = Minimizer(fcn2min, params, fcn_args=(x, y, err, cont, kind))
+                    result = minner.minimize(method='leastsq')
+                    for par in params:
+                        params[par].value = result.params[par].value
+                        #print(fit_report(result))
+                    self.console.set(fit_report(result))
+                if 0:
+                    minner = Minimizer(fcn2min, params, fcn_args=(x, y, err, cont), calc_covar=True)
+                    result = minner.minimize(method='emcee')
+                if 0:
+                    def lnprob(params, x_int, y, err, cont):
+                        return -0.5 * np.sum((((y - cont) - gauss_integ(x_int, params[0], params[1], params[2])) / err ) ** 2)
+
+                    ndim, nwalkers, nsteps = 3, 100, 2000
+                    p0 = np.asarray([result.params[par].value + np.random.randn(nwalkers) * result.params[par].stderr for par in params]).transpose()
+                    sampler = emcee.EnsembleSampler(nwalkers, ndim, lnprob, args=[x_bin, y, err, cont])
+                    sampler.run_mcmc(p0, nsteps)
+                    samples = sampler.chain[:, int(nsteps/2):, :].reshape((-1, ndim))
+                    print('quantiles:', np.quantile(samples, [0.1, 0.5, 0.9], axis=0))
+                    print(samples.shape)
+                    samples = np.c_[samples, samples[:, 2] * 2 * np.sqrt(2 * np.log(2)) / samples[:, 1] * 299792.46]
+                    print(samples.shape)
+                    samples[:, 2] = samples[:, 0] / (2 * np.pi)**0.5 / samples[:, 2]
+                    c = ChainConsumer()
+                    names, truth = ['Area', 'Centroid', 'Amplitude', 'FWHM'], {'Area': params['amp'].value, 'Centroid': params['cen'].value, 'Amplitude': params['amp'].value / (2 * np.pi)**0.5 / params['disp'].value, 'FWHM': np.sqrt(2 * np.log(2)) * params['disp'].value * 2}
+                    pd.DataFrame(data=samples, columns=names).to_pickle('output/mcmc_fitGauss.pickle')
+                    c.add_chain(Chain(samples=pd.DataFrame(data=samples, columns=names),  # walkers=nwalkers,
+                                    name="emission line posteriors",
+                                    # parameters=names,
+                                    smooth=True,
+                                    # colors='tab:red',
+                                    # cmap='Reds',
+                                    # marker_size=2,
+                                    plot_cloud=True,
+                                    shade=True,
+                                    sigmas=[0, 1, 2, 3],
+                                    ))
+                    #c.configure_truth(ls='--', lw=1., c='lightblue')  # c='darkorange')
+                    if truth is not None:
+                        c.add_truth(Truth(location=truth))
+                    c.set_plot_config(PlotConfig(blind=False,
+                            #flip=True,
+                            #labels={"A": "$A$", "B": "$B$", "C": r"$\alpha^2$"},
+                            #contour_label_font_size=12,
+                            ))
+                    figure = c.plotter.plot(figsize=(20, 20),
+                                            # filename="output/fit.png",
+                                            #display=True,
+                                            )
+                    table = c.analysis.get_latex_table(caption="Results for emission line fit", label="tab:results")
+                    print(table)
+                    self.console.set(table)
+                    plt.show()
+                amp, mean, sigma = result.params['amp'].value, result.params['cen'].value, result.params['disp'].value
+                c = interp1d(x, cont, fill_value='extrapolate')
+                x = np.linspace(x[0], x[-1], 100)
+                x_bin = np.insert(x + (x[1] - x[0]) / 2, 0, x[0] - (x[1] - x[0]) / 2)
+                #self.plot.add_line(x, c(x) + gauss_integ(x_bin, amp, mean, sigma))
+                self.plot.add_line(x, c(x) + gaussian(x, amp, mean, sigma))
+
+    def fitGauss_one(self, kind='integrate'):
         """
         fit spectrum with simple gaussian line (emission)
         """
@@ -10020,7 +10189,6 @@ class sviewer(QMainWindow):
         for s in self.s:
             n = np.sum(s.mask.x())
             if n > 0:
-                mean = self.abs.reference.line.l() * (1 + self.z_abs)
                 x, y, err = np.array(s.spec.x()[s.mask.x()], dtype=float), np.array(s.spec.y()[s.mask.x()], dtype=float), np.array(s.spec.err()[s.mask.x()], dtype=float)
                 if self.normview:
                     cont = np.zeros_like(x, dtype=float)

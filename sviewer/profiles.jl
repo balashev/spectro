@@ -121,6 +121,19 @@ function voigt_range_accurate(a, level)
     end
 end
 
+function line_range(line, limit)
+    if line.type == "abs"
+        return voigt_range(line.a, limit / line.tau0)
+    elseif line.type == "em"
+        level = limit #* sqrt(2 * π) * line.b / line.I
+        if level < 1
+            return sqrt(-log(level))
+        else
+            return 0
+        end
+    end
+end
+
 function voigt_range(a, level)
     if level < 1
         α = 1.3
@@ -470,8 +483,10 @@ mutable struct line
     lam::Float64
     f::Float64
     g::Float64
-    b::Float64
+    type::String
     logN::Float64
+    I::Float64
+    b::Float64
     z::Float64
     l::Float64
     tau0::Float64
@@ -487,6 +502,11 @@ end
 function update_lines(lines, pars; comp=0, tau_limit=0.001)
     mask = Vector{Bool}(undef, 0)
     for line in lines
+        if pars["z_" * string(line.sys)].ref == nothing
+            line.z = pars["z_" * string(line.sys)].val
+        else
+            line.z = z_to_v(v=pars["z_" * string(line.sys)].val, z_ref=pars["z_" * string(line.sys)].ref)
+        end
         if pars["b_" * string(line.sys) * "_" * line.name].addinfo == "consist"
             line.b = doppler(line.name, pars["turb_" * string(line.sys)].val, pars["kin_" * string(line.sys)].val)
         elseif pars["b_" * string(line.sys) * "_" * line.name].addinfo != ""
@@ -494,11 +514,10 @@ function update_lines(lines, pars; comp=0, tau_limit=0.001)
         else
             line.b = pars["b_" * string(line.sys) * "_" * line.name].val
         end
-        line.logN = pars["N_" * string(line.sys) * "_" * line.name].val
-        if pars["z_" * string(line.sys)].ref == nothing
-            line.z = pars["z_" * string(line.sys)].val
-        else
-            line.z = z_to_v(v=pars["z_" * string(line.sys)].val, z_ref=pars["z_" * string(line.sys)].ref)
+        if line.type == "abs"
+            line.logN = pars["N_" * string(line.sys) * "_" * line.name].val
+        elseif line.type == "em"
+            line.I = pars["I_" * string(line.sys) * "_" * line.name].val
         end
         line.l = line.lam * (1 + line.z)
         line.tau0 = sqrt(π) * 0.008447972556327578 * (line.lam * 1e-8) * line.f * 10 ^ line.logN / (line.b * 1e5)
@@ -520,8 +539,10 @@ function prepare_lines(lines)
                             pyconvert(Float64, l.l()),
                             pyconvert(Float64, l.f()),
                             pyconvert(Float64, l.g()),
-                            pyconvert(Float64, l.b),
+                            pyconvert(String, l.type),
                             pyconvert(Float64, l.logN),
+                            pyconvert(Float64, l.I),
+                            pyconvert(Float64, l.b),
                             pyconvert(Float64, l.z),
                             pyconvert(Float64, l.l()*(1+l.z)),
                             0, 0, 0, 0, 0,
@@ -824,10 +845,14 @@ end
 
 function line_profile(line, x; toll=1e-6, optical_depth=false)
     if line.stack == -1
-        if ~optical_depth
-            return exp.( - line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x .- line.l) ./ line.ld)))
-        else
-            return line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x .- line.l) ./ line.ld))
+        if line.type == "abs"
+            if ~optical_depth
+                return exp.( - line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x .- line.l) ./ line.ld)))
+            else
+                return line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x .- line.l) ./ line.ld))
+            end
+        elseif line.type == "em"
+            return line.I .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x .- line.l) ./ line.ld))
         end
     else
         tau = line.tau0 .* real.(SpecialFunctions.erfcx.(line.a .- im .* (x .- line.l) ./ line.ld))
@@ -864,7 +889,8 @@ function make_grid(spec, lines; grid_type="uniform", grid_num=1, binned=true, ta
     if grid_type == "uniform"
         x_grid[mask] = ones(Int8, sum(mask)) .* grid_num
         for line in lines
-            line.dx = voigt_range(line.a, tau_limit / line.tau0)
+            #line.dx = voigt_range(line.a, tau_limit / line.tau0)
+            line.dx = line_range(line, tau_limit)
             d = isfinite(x_instr) ? 4 * x_instr : 0
             i_min, i_max = binsearch(xs, (line.l - line.dx * line.ld) * (1 - d), type="min"), binsearch(xs, (line.l + line.dx * line.ld) * (1 + d), type="max")
             if i_max - i_min > 0 && i_min > 0 && i_max <= length(xs)
@@ -904,7 +930,9 @@ function make_grid(spec, lines; grid_type="uniform", grid_num=1, binned=true, ta
         end
 
         for line in lines
-            line.dx = voigt_range(line.a, tau_limit / line.tau0)
+            #line.dx = voigt_range(line.a, tau_limit / line.tau0)
+            line.dx = line_range(line, tau_limit)
+            print(line.dx)
             line.max_deriv = voigt_max_deriv(line.a, line.tau0)
             d = isfinite(x_instr) ? 2 * x_instr : 0
             i_min, i_max = binsearch(xs, (line.l - line.dx * line.ld) * (1 - d), type="min"), binsearch(xs, (line.l + line.dx * line.ld) * (1 + d), type="max")
@@ -981,7 +1009,9 @@ function make_grid(spec, lines; grid_type="uniform", grid_num=1, binned=true, ta
             if line.tau0 > tau_limit
                 start = time()
                 #println(line.l, " ", line.tau0, " ", line)
-                line.dx = voigt_range(line.a, tau_limit / line.tau0)
+                #line.dx = voigt_range(line.a, tau_limit / line.tau0)
+                line.dx = line_range(line, tau_limit)
+                #print(line.dx)
                 d = isfinite(x_instr) ? 2 * x_instr : 0
                 i_min, i_max = binsearch(spec.x, (line.l - line.dx * line.ld) * (1 - d), type="min"), binsearch(spec.x, (line.l + line.dx * line.ld) * (1 + d), type="max")
                 #println(i_min, " ", i_max, " ", size(spec.x), " ", spec.x[end], " ", (line.l + line.dx * line.ld) * (1 + d))
@@ -1040,17 +1070,23 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
 
     if ~any([occursin("cf", p.first) for p in pars])
         y = zeros(size(x))
+        g = zeros(size(x))
         for line in spec.lines[line_mask]
-            if (line.tau0 > tau_limit)
+            if ((line.type == "abs") && (line.tau0 > tau_limit)) || ((line.type == "em") && (line.I / sqrt(2 * π) / line.b > tau_limit))
                 i_min, i_max = binsearch(x, line.l - line.dx * line.ld, type="min"), binsearch(x, line.l + line.dx * line.ld, type="max")
-                t = line_profile(line, x[i_min:i_max], optical_depth=true)
-                #println("t: ", t)
-                @. @views y[i_min:i_max] = y[i_min:i_max] .+ t
+                if line.type == "abs"
+                    tl = line_profile(line, x[i_min:i_max], optical_depth=true)
+                    @. @views y[i_min:i_max] = y[i_min:i_max] .+ tl
+                elseif line.type == "em"
+                    gl = line_profile(line, x[i_min:i_max])
+                    @. @views g[i_min:i_max] = g[i_min:i_max] .+ gl
+                end
             end
         end
-        if ~optical_depth
+        if ~optical_depth && ~iszero(y)
             y = exp.(-y)
         end
+        y += g
     else
         y = zero(x)
         cfs, inds = [], []
@@ -1151,6 +1187,7 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
         y_c = y
     end
 
+    #println(y_c)
     #println(~isempty(knots(spec.sky)))
     if (comp == 0) & (telluric==true) & ~isempty(knots(spec.sky))
         #println("telluric: ", spec.sky(x))

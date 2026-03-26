@@ -194,10 +194,12 @@ class Console(QTextEdit):
                 self.parent.saveFile('data/templates/'+args[1]+'.spv')
 
         elif args[0] in ['add', 'show', 'high']:
+            va = 'up' if 'up' in args else 'down'
+            args = [a for a in args if a not in ['up', 'down']]
             lines = self.select_lines(args[1:])
 
             if args[0] in ['add', 'show']:
-                self.parent.abs.add(lines)
+                self.parent.abs.add(lines, va=va)
 
             if args[0] in ['show', 'high']:
                 self.parent.abs.highlight(lines)

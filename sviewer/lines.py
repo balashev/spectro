@@ -171,7 +171,7 @@ class LineLabel(pg.TextItem):
         if self.info:
             text = str(self.line)
             text += ', l={:.3f}, f={:.4f}, g={:.2E}'.format(self.line.l(), self.line.f(), self.line.g())
-            if self.line.name in self.parent.parent.fit.sys[self.parent.parent.comp].sp.keys():
+            if (self.parent.parent.comp < len(self.parent.parent.fit.sys)) and self.line.name in self.parent.parent.fit.sys[self.parent.parent.comp].sp.keys():
                 self.line.logN = self.parent.parent.fit.sys[self.parent.parent.comp].sp[self.line.name].N.val
                 self.line.b = self.parent.parent.fit.sys[self.parent.parent.comp].sp[self.line.name].b.val
                 t = tau(line=self.line)

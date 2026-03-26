@@ -6,6 +6,7 @@ from functools import wraps
 import h5py
 from mendeleev import element
 import numpy as np
+import pandas as pd
 import re
 import os
 import urllib.request
@@ -312,12 +313,14 @@ class line():
     """
     General class for working with absorption lines
     """
-    def __init__(self, name, l, f, g, logN=None, b=None, z=0, nu_u=None, j_u=None, nu_l=None, j_l=None, descr='', ref=''):
+    def __init__(self, name, l, f, g, type='abs', logN=None, I=None, b=None, z=0, nu_u=None, j_u=None, nu_l=None, j_l=None, descr='', ref=''):
         self.name = name
         self.wavelength = [float(l)]
         self.oscillator = [float(f)]
         self.gamma = [float(g)]
+        self.type = type
         self.logN = logN
+        self.I = I
         self.b = b
         self.z = z
         self.nu_u = nu_u
@@ -405,7 +408,7 @@ class HIlist(list):
     Class specify sets of HI absorption lines
     """
     def __init__(self):
-        data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__))+r'/data/HI_data.dat', skip_header=2, names=True)   
+        data = np.genfromtxt(os.path.dirname(os.path.realpath(__file__)) + r'/data/HI_data.dat', skip_header=2, names=True)
         for d in data:
             if d['u_l'] == 1:
                 name = r'HI Ly-\alpha'
@@ -826,7 +829,8 @@ class atomicData(OrderedDict):
                 self['H2j'+d[3]].lines.append(l)
 
     def readHD(self):
-        HD = np.genfromtxt(self.folder + r'/data/molec/HD.dat', skip_header=1, usecols=[0,1,2,3,4,5,6], names=True, dtype=None)
+        #HD = np.genfromtxt(self.folder + r'/data/molec/HD.dat', skip_header=1, usecols=[0,1,2,3,4,5,6], names=True, dtype=None)
+        HD = pd.read_fwf(self.folder + r'/data/molec/HD.dat').to_records()
         j_u = {'R': 1, 'Q': 0, 'P': -1}
         for j in range(3):
             name = 'HDj'+str(j)
@@ -861,7 +865,8 @@ class atomicData(OrderedDict):
                     self[name].lines[-1].band = l['name'] #.decode('UTF-8')
 
         if kind == 'Morton':
-            CO = np.genfromtxt(self.folder + r'/data/CO/CO_data_Morton.dat', skip_header=1, names=True, dtype=None)
+            #CO = np.genfromtxt(self.folder + r'/data/CO/CO_data_Morton.dat', skip_header=1, names=True, dtype=None)
+            CO = pd.read_fwf(self.folder + r'/data/CO/CO_data_Morton.dat').to_records()
             for i in np.unique(CO['level']):
                 d = {'P': -1, 'Q': 0, 'R': 1}
                 name = 'COj'+str(i)
@@ -884,13 +889,13 @@ class atomicData(OrderedDict):
 
     def readH2O(self):
         H2O = np.genfromtxt(self.folder + r'/data/molec/H2O_plus.dat', names=True, dtype=None)
-        print(np.unique(H2O['level']))
+        #print(np.unique(H2O['level']))
         for i, level in enumerate(np.unique(H2O['level'])):
             name = 'H2Oj' + str(i)
             self[name] = e(name)
             self[name].lines = []
-            print(H2O['level'], level)
-            print(H2O['level'] == level)
+            #print(H2O['level'], level)
+            #print(H2O['level'] == level)
             mask = H2O['level'] == level
             for l in H2O[mask]:
                 self[name].lines.append(
@@ -905,7 +910,7 @@ class atomicData(OrderedDict):
             self['HF'].lines.append(line(l[4].decode('UTF-8'), l[6], l[7], l[8], ref='', j_l=l[0], nu_l=l[1], j_u=l[2], nu_u=l[3]))
 
     def read_Molecular(self):
-        with open(self.folder + r'/data/Molecular_data_new.dat', newline='') as f:
+        with open(self.folder + r'/data/Molecular_data_DK.dat', newline='') as f:
             for i in range(3):
                 f.readline()
             data = f.readlines()
@@ -915,6 +920,17 @@ class atomicData(OrderedDict):
                 print(words[0])
                 self[words[0]] = e(words[0])
             self[words[0]].lines.append(line(words[0], words[1], words[2], words[3], descr=' '.join(words[4:])))
+
+    def read_methanol(self):
+        d = pd.read_csv(self.folder + r"/data/molec/methanol.dat").to_records()
+        vst = np.unique([s[-2:] for s in d['statep']])
+        for st in vst:
+            print(st)
+            self["CH3OH" + st] = e("CH3OH" + st)
+            for l in d:
+                if st == l["statep"][-2:]:
+                    self["CH3OH" + st].lines.append(line("CH3OH" + st, const.c.cgs.value * l["nu"] / 1e9, l["a"], 1e9, descr=", ".join([l["statep"], l["statepp"]])))
+                    print(str(self["CH3OH" + st].lines[-1]))
 
     def read_EmissionSF(self):
         with open(self.folder + r'/data/EmissionSFLines.dat', newline='') as f:
@@ -928,9 +944,9 @@ class atomicData(OrderedDict):
             self[words[0]].lines.append(line(words[0], words[1], words[2], words[3], descr=' '.join(words[4:])))
 
     def readBAL(self):
-        BAL = np.genfromtxt(self.folder + r'/data/BAL.dat', skip_header=1, names=True, dtype=None, comments='-')
+        #BAL = np.genfromtxt(self.folder + r'/data/BAL.dat', skip_header=1, names=True, dtype=None, comments='-')
+        BAL = pd.read_fwf(self.folder + r'/data/BAL.dat').to_records(index=False)
         for l in BAL:
-            print(l)
             name = l['species'] #.decode('UTF-8')
             if name not in self.keys():
                 self[name] = e(name)
@@ -995,6 +1011,7 @@ class atomicData(OrderedDict):
         #self.readHF()
         self.readBAL()
         self.read_Molecular()
+        self.read_methanol()
         self.read_EmissionSF()
         self.read_NiII()
         self.writedatabase()
@@ -1010,6 +1027,7 @@ class atomicData(OrderedDict):
                 lines = grp.create_group('lines')
                 #ref = np.empty(len(self[el].lines), dtype=[('l', float), ('ind', int), ('descr', 'S')])
                 for i, l in enumerate(self[el].lines):
+                    print(l.name, l.l(), l.descr)
                     ds[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u), str(l.band))
                     lin = lines.create_dataset(str(i), shape=(len(l.ref),), dtype=np.dtype([('l', float), ('f', float), ('g', float), ('ref', dt)]))
                     for k in range(len(l.ref)):
@@ -1041,7 +1059,7 @@ class atomicData(OrderedDict):
                 self[el] = e(el)
 
     def Molecular_list(self):
-        data = np.genfromtxt(self.folder + r'/data/Molecular_data.dat', skip_header=3, usecols=(0), dtype=(str))
+        data = np.genfromtxt(self.folder + r'/data/Molecular_data_DK.dat', skip_header=3, usecols=(0), dtype=(str))
         return self.list(np.unique(data))
 
     def DLA_list(self, lines=True):

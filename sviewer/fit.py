@@ -32,7 +32,7 @@ class par:
         elif 'stN' in self.name:
             self.dec = 2
         else:
-            d = {'z': 7, 'b': 3, 'N': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'iso': 3, 'hcont': 3,
+            d = {'z': 7, 'b': 3, 'N': 3, 'I': 3, 'turb': 3, 'kin': 2, 'mu': 8, 'iso': 3, 'hcont': 3,
                  'Ntot': 3, 'logn': 3, 'logT': 3, 'logf': 3, 'rad': 3, 'CMB': 3}
             self.dec = d[self.name]
 
@@ -41,7 +41,7 @@ class par:
         else:
             self.form = 'd'
 
-        if self.name in ['b', 'N']:
+        if self.name in ['b', 'N', 'I']:
             self.sys = self.parent.parent
         elif self.name in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
             self.sys = self.parent
@@ -135,17 +135,17 @@ class par:
 
     def __repr__(self):
         s = self.name
-        if self.name in ['z', 'b', 'N', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
+        if self.name in ['z', 'b', 'N', 'I', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
             s += '_' + str(self.sys.ind)
-        if self.name in ['b', 'N']:
+        if self.name in ['b', 'N', 'I']:
             s += '_' + self.parent.name
         return s
 
     def __str__(self):
         s = self.name
-        if self.name in ['z', 'b', 'N', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
+        if self.name in ['z', 'b', 'N', 'I', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
             s += '_' + str(self.sys.ind)
-        if self.name in ['b', 'N']:
+        if self.name in ['b', 'N', 'I']:
             s += '_' + self.parent.name
         return s
 
@@ -193,15 +193,22 @@ class par:
                 return '{0:.{1}f}'.format(self.val, dec)
 
 class fitSpecies:
-    def __init__(self, parent, name=None):
+    def __init__(self, parent, name=None, type='abs'):
         self.parent = parent
         self.name = name
         #self.mass = self.setmass(name)
+        self.type = type
         self.b = par(self, 'b', 4, 0.5, 200, 0.5)
         self.N = par(self, 'N', 14, 10, 22, 0.2)
+        self.I = par(self, 'I', 10, 0, 100, 0.2)
+
+    def set_type(self, attr):
+        if attr in ['N', 'I']:
+            self.type = {'N': 'abs', 'I': 'em'}[attr]
 
     def duplicate(self, other):
-        attrs = ['b', 'N']
+        attrs = ['b', 'N', 'I']
+        self.type = other.type
         for attr in attrs:
             getattr(self, attr).duplicate(getattr(other, attr))
 
@@ -258,7 +265,7 @@ class fitSystem:
                 getattr(self, attr).duplicate(getattr(other, attr))
         self.sp = OrderedDict()
         for k, v in other.sp.items():
-            self.sp[k] = fitSpecies(self, name=k)
+            self.sp[k] = fitSpecies(self, name=k, type=v.type)
             self.sp[k].duplicate(v)
 
     def zshift(self, v):
@@ -573,11 +580,13 @@ class fitPars:
                     self.sys[int(s[1])].add(s[0])
             res = getattr(self.sys[int(s[1])], s[0]).set(val, attr, check=check)
 
-        if s[0] in ['b', 'N']:
+        if s[0] in ['b', 'N', 'I']:
             while len(self.sys) <= int(s[1]):
                 self.addSys()
             self.sys[int(s[1])].addSpecies(s[2])
             res = getattr(self.sys[int(s[1])].sp[s[2]], s[0]).set(val, attr, check=check)
+            if attr == 'val':
+                self.sys[int(s[1])].sp[s[2]].set_type(s[0])
 
         return res
 
@@ -630,7 +639,6 @@ class fitPars:
                                     #print(k.replace('13', ''), sys.sp[k.replace('13', '')].N.val)
                                     sys.sp[k].N.val = sys.sp[k.replace('13', '')].N.val + self.iso.val
 
-
         for k, v in self.tieds.items():
             self.setValue(k, self.getValue(v))
 
@@ -649,7 +657,7 @@ class fitPars:
             if len(self.sys) > int(s[1]) and hasattr(self.sys[int(s[1])], s[0]):
                 par = getattr(self.sys[int(s[1])], s[0])
 
-        if s[0] in ['b', 'N']:
+        if s[0] in ['b', 'N', 'I']:
             if len(self.sys) > int(s[1]) and s[2] in self.sys[int(s[1])].sp and hasattr(self.sys[int(s[1])].sp[s[2]], s[0]):
                 par = getattr(self.sys[int(s[1])].sp[s[2]], s[0])
 
@@ -743,7 +751,7 @@ class fitPars:
                             p = getattr(sys, attr)
                             pars[str(p)] = p
                     for sp in sys.sp.values():
-                        for attr in ['b', 'N']:
+                        for attr in ['b'] + (sp.type == 'abs') * ['N'] + (sp.type == 'em') * ['I']:
                             if hasattr(sp, attr):
                                 p = getattr(sp, attr)
                                 pars[str(p)] = p

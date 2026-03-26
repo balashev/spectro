@@ -59,6 +59,7 @@ class Speclist(list):
                 #print(self.ind)
                 self[self.ind].redraw()
             else:
+                print(self.ind, len(self))
                 saved_ind = self.ind
                 self.ind = ind
                 self[saved_ind].redraw()
@@ -1505,7 +1506,10 @@ class Spectrum():
             #print("res_linear:", self.resolution_linear)
             if x is None:
                 x = (self.spec.raw.x[-1] + self.spec.raw.x[0]) / 2
-            return self.resolution_inter(x)
+            if hasattr(self, 'resolution_inter'):
+                return self.resolution_inter(x)
+            else:
+                return 0
 
     def initGUI(self):
         #print('caller name:', inspect.stack()[1][3], inspect.stack()[2][3], inspect.stack()[3][3], inspect.stack()[4][3])
@@ -2264,7 +2268,9 @@ class Spectrum():
                                 if selected_line is None or l == selected_line:
                                     if str(l) not in sys.exclude:
                                         l.b = sys.sp[sp].b.val
+                                        l.type = sys.sp[sp].type
                                         l.logN = sys.sp[sp].N.val
+                                        l.I = sys.sp[sp].I.val
                                         l.z = sys.z.val
                                         l.recalc = True
                                         l.sys = sys.ind
@@ -2816,7 +2822,7 @@ class Spectrum():
         """
         apply shift of wavelenght in velocity space, specified by vel
         """
-        factor = (1 + vel/ac.c.to('km/s').value)
+        factor = (1 + vel / ac.c.to('km/s').value)
         self.spec.raw.x *= factor
         if len(self.cont.x) > 0:
             print('shift cont')

@@ -215,7 +215,7 @@ class fitModelWidget(QWidget):
         self.btied.setChecked(False)
         speciesbox.addWidget(self.btied)
 
-        self.Ntied = QCheckBox('log N')
+        self.Ntied = QCheckBox('log N/I')
         self.Ntied.setChecked(False)
         speciesbox.addWidget(self.Ntied)
 
@@ -541,19 +541,16 @@ class fitModelWidget(QWidget):
             self.treeWidget.setItemWidget(getattr(self, name), 1, button)
 
         if not getattr(self, parent).isExpanded():
-            print('remove', name)
             self.parent.fit.remove(name)
 
     def setApplied(self, name):
         combo = getattr(self, name + '_applied_exp')
         sp1 = combo.currentText()
-        print(name, sp1) #, self.parent.fit.getValue(name, 'addinfo'))
         if 'applied' in sp1:
             sp1 = ''
 
         if 'cf' in name:
             sp = getattr(self, name + '_applied').currentText()
-            print(sp + '_' + sp1)
             self.parent.fit.setValue(name, sp + '_' + sp1, 'addinfo')
             self.parent.fit.getValue(name, 'addinfo')
         elif 'region' in name:
@@ -796,10 +793,8 @@ class fitModelWidget(QWidget):
 
     def addSystem(self, duplicate=1, update=0):
         self.tabNum += 1
-        print('duplicate:', duplicate)
         z = self.parent.z_abs if (self.tab.currentIndex() == -1 or not duplicate) else None
         self.parent.fit.addSys(self.tab.currentIndex(), z=z)
-        print(z)
         sys = fitModelSysWidget(self, len(self.parent.fit.sys)-1)
         self.tab.addTab(sys, "sys {:}".format(self.tabNum-1))
         self.tab.setCurrentIndex(len(self.parent.fit.sys)-1)
@@ -1153,13 +1148,16 @@ class fitModelWidget(QWidget):
                     self.tab.setCurrentIndex(i)
                     if sys.addSpecies(s):
                         self.tab.currentWidget().addSpecies(s)
-                        self.tab.currentWidget().refresh()
                         if self.tied.currentText().strip() != 'tied...':
+                            self.parent.fit.sys[i].sp[s].type = self.parent.fit.sys[i].sp[self.tied.currentText().strip()].type
                             if self.btied.isChecked():
                                 self.parent.fit.sys[i].sp[s].b.addinfo = self.tied.currentText().strip()
                                 self.tab.currentWidget().updateTieds()
                             if self.Ntied.isChecked() and self.Nscale.text().strip() != '':
-                                self.parent.fit.sys[i].sp[s].N.val = self.parent.fit.sys[i].sp[self.tied.currentText().strip()].N.val + float(self.Nscale.text().strip())
+                                if self.parent.fit.sys[i].sp[self.tied.currentText().strip()].type == 'abs':
+                                    self.parent.fit.sys[i].sp[s].N.val = self.parent.fit.sys[i].sp[self.tied.currentText().strip()].N.val + float(self.Nscale.text().strip())
+                                elif self.parent.fit.sys[i].sp[self.tied.currentText().strip()].type == 'em':
+                                    self.parent.fit.sys[i].sp[s].I.val = self.parent.fit.sys[i].sp[self.tied.currentText().strip()].I.val + float(self.Nscale.text().strip())
                         self.tab.currentWidget().refresh()
                 self.parent.fit.showLines([s])
 
@@ -1293,6 +1291,12 @@ class fitModelSysWidget(QFrame):
             attr = ['val', 'min', 'max', 'step']
             sign = ['val', 'range: ', '....', 'step: ']
             self.species[species] = self.addParent(self.treeWidget, species, checkable=True, expanded=True, checked=True)
+            setattr(self, species + '_type', QComboBox(self))
+            combo = getattr(self, species + '_type')
+            combo.setFixedSize(50, 30)
+            combo.addItems(['abs', 'em'])
+            combo.activated.connect(partial(self.set_type, species=species))
+            self.treeWidget.setItemWidget(self.species[species], 1, combo)
             setattr(self, species + '_del', QPushButton('', self))
             button = getattr(self, species + '_del')
             button.setFixedSize(24, 24)
@@ -1301,24 +1305,31 @@ class fitModelSysWidget(QFrame):
             button.setIcon(QIcon('images/cross.png'))
             button.setIconSize(QSize(24, 24))
             self.treeWidget.setItemWidget(self.species[species], 12, button)
-            for s in ['b', 'N']:
+            t = self.fit.sys[self.ind].sp[species].type
+            for s in ['b'] + (t == 'abs') * ['N'] + (t == 'em') * ['I']:
                 item = QTreeWidgetItem(self.species[species])
-
-                sp = species + '_' + s + '_vary'
+                s_in = {'b': 'b', 'N': 's', 'I': 's'}[s]
+                sp = species + '_' + s_in + '_vary'
                 setattr(self, sp, QCheckBox())
                 getattr(self, sp).setChecked(getattr(getattr(self.fit.sys[self.ind].sp[species], s), 'vary'))
                 getattr(self, sp).stateChanged.connect(self.varyChanged)
                 self.treeWidget.setItemWidget(item, 2, getattr(self, sp))
 
-                name = 'b: ' if s == 'b' else 'logN: '
+                name = {'b': 'b: ', 'N': 'logN: ', 'I': 'Flux: '}[s]
                 for i in [1, 3, 5, 7, 9]:
                     item.setTextAlignment(i, self.parent.alignMode)
                 for k in range(4):
-                    item.setText(2 * k + 3, sign[k].replace('val', name))
-                    sp = species + '_' + s + '_' + attr[k]
+                    if s != 'b' and k == 0:
+                        print(species + '_s_label')
+                        setattr(self, species + '_s_label', QLabel(name))
+                        getattr(self, species + '_s_label').setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                        self.treeWidget.setItemWidget(item, 2 * k + 3, getattr(self, species + '_s_label'))
+                    else:
+                        item.setText(2 * k + 3, sign[k].replace('val', name))
+                    sp = species + '_' + s_in + '_' + attr[k]
                     var = s if attr[k] == 'val' else None
                     setattr(self, sp, FLineEdit(self.parent, var=var, name=s+'_'+attr[k]))
-                    getattr(self, sp).textEdited[str].connect(partial(self.onChanged, s, attr[k], species=species))
+                    getattr(self, sp).textEdited[str].connect(partial(self.onChanged, s_in, attr[k], species=species))
                     self.treeWidget.setItemWidget(item, 2 * k + 4, getattr(self, sp))
                 if s == 'b':
                     setattr(self, species + '_btied', QComboBox(self))
@@ -1326,7 +1337,7 @@ class fitModelSysWidget(QFrame):
                     combo.setFixedSize(70, 30)
                     combo.activated.connect(partial(self.setbTied, species=species))
                     self.treeWidget.setItemWidget(item, 12, combo)
-                if s == 'N':
+                if s_in == 's':
                     setattr(self, species + '_Ntied', QComboBox(self))
                     combo = getattr(self, species + '_Ntied')
                     combo.setFixedSize(70, 30)
@@ -1357,24 +1368,25 @@ class fitModelSysWidget(QFrame):
             except:
                 pass
 
-            combo = getattr(self, species + '_Ntied')
-            combo.clear()
-            combo.addItems(['indep.'])
-            if self.parent.parent.fit.me_num > 0:
-                for i in range(self.parent.parent.fit.me_num):
-                    combo.addItems(['me_' + str(i)])
-            if hasattr(self.parent.parent.fit, 'iso'):
-                combo.addItems(['iso'])
-            if self.Ncons.isExpanded():
-                combo.addItems(['Ntot'])
-            try:
-                s = getattr(getattr(self.fit.sys[self.ind].sp[species], 'N'), 'addinfo').strip()
-                if s in ['Ntot', 'iso'] or 'me' in s:
-                    combo.setCurrentText(s)
-                else:
-                    combo.setCurrentIndex(0)
-            except:
-                pass
+            if hasattr(self, species + '_Ntied'):
+                combo = getattr(self, species + '_Ntied')
+                combo.clear()
+                combo.addItems(['indep.'])
+                if self.parent.parent.fit.me_num > 0:
+                    for i in range(self.parent.parent.fit.me_num):
+                        combo.addItems(['me_' + str(i)])
+                if hasattr(self.parent.parent.fit, 'iso'):
+                    combo.addItems(['iso'])
+                if self.Ncons.isExpanded():
+                    combo.addItems(['Ntot'])
+                try:
+                    s = getattr(getattr(self.fit.sys[self.ind].sp[species], 'N'), 'addinfo').strip()
+                    if s in ['Ntot', 'iso'] or 'me' in s:
+                        combo.setCurrentText(s)
+                    else:
+                        combo.setCurrentIndex(0)
+                except:
+                    pass
 
     def removeSpecies(self, species):
         root = self.treeWidget.invisibleRootItem()
@@ -1416,10 +1428,10 @@ class fitModelSysWidget(QFrame):
                 setattr(getattr(self.fit.sys[self.ind], s), 'vary', getattr(self, s + '_vary').isChecked())
             #print('state:', getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
 
-        if len(self.species) > 0:
-            for k, v in self.species.items():
-                for s in ['b', 'N']:
-                    setattr(getattr(self.fit.sys[self.ind].sp[k], s), 'vary', getattr(self, k + '_' + s + '_vary').isChecked())
+        if len(self.fit.sys[self.ind].sp) > 0:
+            for k, v in self.fit.sys[self.ind].sp.items():
+                for s in ['b'] + (v.type == 'abs') * ['N'] + (v.type == 'em') * ['I']:
+                    setattr(getattr(self.fit.sys[self.ind].sp[k], s), 'vary', getattr(self, k + '_' + {'b': 'b', 'N': 's', 'I': 's'}[s] + '_vary').isChecked())
 
         self.refresh()
 
@@ -1449,11 +1461,20 @@ class fitModelSysWidget(QFrame):
     def onChanged(self, s, attr, species=None):
         if s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
             setattr(getattr(self.fit.sys[self.ind], s), attr, float(getattr(self, s + '_' + attr).text()))
-        if s in ['b', 'N']:
-            setattr(getattr(self.fit.sys[self.ind].sp[species], s), attr, float(getattr(self, species + '_' + s + '_' + attr).text()))
-        if attr == 'val':
-            excl = species + '_' + s + '_' + attr if species is not None else s + '_' + attr
-            self.refresh(excl, what=s)
+        if species is not None:
+            t = self.fit.sys[self.ind].sp[species].type
+            s_in = {'b': 'b', 's': (t == 'abs') * 'N' + (t == 'em') * 'I'}[s]
+            if s in ['b', 's']: # + (t == 'abs') * ['N'] + (t == 'em') * ['I']:
+                setattr(getattr(self.fit.sys[self.ind].sp[species], s_in), attr, float(getattr(self, species + '_' + s + '_' + attr).text()))
+            if attr == 'val':
+                excl = species + '_' + s + '_' + attr if species is not None else s + '_' + attr
+                self.refresh(excl, what=s)
+
+    def set_type(self, species):
+        combo = getattr(self, species + '_type')
+        sp = combo.currentText()
+        setattr(self.fit.sys[self.ind].sp[species], 'type', sp)
+        self.refresh(what='all')
 
     def setbTied(self, species):
         combo = getattr(self, species + '_btied')
@@ -1489,7 +1510,6 @@ class fitModelSysWidget(QFrame):
         if not self.init:
             self.fit.update(what=what, ind=ind)
 
-
             names = ['val', 'max', 'min', 'step']
             for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
                 if hasattr(self.fit.sys[self.ind], s):
@@ -1502,31 +1522,37 @@ class fitModelSysWidget(QFrame):
 
             if len(self.species) > 0:
                 for k, v in self.fit.sys[self.ind].sp.items():
-                    try:
-                        for s in ['b', 'N']:
-                            p = getattr(self.fit.sys[self.ind].sp[k], s)
-                            vary = getattr(p, 'vary')
-                            tied = False
-                            if s == 'b':
-                                tied = (p.addinfo != '')
-                                getattr(self, k + '_' + s + '_vary').setEnabled(not tied)
-                                ind = getattr(self, k + '_btied').findText(p.addinfo) if tied else 0
-                                getattr(self, k + '_btied').setCurrentIndex(ind)
-                            if s == 'N':
-                                tied = (p.addinfo != '')
-                                #if 'HI' not in k:
-                                #    getattr(self, k + '_me').setChecked(tied)
-                                getattr(self, k + '_' + s + '_vary').setEnabled(not tied)
-                                ind = getattr(self, k + '_btied').findText(p.addinfo) if tied else 0
-                                getattr(self, k + '_btied').setCurrentIndex(ind)
-                            getattr(self, k + '_' + s + '_vary').setChecked(vary and not tied)
-                            for attr in names:
-                                if k + '_' + s + '_' + attr != excl:
-                                    getattr(self, k + '_' + s + '_' + attr).setText(p.str(attr))
-                                getattr(self, k + '_' + s + '_' + attr).setEnabled((attr == 'val' or vary) and not tied)
+                    #try:
+                    getattr(self, k + '_type').setCurrentIndex(['abs', 'em'].index(v.type))
+                    #print(self.treeWidget.currentItem())
+                    getattr(self, k + '_s_label').setText({'abs': 'logN:', 'em': 'int F:'}[v.type])
+                    for s in ['b'] + (v.type == 'abs') * ['N'] + (v.type == 'em') * ['I']:
+                        p = getattr(self.fit.sys[self.ind].sp[k], s)
+                        s_in = {'b': 'b', 'N': 's', 'I': 's'}[s]
+                        getattr(self, k + '_' + s_in + '_vary').setChecked(p.vary)
+                        vary = getattr(p, 'vary')
+                        tied = False
+                        if s == 'b':
+                            tied = (p.addinfo != '')
+                            getattr(self, k + '_b_vary').setEnabled(not tied)
+                            ind = getattr(self, k + '_btied').findText(p.addinfo) if tied else 0
+                            getattr(self, k + '_btied').setCurrentIndex(ind)
+                        if s_in == 's':
+                            tied = (p.addinfo != '')
+                            #if 'HI' not in k:
+                            #    getattr(self, k + '_me').setChecked(tied)
+                            getattr(self, k + '_s_vary').setEnabled(not tied)
+                            ind = getattr(self, k + '_Ntied').findText(p.addinfo) if tied else 0
+                            getattr(self, k + '_Ntied').setCurrentIndex(ind)
+                            getattr(self, k + '_Ntied').setEnabled(s == 'N')
+                        getattr(self, k + '_' + s_in + '_vary').setChecked(vary and not tied)
+                        for attr in names:
+                            if k + '_' + s_in + '_' + attr != excl:
+                                getattr(self, k + '_' + s_in + '_' + attr).setText(p.str(attr))
+                            getattr(self, k + '_' + s_in + '_' + attr).setEnabled((attr == 'val' or vary) and not tied)
 
-                    except:
-                        pass
+                    #except:
+                    #    pass
 
             self.updateTieds()
 
@@ -1768,9 +1794,9 @@ class fitResultsWidget(QWidget):
         if not self.extended.isChecked():
             d = ['comp', 'z']
             if self.showv.isChecked():
-                d += ['$\Delta$v, km/s']
+                d += [r'$\Delta$v, km/s']
             if self.showb.isChecked():
-                d += ['b, km/s']
+                d += [r'b, km/s']
             if self.tiedN.isChecked():
                 d += [r'$\log n\,[\rm cm^{-3}]$']
                 d += [r'$\log T\,[\rm K]$']
