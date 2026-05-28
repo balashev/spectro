@@ -38,9 +38,9 @@ class FLineEdit(QLineEdit):
 
     def setLength(self, l=None):
         if l is None:
-            if self.name[:1] in ['z', 'd']:
+            if any([self.name.startswith(s) for s in ['z', 'd', 'mu']]):
                 self.setMaxLength(10)
-            if self.name[:1] in ['b', 'N', 'm', 'c', 'r', 'l', 's']:
+            if any([self.name.startswith(s) for s in ['b', 'N', 'me', 'c', 'r', 'l', 's']]):
                 self.setMaxLength(7)
         else:
             self.setMaxLength(l)

@@ -59,7 +59,6 @@ class Speclist(list):
                 #print(self.ind)
                 self[self.ind].redraw()
             else:
-                print(self.ind, len(self))
                 saved_ind = self.ind
                 self.ind = ind
                 self[saved_ind].redraw()
@@ -2705,7 +2704,7 @@ class Spectrum():
         m = np.logical_and(np.logical_not(self.bad_mask.x()), mask)
 
         if kind == 'astropy':
-            stddev = 1000.0 / 299794.25 * np.median(self.spec.x()) / np.median(np.diff(self.spec.x()))
+            stddev = 200.0 / 299794.25 * np.median(self.spec.x()) / np.median(np.diff(self.spec.x()))
             print(stddev)
             y = convolve(self.spec.y()[m], Gaussian1DKernel(stddev=stddev), boundary='extend')
 

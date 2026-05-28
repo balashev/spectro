@@ -1328,7 +1328,7 @@ class pyratio():
                 - name       : name of the species
                 - level      : level with known column density
                                 if level == -1, use total column density
-                - logN       : column density for the radiative trapping (very simplistic)
+                - logN       : column density for the radiative trapping ssss(very simplistic)
             """
         if name is None:
             name = list(self.species.keys())[0]

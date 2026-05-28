@@ -20,7 +20,9 @@ class absSystemIndicator():
         self.update()
 
     def add(self, lines, color=None, va='down'):
+        print(len(lines))
         for line in lines:
+            print(line)
             if line not in self.linelist:
                 l = LineLabel(self, line, self.parent.linelabels, color=color, va=va)
                 self.parent.vb.addItem(l)

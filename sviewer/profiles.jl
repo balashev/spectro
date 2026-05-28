@@ -489,6 +489,7 @@ mutable struct line
     b::Float64
     z::Float64
     l::Float64
+    q::Float64
     tau0::Float64
     a::Float64
     ld::Float64
@@ -520,6 +521,9 @@ function update_lines(lines, pars; comp=0, tau_limit=0.001)
             line.I = pars["I_" * string(line.sys) * "_" * line.name].val
         end
         line.l = line.lam * (1 + line.z)
+        if haskey(pars, "mu")
+            line.l *= (1 + line.q * pars["mu"].val)
+        end
         line.tau0 = sqrt(π) * 0.008447972556327578 * (line.lam * 1e-8) * line.f * 10 ^ line.logN / (line.b * 1e5)
         line.a = line.g / 4 / π / line.b / 1e5 * line.lam * 1e-8
         line.ld = line.lam * line.b / 299794.26 * (1 + line.z)
@@ -545,6 +549,7 @@ function prepare_lines(lines)
                             pyconvert(Float64, l.b),
                             pyconvert(Float64, l.z),
                             pyconvert(Float64, l.l()*(1+l.z)),
+                            pyconvert(Float64, l.q),
                             0, 0, 0, 0, 0,
                             pyconvert(Int64, l.cf),
                             pyconvert(Int64, l.stack),
@@ -1148,7 +1153,7 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
     if (spec.lsf_type != "none")
         y = 1 .- y
         y_c = zero(y)
-        if occursin("gauss", spec.lsf_type) # Gaussian function
+        if occursin("gauss", spec.lsf_type)  #Gaussian function
             for (i, xi) in enumerate(x)
                 #println(xi, " ", spec.resolution(xi))
                 sigma_r = xi / spec.resolution(xi) / 1.66511
@@ -1163,7 +1168,7 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
                 #sleep(5)
             end
 
-        elseif spec.lsf_type == "cos" # COS line spread function
+        elseif spec.lsf_type == "cos"  #COS line spread function
             for (i, xi) in enumerate(x)
                 sigma_r = xi / spec.resolution(xi) / 1.66511
                 k_min, k_max = binsearch(x, xi - 7 * sigma_r), binsearch(x, xi + 7 * sigma_r)

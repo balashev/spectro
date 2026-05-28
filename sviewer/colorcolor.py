@@ -4,10 +4,10 @@ import pyqtgraph as pg
 from collections import OrderedDict
 from functools import partial
 from itertools import combinations
-from PyQt6.QtCore import QLocale
-from PyQt6.QtGui import QDoubleValidator
+from PyQt6.QtCore import (QLocale, Qt)
+from PyQt6.QtGui import (QDoubleValidator, QTransform)
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit,
-                             QLabel, QCheckBox, QGridLayout, QFrame, QTextEdit)
+                             QLabel, QCheckBox, QGridLayout, QFrame, QTextEdit, QSplitter)
 from scipy.stats import gaussian_kde
 
 from .sdss_fit import SDSS_to_asinh
@@ -42,9 +42,9 @@ class colorColorPlot(pg.PlotItem):
         if data is not None:
             item = []
             xmin, xmax, ymin, ymax = np.min(data[0]), np.max(data[0]), np.min(data[1]), np.max(data[1])
-            print(xmin, xmax, ymin, ymax)
+            #print(xmin, xmax, ymin, ymax)
             pen = pg.mkPen(*color, 255)
-            num = 100.0
+            num = 100
             if 0:
                 kde = gaussian_kde(data)
 
@@ -60,11 +60,16 @@ class colorColorPlot(pg.PlotItem):
                 item.scale((xmax-xmin)/num, (ymax-ymin)/num)
                 self.addItem(item)
             else:
-                H, X, Y = np.histogram2d(data[0], data[1], bins=num, normed=True, range=[[xmin, xmax], [ymin, ymax]])
+                H, X, Y = np.histogram2d(data[0], data[1], bins=num, density=True, range=[[xmin, xmax], [ymin, ymax]])
                 for l in levels:
                     i = pg.IsocurveItem(H, level=l, pen=pen)
-                    i.scale((xmax - xmin) / num, (ymax - ymin) / num)
-                    i.translate(- num/2 + (xmax+xmin)/2 * num/(xmax-xmin), - num/2 + (ymax+ymin)/2 * num/(ymax-ymin))
+                    tr = QTransform()
+                    #print(- num / 2 + (xmax + xmin) / 2 * num / (xmax - xmin), - num / 2 + (ymax + ymin) / 2 * num / (ymax - ymin))
+                    tr.scale((xmax - xmin) / num, (ymax - ymin) / num)
+                    tr.translate(- num / 2 + (xmax + xmin) / 2 * num / (xmax - xmin), - num / 2 + (ymax + ymin) / 2 * num / (ymax - ymin))
+                    i.setTransform(tr)
+                    #i.scale((xmax - xmin) / num, (ymax - ymin) / num)
+                    #i.translate(- num/2 + (xmax+xmin)/2 * num/(xmax-xmin), - num/2 + (ymax+ymin)/2 * num/(ymax-ymin))
                     item.append(i)
                     self.addItem(i)
 
@@ -235,9 +240,14 @@ class colorColorWidget(QWidget):
         self.shownames.clicked[bool].connect(self.applyNames)
         v.addWidget(self.shownames)
         v.addStretch(1)
-        layout.addLayout(v)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        self.plot = pg.GraphicsWindow(size=(1900, 1800))
+        widget = QWidget()
+        widget.setLayout(v)
+        splitter.addWidget(widget)
+        #layout.addLayout(v)
+
+        self.plot = pg.GraphicsLayoutWidget(size=(2500, 1800))
 
         self.p = []
         for comb in self.combs:
@@ -247,7 +257,12 @@ class colorColorWidget(QWidget):
             self.plot.addItem(self.p[-1], row=(len(self.p)-1) // 4, col=(len(self.p)-1) % 4 )
 
         self.setLinks()
-        layout.addWidget(self.plot)
+        splitter.addWidget(self.plot)
+
+        splitter.setSizes([350, 2200])
+
+        layout = QHBoxLayout(self)
+        layout.addWidget(splitter)
         self.setLayout(layout)
 
     def onChanged(self, text, attr=None):
@@ -300,15 +315,15 @@ class colorColorWidget(QWidget):
         return d
 
     def addTrace(self):
-        self.parent.console.exec_command('load HI')
+        self.parent.console.exec_command('load HIH2')
         if not self.HI.isChecked():
             del self.parent.fit.sys[0].sp['HI']
         if not self.H2.isChecked():
             del self.parent.fit.sys[0].sp['H2j0']
             del self.parent.fit.sys[0].sp['H2j1']
 
-        if not self.parent.SDSS_filters_status:
-            self.parent.show_SDSS_filters()
+        if not self.parent.filters_status['SDSS']:
+            self.parent.show_filters("SDSS")
 
         zem_grid = np.linspace(self.z_em_min, self.z_em_max, self.traceNum)
         zabs_grid = np.linspace(self.z_abs_min, self.z_abs_max, self.traceNum)
@@ -342,16 +357,16 @@ class colorColorWidget(QWidget):
                 self.parent.s.remove()
 
         data = np.core.records.array(list(tuple(np.array(data).transpose())), dtype=([('u', 'f4'), ('g', 'f4'), ('r', 'f4'), ('i', 'f4'), ('z', 'f4')]))
-        print('trace', data)
+        #print('trace', data)
         self.addData(data, color=self.color.color('byte')[:3], rescale=False)
 
     def addStellarLocus(self):
         if self.addSDSSStars.isChecked():
-            f = fits.open('C:/Users/Serj/Desktop/specObj-dr8.fits')
+            f = fits.open('C:/science/sdss/specObj-dr8.fits')
             mask = (f[1].data['CLASS'] == 'STAR')
             sdss = SDSS_to_asinh(f[1].data['SPECTROFLUX'][mask][:30000])
             data = np.core.records.array(list(tuple(sdss.transpose())), dtype=([('u', 'f4'), ('g', 'f4'), ('r', 'f4'), ('i', 'f4'), ('z', 'f4')]))
-            self.stars = self.addData(data, typ='isocurves', color=(100, 100, 100), size=1, levels=[0.5, 0.1, 0.05, 0.01, 0.005, 0.001])
+            self.stars = self.addData(data, typ='isocurves', color=(100, 100, 100), size=1, levels=[0.5, 0.05, 0.005])
             print(self.stars)
         else:
             try:

@@ -185,18 +185,20 @@ class Console(QTextEdit):
 
         elif args[0] == 'load':
             if len(args) == 2:
-                self.parent.openFile('data/templates/'+args[1]+'.spv')
+                self.parent.openFile(self.parent.folder + 'data/templates/'+args[1]+'.spv')
                 self.parent.fit.sys[0].z.val = self.parent.z_abs
                 self.parent.fit.sys[0].zrange(1000.0)
 
         elif args[0] == 'save':
             if len(args) == 2:
-                self.parent.saveFile('data/templates/'+args[1]+'.spv')
+                self.parent.saveFile(self.parent.folder + 'data/templates/'+args[1]+'.spv')
 
         elif args[0] in ['add', 'show', 'high']:
             va = 'up' if 'up' in args else 'down'
             args = [a for a in args if a not in ['up', 'down']]
+            #print(args)
             lines = self.select_lines(args[1:])
+            #print(lines)
 
             if args[0] in ['add', 'show']:
                 self.parent.abs.add(lines, va=va)
@@ -241,7 +243,7 @@ class Console(QTextEdit):
                     lines.append(l)
                     lf.append(l.f())
             for i in np.argsort(lf):
-                s += str(lines[i]) + ',  l={:.5f}, f={:.2e},  g={:.1e}, ref={:s} \n'.format(lines[i].l(), lines[i].f(), lines[i].g(), lines[i].refer().decode())
+                s += str(lines[i]) + ',  l={:.5f}, f={:.2e},  g={:.1e}, q={:.1e} ref={:s} \n'.format(lines[i].l(), lines[i].f(), lines[i].g(), lines[i].q, lines[i].refer().decode())
             return s
 
         elif any(s in args[0] for s in ['HD', 'H2']):
@@ -506,7 +508,7 @@ class Console(QTextEdit):
                     line = line.strip()
                     for l in self.parent.atomic[line.split()[0]].lines:
                         if str(l) == line:
-                            print(l)
+                            print("add lines:", l)
                             addlines += [l]
                     if 'H2j' in line:
                         #self.parent.atomic.readH2Abgrall(j=int(line.split()[0][-1]))

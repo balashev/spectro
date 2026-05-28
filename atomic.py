@@ -295,7 +295,7 @@ class e():
                 elif len(words) == 5:
                     self.nu = 0
                 self.J = int(words[i])
-                self.stat = (2*self.J+1)*(2*(self.J%2)+1)
+                self.stat = (2 * self.J + 1) * (2 * (self.J % 2) + 1)
                 i += 1
 
         if self.name in ['OI', 'CI', 'SiII']:
@@ -313,7 +313,7 @@ class line():
     """
     General class for working with absorption lines
     """
-    def __init__(self, name, l, f, g, type='abs', logN=None, I=None, b=None, z=0, nu_u=None, j_u=None, nu_l=None, j_l=None, descr='', ref=''):
+    def __init__(self, name, l, f, g, type='abs', logN=None, I=None, b=None, z=0, q=0, nu_u=None, j_u=None, nu_l=None, j_l=None, descr='', ref=''):
         self.name = name
         self.wavelength = [float(l)]
         self.oscillator = [float(f)]
@@ -323,6 +323,7 @@ class line():
         self.I = I
         self.b = b
         self.z = z
+        self.q = q
         self.nu_u = nu_u
         self.j_u = j_u
         self.nu_l = nu_l
@@ -461,12 +462,15 @@ class atomicData(OrderedDict):
                         self.lines[e] = []
                     t = Timer(e)
                     name = self.correct_name(e)
+                    #print(name)
                     if name in self.keys():
-                        #print('ref', self.data[name]['ref'])
+                        #print('ref', data[name]['ref'])
                         for i, ref in enumerate(data[name]['ref']):
                             #t.time('in')
+                            #print(i, ref)
                             lin = data[name]['lines'][str(i)]
-                            l = line(name, lin[0][0], lin[0][1], lin[0][2], ref=lin[0][3])
+                            #print(lin[0])
+                            l = line(name, lin[0][0], lin[0][1], lin[0][2], q=lin[0][3], ref=lin[0][4])
                             for attr in ['j_l', 'nu_l', 'j_u', 'nu_u']:
                                 if b'None' not in ref[attr]:
                                     setattr(l, attr, int(ref[attr]))
@@ -929,7 +933,8 @@ class atomicData(OrderedDict):
             self["CH3OH" + st] = e("CH3OH" + st)
             for l in d:
                 if st == l["statep"][-2:]:
-                    self["CH3OH" + st].lines.append(line("CH3OH" + st, const.c.cgs.value * l["nu"] / 1e9, l["a"], 1e9, descr=", ".join([l["statep"], l["statepp"]])))
+                    q = 1.7 if const.c.cgs.value * l["nu"] / 1e9 > 542.5 else 0
+                    self["CH3OH" + st].lines.append(line("CH3OH" + st, const.c.cgs.value * l["nu"] / 1e9, l["a"], 1e9, q=q, descr=", ".join([l["statep"], l["statepp"]])))
                     print(str(self["CH3OH" + st].lines[-1]))
 
     def read_EmissionSF(self):
@@ -1029,9 +1034,9 @@ class atomicData(OrderedDict):
                 for i, l in enumerate(self[el].lines):
                     print(l.name, l.l(), l.descr)
                     ds[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u), str(l.band))
-                    lin = lines.create_dataset(str(i), shape=(len(l.ref),), dtype=np.dtype([('l', float), ('f', float), ('g', float), ('ref', dt)]))
+                    lin = lines.create_dataset(str(i), shape=(len(l.ref),), dtype=np.dtype([('l', float), ('f', float), ('g', float), ('q', float), ('ref', dt)]))
                     for k in range(len(l.ref)):
-                        lin[k] = (l.wavelength[k], l.oscillator[k], l.gamma[k], l.ref[k])
+                        lin[k] = (l.wavelength[k], l.oscillator[k], l.gamma[k], l.q, l.ref[k])
                     #ref[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u)) #.encode("ascii", "ignore"))
 
     def adddatabase(self, el):
@@ -1047,7 +1052,7 @@ class atomicData(OrderedDict):
                 print(str(l), l.band)
                 ds[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u), str(l.band))
                 lin = lines.create_dataset(str(i), shape=(len(l.ref),),
-                                           dtype=np.dtype([('l', float), ('f', float), ('g', float), ('ref', dt)]))
+                                           dtype=np.dtype([('l', float), ('f', float), ('g', float), ('q', float), ('ref', dt)]))
                 for k in range(len(l.ref)):
                     lin[k] = (l.wavelength[k], l.oscillator[k], l.gamma[k], l.ref[k])
                 # ref[i] = (l.l(), i, l.descr, str(l.j_l), str(l.nu_l), str(l.j_u), str(l.nu_u)) #.encode("ascii", "ignore"))

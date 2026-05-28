@@ -1,21 +1,21 @@
-stats
-rescale err 0.7
-stats
-stats
-show CH
-CH
-show CH+
-show CH+
-stats
-rescale err 0.5
-CH+
-CH
-CH+
-CH+
-show CH
-show CH+
-CH+
-CH
-show CH
-show CH+
-CH+
+show SI
+CII
+show SiIIj1
+show SiII
+SiII
+cont 1
+set cont 1
+set cont 1
+OI
+KrI
+show ClI
+show SiIIj1
+show SiIII
+set cont 1
+set cont 1
+show SiIIj1
+show CIIj1
+show SII
+show SiII
+show FeII
+show DI

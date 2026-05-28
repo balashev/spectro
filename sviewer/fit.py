@@ -816,8 +816,10 @@ class fitPars:
         if sp is None:
             sp = list(set([s for sys in self.sys for s in sys.sp.keys()]))
 
+        print('showLines start')
         if len(sp) > 0:
             self.parent.console.exec_command('add ' + ' '.join(sp))
+        print('showLines finish')
 
     def fromLMfit(self, result):
         for p in result.params.keys():

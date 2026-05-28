@@ -1006,7 +1006,7 @@ class plotline():
             z_ref, z_col = [self.parent.z_ref], [color]
 
         species = levels[0][:levels[0].index('j')]
-        #print(species)
+        print(species)
 
         if species == 'H2':
             lines = atomicData.H2(levels)
@@ -1039,7 +1039,6 @@ class plotline():
             band, levs = b[0], b[3]
             ls = '--' if b[2] != bands[0][2] else '-'
             for ind, z, color in zip(range(len(z_ref)), z_ref, z_col):
-                print(z, color)
                 ls = '-' if ind == self.num_comp * show_comps else '--'
                 lw = self.parent.lw_total if ind == self.num_comp * show_comps else self.parent.lw[0]
                 if species == 'H2':

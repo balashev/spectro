@@ -950,8 +950,8 @@ class QSOlistTable(pg.TableWidget):
 class IGMspecTable(pg.TableWidget):
     def __init__(self, parent, cat=None, subparent=None, editable=False):
         super().__init__(editable=editable)
-        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.parent = parent
+        self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.subparent = subparent
         self.setSortingEnabled(True)
         self.cat = cat

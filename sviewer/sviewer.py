@@ -2405,6 +2405,7 @@ class showLinesWidget(QWidget):
                 p.name = ' '.join(self.parent.lines[self.ps.index(p)].split()[:2])
                 ind = self.parent.s.ind
                 print(self.parent.lines[self.ps.index(p)].split())
+                p.show_comps = self.show_comps
                 if len(self.parent.lines[self.ps.index(p)].split()) > 2:
                     for s in self.parent.lines[self.ps.index(p)].split()[2:]:
                         print(s)
@@ -2414,6 +2415,8 @@ class showLinesWidget(QWidget):
                             p.label = str(s[5:])
                         if 'nofit' in s:
                             p.show_fit = False
+                        if 'nocomps' in s:
+                            p.show_comps = False
                 print(p.name, ind)
                 s = self.parent.s[ind]
 
@@ -2466,7 +2469,7 @@ class showLinesWidget(QWidget):
                     if p.name == str(l.line):
                         p.wavelength = l.line.l()
                 print(p.wavelength)
-                p.show_comps = self.show_comps
+
                 if self.show_labels:
                     p.name_pos = [self.name_x_pos, self.name_y_pos]
                 else:
@@ -2679,6 +2682,7 @@ class showLinesWidget(QWidget):
 
                 if self.show_H2.strip() != '':
                     for speci in ['H2', 'CO', '13CO']:
+                        #print(self.parent.fit.list_species())
                         if any([sp.startswith(speci) for sp in self.parent.fit.list_species()]):
                             if self.show_H2 == 'all':
                                 levels = [sp for sp in self.parent.fit.list_species() if sp.startswith(speci)]
@@ -6191,6 +6195,27 @@ class combineWidget(QWidget):
         self.addItems()
         self.tab.setCurrentIndex(2)
         vbox.addWidget(self.tab)
+
+        hbox = QHBoxLayout()
+        self.clean_bad = QCheckBox('Interpolate bad: ')
+        self.clean_bad.setFixedSize(120, 30)
+        self.clean_bad.setChecked(False)
+        self.expchoose = QComboBox()
+        self.expchoose.setFixedSize(400, 30)
+        for s in self.parent.s:
+            self.expchoose.addItem(s.filename)
+        if len(self.parent.s) > 0:
+            self.exp_ind = self.parent.s.ind
+            self.expchoose.currentIndexChanged.connect(self.onExpChoose)
+            self.expchoose.setCurrentIndex(self.exp_ind)
+        #hl.addWidget(exposure)
+        #self.clean_window = QLineEdit('21')
+        #self.clean_window.setFixedSize(70, 30)
+        hbox.addWidget(self.clean_bad)
+        hbox.addWidget(self.expchoose)
+        #hbox.addWidget(self.clean_window)
+        hbox.addStretch(1)
+        vbox.addLayout(hbox)
         vbox.addStretch(1)
         l.addLayout(vbox)
 
@@ -6285,6 +6310,9 @@ class combineWidget(QWidget):
             self.file.setText(fname[0])
             self.file_grid = np.genfromfile(fname[0], unpack=True, usecols=(0))
 
+    def onExpChoose(self, index, name='exp_ind'):
+        setattr(self, name, index)
+
     def selectall(self):
         for i in range(len(self.parent.s)):
             self.expListView.table.selectRow(i)
@@ -6330,7 +6358,7 @@ class combineWidget(QWidget):
         elif self.tab.currentIndex() == 4:
             x = self.file_grid
 
-        print('x: ', len(x), x)
+        #print('x: ', len(x), x)
         # calculate combined spectrum:
         comb = np.empty([len(slist), len(x)], dtype=float)
         comb.fill(np.nan)
@@ -6357,17 +6385,24 @@ class combineWidget(QWidget):
                     comb[i], e_comb[i] = s.spec.y()[:], s.spec.err()[:]
                 else:
                     mask_s = (s.spec.err() != 0)
-                    mask = (x > s.spec.x()[mask_s][2]) * (x < s.spec.x()[mask_s][-3])
+                    #mask = (x > s.spec.x()[mask_s][2]) * (x < s.spec.x()[mask_s][-3])
+                    #print("original:", s.spec.x()[mask_s][0], s.spec.x()[mask_s][-1])
+                    mask = (x > s.spec.x()[mask_s][0]) * (x < s.spec.x()[mask_s][-1])
+                    #print(x[mask][0], x[mask][-1])
+                    for ind in range(2):
+                        mask[np.where(mask)[0][0]] = 0
+                        mask[np.where(mask)[0][-1]] = 0
+                    #print(x[mask][0], x[mask][-1])
                     comb[i][mask], e_comb[i][mask] = spectres.spectres(s.spec.x()[mask_s], s.spec.y()[mask_s], x[mask], spec_errs=s.spec.err()[mask_s])
-                print(np.where(s.bad_mask.x())[0])
-                print(s.spec.x()[np.where(s.bad_mask.x())[0]])
-                print(np.searchsorted(x, s.spec.x()[np.where(s.bad_mask.x())[0]]))
+                #print(np.where(s.bad_mask.x())[0])
+                #print(s.spec.x()[np.where(s.bad_mask.x())[0]])
+                #print(np.searchsorted(x, s.spec.x()[np.where(s.bad_mask.x())[0]]))
                 e_comb[i][np.searchsorted(x, s.spec.x()[np.where(s.bad_mask.x())[0]])] = np.nan
 
         print(comb, e_comb)
 
         typ = self.selectcombtype.currentText()
-        print(typ)
+        #print(typ)
         if typ == 'Median':
             y = np.nanmedian(comb, axis=0)
             err = np.power(np.nansum(np.power(e_comb, -2), axis=0), -0.5)
@@ -6383,7 +6418,12 @@ class combineWidget(QWidget):
             #err = np.power(np.nansum(np.power(e_comb, -2), axis=0), -0.5)
 
         mask = np.logical_not(np.isnan(y))
-        x, y, err = x[mask], y[mask], err[mask]
+        if not self.clean_bad.isChecked():
+            x, y, err = x[mask], y[mask], err[mask]
+        else:
+            mask = np.isnan(y)
+            y[mask] = self.parent.s[self.exp_ind].spec.raw.inter(x[mask])
+            err[mask] = y[mask]
         # add combined spectrum to GU
         print(x, y, err)
         self.parent.s.append(Spectrum(self.parent, name='combined_'+typ.split()[0].lower()))
@@ -8397,7 +8437,10 @@ class sviewer(QMainWindow):
                 for k in range(num):
                     i += 1
                     print(d[i])
-                    self.fit.setValue(self.atomic.correct_name(d[i].split()[0]), d[i].split()[2], 'unc')
+                    try:
+                        self.fit.setValue(self.atomic.correct_name(d[i].split()[0]), d[i].split()[2], 'unc')
+                    except:
+                        print("Problem to load fit results: ", d[i])
 
         if zoom:
             try:
@@ -8695,8 +8738,12 @@ class sviewer(QMainWindow):
                         if 'UVES' in hdulist[0].header['INSTRUME']:
                             prihdr = hdulist[1].data
                             h = hdulist[1].header
-                            f_ind = [int(k[-1:]) for k in h.keys() if ('TTYPE' in k) and h[k].strip() == "FLUX"][0]-1
-                            err_ind = [int(k[-1:]) for k in h.keys() if ('TTYPE' in k) and h[k].strip() == "ERR"][0]-1
+                            print(repr(h))
+                            if len([int(k[-1:]) for k in h.keys() if ('TTYPE' in k) and h[k].strip() == "FLUX"]) > 0:
+                                f_ind = [int(k[-1:]) for k in h.keys() if ('TTYPE' in k) and h[k].strip() == "FLUX"][0]-1
+                                err_ind = [int(k[-1:]) for k in h.keys() if ('TTYPE' in k) and h[k].strip() == "ERR"][0]-1
+                            else:
+                                f_ind, err_ind = 1, 2
                             l = prihdr[0][0][:]
                             s.set_data([l, prihdr[0][f_ind][:], prihdr[0][err_ind][:]])
                             if 'SPEC_RES' in hdulist[0].header:
@@ -8791,12 +8838,13 @@ class sviewer(QMainWindow):
                             s.set_data([prihdr[0], prihdr[1] * 1e17, prihdr[2] * 1e17])
                         try:
                             print("correction:", corr)
-                            if corr and 0:
+                            if corr:
                                 s.bary_vel = hdulist[0].header['HIERARCH ESO QC VRAD BARYCOR']
                                 print(s.bary_vel)
                                 s.apply_shift(s.bary_vel)
                                 s.airvac()
                                 s.spec.raw.interpolate()
+                                print("all corrections was applied")
                         except:
                             pass
                         #except:
@@ -10883,9 +10931,11 @@ class sviewer(QMainWindow):
         parameters:
             - typ        :  type of combine, can be either 'mean', 'weighted mean' or 'median' 
         """
-
-        self.combineWidget = combineWidget(self)
-        self.combineWidget.show()
+        if len(self.s) == 0:
+            self.sendMessage("There is nothing to combine. Upload exposures in the program...")
+        else:
+            self.combineWidget = combineWidget(self)
+            self.combineWidget.show()
 
     def rebin(self):
         
