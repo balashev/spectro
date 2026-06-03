@@ -149,7 +149,8 @@ class Speclist(list):
 
         for i, s in enumerate(self):
             if exp_ind in [-1, i]:
-                s.findFitLines(ind, all=all, debug=False, selected_species=selected_species, selected_line=selected_line)
+                print(self.parent.tau_limit)
+                s.findFitLines(ind, all=all, debug=False, tlim=self.parent.tau_limit, selected_species=selected_species, selected_line=selected_line)
 
         if self.parent.fitType == 'julia':
             self.parent.julia_spec = self.parent.julia.prepare(self, self.parent.julia_pars, self.parent.julia_add, self.parent.julia_cos)
@@ -2294,8 +2295,8 @@ class Spectrum():
                                                     l.stack = i
 
                                         if all:
-                                            #if l.range[0] < x[-1] and l.range[1] > x[0]:
-                                            if np.sum(l.range) / 2 < x[-1] and np.sum(l.range) / 2 > x[0]:
+                                            if l.range[0] < x[-1] and l.range[1] > x[0]:
+                                            #if np.sum(l.range) / 2 < x[-1] and np.sum(l.range) / 2 > x[0]:
                                                 self.fit_lines += [l]
                                         else:
                                             if np.sum(np.logical_and(x >= l.range[0], x <= l.range[1])) > 0:

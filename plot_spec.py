@@ -99,20 +99,21 @@ def gradient_fill(x, y, direction=0, fill_color=None, ax=None, alpha=1.0, alpha_
     z[:,:,-1] = np.linspace(alpha, alpha_min, 100)[:,None]
 
     x, y = np.asarray(x), np.asarray(y)
-    xmin, xmax, ymin, ymax = x.min(), x.max(), y.min(), y.max()
-    im = ax.imshow(z, aspect='auto', extent=[xmin, xmax, ymin, ymax],
-                   origin='lower', zorder=zorder)
-    v = 1 - direction # or direction * ymax + (1 - direction) * ymin
-    xy = np.column_stack([np.concatenate([[xmin], x, [xmax]]), np.concatenate([[v], y, [v]])])
-    #xy = np.vstack([[xmin, ymax], xy, [xmax, ymax], [xmin, ymax]])
-    xy = np.vstack([xy, xy[0]])
-    #print(xy)
-    clip_path = Polygon(xy, facecolor='none', edgecolor='none', closed=True)
-    ax.add_patch(clip_path)
-    im.set_clip_path(clip_path)
+    if len(x) > 0 and len(y) == len(x):
+        xmin, xmax, ymin, ymax = x.min(), x.max(), y.min(), y.max()
+        im = ax.imshow(z, aspect='auto', extent=[xmin, xmax, ymin, ymax],
+                       origin='lower', zorder=zorder)
+        v = 1 - direction # or direction * ymax + (1 - direction) * ymin
+        xy = np.column_stack([np.concatenate([[xmin], x, [xmax]]), np.concatenate([[v], y, [v]])])
+        #xy = np.vstack([[xmin, ymax], xy, [xmax, ymax], [xmin, ymax]])
+        xy = np.vstack([xy, xy[0]])
+        #print(xy)
+        clip_path = Polygon(xy, facecolor='none', edgecolor='none', closed=True)
+        ax.add_patch(clip_path)
+        im.set_clip_path(clip_path)
 
-    #ax.autoscale(True)
-    return line, im
+        #ax.autoscale(True)
+        return line, im
 
 class plot_spec(list):
     """
@@ -470,7 +471,7 @@ class plotline():
         self.show_comps = self.parent.show_comps
         self.sig = 2
 
-    def loaddata(self, d=None, f=None, fit_comp=None, fit_disp=None, fit_comp_disp=None, fit_species=None, sky=None, z=None, filename=None, verbose=False):
+    def loaddata(self, d=None, f=None, fit_comp=None, fit_disp=None, fit_comp_disp=None, fit_species=None, cont=None, sky=None, z=None, filename=None, verbose=False):
 
         if filename is not None:
             self.filename = [filename]
@@ -537,6 +538,11 @@ class plotline():
         else:
             self.fit_comp_disp = None
 
+        if cont is not None:
+            self.cont = data(x=cont[0], y=cont[1])
+        else:
+            self.cont = None
+
         if sky is not None:
             self.sky = data(x=sky[0], y=sky[1])
         else:
@@ -599,8 +605,8 @@ class plotline():
             self.y_min, self.y_max = min(self.spec.y), max(self.spec.y)
 
         # >>> correct continuum
-        if len(self.cont) > 0:
-            self.correct_cont()
+        #if len(self.cont) > 0:
+        #    self.correct_cont()
 
         # >>> recalculate to velocity offset if necessary
         if self.vel_scale:
@@ -612,10 +618,21 @@ class plotline():
 
         # >>> plot telluric
         if self.show_telluric:
-            if self.parent.tell_fill:
-                self.ax.fill_between(self.sky.x, 1, self.sky.y, color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-', alpha=self.parent.lw_tell)
+            if self.cont is not None:
+                c = interpolate.interp1d(self.cont.x, self.cont.y, fill_value='extrapolate')
             else:
-                self.ax.plot(self.sky.x, self.sky.y, color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-')
+                c = interpolate.interp1d([self.sky.x[0], self.sky.x[-1]], [1, 1], fill_value='extrapolate')
+            if self.parent.tell_fill:
+                self.ax.fill_between(self.sky.x, c(self.sky.x), self.sky.y * c(self.sky.x), color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-', alpha=self.parent.lw_tell)
+            else:
+                self.ax.plot(self.sky.x, self.sky.y * c(self.sky.x), color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-')
+
+        if 0:
+            if self.show_telluric:
+                if self.parent.tell_fill:
+                    self.ax.fill_between(self.sky.x, 1, self.sky.y, color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-', alpha=self.parent.lw_tell)
+                else:
+                    self.ax.plot(self.sky.x, self.sky.y, color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-')
 
         # >>> plot spectrum
         if self.show_err:
@@ -709,116 +726,6 @@ class plotline():
 
         return self.ax
     
-    def plot_region(self):
-        self.ax = plt.axes(self.rect.data)
-        # >>> auto range of plot
-        print(self.x_min, self.x_max)
-        if self.x_min == 0 and self.x_max == 0:
-            self.x_min, self.x_max = self.spec.x[0], self.spec.x[-1]
-            self.y_min, self.y_max = min(self.spec.y), max(self.spec.y)
-
-        # >>> correct continuum
-        if len(self.cont) > 0:
-            self.correct_cont()
-
-        # >>> plot telluric
-        if self.show_telluric:
-            if self.parent.tell_fill:
-                self.ax.fill_between(self.sky.x, 1, self.sky.y, color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-', alpha=self.parent.lw_tell)
-            else:
-                self.ax.plot(self.sky.x, self.sky.y, color=self.parent.color_tell, lw=self.parent.lw_tell, ls='-')
-
-        # >>> plot spectrum
-        if self.show_err:
-            elinewidth, ecolor, capsize = 0.5, '0.3', self.parent.error_cap
-        else:
-            elinewidth, ecolor, capsize = 0, None, 0
-
-        if self.gray_out:
-            if self.add_errors:
-                self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid',
-                            color='0.5', ecolor='0.3', capsize=capsize, zorder=0)
-            else:
-                self.ax.errorbar(self.spec.x, self.spec.y, lw=self.parent.lw_spec, elinewidth=elinewidth, drawstyle='steps-mid',
-                            color='0.5', capsize=capsize, zorder=0)
-            k = (self.points == 0)
-            self.spec.y[k] = np.nan
-
-        self.ax.errorbar(self.spec.x, self.spec.y, self.spec.err, lw=1, elinewidth=elinewidth, drawstyle='steps-mid',
-                        color=self.parent.color_spec, ecolor=ecolor, capsize=capsize, zorder=0)
-
-        # >>> correct continuum
-        try:
-            if self.add_cont:
-                cont = np.genfromtxt('_cont.'.join(self.filename[0].rsplit('.', 1)), unpack=True)
-                self.ax.plot(cont[0], cont[1], '-', color="tab:blue")
-        except:
-            pass
-
-        # >>> plot fit
-        if self.show_fit:
-            self.plot_fit()
-
-        # >>> add residuals
-        if self.add_residual and self.fit:
-            self.plot_residuals()
-
-        # >>> set axis ranges:
-        self.ax.axis([self.x_min, self.x_max, self.y_min, self.y_max])
-
-        # >>> set ticks labels:
-        if self.xticklabels is None:
-            self.ax.set_xticklabels([])
-        if self.yticklabels is None:
-            self.ax.set_yticklabels([])
-
-        # >>> specify ticks:
-        self.ax.xaxis.set_minor_locator(self.x_minorLocator)
-        self.ax.xaxis.set_major_locator(self.x_locator)
-        self.ax.yaxis.set_minor_locator(self.y_minorLocator)
-        self.ax.yaxis.set_major_locator(self.y_locator)
-        self.ax.tick_params(which='both', width=1)
-        self.ax.tick_params(which='major', length=5)
-        self.ax.tick_params(which='minor', length=3)
-        self.ax.tick_params(axis='both', which='major', labelsize=self.font_size - 2)
-
-        # >>> set axis ticks formater:
-        if self.y_formatter is not None:
-            self.ax.yaxis.set_major_formatter(FormatStrFormatter(self.y_formatter))
-        else:
-            self.ax.yaxis.set_major_formatter(FormatStrFormatter('%0.1f'))
-        if self.x_formatter is not None:
-            self.ax.xaxis.set_major_formatter(FormatStrFormatter(self.x_formatter))
-
-        # >>> set axis labels:
-        if self.ylabel is not None:
-            self.ax.set_ylabel(self.ylabel, fontsize=self.font_size, fontname=self.font)
-            if self.ylabel_pos is not None:
-                tr = self.ax.yaxis.label.get_transform()
-                self.ax.yaxis.set_label_coords(self.ax.yaxis.label.get_position()[0], self.ylabel_pos)
-                self.ax.yaxis._autolabelpos = True
-                self.ax.yaxis.label.set_transform(tr)
-        if self.xlabel is not None:
-            self.ax.set_xlabel(self.xlabel, fontsize=self.font_size, fontname=self.font, labelpad=-2)
-            print("xlabel_pos", self.xlabel_pos)
-            if self.xlabel_pos is not None:
-                tr = self.ax.xaxis.label.get_transform()
-                self.ax.xaxis.set_label_coords(self.ax.xaxis.label.get_position()[0], self.xlabel_pos)
-                self.ax.xaxis._autolabelpos = True
-                self.ax.xaxis.label.set_transform(tr)
-        # >>> add lines
-        self.ax.plot([self.x_min, self.x_max], [0.0, 0.0], 'k--', lw=0.5)
-
-        # >>> add text
-        if self.name_pos is not None:
-            ha = 'left' if self.name_pos[0] < 0.5 else 'right'
-            ha_l = 'right' if self.name_pos[0] < 0.5 else 'left'
-            self.ax.text(self.name_pos[0], self.name_pos[1], str(self.name).strip(), ha=ha, va='top', fontsize=self.font_size, transform=self.ax.transAxes)
-            if self.label is not None:
-                self.ax.text(1 - self.name_pos[0], self.name_pos[1], str(self.label).strip(), ha=ha_l, va='top', fontsize=self.font_labels, transform=self.ax.transAxes)
-
-        return self.ax
-
     def plot_fit(self):
 
         # >>> recalculate to velocity offset if necessary
@@ -923,16 +830,16 @@ class plotline():
 
     def correct_cont(self):
         mask = (self.spec.x > self.cont_range[0]) * (self.spec.x < self.cont_range[1])
-        corr = np.ones_like(self.spec.x)
+        sum_cont = np.ones_like(self.spec.x)
         if len(x[mask]) > 0:
             base = (self.spec.x[mask] - self.spec.x[mask][0]) * 2 / (self.spec.x[mask][-1] - self.spec.x[mask][0]) - 1
-            corr[mask] = np.polynomial.chebyshev.chebval(base, self.cont)
+            sum_cont[mask] = np.polynomial.chebyshev.chebval(base, self.cont)
 
-        sum_cont = np.zeros(len(self.spec.x))
-        for k in range(len(data[0])):
-            for l in range(len(self.cont)):
-                sum_cont[k] = sum_cont[k] + self.cont[l] * np.cos((l) * np.arccos(
-                    -1 + (self.spec.x[k] - self.cont_range[0]) / (self.cont_range[1] - self.cont_range[0]) * 2))
+        if 0:
+            sum_cont = np.zeros(len(self.spec.x))
+            for k in range(len(data[0])):
+                for l in range(len(self.cont)):
+                    sum_cont[k] = sum_cont[k] + self.cont[l] * np.cos((l) * np.arccos(-1 + (self.spec.x[k] - self.cont_range[0]) / (self.cont_range[1] - self.cont_range[0]) * 2))
         self.spec.y = self.spec.y / sum_cont
         self.spec.err = self.spec.err / sum_cont
 
@@ -945,6 +852,20 @@ class plotline():
                 self.fit.y = self.fit.y / sum_cont
                 for c in self.fit.comp:
                     c = c / sum_cont
+        self.cont_line = data()
+        self.cont_line.x = self.spec.x[:]
+        self.cont_line.y = sum_cont
+        if 0:
+            mask = (self.sky.x > self.cont_range[0]) * (self.sky.x < self.cont_range[1])
+            corr_sky = np.ones_like(self.sky.x)
+            if len(x[mask]) > 0:
+                base = (self.sky.x[mask] - self.sky.x[mask][0]) * 2 / (self.sky.x[mask][-1] - self.sky.x[mask][0]) - 1
+                corr_sky[mask] = np.polynomial.chebyshev.chebval(base, self.cont)
+            sum_cont = np.zeros(len(self.sky.x))
+            for k in range(len(data[0])):
+                for l in range(len(self.cont)):
+                    sum_cont[k] = sum_cont[k] + self.cont[l] * np.cos((l) * np.arccos(-1 + (self.sky.x[k] - self.cont_range[0]) / (self.cont_range[1] - self.cont_range[0]) * 2))
+            self.sky.y = self.sky.y / sum_cont
 
     def showH2(self, levels=[0, 1, 2, 3, 4, 5], pos=0.84, dpos=0.03, color='cornflowerblue', show_ticks=True, kind='full'):
         if 1:

@@ -1064,6 +1064,11 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
     #println(grid_type, " ", grid_num, " ", binned)
 
     line_mask = update_lines(spec.lines, pars, comp=comp)
+    #println(comp, " ",size(spec.lines))
+    #println(sum(line_mask))
+    if sum(line_mask) == 0
+        return pylist([spec.x[1], spec.x[end]]), pylist([1, 1]), pylist([0, 0]), pylist([0, 0])
+    end
 
     if x == nothing
         x = make_grid(spec, spec.lines[line_mask], grid_type=grid_type, grid_num=grid_num, binned=binned, tau_limit=tau_limit, accuracy=accuracy)
@@ -1142,13 +1147,6 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
         y = inter(x .+ (x .- spec.displ) .* spec.disps .+ spec.dispz)
     end
 
-    if size(spec.cont)[1] > 0
-        y .*= correct_continuum(spec.cont, pars, x)
-    end
-
-    if any([occursin("zero", p.first) for p in pars])
-        y .+= pars["zero"].val
-    end
 
     if (spec.lsf_type != "none")
         y = 1 .- y
@@ -1190,6 +1188,14 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
         y_c = 1 .- y_c
     else
         y_c = y
+    end
+
+    if size(spec.cont)[1] > 0
+        y_c .*= correct_continuum(spec.cont, pars, x)
+    end
+
+    if any([occursin("zero", p.first) for p in pars])
+        y_c .+= pars["zero"].val
     end
 
     #println(y_c)

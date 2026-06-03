@@ -2075,7 +2075,7 @@ class showLinesWidget(QWidget):
         self.showcont.clicked[bool].connect(self.setCont)
         grid.addWidget(self.showcont, 28, 1)
 
-        self.corrcheb = QCheckBox('cheb. applied')
+        self.corrcheb = QCheckBox('cheb. corrected')
         self.corrcheb.setChecked(self.corr_cheb)
         self.corrcheb.clicked[bool].connect(self.setCheb)
         grid.addWidget(self.corrcheb, 28, 2)
@@ -2610,9 +2610,6 @@ class showLinesWidget(QWidget):
                 else:
                     cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1, bounds_error=False)
 
-                mask = (s.sky.raw.x > s.spec.raw.x[s.cont_mask][0]) * (s.sky.raw.x < s.spec.raw.x[s.cont_mask][-1])
-                sky = [s.sky.raw.x[mask], s.sky.raw.y[mask] / cheb(s.sky.raw.x[mask])]
-
                 if s.fit.n() > 0:
                     fit = np.array([s.fit.x(), s.fit.y() / cheb(s.fit.x())])
                     if self.show_comps:
@@ -2646,9 +2643,23 @@ class showLinesWidget(QWidget):
                 else:
                     fit_disp, fit_comp_disp = None, None
 
+                if not self.corr_cheb and self.parent.fit.cont_fit:
+                    if not self.show_disp:
+                        cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
+                    else:
+                        cheb = interp1d(s.cheb.disp[0].norm.x, (s.cheb.disp[0].norm.y + s.cheb.disp[1].norm.y) / 2, fill_value='extrapolate')
+                else:
+                    cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1, bounds_error=False)
+                cont = [s.spec.raw.x[s.cont_mask], cheb(s.spec.raw.x[s.cont_mask])]
+
+                mask = (s.sky.raw.x > s.spec.raw.x[s.cont_mask][0]) * (s.sky.raw.x < s.spec.raw.x[s.cont_mask][-1])
+                sky = [s.sky.raw.x[mask], s.sky.raw.y[mask]]
+
+                cont = [s.spec.raw.x[s.cont_mask], cheb(s.spec.raw.x[s.cont_mask])]
+
                 p.loaddata(d=np.array([s.spec.x(), s.spec.y() / cheb(s.spec.x()), s.spec.err() / cheb(s.spec.x()), s.mask.x()]),
                            f=fit, fit_comp=fit_comp, fit_disp=fit_disp, fit_comp_disp=fit_comp_disp, fit_species=fit_species,
-                           sky=sky, z=[sys.z.val for sys in self.parent.fit.sys])
+                           cont=cont, sky=sky, z=[sys.z.val for sys in self.parent.fit.sys])
 
                 p.show_comps = self.show_comps
                 if self.show_labels:
@@ -2694,8 +2705,10 @@ class showLinesWidget(QWidget):
                                 p.showLineLabels(levels=levels, pos=self.pos_H2, kind='full', only_marks=self.only_marks, show_comps=self.all_comps_marks)
 
                 if self.show_cont:
+                    print("show_cont", not self.show_disp or len(s.fit.disp[0].norm.x) == 0, self.corr_cheb)
                     if not self.show_disp or len(s.fit.disp[0].norm.x) == 0:
-                        p.ax.plot(s.cheb.x(), np.power(s.cheb.y(), 1 - self.corr_cheb), '--k', lw=1)
+                        if not self.corr_cheb:
+                            p.ax.plot(s.cheb.x(), np.power(s.cheb.y(), 1 - self.corr_cheb), '--k', lw=2)
                     else:
                         if p.vel_scale:
                             x = (s.cheb.disp[0].norm.x / p.wavelength / (1 + p.parent.z_ref) - 1) * 299794.26
@@ -11591,10 +11604,14 @@ class sviewer(QMainWindow):
             s.spec.set(x=rebin(s.spec.raw.x, 3), y=rebin(s.spec.raw.x, 3))
             s.cont.y = rebin(s.cont.y, 3)
 
-        if snr is not None:
-            s.spec.set(y=s.spec.raw.y + s.cont.y * np.random.normal(0.0, 1.0 / snr, s.spec.raw.n))
+        if snr is not None and snr != 0:
+            s.spec.set(y=s.spec.raw.y + (s.cont.y * np.random.normal(0.0, 1.0 / snr, s.spec.raw.n)))
             s.spec.set(err=s.cont.y / snr)
-            s.spec.raw.interpolate()
+        else:
+            s.spec.set(y=s.spec.raw.y)
+            s.spec.set(err=np.zeros_like(s.cont.y))
+        s.spec.raw.interpolate()
+
 
         if redraw:
             self.s.redraw()
