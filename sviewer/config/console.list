@@ -1,21 +1,21 @@
-show SiIIj1
-show SiII
-SiII
-cont 1
-set cont 1
-set cont 1
-OI
-KrI
-show ClI
-show SiIIj1
-show SiIII
-set cont 1
-set cont 1
-show SiIIj1
+show CI
+show CIj1
+show CIj2
 show CIIj1
-show SII
-show SiII
-show FeII
-show DI
-OI
+show ZnII
+show CrII
+set cont 1
 show HD
+Me SiII 21
+Me SiII 20.9
+Me FeII 20.9
+Me ZnII 20.9
+logN ZnII
+SiII
+logN SiII
+logN FeII
+logN FeII
+logN SiII
+Me SiII 20.9
+Me FeII 20.9
+Me ZnII 20.9

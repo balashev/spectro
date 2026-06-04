@@ -206,6 +206,8 @@ class Speclist(list):
         for i, s in enumerate(self):
             s.fit_species = {}
 
+        telluric_saved = self.parent.options('telluric')
+        self.parent.options('telluric', False)
         for sp in self.parent.fit.list_species():
             self.prepareFit(ind=ind, exp_ind=exp_ind, selected_species=sp)
             for i, s in enumerate(self):
@@ -222,6 +224,8 @@ class Speclist(list):
                                                                             accuracy=self.parent.accuracy)
                     s.fit_species[sp] = [np.asarray(x), np.asarray(flux)]
 
+        self.parent.options('telluric', telluric_saved)
+        
     def reCalcFit(self, ind=-1, exp_ind=-1):
         #self.prepareFit(ind=-1)
         #self.calcFit(ind=-1)
@@ -2918,7 +2922,9 @@ class regionList(list):
         for i in reversed(range(len(self))):
             self.remove(str(self[i]))
         for reg in text.splitlines():
-            self.add(reg, sort=sort)
+            print(reg)
+            if not reg.strip().startswith('#'):
+                self.add(reg, sort=sort)
 
     def __str__(self):
         return '\n'.join([str(r) for r in self])

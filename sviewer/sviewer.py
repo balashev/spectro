@@ -1813,7 +1813,7 @@ class showLinesWidget(QWidget):
         l.addLayout(l1)
         self.lines = QTextEdit()
         self.setLines(init=True)
-        self.lines.setFixedSize(240, self.frameGeometry().height())
+        self.lines.setFixedSize(320, self.frameGeometry().height())
         self.lines.textChanged.connect(self.readLines)
         l.addWidget(self.lines)
         self.chooseLine = QComboBox()
@@ -2176,9 +2176,11 @@ class showLinesWidget(QWidget):
 
     def setLines(self, init=False):
         if self.regions:
-            self.lines.setText(str(self.parent.plot.regions))
+            add = "# provide the regions you want to plot here \n# line by line with additional options, e.g.: \n# 1000.0..2000.0 exp_0 name_xxx note_xxx nofit nocomps \n"
+            self.lines.setText(add + str(self.parent.plot.regions))
         else:
-            self.lines.setText(str(self.parent.lines))
+            add = "# provide the lines you want to plot here \n# line by line with additional options, e.g.: \n# SiII 1808.01 exp_0 name_xxx note_xxx nofit nocomps \n"
+            self.lines.setText(add + str(self.parent.lines))
         self.readLines()
 
     def changeState(self, s=None):
@@ -2234,7 +2236,6 @@ class showLinesWidget(QWidget):
 
     def setTitle(self):
         self.show_title = int(self.showtitle.isChecked())
-
     def setLabels(self):
         self.show_labels = int(self.showlabels.isChecked())
 
@@ -2299,7 +2300,9 @@ class showLinesWidget(QWidget):
             self.parent.plot.regions.fromText(self.lines.toPlainText(), sort=False)
             self.numRegions.setText('Regions: ' + str(len(self.parent.plot.regions)))
         else:
-            self.parent.lines.fromText(self.lines.toPlainText())
+            clear_lines = "\n".join([l for l in self.lines.toPlainText().split("\n") if not l.strip().startswith('#')])
+            print(clear_lines)
+            self.parent.lines.fromText(clear_lines)
             self.numLines.setText('Lines: '+str(len(self.parent.lines)))
 
     def selectLine(self, line):
@@ -2406,9 +2409,16 @@ class showLinesWidget(QWidget):
                 ind = self.parent.s.ind
                 print(self.parent.lines[self.ps.index(p)].split())
                 p.show_comps = self.show_comps
+                for l in self.parent.abs.lines:
+                    if p.name == str(l.line):
+                        p.wavelength = l.line.l()
+                print(p.wavelength)
+
                 if len(self.parent.lines[self.ps.index(p)].split()) > 2:
                     for s in self.parent.lines[self.ps.index(p)].split()[2:]:
                         print(s)
+                        if 'name' in s:
+                            p.name = s[5:]
                         if 'exp' in s:
                             ind = int(s[4:])
                         if 'note' in s:
@@ -2465,10 +2475,6 @@ class showLinesWidget(QWidget):
                             p.y_min = float(s[5:])
                         if 'ymax' in s:
                             p.y_max = float(s[5:])
-                for l in self.parent.abs.lines:
-                    if p.name == str(l.line):
-                        p.wavelength = l.line.l()
-                print(p.wavelength)
 
                 if self.show_labels:
                     p.name_pos = [self.name_x_pos, self.name_y_pos]
@@ -2585,7 +2591,8 @@ class showLinesWidget(QWidget):
                 self.ps.z_ref = self.parent.z_abs
 
             for i, p in enumerate(self.ps):
-                regions = self.lines.toPlainText().splitlines()
+                #regions = self.lines.toPlainText().splitlines()
+                regions = [r for r in self.lines.toPlainText().splitlines() if not r.strip().startswith('#')]
                 #regions = self.parent.plot.regions
                 st = str(regions[i]).split()
                 p.x_min, p.x_max = (float(s) for s in st[0].split('..'))
@@ -2600,6 +2607,8 @@ class showLinesWidget(QWidget):
                         p.label = str(s[5:])
                     if 'nofit' in s:
                         p.show_fit = False
+                    if 'nocomps' in s:
+                        p.show_comps = False
                 s = self.parent.s[ind]
 
                 if self.corr_cheb and self.parent.fit.cont_fit:
@@ -8600,7 +8609,10 @@ class sviewer(QMainWindow):
                 if any([p.unc.minus > 0 and p.unc.plus > 0 for p in pars]):
                     f.write('fit_results: {0:}\n'.format(len(pars)))
                     for p in pars:
-                        f.write(str(p) + ' = ' + p.fitres(latex=True, showname=True) + '\n')
+                        try:
+                            f.write(str(p) + ' = ' + p.fitres(latex=True, showname=True) + '\n')
+                        except:
+                            f.write(str(p) + ' = ' + "incorrect representation" + '\n')
 
         self.work_folder = os.path.dirname(filename)
         self.options('work_folder', self.work_folder)

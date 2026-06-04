@@ -53,8 +53,8 @@ class a:
                         3. if not set - set to be default
                             
     2. using latex style 
-        x = a('$19.0^{+0.3}_{-0.2}$', form)
-        x = a('$19.0\pm0.2$', form)
+        x = a(r'$19.0^{+0.3}_{-0.2}$', form)
+        x = a(r'$19.0\pm0.2$', form)
         
     3. using list 
         x = a([19.0, 0.3, 0.2], form)
@@ -587,15 +587,15 @@ if __name__ == '__main__':
     #print(a(2,4,4, 'd').log())
 
     if 0:
-        x = a("$11.37\pm0.03", 'l')
+        x = a(r"$11.37\pm0.03", 'l')
         x = a(13.78, 0.16, 0.40, 'l')
-        y = a("$14.90\pm0.15", 'l')
+        y = a(r"$14.90\pm0.15", 'l')
         y = a(13.85, 0.50, 0.50, 'l')
         print(x.dec())
         print(y.dec())
-        #x = a("$1\pm0.1", 'd')
-        #y = a("$10\pm3", 'd')
-        #y = a('$2\pm0.3$', 'd')
+        #x = a(r"$1\pm0.1", 'd')
+        #y = a(r"$10\pm3", 'd')
+        #y = a(r"$2\pm0.3$", 'd')
         z = (x + y)
         plt.show()
         print(z.log())
@@ -609,13 +609,13 @@ if __name__ == '__main__':
     if 0:
         x = a(10, t='u')
     if 0:
-        x = a("1.06^{+0.44}_{-0.10}")
+        x = a(r"1.06^{+0.44}_{-0.10}")
         print(x.dec())
         x = a('2.42^{+0.34}_{-0.07}')
         print(x.dec())
 
     if 0:
-        x = a("$19\pm0.2", 'l')
+        x = a(r"$19\pm0.2", 'l')
         x = a(19, 0.2, 0.1)
         n = [x]*3
         print(sum(n))
