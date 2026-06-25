@@ -149,7 +149,6 @@ class Speclist(list):
 
         for i, s in enumerate(self):
             if exp_ind in [-1, i]:
-                print(self.parent.tau_limit)
                 s.findFitLines(ind, all=all, debug=False, tlim=self.parent.tau_limit, selected_species=selected_species, selected_line=selected_line)
 
         if self.parent.fitType == 'julia':
@@ -1778,7 +1777,7 @@ class Spectrum():
         self.wavelmin, self.wavelmax = self.spec.raw.x[0], self.spec.raw.x[-1]
         self.mask.set(x=np.zeros_like(self.spec.raw.x, dtype=bool))
         self.bad_mask.set(x=np.isnan(self.spec.raw.y))
-        print("set bad: ", self.bad_mask.x(), len(self.bad_mask.x()))
+        #print("set bad: ", self.bad_mask.x(), len(self.bad_mask.x()))
         self.set_res()
 
     def rescale(self, scaling_factor):
@@ -2157,7 +2156,7 @@ class Spectrum():
                     ys = smooth(y[mask], window_len=window, window=filter, mode='same')
                     inter = interp1d(self.spec.raw.x[mask], ys, fill_value=(ys[0], ys[-1]), bounds_error=False)
                     m = np.isfinite(inter(self.spec.raw.x[inds]))
-                    print(self.spec.raw.x[inds][m], inter(self.spec.raw.x[inds][m]))
+                    #print(self.spec.raw.x[inds][m], inter(self.spec.raw.x[inds][m]))
                     if i == iter - 1:
                         self.spline.set_data(x=self.spec.raw.x[inds][m], y=inter(self.spec.raw.x[inds][m]))
                         print(self.spline.x, self.spline.y)

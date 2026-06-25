@@ -1,9 +1,11 @@
 using DataStructures
 using Interpolations
 using ImageFiltering
+using JLD2
 using LeastSquaresOptim
 using LinearAlgebra
 using LsqFit
+#using Parameters
 using PeriodicTable
 using Polynomials
 using PythonCall
@@ -325,6 +327,8 @@ function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
     for (k, p) in pars
         pars[k].fit = copy(pars[k].vary)
     end
+
+    jldsave("temp/pars_julia.jdl2"; data=pars)
     return pars
 end
 
@@ -556,6 +560,7 @@ function prepare_lines(lines)
                             Dict())
         #fit_lines[i] = line(l.name, l.sys, l.l(), l.f(), l.g(), l.b, l.logN, l.z, l.l()*(1+l.z), 0, 0, 0, 0, 0, l.cf, l.stack, Dict())
     end
+    jldsave("temp/fit_lines.jld2"; data=fit_lines)
     return fit_lines
 end
 
@@ -752,6 +757,7 @@ module spectrum
     #using Dierckx
 
     mutable struct spec
+        name::String
         x::Vector{Float64}
         y::Vector{Float64}
         unc::Vector{Float64}
@@ -801,6 +807,15 @@ function prepare_COS(s)
     return cos #LinearInterpolation((lsf_cent, pix), lsf)
 end
 
+function get_resolution(si)
+    println(si.lsf_type, " ", occursin("espresso", pyconvert(String, si.lsf_type)))
+    if occursin("espresso", pyconvert(String, si.lsf_type))
+        return linear_interpolation(pyconvert(Vector{Float64}, si.espresso_lsf[0]), pyconvert(Vector{Float64}, si.espresso_lsf[1]), extrapolation_bc=Flat())
+    else
+        return linear_interpolation([pyconvert(Float64, si.spec.raw.x[0]), pyconvert(Float64, si.spec.raw.x[-1])], pyconvert(Vector{Float64}, si.resolution_linear), extrapolation_bc=Flat())
+    end
+end
+
 function prepare(s, pars, add, COS)
     #print("COS ", COS)
     #c = Vector{Any}
@@ -810,13 +825,15 @@ function prepare(s, pars, add, COS)
         #println("sky ", si.sky_cont.norm.x, " ", si.sky_cont.norm.y)
         #println(isempty(si.sky.norm.x), " ", isempty(si.sky_cont.norm.x))
         #println(size(si.sky.norm.x))
-        spec[i] = spectrum.spec(pyconvert(Vector{Float64}, si.spec.norm.x),
+        spec[i] = spectrum.spec(pyconvert(String, si.name),
+                                pyconvert(Vector{Float64}, si.spec.norm.x),
                                 pyconvert(Vector{Float64}, si.spec.norm.y),
                                 pyconvert(Vector{Float64}, si.spec.norm.err),
                                 pyconvert(Vector{Int64}, si.mask.norm.x) .== 1,
                                 linear_interpolation(pyconvert(Vector{Float64}, si.sky_cont.norm.x), pyconvert(Vector{Float64}, si.sky_cont.norm.y), extrapolation_bc=Flat()),
                                 pyconvert(String, si.lsf_type),
-                                linear_interpolation([pyconvert(Float64, si.spec.raw.x[0]), pyconvert(Float64, si.spec.raw.x[-1])], pyconvert(Vector{Float64}, si.resolution_linear), extrapolation_bc=Flat()),
+                                #linear_interpolation([pyconvert(Float64, si.spec.raw.x[0]), pyconvert(Float64, si.spec.raw.x[-1])], pyconvert(Vector{Float64}, si.resolution_linear), extrapolation_bc=Flat()),
+                                get_resolution(si),
                                 #pyconvert(Vector{Float64}, si.resolution),
                                 prepare_lines(si.fit_lines),
                                 NaN,
@@ -825,8 +842,8 @@ function prepare(s, pars, add, COS)
                                 prepare_cheb(pars, i),
                                 Vector(undef, 0), BitArray(0), linear_interpolation((COS[i][1], COS[i][2]), COS[i][3], extrapolation_bc=Flat()), COS[i][4])
         #spec[i] = spectrum.spec(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.lsf_type, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0), Spline2D(COS[i][1], COS[i][2], COS[i][3]; kx=3, ky=3, s=0.0), COS[i][4])
-        spec[i].bins = (spec[i].x[2:end] + spec[i].x[1:end-1]) / 2
-        spec[i].bin_mask = spec[i].mask[1:end-1] .|| spec[i].mask[2:end]
+        spec[i].bins = append!(pushfirst!((spec[i].x[2:end] + spec[i].x[1:end-1]) / 2, (spec[i].x[1] + (spec[i].x[1] - spec[i].x[2]) / 2)), (spec[i].x[end] + (spec[i].x[end] - spec[i].x[end-1]) / 2))
+        spec[i].bin_mask = vcat(spec[i].mask[1:end-1], [false, false]) .|| vcat([false, false], spec[i].mask[2:end])
     end
     update_pars(pars, spec, add)
     return spec
@@ -923,9 +940,12 @@ function make_grid(spec, lines; grid_type="uniform", grid_num=1, binned=true, ta
     elseif grid_type == "adaptive"
         x_grid[mask] = ones(Int8, sum(mask)) .* grid_num
         if isfinite(x_instr)
-            for i in findall(!=(0), mask[2:end])
+            for i in findall(!=(0), mask[1:end])
                 #println(round(Int, (spec.bins[i] - spec.bins[i-1]) / spec.bins[i] / x_instr * 2))
-                x_grid[i] = max(x_grid[i], round(Int, (1 - xs[i-1] / xs[i]) / x_instr * 2))
+                #println(i)
+                if i < size(x_grid)[1]
+                    x_grid[i] = max(x_grid[i], round(Int, (1 - xs[i] / xs[i+1]) / x_instr * 2))
+                end
             end
             for i in findall(!=(0), mask[1:end-1] - mask[2:end])
                 for k in binsearch(xs, xs[i] * (1 - 6 * x_instr), type="min"):binsearch(xs, xs[i] * (1 + 6 * x_instr), type="max")
@@ -976,6 +996,7 @@ function make_grid(spec, lines; grid_type="uniform", grid_num=1, binned=true, ta
                 k += x_grid[i] + 1
             end
         end
+        println("x_grid:", x_grid)
 
     # >>> minimized grid pixel based:
     elseif grid_type == "minimized"
@@ -984,8 +1005,7 @@ function make_grid(spec, lines; grid_type="uniform", grid_num=1, binned=true, ta
             println("merge ", time() - start)
         end
 
-        x = [spec.x[1], spec.x[end]]
-        #println("spec_mask: ", x, " ", spec.mask)
+        x = [spec.bins[1], spec.bins[end]]
         mask = copy(spec.mask)
         for i in 1:5
             mask[1+i:end] .|= spec.mask[1:end-i]
@@ -1050,12 +1070,13 @@ function make_grid(spec, lines; grid_type="uniform", grid_num=1, binned=true, ta
         end
     end
 
-    i_min, i_max = binsearch(x, spec.x[1], type="max"), binsearch(x, spec.x[end], type="min")
+    i_min, i_max = binsearch(x, spec.bins[1], type="max"), binsearch(x, spec.bins[end], type="min")
     return x[i_min:i_max]
 end
 
 function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", grid_num=1, binned=true, out="all", telluric=false, tau_limit=0.005, accuracy=0.2, optical_depth=false)
 
+    #println(spec.name)
     #print("opt_dep ", optical_depth)
     timeit = 0
     if timeit == 1
@@ -1205,7 +1226,7 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
         y_c .*= spec.sky(x)
     end
 
-    if out == "old all"
+    if out == "not_binned"
         return x, y_c
 
     elseif out in ["all", "binned", "init"]
@@ -1214,11 +1235,9 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
             binned = zero(spec.x[spec.mask])
             sind = searchsortedlast.(Ref(spec.bins[spec.bin_mask]), spec.x[spec.mask])
             for (l, k) in enumerate(sind)
-
                 for i in inds[k]:inds[k+1]-1
                     binned[l] += (x[i+1] - x[i]) * (2 - y_c[i+1] - y_c[i])
                 end
-
                 binned[l] = 1 - binned[l] / (x[inds[k+1]] - x[inds[k]]) / 2
             end
         else
@@ -1232,16 +1251,25 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
         elseif out == "init"
             return y_c[spec.mask]
         end
-
     end
 end
-
 
 function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, method="LsqFit.lmfit", maxiter=50,
                grid_type="minimized", grid_num=1, binned=true, telluric=false, tau_limit=0.001, accuracy=0.1, toll=1e-4)
 
-    println(toll)
-    function cost(p)
+    opts = pyconvert(Dict{String, Any}, opts)
+    pars = make_pars(p_pars, tieds=tieds, z_ref=true)
+
+    params = [p.val for (k, p) in pars if p.fit == true]
+    lower = [p.min for (k, p) in pars if p.fit == true]
+    upper = [p.max for (k, p) in pars if p.fit == true]
+
+    #opts["grid_type"] = grid_type
+    for (name, value) in zip(["grid_type", "grid_num", "binned", "telluric", "tau_limit", "accuracy"], [grid_type, grid_num, binned, telluric, tau_limit, accuracy])
+        opts[name] = value
+    end
+
+    function cost(p) #, spec, pars, add, opts)
         i = 1
         for (k, v) in pars
             if v.fit == 1
@@ -1256,16 +1284,23 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, me
         for s in spec
             if sum(s.mask) > 0
                 #println(calc_spectrum(s, pars, out="binned", regular=regular, telluric=telluric, tau_limit=tau_limit, accuracy=accuracy))
-                append!(res, (calc_spectrum(s, pars, out="binned", grid_type=grid_type, grid_num=grid_num, binned=binned, telluric=telluric, tau_limit=tau_limit, accuracy=accuracy) .- s.y[s.mask]) ./ s.unc[s.mask])
+                append!(res, (calc_spectrum(s, pars,
+                                            out="binned",
+                                            grid_type=opts["grid_type"],
+                                            grid_num=opts["grid_num"],
+                                            binned=opts["binned"],
+                                            telluric=opts["telluric"],
+                                            tau_limit=opts["tau_limit"],
+                                            accuracy=opts["accuracy"]) .- s.y[s.mask]) ./ s.unc[s.mask])
             end
         end
 
         # add constraints to the fit set by opts parameter
 
         # constraints for H2 on increasing b parameter with J level increase
-		if (haskey(opts, "b_increase"))
-		    if (opts["b_increase"] == true)
-		    retval = 0
+        if (haskey(opts, "b_increase"))
+            if (opts["b_increase"] == true)
+            retval = 0
                 for (k, v) in pars
                     if occursin("H2j", k) & occursin("b_", k) & (strip(v.addinfo) == "")
                         if ~occursin("v", k)
@@ -1291,13 +1326,13 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, me
                     end
                 end
             end
-			#println("b_incr ", retval)
-			append!(res, retval)
-		end
+            #println("b_incr ", retval)
+            append!(res, retval)
+        end
 
-		# constraints for H2 on on excitation diagram to be gradually increasing with J
-		if (haskey(opts, "H2_excitation"))
-		    if (opts["H2_excitation"] == true)
+        # constraints for H2 on on excitation diagram to be gradually increasing with J
+        if (haskey(opts, "H2_excitation"))
+            if (opts["H2_excitation"] == true)
                 retval = 0
                 T = Dict()
                 E = [[0, 118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61, 9523.82, 10800.6, 12123.66, 13485.56] * 1.42879,
@@ -1344,20 +1379,14 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, me
                     end
                 end
             end
-			println("H2_exc ", retval)
-			append!(res, retval)
-		end
+            println("H2_exc ", retval)
+            append!(res, retval)
+        end
 
         return res
     end
 
-    opts = pyconvert(Dict, opts)
-
-    pars = make_pars(p_pars, tieds=tieds, z_ref=true)
-
-    params = [p.val for (k, p) in pars if p.fit == true]
-    lower = [p.min for (k, p) in pars if p.fit == true]
-    upper = [p.max for (k, p) in pars if p.fit == true]
+    #cost(p) = cost_lmfit(p, spec, pars, add, opts)
 
     if method == "LsqFit.lmfit"
         fit = LsqFit.lmfit(cost, params, Float64[], maxIter=maxiter, lower=lower, upper=upper, show_trace=true, x_tol=toll, g_tol=toll)

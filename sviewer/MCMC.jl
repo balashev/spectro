@@ -75,7 +75,6 @@ function runMCMC(filename, nthreads; nstep=nothing, cont=false, last=false, samp
 	println(parnames, " ", typeof(parnames))
     println(typeof(chain), typeof(llhoodvals))
     save(File(format"JLD2", replace(filename, ".spj" => ".spr")), "data", [parnames, chain, llhoodvals])
-
 	#plotChain(filename)
 end
 

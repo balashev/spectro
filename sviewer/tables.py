@@ -12,7 +12,7 @@ import numpy as np
 import os
 import pyqtgraph as pg
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QHeaderView, QComboBox
+from PyQt6.QtWidgets import QTableWidget, QHeaderView, QComboBox, QLineEdit
 from scipy.interpolate import interp1d
 import sys
 
@@ -174,14 +174,18 @@ class expTableWidget(TableWidget):
             self.parent.s.redraw()
 
     def LSFchanged(self, i):
-        if self.comb[i].currentText() != 'espresso':
-            self.parent.s[i].lsf_type = self.comb[i].currentText()
-            self.parent.s.prepareFit(-1)
-            self.parent.s.calcFit(-1, recalc=True)
-            self.parent.s.calcFitComps()
-            self.parent.s.redraw()
-        else:
-            self.parent.sendMessage("ESPRESSO LSF is currently not available. Stay tuned")
+        self.parent.s[i].lsf_type = self.comb[i].currentText()
+        if (self.parent.s[i].lsf_type == 'espresso') and self.parent.espresso_lsf is None:
+            self.parent.load_espresso_lsf()
+            self.parent.s[i].espresso_lsf = self.parent.espresso_lsf
+            print("LSFchanged:", self.parent.s[i].espresso_lsf)
+
+        self.parent.s.prepareFit(-1)
+        self.parent.s.calcFit(-1, recalc=True)
+        self.parent.s.calcFitComps()
+        self.parent.s.redraw()
+        #else:
+        #    self.parent.sendMessage("ESPRESSO LSF is currently not available. Stay tuned")
 
     def cell_value(self, columnname):
 
@@ -266,6 +270,8 @@ class QSOlistTable(pg.TableWidget):
             self.setWindowTitle('KODIAQ DR2 catalog')
         if self.cat == 'UVES':
             self.setWindowTitle('UVES ADP QSO catalog')
+        if self.cat == 'QMOST':
+            self.setWindowTitle('QMOST PAQS catalog')
         if self.cat == 'Erosita':
             self.setWindowTitle('Erosita-SDSS sample')
             self.format = {'SDSS_NAME_fl': '%s', 'PLATE_fl': '%5d', 'MJD_fl': '%5d', 'FIBERID_fl': '%4d', 'z': '%.6f',
@@ -307,6 +313,10 @@ class QSOlistTable(pg.TableWidget):
             self.contextMenu.addSeparator()
             self.contextMenu.addAction('Show header').triggered.connect(self.showHeader)
             self.cellChanged.connect(self.saveUVES)
+        if self.cat == 'QMOST':
+            self.contextMenu.addSeparator()
+            self.contextMenu.addAction('Show header').triggered.connect(self.showHeader)
+            self.cellChanged.connect(self.saveQMOST)
         if self.cat == 'Erosita':
             self.contextMenu.addSeparator()
             #self.contextMenu.addAction('Show header').triggered.connect(self.showHeader)
@@ -494,6 +504,24 @@ class QSOlistTable(pg.TableWidget):
             except:
                 pass
 
+    def saveQMOST(self, row, col):
+        if row == self.edit_item[0] and col == self.edit_item[1]:
+            if self.horizontalHeaderItem(col).text() == 'comment':
+                for line in fileinput.input(self.folder + '/list.dat', inplace=True):
+                    if len(line.split()) > 4:
+                        if line.split()[0] == self.item(row, 0).text(): # and line.split()[4] == self.item(row, 4).text():
+                            print(line[:93] + self.item(row, col).text())
+                        else:
+                            print(line.replace('\n', ''))
+            #try:
+            #    self.lyalines.set_data()
+            #    filename = self.parent.options('Lyasamplefile').replace('sample.dat', 'lines.dat')
+            #    if os.path.isfile(filename):
+            #        self.data =  np.genfromtxt(filename, names=True, unpack=True, dtype=(float, float, float, float, float, float, float, 'U20', 'U30', 'U30'))
+            #        self.lyalines.set_data(slice_fields(self.data, ['N', 'b', 'Nerr', 'berr', 'comment']))
+            #except:
+            #    pass
+
     def saveVandels(self, row, col):
 
         if row == self.edit_item[0] and col == self.edit_item[1]:
@@ -582,6 +610,7 @@ class QSOlistTable(pg.TableWidget):
     def row_clicked(self, row=None):
 
         colInd = self.currentItem().column()
+        print(row)
         if row is not None:
             self.selectRow(row)
 
@@ -814,6 +843,14 @@ class QSOlistTable(pg.TableWidget):
                 self.parent.importSpectrum(self.cell_value('name'), spec=[x[mask], y[mask]])
                 self.parent.vb.enableAutoRange()
 
+        if self.cat == 'QMOST':
+            if colInd in [0, 1]:
+                filename = self.folder + self.cell_value('filename').strip()
+                print(filename)
+                self.parent.importSpectrum(filename)
+                self.parent.vb.enableAutoRange()
+                self.parent.console.exec_command('x 3600 9500')
+
         if 'Erosita' == self.cat:
             if colInd == 0:
                 if all([self.columnIndex(name) is not None for name in ['PLATE', 'FIBERID', 'MJD']]):
@@ -933,6 +970,7 @@ class QSOlistTable(pg.TableWidget):
     def selectRow(self, row):
         for col in range(self.columnCount()):
             self.item(row, col).setSelected(True)
+        self.setCurrentCell(row, 0)
 
     def show_H2_cand(self):
         
@@ -946,6 +984,15 @@ class QSOlistTable(pg.TableWidget):
             self.SDSS.H2_cand.z = self.z_abs
             self.SDSS.plot_candidate(fig=figure, normalized=True)
         self.mw.draw()
+
+    def keyPressEvent(self, event):
+        super(QSOlistTable, self).keyPressEvent(event)
+        if not event.isAutoRepeat():
+            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                if self.cat == 'QMOST':
+                    self.parent.activateWindow()
+                    event.accept()
+                    return
 
 class IGMspecTable(pg.TableWidget):
     def __init__(self, parent, cat=None, subparent=None, editable=False):

@@ -31,7 +31,7 @@ from PyQt6.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget,
                              QGridLayout, QTabWidget, QFormLayout, QHBoxLayout, QRadioButton,
                              QTreeWidget, QComboBox, QTreeWidgetItem, QAbstractItemView,
                              QStatusBar, QMenu, QButtonGroup, QMessageBox, QToolButton, QColorDialog)
-from PyQt6.QtCore import Qt, QPointF, QRectF, QEvent, QUrl, QTimer, pyqtSignal, QObject, QPropertyAnimation, QDir
+from PyQt6.QtCore import Qt, QPointF, QRectF, QEvent, QUrl, QTimer, pyqtSignal, QObject, QPropertyAnimation, QDir, QItemSelectionModel
 from PyQt6.QtGui import QDesktopServices, QPainter, QFont, QColor, QIcon
 from scipy.interpolate import interp1d, UnivariateSpline
 from scipy.signal import argrelextrema
@@ -173,6 +173,19 @@ class plotSpectrum(pg.PlotWidget):
         key = event.key()
 
         if not event.isAutoRepeat():
+            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                if self.parent.QMOSTTable is not None and self.parent.QMOSTTable.isVisible():
+                    self.parent.QMOSTTable.activateWindow()
+                    #try:
+                    row = self.parent.QMOSTTable.currentRow()
+                    self.parent.QMOSTTable.selectionModel().clearSelection()
+                    index = self.parent.QMOSTTable.model().index(row, 4)
+                    self.parent.QMOSTTable.selectionModel().select(index, QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Current)
+                    #self.parent.QMOSTTable.selectionModel.seleItem(self.parent.QMOSTTable.item(row, 4)))
+                    self.parent.QMOSTTable.editCell(row, 4)
+                    self.parent.QMOSTTable.editItem(self.parent.QMOSTTable.item(row, 4))
+                    #except:
+                        #    pass
 
             if event.key() == Qt.Key.Key_Down or event.key() == Qt.Key.Key_Right:
                 if self.e_status:
@@ -393,7 +406,15 @@ class plotSpectrum(pg.PlotWidget):
                     self.vb.rbScaleBox.hide()
 
         if event.key() in [Qt.Key.Key_Right, Qt.Key.Key_Left]:
-            if not self.e_status and not self.p_status:
+            if self.parent.QMOSTTable is not None and self.parent.QMOSTTable.isVisible():
+                try:
+                    row = self.parent.QMOSTTable.currentRow()
+                except:
+                    row = 0
+                self.parent.QMOSTTable.selectionModel().clearSelection()
+                self.parent.QMOSTTable.row_clicked(row + 2 * (Qt.Key.Key_Right == event.key()) - 1)
+
+            elif not self.e_status and not self.p_status:
                 self.parent.setz_abs(self.parent.z_abs + (-1 + 2 * (event.key() == Qt.Key.Key_Right))
                                      * (self.viewRange()[0][-1] - self.viewRange()[0][0]) / (np.sum(self.viewRange()[0]) / 2) / 3000 * (1 + 9 * (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier))
                                      * (self.parent.z_abs + 1))
@@ -6123,7 +6144,7 @@ class ExportDataWidget(QWidget):
         if self.cheb_applied.isChecked() and self.parent.fit.cont_fit:
             cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
         else:
-            cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1, bounds_error=False)
+            cheb = interp1d(s.spec.raw.x[:], np.ones_like(s.spec.raw.x[:]), fill_value=1, bounds_error=False)
 
         print(self.spectrum.isChecked(), self.cont.isChecked(), self.fit.isChecked(), self.fit_comps.isChecked())
         if self.spectrum.isChecked():
@@ -6167,9 +6188,11 @@ class ExportDataWidget(QWidget):
             else:
                 x = s.fit.x()
                 sky = np.ones_like(x)
-            fint = interp1d(s.fit.line.norm.x, s.fit.line.norm.y, bounds_error=False, fill_value=1.0)
-            np.savetxt('_trans.'.join(self.filename.rsplit('.', 1)), np.c_[x / unit, sky * fint(x) * np.power(cheb(x), -self.parent.normview)], **kwargs)
-
+            if len(s.fit.line.norm.x) > 0:
+                fint = interp1d(s.fit.line.norm.x, s.fit.line.norm.y, bounds_error=False, fill_value=1.0)
+                np.savetxt('_trans.'.join(self.filename.rsplit('.', 1)), np.c_[x / unit, sky * fint(x) * np.power(cheb(x), -self.parent.normview)], **kwargs)
+            else:
+                np.savetxt('_trans.'.join(self.filename.rsplit('.', 1)), np.c_[x / unit, sky], **kwargs)
             self.parent.options("telluric", tell)
 
         if normview_saved != self.parent.normview:
@@ -7198,6 +7221,8 @@ class sviewer(QMainWindow):
         self.filters = {'SDSS': None, 'Gaia': None, '2MASS': None, 'VISTA': None, 'UKIDSS': None, 'WISE': None, 'GALEX': None}
         self.photo = None
         self.UVESSetup_status = False
+        self.QMOSTTable = None
+        self.espresso_lsf = None
         self.MCMC_output = 'output/mcmc.hdf5'
         self.z_abs = 0
         self.lines = lineList(self)
@@ -7249,6 +7274,7 @@ class sviewer(QMainWindow):
         self.UVESfolder = self.options('UVESfolder', config=self.config)
         self.ErositaFile = self.options('ErositaFile', config=self.config)
         self.MALSfolder = self.options('MALSfolder', config=self.config)
+        self.QMOSTfolder = self.options('QMOSTfolder', config=self.config)
         self.IGMspecFile = self.options('IGMspecFile', config=self.config)
         self.SFDMapPath = self.options('SFDMapPath', config=self.config)
         self.show_residuals = self.options('show_residuals')
@@ -7931,6 +7957,12 @@ class sviewer(QMainWindow):
                 MALS_gal.setStatusTip('load MALS galactic sample')
                 MALS_gal.triggered.connect(self.showMALS)
 
+            QMOST = None
+            if self.QMOSTfolder is not None and os.path.isdir(self.QMOSTfolder):
+                QMOST = QAction('&QMOST ', self)
+                QMOST.setStatusTip('load QSO sample from 4MOST')
+                QMOST.triggered.connect(self.showQMOST)
+
             samplesMenu.addAction(XQ100list)
             samplesMenu.addAction(P94list)
             samplesMenu.addAction(DLAlist)
@@ -7945,6 +7977,8 @@ class sviewer(QMainWindow):
                 samplesMenu.addAction(Erosita)
             if MALS_gal is not None:
                 samplesMenu.addAction(MALS_gal)
+            if QMOST is not None:
+                samplesMenu.addAction(QMOST)
             samplesMenu.addSeparator()
             if IGMspecMenu is not None:
                 samplesMenu.addMenu(IGMspecMenu)
@@ -8209,6 +8243,9 @@ class sviewer(QMainWindow):
             self.plot.updateVelocityAxis()
         self.abs.redraw()
 
+    def load_espresso_lsf(self):
+        self.espresso_lsf = np.genfromtxt("data/ESPRESSO/2023-02-20_ESPRESSO_S2D_LFC_FP_A.dat", unpack=True)[:2]
+        self.espresso_lsf[1] = 299792.47 / self.espresso_lsf[1]
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -8743,6 +8780,8 @@ class sviewer(QMainWindow):
                 elif hdulist is not None or filename.endswith('.fits') or filename.endswith('.fit'):
                     if hdulist is None:
                         hdulist = fits.open(filename)
+
+                    print("cases: ", 'INSTRUME' in hdulist[0].header, 'TELESCOP' in hdulist[0].header, 'OBJECT' in hdulist[0].header)
                     if 'INSTRUME' in hdulist[0].header:
                         #try:
                         if 'XSHOOTER' in hdulist[0].header['INSTRUME']:
@@ -8858,7 +8897,7 @@ class sviewer(QMainWindow):
                             prihdr = hdulist[1].data
                             s.set_data([prihdr['WAVE'], prihdr['FLUX'] * 1e17, prihdr['ERROR'] * 1e17])
 
-                        if '4MOST' in hdulist[0].header['INSTRUME']:
+                        if any([most in hdulist[0].header['INSTRUME'] for most in ["4MOST", "QMOST"]]):
                             prihdr = hdulist[1].data[0]
                             s.set_data([prihdr[0], prihdr[1] * 1e17, prihdr[2] * 1e17])
                         try:
@@ -8875,7 +8914,7 @@ class sviewer(QMainWindow):
                         #except:
                         #    print('fits file was not loaded')
                         #    return False
-                    elif  len(hdulist) > 1 and 'FIRE' in hdulist[1].header['INSTRUME']:
+                    elif len(hdulist) > 1 and 'INSTRUME' in hdulist[1].header and 'FIRE' in hdulist[1].header['INSTRUME']:
                         #print("FIRE")
                         d = np.asarray(hdulist[1].data)
                         for k, dk in enumerate(d):
@@ -9033,7 +9072,7 @@ class sviewer(QMainWindow):
         print("telluric:", data, len(self.s))
         if data is not None:
             if len(self.s) > 0:
-                print(len(self.s), self.s.ind)
+                #print(len(self.s), self.s.ind)
                 for attr in ['g_sky', 'g_sky_cont']:
                     if hasattr(self.s[self.s.ind], attr) and getattr(self.s[self.s.ind], attr) in self.vb.addedItems:
                             self.vb.removeItem(getattr(self.s[self.s.ind], attr))
@@ -9046,9 +9085,12 @@ class sviewer(QMainWindow):
                         self.s[self.s.ind].sky.set(data[0][m], data[-1][m])
                     #print(self.s[self.s.ind].sky.y())
                     print('load')
+                    print(self.s.ind)
                     self.s[self.s.ind].sky.interpolate()
                     print('inter')
                     self.s[self.s.ind].sky.filename = filename
+                    print(self.s[self.s.ind].sky.filename)
+                    print(self.s[self.s.ind].sky.raw.x)
                     self.s[self.s.ind].update_sky()
                     print('redraw')
                     #self.s.redraw()
@@ -9741,6 +9783,7 @@ class sviewer(QMainWindow):
         #self.reload_julia()
         self.s.prepareFit(all=False)
         #self.julia_spec = self.julia.prepare(self.s, self.julia_pars)
+        print(self.options("fit_method"))
         res, unc, converged = self.julia.fitLM(self.julia_spec, self.fit.list(), self.julia_add, tieds=self.fit.tieds,
                                                opts=kwargs,
                                                blindMode=self.blindMode,
@@ -10624,7 +10667,7 @@ class sviewer(QMainWindow):
                 p = ax.plot(x, [v.val for v in y], 'o', markersize=1) #, label='sys_' + str(self.fit.sys.index(sys)))
                 ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]],  fmt='o', color = p[0].get_color(), label=label)
                 if temp:
-                    text.append(self.ExcitationTemp(levels=levels if levels is not None else [0, 1, 2, 3], ind=self.fit.sys.index(sys), plot=False, ax=ax))
+                    text.append(self.ExcitationTemp(levels=levels if levels is not None else [0, 1, 2], ind=self.fit.sys.index(sys), plot=False, ax=ax))
 
 
         #if len(text) > 0:
@@ -11501,6 +11544,13 @@ class sviewer(QMainWindow):
         data = np.genfromtxt(self.UVESfolder+'list.dat', names=True, delimiter='\t',
                              dtype=('U20', '<f8', '<f8', '<i4', '<i4', 'U5', 'U20', 'U200'))
         self.UVESTable.setdata(data)
+
+    def showQMOST(self):
+        self.QMOSTTable = QSOlistTable(self, 'QMOST', folder=self.QMOSTfolder)
+        self.Qdata = np.genfromtxt(self.QMOSTfolder+'list.dat', names=True,
+                             dtype=('U62', 'U16', '<f8', '<f8', 'U100'))
+        self.Qdata
+        self.QMOSTTable.setdata(self.Qdata)
 
     def showErosita(self):
         if self.ErositaWidget is None:

@@ -609,6 +609,17 @@ class atomicData(OrderedDict):
                             print(str(lin))
                         self[name].lines[self[name].lines.index(lin)].add(lam, float(l[105:113]), 1e+8, ref='Cashman2017', pos=pos)
 
+    def readHeI(self):
+        name = "HeI"
+        self[name] = e(name)
+        self[name].lines = []
+        with open(self.folder + '/data/HeI_data.dat', 'r') as f:
+            for l in f.readlines()[1:]:
+                d = l[3:].split()
+                lin = line(name, float(d[0]), float(d[1]), float(d[2]), ref='Kislitsin')
+                if lin not in self[name].lines:
+                    self[name].lines.append(lin)
+
     def correct_lines(self):
         lines = {'SII 1250.57': 1250.584, 'SII 1253.80': 1253.811, 'SII 1259.51': 1259.519}
         for line in lines.keys():
@@ -851,16 +862,7 @@ class atomicData(OrderedDict):
             CO = np.genfromtxt(self.folder + r'/data/CO/CO_data_Dapra_plus_Morton.dat', skip_header=1, names=True, dtype=None)
             for i in np.unique(CO['level']):
                 name = 'COj'+str(i)
-                self[name] = e(name)
-                self[name].lines = []
-                mask = CO['level'] == i
-                for l in CO[mask]:
-                    self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'], nu_u=l['band']))
-                    self[name].lines[-1].band = l['name'] #.decode('UTF-8')
-        if kind == 'Dapra':
-            CO = np.genfromtxt(self.folder + r'/data/CO/CO_data_Dapra.dat', skip_header=1, names=True, dtype=None)
-            for i in np.unique(CO['level']):
-                name = 'COj'+str(i)
+                #print(name)
                 self[name] = e(name)
                 self[name].lines = []
                 mask = CO['level'] == i
@@ -868,12 +870,25 @@ class atomicData(OrderedDict):
                     self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'], nu_u=l['band']))
                     self[name].lines[-1].band = l['name'] #.decode('UTF-8')
 
+        if kind == 'Dapra':
+            CO = np.genfromtxt(self.folder + r'/data/CO/CO_data_Dapra.dat', skip_header=1, names=True, dtype=None)
+            for i in np.unique(CO['level']):
+                name = 'COj'+str(i)
+                #print(name)
+                self[name] = e(name)
+                self[name].lines = []
+                mask = CO['level'] == i
+                for l in CO[mask]:
+                    self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'], nu_u=l['band']))
+                    self[name].lines[-1].band = l['name'].decode('UTF-8')
+
         if kind == 'Morton':
             #CO = np.genfromtxt(self.folder + r'/data/CO/CO_data_Morton.dat', skip_header=1, names=True, dtype=None)
             CO = pd.read_fwf(self.folder + r'/data/CO/CO_data_Morton.dat').to_records()
             for i in np.unique(CO['level']):
                 d = {'P': -1, 'Q': 0, 'R': 1}
                 name = 'COj'+str(i)
+                #print(name)
                 self[name] = e(name)
                 self[name].lines = []
                 mask = CO['level'] == i
@@ -1007,16 +1022,17 @@ class atomicData(OrderedDict):
         self.readCashman()
         self.correct_lines()
         self.fromNIST()
+        self.readHeI()
         self.readH2(j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
         self.readH2(nu=1, j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
         #self.readH2(nu=2, j=[0, 1, 2, 3])
         self.readHD()
-        self.readCO(kind='Morton')
+        self.readCO(kind='Dapra')
         self.readH2O()
         #self.readHF()
         self.readBAL()
         self.read_Molecular()
-        self.read_methanol()
+        #self.read_methanol()
         self.read_EmissionSF()
         self.read_NiII()
         self.writedatabase()
@@ -1537,7 +1553,7 @@ def Asplund2009(element, relative=True):
     'N': [7.83, 0.05, 0.05],
     'O': [8.69, 0.05, 0.05],
     'F': [4.56, 0.30, 0.30],
-    'Ne': [7.93, 0.10, 0.10],  #be carefull see Asplund 2009
+    'Ne': [7.93, 0.10, 0.10], #be carefull see Asplund 2009
     'Na': [6.24, 0.04, 0.04],
     'Mg': [7.60, 0.04, 0.04],
     'Al': [6.45, 0.03, 0.03],
@@ -1545,7 +1561,7 @@ def Asplund2009(element, relative=True):
     'P': [5.41, 0.03, 0.03],
     'S': [7.12, 0.03, 0.03],
     'Cl': [5.50, 0.30, 0.30],
-    'Ar': [6.40, 0.13, 0.13],  #be carefull see Asplund 2009
+    'Ar': [6.40, 0.13, 0.13], #be carefull see Asplund 2009
     'K': [5.03, 0.09, 0.09],
     'Ca': [6.34, 0.04, 0.04],
     'Sc': [3.15, 0.04, 0.04],
@@ -1684,7 +1700,7 @@ if __name__ == '__main__':
     if 1:
         A = atomicData()
         #A.getfromNIST('CI', 4)
-        #A.getfromNIST('CI', 5)
+        #A.getfromNIST('HeI', 1)
         A.makedatabase()
         A.readdatabase()
 

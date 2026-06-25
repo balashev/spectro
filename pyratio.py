@@ -2084,7 +2084,7 @@ if __name__ == '__main__':
         plt.show()
 
     # >>> check CO populations
-    if 1:
+    if 0:
         fig, ax = plt.subplots(figsize=(14, 6))
         pr = pyratio(z=2.5, CMB=True)
         pr.add_spec('CO', num=20)
@@ -2696,8 +2696,8 @@ if __name__ == '__main__':
             plt.show()
 
     # >>> CI calculations:
-    if 0:
-        pr = pyratio(z=0.0)
+    if 1:
+        pr = pyratio(z=2.0)
         pr.add_spec('CI', num=3)
         pr.set_pars(['T', 'n', 'f'])
         pr.pars['n'].value = 2
@@ -2705,8 +2705,9 @@ if __name__ == '__main__':
         pr.pars['f'].value = 0
         fig, ax = plt.subplots()
         print(pr.predict())
+        num = 100
         if 1:
-            n, T = np.linspace(0.7, 4.8, 100), np.linspace(0.5, 2.5, 50)
+            n, T = np.linspace(0.7, 4.8, num), np.linspace(0.5, 3.5, num)
             X, Y = np.meshgrid(n, T)
             z = np.zeros_like(X)
             for i, ni in enumerate(n):
@@ -2716,7 +2717,7 @@ if __name__ == '__main__':
                     #z[k, i] = pop[1] - np.log10(np.sum(np.power(10, pop)))
                     z[k, i] = pop[1]
             cs = ax.contourf(X, Y, z, levels=100)
-            ax.contour(X, Y, z, levels=[-1.0, -0.5, 0.0, 0.4], linestyles='--', colors='k')
+            ax.contour(X, Y, z, levels=[-2.0, -1.0, -0.5, 0.0], linestyles='--', colors='k')
             fig.colorbar(cs)
             ax.set_xlabel(r"$\log n_{\rm H} [\rm cm^{-3}]$")
             ax.set_ylabel(r"$\log T, K$")
