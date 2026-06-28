@@ -21,12 +21,15 @@ class absSystemIndicator():
 
     def add(self, lines, color=None, va='down'):
         print(len(lines))
-        for line in lines:
-            print(line)
-            if line not in self.linelist:
-                l = LineLabel(self, line, self.parent.linelabels, color=color, va=va)
-                self.parent.vb.addItem(l)
-                self.lines.append(l)
+        self.parent.vb.blockSignals(True)
+        try:
+            for line in lines:
+                if line not in self.linelist:
+                    l = LineLabel(self, line, self.parent.linelabels, color=color, va=va)
+                    self.parent.vb.addItem(l, ignoreBounds=True)
+                    self.lines.append(l)
+        finally:
+            self.parent.vb.blockSignals(False)
         self.redraw()
 
     def remove(self, lines=None, el=None):

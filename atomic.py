@@ -453,24 +453,28 @@ class atomicData(OrderedDict):
             els = np.unique([l.split()[0] for l in linelist])
 
         lines = []
+        #t = Timer('list')
 
         with h5py.File(self.folder + r'/data/atomic.hdf5', 'r') as data:
+            #t.time('in')
             for e in els:
                 elist = []
                 if e not in self.lines.keys() or linelist is not None:
                     if e not in self.lines.keys() and linelist is None:
                         self.lines[e] = []
-                    t = Timer(e)
                     name = self.correct_name(e)
                     #print(name)
+                    #t.time(name + 'in')
                     if name in self.keys():
+                        d = data[name]
                         #print('ref', data[name]['ref'])
-                        for i, ref in enumerate(data[name]['ref']):
-                            #t.time('in')
+                        for i, ref in enumerate(d['ref']):
                             #print(i, ref)
-                            lin = data[name]['lines'][str(i)]
-                            #print(lin[0])
+                            #t.time(name + 'in')
+                            lin = d['lines'][str(i)]
+                            #t.time(name + 'load')
                             l = line(name, lin[0][0], lin[0][1], lin[0][2], q=lin[0][3], ref=lin[0][4])
+                            #t.time(name + 'create')
                             for attr in ['j_l', 'nu_l', 'j_u', 'nu_u']:
                                 if b'None' not in ref[attr]:
                                     setattr(l, attr, int(ref[attr]))
@@ -480,10 +484,12 @@ class atomicData(OrderedDict):
                                 if linelist is None:
                                     self.lines[e].append(l)
                                 elist.append(l)
-                            #t.time('out')
+                            #t.time(name + 'append')
+                    #t.time(name + 'out')
                 else:
                     elist = self.lines[e]
                 lines += copy.deepcopy(elist)
+
         return lines
 
     def toascii(self, filename='', els=None, linelist=None):

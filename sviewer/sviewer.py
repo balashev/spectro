@@ -8495,7 +8495,6 @@ class sviewer(QMainWindow):
                 num = int(d[i].split()[1])
                 for k in range(num):
                     i += 1
-                    print(d[i])
                     try:
                         self.fit.setValue(self.atomic.correct_name(d[i].split()[0]), d[i].split()[2], 'unc')
                     except:

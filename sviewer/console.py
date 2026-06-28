@@ -25,6 +25,7 @@ class Console(QTextEdit):
         self.displayPrompt()
         self.initStyle()
         self.addhistory()
+        self.t = Timer("Console:")
 
     def initStyle(self):
         self.setStyleSheet("""
@@ -198,7 +199,6 @@ class Console(QTextEdit):
             args = [a for a in args if a not in ['up', 'down']]
             #print(args)
             lines = self.select_lines(args[1:])
-            #print(lines)
 
             if args[0] in ['add', 'show']:
                 self.parent.abs.add(lines, va=va)
@@ -681,6 +681,7 @@ class Console(QTextEdit):
         if isinstance(args, str):
             args = [args]
         species, lst, f, E, levels = [], [], 0, None, []
+        self.t.time('start')
         for arg in args:
             if 'f<' in arg:
                 f = -float(arg.replace('f<', ''))
