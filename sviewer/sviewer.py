@@ -3186,11 +3186,16 @@ class fitMCMCWidget(QWidget):
         self.likelihood.setChecked(bool(self.parent.options('MCMC_likelihood')))
         self.likelihood.clicked[bool].connect(partial(self.setOpts, 'likelihood'))
         grid.addWidget(self.likelihood, 4, 0)
+        self.cutlikelihood = QLineEdit(check_if_number(self.parent.options('MCMC_cutlikelihood')) * self.parent.options('MCMC_cutlikelihood'))
+        self.cutlikelihood.setFixedSize(120, 30)
+        self.cutlikelihood.textEdited.connect(partial(self.setOpts, 'cutlikelihood'))
+        grid.addWidget(QLabel("cut likelihood:"), 5, 0)
+        grid.addWidget(self.cutlikelihood, 5, 1)
         self.results = QTextEdit('')
         self.results.setFixedSize(500, 400)
         self.results.setText('# fit results are here')
         self.results.textChanged.connect(self.fitresChanged)
-        grid.addWidget(self.results, 5, 1)
+        grid.addWidget(self.results, 6, 1)
         self.chooseShow = chooseShowParsWidget(self.parent)
         self.chooseShow.setFixedSize(200, 700)
         v = QVBoxLayout()
@@ -3322,7 +3327,10 @@ class fitMCMCWidget(QWidget):
                         self.parent.fit.setValue(words[0], words[2], attr='unc')
 
     def setOpts(self, arg=None):
-        setattr(self, 'MCMC_'+arg, getattr(self, arg).isChecked())
+        if arg == 'cutlikelihood':
+            setattr(self, 'MCMC_' + arg, getattr(self, arg).text())
+        else:
+            setattr(self, 'MCMC_'+arg, getattr(self, arg).isChecked())
         #print(arg, getattr(self, arg).isChecked(), getattr(self, 'MCMC_'+arg))
         self.parent.options('MCMC_'+arg, getattr(self, 'MCMC_'+arg))
 
@@ -3521,13 +3529,12 @@ class fitMCMCWidget(QWidget):
         self.parent.MCMC_output = "output/mcmc.hdf5"
         self.start_button.setChecked(False)
 
-    def readChain(self, ):
+    def readChain(self, burnin=False, flatten=False, cutlike=False):
         #with open("output/MCMC_pars.pkl", "rb") as f:
         #    pars = pickle.load(f)
 
         if self.parent.MCMC_output.endswith('hdf5'):
             backend = emcee.backends.HDFBackend(self.parent.MCMC_output)
-
             try:
                 with backend.open('r') as f:
                     g = f[backend.name]
@@ -3541,7 +3548,6 @@ class fitMCMCWidget(QWidget):
                 pars = [str(p) for p in self.parent.fit.list_fit()]
             lnprobs = backend.get_log_prob()
             samples = backend.get_chain()
-            return pars, samples, lnprobs
 
         elif self.parent.MCMC_output.endswith('pickle'):
             with open(self.parent.MCMC_output, 'rb') as f:
@@ -3550,41 +3556,51 @@ class fitMCMCWidget(QWidget):
                 lnprobs = np.asarray(pickle.load(f))
             samples = samples.reshape((samples.shape[0], 1, samples.shape[1]))
             lnprobs = lnprobs.reshape((lnprobs.shape[0], 1))
-            return pars, samples, lnprobs
+
+        if burnin:
+            burnin = int(self.parent.options("MCMC_burnin"))
+            if burnin < samples.shape[0]:
+                samples, lnprobs = samples[burnin:, :, :], lnprobs[burnin:, :]
+            else:
+                self.parent.sendMessage("Burn-in length is larger than the sample size")
+                return None
+
+        if flatten:
+            samples, lnprobs = samples.reshape(-1, samples.shape[-1]), lnprobs.flatten()
+            print(lnprobs.shape, samples.shape)
+            if cutlike and check_if_number(self.parent.options('MCMC_cutlikelihood')):
+                mask = lnprobs > np.max(lnprobs) - float(self.parent.options("MCMC_cutlikelihood"))
+                print("mask:", lnprobs.shape, np.sum(mask))
+                samples, lnprobs = samples[mask, :], lnprobs[mask]
+                print(lnprobs.shape, samples.shape)
+
+        return pars, samples, lnprobs
 
     def showCompsMC(self):
+
         pars, samples, lnprobs = self.readChain()
 
         for ind in range(-1, len(self.parent.fit.sys)):
             loc_pars = [str(i) for i in self.parent.fit.list(ind)]
             mask = np.array([self.parent.fit.list()[[str(i) for i in self.parent.fit.list()].index(p)].fit and p in loc_pars for p in pars])
             if np.sum(mask) > 0:
-                self.showMC(mask=mask, pars=pars, samples=samples, lnprobs=lnprobs)
+                self.showMC(mask=mask)
 
     def showMC(self, mask=None, pars=None, samples=None, lnprobs=None):
 
         if any([pars is None, samples is None, lnprobs is None]):
-            pars, samples, lnprobs = self.readChain()
-        nsteps, nwalkers, = lnprobs.shape
-        burnin = int(self.parent.options('MCMC_burnin'))
-        if burnin < samples.shape[0]:
-            samples = samples[burnin:, :, :]
-            lnprobs = lnprobs[burnin:, :]
-        else:
-            self.parent.sendMessage("Burn-in length is larger than the sample size")
-            return
+            pars, samples, lnprobs = self.readChain(burnin=True, flatten=True, cutlike=True)
 
         if mask is None:
             mask = np.array([self.parent.fit.list()[[str(i) for i in self.parent.fit.list()].index(p)].show for p in pars])
 
-        #print(mask)
         names = [str(p).replace('_', ' ') for i, p in enumerate(self.parent.fit.list_fit()) if mask[i]]
         truth = None
         print(self.parent.options('MCMC_truths'))
         print(samples.shape)
         if self.parent.options('MCMC_truths') == 'Max L':
             inds = np.where(lnprobs == np.max(lnprobs))
-            truth = samples[inds[0][0], inds[1][0], :][np.where(mask)[0]]
+            truth = samples[inds[0][0], :][np.where(mask)[0]]
         elif self.parent.options('MCMC_truths') == 'Model':
             truth = np.asarray([self.parent.fit.getValue(par) for par in pars])[np.where(mask)[0]]
         elif self.parent.options('MCMC_truths') == 'MAP':
@@ -3592,7 +3608,7 @@ class fitMCMCWidget(QWidget):
             for i, p in enumerate(pars):
                 print(p, names)
                 if p.replace('_', ' ') in names:
-                    s = samples[:, :, i].flatten()
+                    s = samples[:, i]
                     # print(np.min(s), np.max(s))
                     x = np.linspace(np.min(s), np.max(s), 100)
                     kde = gaussian_kde(s)
@@ -3617,7 +3633,7 @@ class fitMCMCWidget(QWidget):
         if self.parent.options('MCMC_graph') == 'chainConsumer':
             c = ChainConsumer()
             #print(pd.DataFrame(data=samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]], columns=names))
-            c.add_chain(Chain(samples=pd.DataFrame(data=samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]], columns=names),# walkers=nwalkers,
+            c.add_chain(Chain(samples=pd.DataFrame(data=samples[:, np.where(mask)[0]], columns=names),# walkers=nwalkers,
                         name="posteriors",
                         #parameters=names,
                         smooth=self.parent.options('MCMC_smooth'),
@@ -3647,7 +3663,7 @@ class fitMCMCWidget(QWidget):
                     ax.set_title('')
 
             if self.parent.options('MCMC_graph') == 'corner':
-                figure = corner.corner(samples.reshape(-1, samples.shape[-1])[:, np.where(mask)[0]],
+                figure = corner.corner(samples[:, np.where(mask)[0]],
                                        labels=names,
                                        show_titles= not self.parent.blindMode,
                                        plot_contours=self.parent.options('MCMC_smooth'),
@@ -3662,12 +3678,10 @@ class fitMCMCWidget(QWidget):
             plt.show()
 
     def stats(self, t='fit'):
-        pars, samples, lnprobs = self.readChain()
-        nsteps, nwalkers, = lnprobs.shape
-        burnin = int(self.parent.options('MCMC_burnin'))
+        pars, samples, lnprobs = self.readChain(burnin=True, flatten=True, cutlike=True)
 
         inds = np.where(lnprobs == np.max(lnprobs))
-        truth = samples[inds[0][0], inds[1][0], :] if bool(self.parent.options('MCMC_bestfit')) else None
+        truth = samples[inds[0][0], :] if bool(self.parent.options('MCMC_bestfit')) else None
         print(truth)
         self.results.setText('')
 
@@ -3685,14 +3699,10 @@ class fitMCMCWidget(QWidget):
             fig, ax = plt.subplots(nrows=n_vert, ncols=n_hor, figsize=(6 * n_vert, 4 * n_hor))
             k = 0
 
-            mask = lnprobs[burnin:, :] > -30000
-            print(lnprobs)
-            print(lnprobs.shape, lnprobs[burnin:, :].shape, np.sum(mask))
-
             for i, p in enumerate(pars):
                 print(i, p)
                 if p in names:
-                    s = samples[burnin:, :, i][mask].flatten()
+                    s = samples[:, i]
                     #print(np.min(s), np.max(s))
                     x = np.linspace(np.min(s), np.max(s), 100)
                     kde = gaussian_kde(s)
@@ -3741,10 +3751,10 @@ class fitMCMCWidget(QWidget):
                             if 'total' in r:
                                 inds = np.where(['N_{0:d}_{1:s}'.format(i, r.split('total')[0]) in str(s) for s in pars])[0]
                                 print(r, inds)
-                                d[r] = np.log10(np.sum(10 ** samples[burnin:, :, inds], axis=2)).flatten()
+                                d[r] = np.log10(np.sum(10 ** samples[:, inds], axis=2)).flatten()
                             else:
                                 print(r, np.where([str(s) == 'N_{0:d}_{1:s}'.format(i, r) for s in pars])[0])
-                                d[r] = samples[burnin:, :, np.where([str(s) == 'N_{0:d}_{1:s}'.format(i, r) for s in pars])[0]].flatten()
+                                d[r] = samples[:, np.where([str(s) == 'N_{0:d}_{1:s}'.format(i, r) for s in pars])[0]].flatten()
                         #inds = [np.where([str(s) == 'N_{0:d}_{1:s}'.format(i, r) for s in pars])[0] for r in ratio]
                         #print(inds)
                         if len(d.keys()) > 1:
@@ -3766,21 +3776,13 @@ class fitMCMCWidget(QWidget):
                             ax[vert, hor].text(.1, .8, res.latex(f=f), ha='left', va='top', transform=ax[vert, hor].transAxes)
         else:
             values = []
-            if 0:
-                for k in range(burnin, samples.shape[0]):
-                    for i in range(samples.shape[1]):
-                        for xi, p in zip(samples[k, i], pars):
-                            self.parent.fit.setValue(p, xi)
-                        self.parent.fit.update()
-                        values.append([p.val for p in self.parent.fit.list()])
-            else:
-                kis, iis = burnin + np.random.randint(samples.shape[0] - burnin, size=5000), np.random.randint(samples.shape[1], size=5000)
-                for k, i in zip(kis, iis):
-                    #print(k, i)
-                    for xi, p in zip(samples[k, i], pars):
-                        self.parent.fit.setValue(p, xi)
-                    self.parent.fit.update()
-                    values.append([p.val for p in self.parent.fit.list()])
+            kis = np.random.randint(samples.shape[0], size=5000)
+            for k in kis:
+                #print(k, i)
+                for xi, p in zip(samples[kis, :], pars):
+                    self.parent.fit.setValue(p, xi)
+                self.parent.fit.update()
+                values.append([p.val for p in self.parent.fit.list()])
             values = np.asarray(values)
             print("values done")
 
@@ -3988,8 +3990,7 @@ class fitMCMCWidget(QWidget):
 
 
             burnin = int(self.parent.options('MCMC_burnin'))
-            pars, samples, lnprobs = self.readChain()
-            samples[burnin:, :, :]
+            pars, samples, lnprobs = self.readChain(burnin=True, flatten=True, cutlike=True)
             num = int(self.parent.options('MCMC_disp_num'))
 
             if self.parent.fitType == 'julia':
@@ -4000,9 +4001,8 @@ class fitMCMCWidget(QWidget):
                                            nthreads=int(self.parent.options('MCMC_threads')), nums=int(self.parent.options('MCMC_disp_num')),
                                            savename=filename)
             else:
-                for i1, i2, k in zip(np.random.randint(burnin, high=samples.shape[0], size=num),
-                                     np.random.randint(0, high=samples.shape[1], size=num), range(num)):
-                    for p, t in zip(pars, samples[i1, i2, :]):
+                for i1, k in zip(np.random.randint(high=samples.shape[0], size=num), range(num)):
+                    for p, t in zip(pars, samples[i1, :]):
                         self.parent.fit.setValue(p, t)
                     self.parent.s.prepareFit()
                     self.parent.s.calcFit(recalc=True, redraw=False)
@@ -4097,20 +4097,12 @@ class fitMCMCWidget(QWidget):
 
         if fname[0]:
             if fname[0].endswith('.dat'):
-                pars, samples, lnprobs = self.readChain()
-                nsteps, nwalkers, = lnprobs.shape
-                burnin = int(self.parent.options('MCMC_burnin'))
-
+                pars, samples, lnprobs = self.readChain(burnin=True, flatten=True, cutlike=True)
                 mask = np.array([p.show for p in self.parent.fit.list_fit()])
-                #print(mask)
                 names = [str(p) for p in self.parent.fit.list_fit() if p.show]
                 print(names)
 
-                s = samples[burnin:, :, mask]
-                #print(s.shape)
-                s = s.reshape(-1, s.shape[-1])
-                #print(s.shape)
-                #np.save(fname[0], s)
+                s = samples[:, mask]
                 np.savetxt(fname[0], s, header=','.join(names), fmt=','.join(['%s'] * s.shape[1]))
 
     def keyPressEvent(self, event):

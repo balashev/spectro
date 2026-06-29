@@ -83,6 +83,17 @@ class Worker(QRunnable):
         finally:
             self.signals.finished.emit(self.thread_id)
 
+def check_if_number(val_str):
+    try:
+        int(val_str)
+        return True
+    except (ValueError, TypeError):
+        try:
+            float(val_str)
+            return True
+        except (ValueError, TypeError):
+            return False
+
 class Timer:
     """
     class for timing options
