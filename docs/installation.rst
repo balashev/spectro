@@ -42,7 +42,6 @@ and::
 * dynesty==2.1.5
 * emcee==3.1.6
 * h5py==3.13.0
-* julia==0.6.2
 * juliacall==0.9.24
 * lmfit==1.3.2
 * matplotlib==3.10.1

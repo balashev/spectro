@@ -1389,7 +1389,7 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, me
     #cost(p) = cost_lmfit(p, spec, pars, add, opts)
 
     if method == "LsqFit.lmfit"
-        fit = LsqFit.lmfit(cost, params, Float64[], maxIter=maxiter, lower=lower, upper=upper, show_trace=true, x_tol=toll, g_tol=toll)
+        fit = LsqFit.lmfit(cost, params, Float64[], maxIter=maxiter, lower=lower, upper=upper, show_trace=true, x_tol=toll, g_tol=toll, autodiff=AutoFiniteDiff())
         converged = fit.converged
     elseif method == "lmfit"
         iter = true
@@ -1408,7 +1408,7 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, me
             upper = [p.max for (k, p) in pars if p.fit == true]
         end
         converged = fit.converged
-        fit = LsqFit.lmfit(cost, copy(fit.minimizer), Float64[]; maxIter=1, lower=lower, upper=upper, show_trace=true, x_tol=toll, g_tol=toll)
+        fit = LsqFit.lmfit(cost, copy(fit.minimizer), Float64[]; maxIter=1, lower=lower, upper=upper, show_trace=true, x_tol=toll, g_tol=toll, autodiff=AutoFiniteDiff())
     end
 
     A = fit.jacobian' * fit.jacobian
