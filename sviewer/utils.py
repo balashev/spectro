@@ -94,6 +94,15 @@ def check_if_number(val_str):
         except (ValueError, TypeError):
             return False
 
+def parse_options(text):
+    # Check for double quotes
+    if (text.startswith('"') and text.endswith('"')) or (text.startswith("'") and text.endswith("'")):
+        return text[1:-1]
+    elif check_if_number(text):
+        return float(text)
+    else:
+        return ""
+
 class Timer:
     """
     class for timing options

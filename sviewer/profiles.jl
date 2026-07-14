@@ -301,7 +301,7 @@ mutable struct par
 end
 
 function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
-    #println(p_pars)
+    println(p_pars)
     pars = OrderedDict{String, par}()
     if parnames != nothing
         for p in parnames
@@ -327,8 +327,8 @@ function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
     for (k, p) in pars
         pars[k].fit = copy(pars[k].vary)
     end
-
-    jldsave("temp/pars_julia.jdl2"; data=pars)
+    println(pars)
+    #jldsave("temp/pars_julia.jdl2"; data=pars)
     return pars
 end
 
@@ -408,15 +408,16 @@ function update_pars(pars, spec, add)
             #println(pars[k].name, " ", pars[k].val, " ", parse(Int, pars[k].addinfo[5:end]))
             spec[parse(Int, pars[k].addinfo[5:end]) + 1].resolution = linear_interpolation([spec[parse(Int, pars[k].addinfo[5:end]) + 1].x[1], spec[parse(Int, pars[k].addinfo[5:end]) + 1].x[end]], [pars[k].val, pars[k].val], extrapolation_bc=Flat())
         end
-        if occursin("displ", pars[k].name)
-            spec[parse(Int, split(pars[k].addinfo, "_")[2]) + 1].displ = pars[k].val
-        end
-        if occursin("disps", pars[k].name)
-            spec[parse(Int, split(pars[k].addinfo, "_")[2]) + 1].disps = pars[k].val
-        end
-        if occursin("dispz", pars[k].name)
-            spec[parse(Int, split(pars[k].addinfo, "_")[2]) + 1].dispz = pars[k].val
-        end
+        #if occursin("displ", pars[k].name)
+        #    println(pars[k].addinfo)
+        #    spec[parse(Int, split(pars[k].addinfo, "_")[2]) + 1].displ = pars[k].val
+        #end
+        #if occursin("disps", pars[k].name)
+        #    spec[parse(Int, split(pars[k].addinfo, "_")[2]) + 1].disps = pars[k].val
+        #end
+        #if occursin("dispz", pars[k].name)
+        #    spec[parse(Int, split(pars[k].addinfo, "_")[2]) + 1].dispz = pars[k].val
+        #end
         if occursin("Ntot", pars[k].name)
             ind = split(pars[k].name, "_")[2]
             pr = add["pyratio"][parse(Int, ind) + 1]
@@ -560,7 +561,7 @@ function prepare_lines(lines)
                             Dict())
         #fit_lines[i] = line(l.name, l.sys, l.l(), l.f(), l.g(), l.b, l.logN, l.z, l.l()*(1+l.z), 0, 0, 0, 0, 0, l.cf, l.stack, Dict())
     end
-    jldsave("temp/fit_lines.jld2"; data=fit_lines)
+    #jldsave("temp/fit_lines.jld2"; data=fit_lines)
     return fit_lines
 end
 
@@ -581,6 +582,28 @@ function prepare_cheb(pars, ind)
         end
     end
     return cont
+end
+
+function prepare_disp(pars, ind)
+    disps = []
+    d = [[k, parse(Int, split(k, "_")[2]), parse(Int, split(v.addinfo, "_")[3]), v] for (k, v) in pars if occursin("disp", k)]
+    #println(d)
+    if length(d) > 0
+        d = permutedims(reshape(hcat(d...), (length(d[1]), length(d))))
+        for k in unique(d[:, 2][d[:, 3] .== ind - 1])
+            append!(disps, [disp(0, 0., 0.)])
+            disps[end].ind = k
+            for name in d[:, 1][(d[:, 2] .== k) .& (d[:, 3] .== ind - 1)]
+                if occursin("displ", name)
+                    p = d[:, 4][(d[:, 1] .== name)][1].addinfo
+                    println(p, split(split(p, "_")[1], "..")[1], " ", split(split(p, "_")[1], "..")[2])
+                    disps[end].left, disps[end].right = parse(Float64, split(split(p, "_")[1], "..")[1]), parse(Float64, split(split(p, "_")[1], "..")[2])
+                end
+            end
+        end
+    end
+    println(disps)
+    return disps
 end
 
 function prepare_coll(pr, s)
@@ -671,7 +694,7 @@ function pyratio_predict(pr, pars)
     else
         TCMB = 2.726 * (pars["z_" * pr.ind].val + 1)
     end
-    W = W .+ cmb_rate(pr.Bij, pr.Eij, TCMB) .* escape_prob(pars["Ntot_" * pr.ind].val)
+    W = W .+ cmb_rate(pr.pars["displ_"*string(d.ind)].valBij, pr.Eij, TCMB) .* escape_prob(pars["Ntot_" * pr.ind].val)
 
     if "rad" in pr.pars
         W = W .+ pr.rad_rate .* 10 ^ pars["rad_" * pr.ind].val .* escape_prob(pars["Ntot_" * pr.ind].val)
@@ -751,6 +774,12 @@ mutable struct cheb
     disp::Float64
 end
 
+mutable struct disp
+    ind::Int64
+    left::Float64
+    right::Float64
+end
+
 module spectrum
     using Main: line
     using Interpolations
@@ -766,10 +795,8 @@ module spectrum
         lsf_type::String
         resolution::Interpolations.Extrapolation
         lines::Vector{line}
-        displ::Float64
-        disps::Float64
-        dispz::Float64
         cont::Vector{Any}
+        disp::Vector{Any}
         bins::Vector{Any}
         bin_mask::BitArray
         cos::Interpolations.Extrapolation
@@ -836,10 +863,8 @@ function prepare(s, pars, add, COS)
                                 get_resolution(si),
                                 #pyconvert(Vector{Float64}, si.resolution),
                                 prepare_lines(si.fit_lines),
-                                NaN,
-                                NaN,
-                                NaN,
                                 prepare_cheb(pars, i),
+                                prepare_disp(pars, i),
                                 Vector(undef, 0), BitArray(0), linear_interpolation((COS[i][1], COS[i][2]), COS[i][3], extrapolation_bc=Flat()), COS[i][4])
         #spec[i] = spectrum.spec(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.lsf_type, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0), Spline2D(COS[i][1], COS[i][2], COS[i][3]; kx=3, ky=3, s=0.0), COS[i][4])
         spec[i].bins = append!(pushfirst!((spec[i].x[2:end] + spec[i].x[1:end-1]) / 2, (spec[i].x[1] + (spec[i].x[1] - spec[i].x[2]) / 2)), (spec[i].x[end] + (spec[i].x[end] - spec[i].x[end-1]) / 2))
@@ -1163,9 +1188,14 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
     #    end
     #end
     #println(spec.dispz, " ", spec.disps)
-    if (~isnan(spec.displ)) & (~isnan(spec.disps)) & (~isnan(spec.dispz))
-        inter = LinearInterpolation(x, y, extrapolation_bc=Flat())
-        y = inter(x .+ (x .- spec.displ) .* spec.disps .+ spec.dispz)
+    #if (~isnan(spec.displ)) & (~isnan(spec.disps)) & (~isnan(spec.dispz))
+    for d in spec.disp
+        #println(d.left, " ", d.right)
+        m = (x .> d.left) .& (x .< d.right)
+        inter = LinearInterpolation(x[m], y[m], extrapolation_bc=Flat())
+        #println(d, " ", pars["displ_"*string(d.ind)].val, " ", pars["disps_"*string(d.ind)].val)
+        #println(sum(m))
+        y[m] .= inter.(x[m] .+ (x[m] .- pars["displ_"*string(d.ind)].val) .* pars["disps_"*string(d.ind)].val .+ pars["dispz_"*string(d.ind)].val)
     end
 
 
@@ -1254,7 +1284,7 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
     end
 end
 
-function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, method="LsqFit.lmfit", maxiter=50,
+function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, method="LsqFit.lmfit", maxiter=100,
                grid_type="minimized", grid_num=1, binned=true, telluric=false, tau_limit=0.001, accuracy=0.1, toll=1e-4)
 
     opts = pyconvert(Dict{String, Any}, opts)
@@ -1297,90 +1327,93 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, me
 
         # add constraints to the fit set by opts parameter
 
-        # constraints for H2 on increasing b parameter with J level increase
-        if (haskey(opts, "b_increase"))
-            if (opts["b_increase"] == true)
-            retval = 0
-                for (k, v) in pars
-                    if occursin("H2j", k) & occursin("b_", k) & (strip(v.addinfo) == "")
-                        if ~occursin("v", k)
-                            j = parse(Int64, k[8:end])
-                        else
-                            j = parse(Int64, k[8:findfirst('v', k)-1])
-                        end
-                        for (k1, v1) in pars
-                            if occursin(k[1:7], k1) & ~occursin(k, k1) & (strip(v1.addinfo) == "")
-                                if ~occursin("v", k1)
-                                    j1 = parse(Int64, k1[8:end])
-                                else
-                                    j1 = parse(Int64, k1[8:findfirst('v', k1)-1])
-                                end
-                                #j, j1 = parse(Int64, k[8:end]), parse(Int64, k1[8:end])
-                                if (~occursin("v", k) & ~occursin("v", k1)) || (occursin("v", k) & occursin("v", k1))
-                                    #println(j, " ", j1, " ", (~occursin("v", k) & ~occursin("v", k1)), " ", (occursin("v", k) & occursin("v", k1)))
-                                    x = sign(j - j1) * (v.val / v1.val - 1) * 10
-                                    retval -= (x < 0 ? x : 0)
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-            #println("b_incr ", retval)
-            append!(res, retval)
-        end
-
-        # constraints for H2 on on excitation diagram to be gradually increasing with J
-        if (haskey(opts, "H2_excitation"))
-            if (opts["H2_excitation"] == true)
-                retval = 0
-                T = Dict()
-                E = [[0, 118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61, 9523.82, 10800.6, 12123.66, 13485.56] * 1.42879,
-                     [4161.14, 4273.75, 4497.82, 4831.41, 5271.36, 5813.95, 6454.28, 7187.44, 8007.77, 8908.28, 9883.79, 10927.12, 12031.44, 13191.06] * 1.42879
-                    ]  #Energy difference in K
-                g = [(2 * level + 1) * ((level % 2) * 2 + 1) for level in 0:15]  #statweights
-                nu = append!([0], unique([parse(Int, k[findfirst('v', k)+1]) for (k,v) in pars if occursin("v", k)]))
-                #println(nu)
-                for n in nu
+        # constraints for H2 on increasing b parameter with Energy og level increase
+        if (haskey(opts, "opts"))
+            if (haskey(opts["opts"], "b_increase"))
+                if (opts["opts"]["b_increase"] == true)
+                    E = [[0, 118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61, 9523.82, 10800.6, 12123.66, 13485.56] * 1.42879,
+                         [4161.14, 4273.75, 4497.82, 4831.41, 5271.36, 5813.95, 6454.28, 7187.44, 8007.77, 8908.28, 9883.79, 10927.12, 12031.44, 13191.06] * 1.42879
+                        ]  #Energy of levels in K
+                    Es, sys, nus, js, bs = [], [], [], [], []
+                    retval = 0
                     for (k, v) in pars
-                        if occursin("H2j", k) & occursin("N_", k)
-                            nextlev = ""
-                            #println(k, " ", occursin("v", k), " ", findfirst('v', k))
-                            if ~occursin("v", k) & (n == 0)
-                                j = parse(Int64, k[8:end])
-                                nextlev = k[1:7] * string(j+2)
-                            elseif occursin("v", k)
-                                if n == parse(Int, k[findfirst('v', k)+1])
-                                    j = parse(Int64, k[8:findfirst('v', k)-1])
-                                    nextlev = k[1:findfirst('j', k)] * string(parse(Int, k[findfirst('j', k)+1:findfirst('v', k)-1]) + 2) * k[findfirst('v', k):end]
-                                end
+                        if occursin("H2j", k) & occursin("b_", k) & (strip(v.addinfo) == "")
+                            if ~occursin("v", k)
+                                j, nu = parse(Int64, k[8:end]), 0
+                            else
+                                j, nu = parse(Int64, k[8:findfirst('v', k)-1]), parse(Int64, k[findfirst('v', k)+1])
                             end
-                            if haskey(pars, nextlev)
-                                #println(j, " ", nextlev, " ", k[3])
-                                #println(g[j+1], " ", E[n+1][j+1], " ", g[j+3], " ", E[n+1][j+3])
-                                if ~haskey(T, k[3])
-                                    T[k[3]] = Dict()
-                                end
-                                T[k[3]][j] = (E[n+1][j+3] - E[n+1][j+1]) / log(10^v.val / 10^pars[nextlev].val * g[j+3] / g[j+1])
-                                #println(j, " ", v.val, " ", E[n+1][j+1], " ", g[j+1], " ", T[k[3]][j])
-                            end
+                            push!(nus, nu)
+                            push!(sys, parse(Int64, k[findall("_", k)[1][1]+1:findall("_", k)[2][1]-1]))
+                            push!(js, j)
+                            push!(Es, E[nu+1][j+1])
+                            push!(bs, v.val)
                         end
                     end
-                    #println(n, " ", T)
-                    op = 1
-                    for (k, d) in T
-                        #println(n, " ", k, " ", d)
-                        for (k, v) in d
-                            if haskey(d, k + op)
-                                #println(k, " ", v, " ", d[k+op], " ", (d[k+op] - v < 0 ? (d[k+op] - v) / 50 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2, " ", (d[k+op] - v < 0 ? (d[k+op] / v - 1) * 10 : 0) ^ 2 + (v < 0 ? v / 100 : 0) ^ 2)
-                                retval -= (d[k+op] - v < 0 ? (d[k+op] / v - 1) * 100 : 0) + (v < 0 ? v / 10 : 0)
-                            end
+                    for s in unique(sys)
+                        mask = sys .== s
+                        inds = sortperm(Es[mask])
+                        for i in 1:size(inds)[1]-1
+                            #println(i, " ", Es[mask][inds[i]], " ", Es[mask][inds[i+1]], " ", bs[mask][inds[i]], " ", bs[mask][inds[i+1]])
+                            x = (bs[mask][inds[i+1]] / bs[mask][inds[i]] - 1) * 20
+                            #println(x)
+                            retval -= (x < 0 ? x : 0) ^ 2
                         end
                     end
                 end
+                #println("b_incr ", retval)
+                append!(res, retval)
             end
-            println("H2_exc ", retval)
-            append!(res, retval)
+
+            # constraints for H2 on on excitation temperature to be gradually increasing with J
+            if (haskey(opts["opts"], "H2_excitation"))
+                if (opts["opts"]["H2_excitation"] == true)
+                    op = 0
+                    E = [[0, 118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61, 9523.82, 10800.6, 12123.66, 13485.56] * 1.42879,
+                         [4161.14, 4273.75, 4497.82, 4831.41, 5271.36, 5813.95, 6454.28, 7187.44, 8007.77, 8908.28, 9883.79, 10927.12, 12031.44, 13191.06] * 1.42879
+                        ]  #Energy of levels in K
+                    Es, gs, sys, nus, js, Ns = [], [], [], [], [], []
+                    retval = 0
+                    for (k, v) in pars
+                        if occursin("H2j", k) & occursin("N_", k) & (strip(v.addinfo) == "")
+                            if ~occursin("v", k)
+                                j, nu = parse(Int64, k[8:end]), 0
+                            else
+                                j, nu = parse(Int64, k[8:findfirst('v', k)-1]), parse(Int64, k[findfirst('v', k)+1])
+                            end
+                            push!(nus, nu)
+                            push!(sys, parse(Int64, k[findall("_", k)[1][1]+1:findall("_", k)[2][1]-1]))
+                            push!(js, j)
+                            push!(Es, E[nu+1][j+1])
+                            push!(gs, (2 * j + 1) * ((j % 2) * 2 + 1))
+                            push!(Ns, v.val)
+                        end
+                    end
+                    for s in unique(sys)
+                        m1 = sys .== s
+                        for nu in unique(nus[m1])
+                            m2 = nus[m1] .== nu
+                            for o in 0:op
+                                m3 = op == 1 ? iseven.(js[m1][m2] .+ o) : isfinite.(js[m1][m2])
+                                inds = sortperm(Es[m1][m2][m3])
+                                T = []
+                                for i in 1:size(inds)[1]-1
+                                    #println(i, " ", Es[mask][inds[i]], " ", Es[mask][inds[i+1]], " ", bs[mask][inds[i]], " ", bs[mask][inds[i+1]])
+                                    #push!(j, js[mask][m2][i])
+                                    push!(T, (Es[m1][m2][m3][i] - Es[m1][m2][m3][i+1]) / log(10^(Ns[m1][m2][m3][i+1] - Ns[m1][m2][m3][i]) * gs[m1][m2][m3][i] / gs[m1][m2][m3][i+1]))
+                                end
+                                #println(T)
+                                for i in 1:size(T)[1]-1
+                                    x = (T[i+1] - T[i] < 0 ? (T[i+1] / T[i] - 1) * 10 : 0) + (T[i] < 0 ? T[i] / 10 : 0)
+                                    retval -= (x < 0 ? x : 0) ^ 2
+                                end
+                            end
+                        end
+                    end
+                    #println("H2_exc ", retval)
+                    append!(res, retval)
+                end
+            end
         end
 
         return res

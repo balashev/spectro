@@ -5,14 +5,17 @@ Created on Thu Dec 22 11:45:49 2016
 @author: Serj
 """
 from astropy.io import fits
+import astropy.units as u
+from dust_extinction.parameter_averages import G23
 import fileinput
 from functools import partial
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pyqtgraph as pg
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QTableWidget, QHeaderView, QComboBox, QLineEdit
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtWidgets import QTableWidget, QHeaderView, QComboBox, QLineEdit, QMessageBox
+from PyQt6.QtGui import QDesktopServices
 from scipy.interpolate import interp1d
 import sys
 
@@ -272,11 +275,17 @@ class QSOlistTable(pg.TableWidget):
             self.setWindowTitle('UVES ADP QSO catalog')
         if self.cat == 'QMOST':
             self.setWindowTitle('QMOST PAQS catalog')
-        if self.cat == 'Erosita':
+        if self.cat == 'Erosita_SDSS':
             self.setWindowTitle('Erosita-SDSS sample')
             self.format = {'SDSS_NAME_fl': '%s', 'PLATE_fl': '%5d', 'MJD_fl': '%5d', 'FIBERID_fl': '%4d', 'z': '%.6f',
                            'RA_fin': '%.7f', 'DEC_fin': '%.7f', 'srcname_fin': '%s', 'F_X_int': '%.4e',
                            'ML_FLUX_ERR_0': '%.4e', 'DET_LIKE_0': '%.3f'}
+        if self.cat == 'Erosita_DESI':
+            self.setWindowTitle('Erosita-DESI sample')
+            self.format = {'IND': '%d', 'MROBJ': '%5d', 'RA': '%.6f', 'DEC': '%.6f', 'z': '%.6f',
+                           'ZWARN': '%d', 'SPECTYPE': '%s', 'OBJTYPE': '%s', 'Av_gal': '%.3f',
+                           }
+
         if self.cat == 'MALS':
             self.setWindowTitle('MALS galactic sample')
         if self.cat is None:
@@ -313,13 +322,15 @@ class QSOlistTable(pg.TableWidget):
             self.contextMenu.addSeparator()
             self.contextMenu.addAction('Show header').triggered.connect(self.showHeader)
             self.cellChanged.connect(self.saveUVES)
+
         if self.cat == 'QMOST':
             self.contextMenu.addSeparator()
             self.contextMenu.addAction('Show header').triggered.connect(self.showHeader)
             self.cellChanged.connect(self.saveQMOST)
-        if self.cat == 'Erosita':
+        if self.cat == 'Erosita_DESI':
             self.contextMenu.addSeparator()
-            #self.contextMenu.addAction('Show header').triggered.connect(self.showHeader)
+            self.contextMenu.addAction('Show header').triggered.connect(self.showHeader)
+            self.contextMenu.addAction('Open at CDS Portal').triggered.connect(self.showPortal)
             #self.cellChanged.connect(self.saveUVES)
 
     def setdata(self, data):
@@ -596,6 +607,13 @@ class QSOlistTable(pg.TableWidget):
                     else:
                         print(line.replace('\n', ''))
 
+    def showPortal(self, row):
+        print(row)
+        print(self.cell_value("RA"), self.cell_value("DEC"))
+        link = f"https://portal.cds.unistra.fr/?target={self.cell_value("RA")}%20{self.cell_value("DEC")}"
+        if not QDesktopServices.openUrl(QUrl(link)):
+            QMessageBox.warning(self, 'Open Url', 'Could not open url')
+
     def item_selection(self):
         if 'Erosita' == self.cat:
 
@@ -851,7 +869,7 @@ class QSOlistTable(pg.TableWidget):
                 self.parent.vb.enableAutoRange()
                 self.parent.console.exec_command('x 3600 9500')
 
-        if 'Erosita' == self.cat:
+        if 'Erosita_SDSS' == self.cat:
             if colInd == 0:
                 if all([self.columnIndex(name) is not None for name in ['PLATE', 'FIBERID', 'MJD']]):
                     plate, MJD, fiber = int(self.cell_value('PLATE')), int(self.cell_value('MJD')), int(self.cell_value('FIBERID'))
@@ -876,7 +894,32 @@ class QSOlistTable(pg.TableWidget):
                             self.parent.compositeGal.redraw()
 
                     self.parent.ErositaWidget.index(name=self.cell_value('SDSS_NAME'), ext=False)
+
                 # self.parent.s[-1].resolution = 2000
+        if 'Erosita_DESI' == self.cat:
+            if colInd == 0:
+                i = int(self.cell_value('IND'))
+                print(i)
+                self.parent.setz_abs(self.cell_value('z'))
+                with fits.open('D:/DESI/matched_ordered_spectra_full.fits') as hdu:
+                    x, y, err, mask = hdu[i].data[0], hdu[i].data[1], np.sqrt(1 / hdu[i].data[2]), hdu[i].data[4]
+                    ext = G23(Rv=3.1).extinguish(1 / ((np.asarray(x, dtype=np.float64) * u.AA).to('um')), Av=float(self.cell_value('Av_gal')))
+                    y = y / ext
+                    self.parent.importSpectrum(str(self.cell_value('IND')), spec=[x, y, err])
+                    self.parent.vb.enableAutoRange()
+
+                if self.columnIndex('z') is not None:
+                    self.parent.setz_abs(self.cell_value('z'))
+                    if self.parent.compositeQSO_status % 2:
+                        self.parent.compositeQSO.z = float(self.cell_value('z'))
+                        self.parent.compositeQSO.calc_scale()
+                        self.parent.compositeQSO.redraw()
+                    if self.parent.compositeGal_status % 2:
+                        self.parent.compositeGal.z = float(self.cell_value('z'))
+                        self.parent.compositeGal.calc_scale()
+                        self.parent.compositeGal.redraw()
+
+                self.parent.ErositaWidget.index(name=self.cell_value('IND'), ext=False)
 
         if 'MALS' == self.cat:
             if colInd == 0:

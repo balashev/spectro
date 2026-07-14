@@ -19,6 +19,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
 from multiprocessing import Process
+import mwdust
 import numpy as np
 import pandas as pd
 import pickle
@@ -1832,11 +1833,22 @@ class showLinesWidget(QWidget):
         l1.addStretch(1)
         l1.addWidget(self.numRegions)
         l.addLayout(l1)
+        splitter = QSplitter(Qt.Orientation.Vertical)
+        splitter.setFixedSize(320, self.frameGeometry().height())
         self.lines = QTextEdit()
         self.setLines(init=True)
-        self.lines.setFixedSize(320, self.frameGeometry().height())
+        #self.lines.setFixedSize(320, self.frameGeometry().height())
+        self.lines.setFixedWidth(320)
         self.lines.textChanged.connect(self.readLines)
-        l.addWidget(self.lines)
+        self.addGraphics = QTextEdit(self.parent.add_graphics)
+        self.addGraphics.textChanged.connect(self.readGraphics)
+        #self.add_graphics.setFixedSize(320, self.frameGeometry().height())
+        self.addGraphics.setFixedWidth(320)
+        splitter.addWidget(self.lines)
+        splitter.addWidget(self.addGraphics)
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 1)
+        l.addWidget(splitter)
         self.chooseLine = QComboBox()
         self.chooseLine.setFixedSize(130, 30)
         self.chooseLine.addItems(['choose...'] + [str(l.line) for l in self.parent.abs.lines])
@@ -2326,6 +2338,9 @@ class showLinesWidget(QWidget):
             self.parent.lines.fromText(clear_lines)
             self.numLines.setText('Lines: '+str(len(self.parent.lines)))
 
+    def readGraphics(self):
+        self.parent.add_graphics = self.addGraphics.toPlainText()
+
     def selectLine(self, line):
         if self.regions:
             if line not in self.parent.regions:
@@ -2451,7 +2466,7 @@ class showLinesWidget(QWidget):
                 print(p.name, ind)
                 s = self.parent.s[ind]
 
-                if self.corr_cheb and self.parent.fit.cont_fit:
+                if self.corr_cheb and self.parent.fit.cont_num > 0:
                     cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
                 else:
                     cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1)
@@ -2632,7 +2647,7 @@ class showLinesWidget(QWidget):
                         p.show_comps = False
                 s = self.parent.s[ind]
 
-                if self.corr_cheb and self.parent.fit.cont_fit:
+                if self.corr_cheb and self.parent.fit.cont_num > 0:
                     if not self.show_disp:
                         cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
                     else:
@@ -2673,7 +2688,7 @@ class showLinesWidget(QWidget):
                 else:
                     fit_disp, fit_comp_disp = None, None
 
-                if not self.corr_cheb and self.parent.fit.cont_fit:
+                if not self.corr_cheb and self.parent.fit.cont_num > 0:
                     if not self.show_disp:
                         cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
                     else:
@@ -2750,6 +2765,19 @@ class showLinesWidget(QWidget):
                     if 0:
                         self.showContCorr(ax=ax)
 
+        for lines in self.parent.add_graphics.split("\n"):
+            els = lines.split()
+            print(els)
+            kwargs = {}
+            for el in els[5:]:
+                if "=" in el:
+                    print(el.split("="))
+                    print(parse_options(el.split("=")[1]))
+                    kwargs[el.split("=")[0]] = parse_options(el.split("=")[1])
+            print(kwargs)
+            if els[1] == 'text':
+                self.ps[int(els[0])].ax.text(parse_options(els[2]), parse_options(els[3]), els[4], **kwargs)
+
         if 0:
             #for fit, color in zip(['C:/science/Noterdaeme/HE0001/FeI_ESPRESSO_model.spv', 'C:/science/Noterdaeme/HE0001/FeI_UVES_model.spv'], ['tab:blue', 'tab:green']):
             for fit, color in zip(['C:/science/Noterdaeme/HE0001/FeI_ESPRESSO_model.spv'], ['dodgerblue']):
@@ -2805,6 +2833,7 @@ class showLinesWidget(QWidget):
             #    pickle.dump(self.lines.toPlainText(), f)
             #else:
             pickle.dump(str(self.parent.plot.regions), f)
+            pickle.dump(str(self.parent.add_graphics), f)
             f.close()
             #self.parent.settings['show_lines_settings'] = fname
 
@@ -2824,6 +2853,10 @@ class showLinesWidget(QWidget):
                 setattr(self, opt, item)
             self.parent.lines.fromText(str(pickle.load(f)))
             self.parent.plot.regions.fromText(str(pickle.load(f)), sort=False)
+            try:
+                self.parent.add_graphics = str(pickle.load(f))
+            except:
+                pass
             f.close()
             #self.parent.settings['show_lines_settings'] = fname
         self.close()
@@ -3415,8 +3448,9 @@ class fitMCMCWidget(QWidget):
         self.start(init=False, filename=None)
 
     def LMfit(self, init=True, filename=None):
+        if self.parent.chiSquare.text().strip() == '':
+            self.parent.showFit()
         opts = {'b_increase': self.b_increase.isChecked(), 'H2_excitation': self.H2_excitation.isChecked(), 'hier_continuum': self.hier_continuum.isChecked()}
-
         self.parent.fitJulia(opts=opts)
 
     def MCMC(self, init=True, filename=None):
@@ -4021,7 +4055,7 @@ class fitMCMCWidget(QWidget):
                         fit_disp[i] = np.sort(fit_disp[i], axis=0)
                         self.parent.s[i].fit.disp[0].set(x=fit[i].x, y=fit_disp[i][int((1 - 0.683) / 2 * num), :])
                         self.parent.s[i].fit.disp[1].set(x=fit[i].x, y=fit_disp[i][num - int((1 - 0.683) / 2 * num), :])
-                        if self.parent.fit.cont_fit:
+                        if self.parent.fit.cont_num > 0:
                             cheb_disp[i] = np.sort(cheb_disp[i], axis=0)
                             self.parent.s[i].cheb.disp[0].set(x=fit[i].x, y=cheb_disp[i][int((1 - 0.683) / 2 * num), :])
                             self.parent.s[i].cheb.disp[1].set(x=fit[i].x,
@@ -4049,7 +4083,7 @@ class fitMCMCWidget(QWidget):
                     #if s.fit.line.norm.n > 0:
                     self.parent.s[i].fit.disp[0].set(x=x[i], y=np.asarray(fit_disp[i][:, 0]))
                     self.parent.s[i].fit.disp[1].set(x=x[i], y=np.asarray(fit_disp[i][:, 1]))
-                    if self.parent.fit.cont_fit:
+                    if self.parent.fit.cont_num > 0:
                         self.parent.s[i].cheb.disp[0].set(x=x[i], y=np.asarray(cheb_disp[i][:, 0]))
                         self.parent.s[i].cheb.disp[1].set(x=x[i], y=np.asarray(cheb_disp[i][:, 1]))
                     for k, sys in enumerate(self.parent.fit.sys):
@@ -6133,7 +6167,7 @@ class ExportDataWidget(QWidget):
         if self.parent.normview != self.normalized.isChecked():
             self.parent.normalize(self.normalized.isChecked())
 
-        if self.cheb_applied.isChecked() and self.parent.fit.cont_fit:
+        if self.cheb_applied.isChecked() and self.parent.fit.cont_num > 0:
             cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
         else:
             cheb = interp1d(s.spec.raw.x[:], np.ones_like(s.spec.raw.x[:]), fill_value=1, bounds_error=False)
@@ -7204,7 +7238,7 @@ class sviewer(QMainWindow):
         self.julia = None
         if platform.system() == 'Windows':
             self.config = 'config/options.ini'
-        elif platform.system() == 'Linux':
+        elif platform.system() in ('Linux', 'Darwin'):
             self.config = 'config/options_linux.ini'
         self.developer = os.path.isfile(self.folder + 'config/developer.ini')
         self.SDSSdata = []
@@ -7220,6 +7254,7 @@ class sviewer(QMainWindow):
         self.lines = lineList(self)
         #self.line_reper = line('HI', 1215.6701, 0.4164, 6.265e8, ref='???')
         self.regions = []
+        self.add_graphics = ""
         self.bary, self.heli = 0, 0
         self.save_opt = ['cont', 'points', 'fit', 'others', 'fit_results']
         self.export_opt = ['cont', 'fit']
@@ -7264,7 +7299,8 @@ class sviewer(QMainWindow):
         self.VandelsFile = self.options('VandelsFile', config=self.config)
         self.KodiaqFile = self.options('KodiaqFile', config=self.config)
         self.UVESfolder = self.options('UVESfolder', config=self.config)
-        self.ErositaFile = self.options('ErositaFile', config=self.config)
+        self.ErositaSDSSFile = self.options('ErositaSDSSFile', config=self.config)
+        self.ErositaDESIFile = self.options('ErositaDESIFile', config=self.config)
         self.MALSfolder = self.options('MALSfolder', config=self.config)
         self.QMOSTfolder = self.options('QMOSTfolder', config=self.config)
         self.IGMspecFile = self.options('IGMspecFile', config=self.config)
@@ -7924,11 +7960,17 @@ class sviewer(QMainWindow):
                 UVES.setStatusTip('load QSO sample from UVES ADP')
                 UVES.triggered.connect(self.showUVES)
 
-            Erosita = None
-            if self.ErositaFile is not None and os.path.isfile(self.ErositaFile):
-                Erosita = QAction('&Erosita-SDSS', self)
-                Erosita.setStatusTip('load Erosita-SDSS matched sample')
-                Erosita.triggered.connect(self.showErosita)
+            ErositaSDSS = None
+            if self.ErositaSDSSFile is not None and os.path.isfile(self.ErositaSDSSFile):
+                ErositaSDSS = QAction('&Erosita-SDSS', self)
+                ErositaSDSS.setStatusTip('load Erosita-SDSS matched sample')
+                ErositaSDSS.triggered.connect(partial(self.showErosita, cat="SDSS"))
+
+            ErositaDESI = None
+            if self.ErositaDESIFile is not None and os.path.isfile(self.ErositaDESIFile):
+                ErositaDESI = QAction('&Erosita-DESI', self)
+                ErositaDESI.setStatusTip('load Erosita-DESI matched sample')
+                ErositaDESI.triggered.connect(partial(self.showErosita, cat="DESI"))
 
             IGMspecMenu = None
             if self.IGMspecFile is not None and os.path.isfile(self.IGMspecFile):
@@ -7965,8 +8007,10 @@ class sviewer(QMainWindow):
                 samplesMenu.addAction(Kodiaq)
             if UVES is not None:
                 samplesMenu.addAction(UVES)
-            if Erosita is not None:
-                samplesMenu.addAction(Erosita)
+            if ErositaSDSS is not None:
+                samplesMenu.addAction(ErositaSDSS)
+            if ErositaDESI is not None:
+                samplesMenu.addAction(ErositaDESI)
             if MALS_gal is not None:
                 samplesMenu.addAction(MALS_gal)
             if QMOST is not None:
@@ -8707,7 +8751,7 @@ class sviewer(QMainWindow):
                     #if s.fit.line.norm.n > 0:
                     self.s[i].fit.disp[0].set(x=x[i], y=np.asarray(fit_disp[i][:, 0]))
                     self.s[i].fit.disp[1].set(x=x[i], y=np.asarray(fit_disp[i][:, 1]))
-                    if self.fit.cont_fit:
+                    if self.fit.cont_num > 0:
                         self.s[i].cheb.disp[0].set(x=x[i], y=np.asarray(cheb_disp[i][:, 0]))
                         self.s[i].cheb.disp[1].set(x=x[i], y=np.asarray(cheb_disp[i][:, 1]))
                     for k, sys in enumerate(self.fit.sys):
@@ -10533,7 +10577,7 @@ class sviewer(QMainWindow):
         for i, sys in enumerate(self.fit.sys):
             if ind is None or ind == i:
                 if all(['H2j'+str(x) in sys.sp.keys() for x in levels]):
-                    levels = [0, 1, 2]
+                    #levels = [0, 1, 2]
                     # print(Temp.col_dens(num=4, Temp=92, Ntot=21.3))
                     n = [sys.sp['H2j'+str(x)].N.unc for x in levels]
                     if any([ni.val == 0 for ni in n]):
@@ -10542,7 +10586,7 @@ class sviewer(QMainWindow):
 
                 if any(['COj' + str(x) in sys.sp.keys() for x in levels]):
                     #levels = np.arange(3)
-                    levels = [int(k[k.index('j')+1:]) for k in sys.sp.keys() if k.startswith('CO') and int(k[k.index('j')+1:]) in levels]
+                    #levels = [int(k[k.index('j')+1:]) for k in sys.sp.keys() if k.startswith('CO') and int(k[k.index('j')+1:]) in levels]
                     print("levels:", levels)
                     n = [sys.sp['COj' + str(x)].N.unc for x in levels]
                     if any([ni.val == 0 for ni in n]):
@@ -10596,6 +10640,7 @@ class sviewer(QMainWindow):
         num_sys = 0
         text = []
         species = ''
+        print(levels)
         for sys, color in zip(self.fit.sys, [c['color'] for c in plt.rcParams["axes.prop_cycle"]]):
             label = 'sys_'+str(self.fit.sys.index(sys)+1)
             label = 'z = '+str(sys.z.str(attr='val')[:8])
@@ -10631,6 +10676,7 @@ class sviewer(QMainWindow):
                 if temp:
                     if levels is None:
                         levels = [0, 1]
+                    print(levels)
                     text.append(self.ExcitationTemp(levels=levels if levels is not None else [0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax))
 
             if any([name.startswith('CO') for name in sys.sp.keys()]):
@@ -11026,7 +11072,9 @@ class sviewer(QMainWindow):
                 gal_ext = 0
 
         if gal_ext:
-            Av_gal = 3.1 * sfdmap.SFDMap(self.SFDMapPath).ebv(ra, dec)
+            coords = SkyCoord(ra=ra*u.deg, dec=dec*u.deg, frame='icrs').transform_to('galactic')
+            Av_gal = 3.1 * mwdust.SFD(filter='E(B-V)')(coords.l.deg, coords.b.deg, 2)
+            #Av_gal = 3.1 * sfdmap.SFDMap(self.SFDMapPath).ebv(ra, dec)
         else:
             Av_gal = 0
 
@@ -11036,7 +11084,7 @@ class sviewer(QMainWindow):
         if erosita:
             print('erosita')
             try:
-                filename = os.path.dirname(self.ErositaFile) + '/spectra/spec-{0:04d}-{1:05d}-{2:04d}.fits'.format(int(plate), int(MJD), int(fiber))
+                filename = os.path.dirname(self.ErositaSDSSFile) + '/spectra/spec-{0:04d}-{1:05d}-{2:04d}.fits'.format(int(plate), int(MJD), int(fiber))
                 if os.path.exists(filename):
                     qso = fits.open(filename)
                     ext = add_ext(10 ** qso[1].data['loglam'][:], Av_gal)
@@ -11543,9 +11591,9 @@ class sviewer(QMainWindow):
         self.Qdata
         self.QMOSTTable.setdata(self.Qdata)
 
-    def showErosita(self):
+    def showErosita(self, cat="SDSS"):
         if self.ErositaWidget is None:
-            self.ErositaWidget = ErositaWidget(self)
+            self.ErositaWidget = ErositaWidget(self, cat=cat)
 
     def showMALS(self):
         self.MALSTable = QSOlistTable(self, 'MALS', folder=self.MALSfolder)

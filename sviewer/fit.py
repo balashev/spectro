@@ -417,9 +417,90 @@ class fitCont(list):
 
         self.parent.cont_num = len(self)
         if len(self) == 0:
-            self.parent.cont_fit = 0
             self.parent.remove('hcont')
 
+
+    def update(self):
+        for c in self:
+            c.update()
+
+class disp():
+    def __init__(self, parent):
+        self.parent = parent
+        self.left = 0
+        self.right = 0
+        self.exp = 0
+        self.names = ['displ', 'disps', 'dispz']
+        self.pars = []
+
+    def copy(self):
+        c = disp(self.parent)
+        c.left = self.left
+        c.right = self.right
+        c.exp = self.exp
+        c.pars = self.pars[:]
+        return c
+
+    def update(self):
+        s = '{0:7.1f}'.format(self.left).strip() + '..'
+        s += '{0:7.1f}'.format(self.right).strip()
+        s += '_exp_{0:d}'.format(self.exp).strip()
+        self.ind = self.parent.disp.index(self)
+        print(self.ind)
+        for name in self.names:
+            print(name + '_' + str(self.ind), s)
+            self.parent.setValue(name + '_' + str(self.ind), s, attr='addinfo')
+            print(self.parent.getValue(name + '_' + str(self.ind), 'addinfo'))
+
+    def fromInfo(self, info):
+        s = info.split('_')
+        if len(s) > 0:
+            self.left = float(s[0].split('..')[0])
+            self.right = float(s[0].split('..')[1])
+        if len(s) > 2:
+            self.exp = int(s[2])
+
+class fitDisp(list):
+    def __init__(self, parent):
+        super(fitDisp).__init__()
+        self.parent = parent
+
+    def add(self, name):
+        s = name.split('_')
+        if len(s) > 1:
+            ind = int(s[1])
+            if ind <= len(self):
+                if ind == len(self):
+                    self.append(disp(self.parent))
+                if 'displ' in name:
+                    setattr(self.parent, name, par(self.parent, name, 5000, 3000, 9000, 0.1, addinfo='exp_0'))
+                    self.parent.setValue(name, 0, attr='vary')
+                if 'disps' in name:
+                    setattr(self.parent, name, par(self.parent, name, 0.0, -1, 1, 1e-3, addinfo='exp_0'))
+                if 'dispz' in name:
+                    setattr(self.parent, name, par(self.parent, name, 0.0, -1, 1, 1e-3, addinfo='exp_0'))
+                #self[ind].pars.append(getattr(self.parent, name))
+                #self[ind].left, self[ind].right = [float(r) for r in getattr(self.parent, name).addinfo.split('..')]
+
+    def remove(self, name):
+        if isinstance(name, str):
+            s = name.split('_')
+            if len(s) > 1:
+                ind = int(s[1])
+                if ind < len(self):
+                    if int(s[2]) < len(self[ind].pars):
+                        self[ind].pars.pop()
+                        self[ind].num = len(self[ind].pars)
+                        if self[ind].num == 0:
+                            self.pop()
+                        delattr(self.parent, name)
+        elif isinstance(name, int):
+            for attr in self[name].names:
+                delattr(self.parent, attr + '_' + str(name))
+            self.pop()
+
+        self.parent.disp_num = len(self)
+        self.update()
 
     def update(self):
         for c in self:
@@ -431,7 +512,6 @@ class fitPars:
         self.sys = []
         self.total = fitSystem(self)
         self.total.ind = 'total'
-        self.cont_fit = False
         self.cont_num = 0
         self.cont = fitCont(self)
         self.me_num = 0
@@ -439,6 +519,7 @@ class fitPars:
         self.cf_fit = False
         self.cf_num = 0
         self.disp_num = 0
+        self.disp = fitDisp(self)
         self.stack_num = 0
         self.tieds = {}
 
@@ -464,19 +545,14 @@ class fitPars:
             setattr(self, name, par(self, name, 0.1, 0, 1, 0.01, addinfo='all', left=3000, right=9000))
         if 'zero' in name:
             setattr(self, name, par(self, name, 0.0, 0, 1, 0.01, addinfo='all'))
-        if 'displ' in name:
-            setattr(self, name, par(self, name, 5000, 3000, 9000, 0.1, addinfo='exp_0'))
-        if 'disps' in name:
-            setattr(self, name, par(self, name, 0.0, -1e-4, 1e-4, 1e-6, addinfo='exp_0'))
-        if 'dispz' in name:
-            setattr(self, name, par(self, name, 0.0, -1, 1, 1e-3, addinfo='exp_0'))
+        if 'disp' in name:
+            self.disp.add(name)
         if 'sts' in name:
             setattr(self, name, par(self, name, -1.5, -2, -1, 0.01))
         if 'stNl' in name:
             setattr(self, name, par(self, name, 18, 16, 20, 0.05))
         if 'stNu' in name:
             setattr(self, name, par(self, name, 21, 20, 22, 0.05))
-
 
     def remove(self, name):
         if name in ['mu', 'iso', 'hcont'] or any([x in name for x in ['me', 'res', 'cf', 'zero', 'disp', 'sts', 'stNu', 'stNl']]):
@@ -587,6 +663,12 @@ class fitPars:
             res = getattr(self.sys[int(s[1])].sp[s[2]], s[0]).set(val, attr, check=check)
             if attr == 'val':
                 self.sys[int(s[1])].sp[s[2]].set_type(s[0])
+
+        if s[0] in ['displ', 'disps', 'dispz']:
+            if attr == 'addinfo':
+                self.disp[int(s[1])].left = float(val.split('_')[0].split('..')[0])
+                self.disp[int(s[1])].right = float(val.split('_')[0].split('..')[1])
+                self.disp[int(s[1])].exp = int(val.split('_')[2])
 
         return res
 
@@ -704,7 +786,7 @@ class fitPars:
                 if hasattr(self, attr):
                     p = getattr(self, attr)
                     pars[str(p)] = p
-            if self.cont_fit and self.cont_num > 0:
+            if self.cont_num > 0:
                 for i in range(self.cont_num):
                     for k in range(self.cont[i].num):
                         attr = 'cont_' + str(i) + '_' + str(k)
@@ -778,7 +860,6 @@ class fitPars:
 
         if 'cont_' in s[0]:
             self.cont_num = max(self.cont_num, int(s[0].split('_')[1]) + 1)
-            self.cont_fit = True
 
         if 'res' in s[0]:
             self.res_num = max(self.res_num, int(s[0][4:]) + 1)

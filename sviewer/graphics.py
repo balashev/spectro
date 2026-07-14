@@ -1640,7 +1640,7 @@ class Spectrum():
         self.g_cheb.setZValue(4)
         self.parent.vb.addItem(self.g_cheb)
 
-        if self.parent.fit.cont_fit:
+        if self.parent.fit.cont_num > 0:
             self.set_cheb()
 
         # >>> plot smooth of spectrum:
@@ -1812,7 +1812,7 @@ class Spectrum():
             elif self.parent.fitview == 'bins':
                 self.g_fit.setData(self.fit_bin.line.x(), self.fit_bin.line.y())
             # self.g_fit_bin.setData(self.fit_bin.line.x(), self.fit_bin.line.y())
-            if self.parent.fit.cont_fit:
+            if self.parent.fit.cont_num > 0:
                 self.set_cheb()
             #self.parent.s.chi2()
 
@@ -1839,7 +1839,7 @@ class Spectrum():
                 self.parent.vb.addItem(self.fit.g_disp[i])
             self.fit.g_disp[2] = pg.FillBetweenItem(self.fit.g_disp[0], self.fit.g_disp[1], brush=pg.mkBrush(tuple(list(self.fit_disp_pen.color().getRgb()[:3]) + [200])))
             self.parent.vb.addItem(self.fit.g_disp[2])
-            if self.parent.fit.cont_fit:
+            if self.parent.fit.cont_num > 0:
                 for i in [0, 1]:
                     self.cheb.g_disp[i] = pg.PlotCurveItem(x=self.cheb.disp[i].x(), y=self.cheb.disp[i].y(), pen=self.cont_pen)
                     self.parent.vb.addItem(self.cheb.g_disp[i])
@@ -1857,7 +1857,7 @@ class Spectrum():
                 for i in [0, 1, 2]:
                     if hasattr(self.fit, 'g_disp') and self.fit.g_disp[i] in self.parent.vb.addedItems:
                         self.parent.vb.removeItem(self.fit.g_disp[i])
-                    if self.parent.fit.cont_fit and hasattr(self.cheb, 'g_disp') and self.cheb.g_disp[i] in self.parent.vb.addedItems:
+                    if self.parent.fit.cont_num > 0 and hasattr(self.cheb, 'g_disp') and self.cheb.g_disp[i] in self.parent.vb.addedItems:
                         self.parent.vb.removeItem(self.cheb.g_disp[i])
                     for k in range(len(self.fit_comp)):
                         if hasattr(self.fit_comp[k], 'g_disp') and self.fit_comp[k].g_disp[i] in self.parent.vb.addedItems:
@@ -2368,7 +2368,7 @@ class Spectrum():
                 t.time('convolve')
 
             # >>> correct for artificial continuum:
-            if self.parent.fit.cont_fit and self.parent.fit.cont_num > 0:
+            if self.parent.fit.cont_num > 0:
                 flux = flux * self.correctContinuum(x)
 
             # >>> correct for dispersion:
@@ -2516,9 +2516,8 @@ class Spectrum():
                 print('calcFit_fft', x, flux)
 
             # >>> correct for artificial continuum:
-            if self.parent.fit.cont_fit and self.parent.fit.cont_num > 0:
+            if self.parent.fit.cont_num > 0:
                 flux = flux * self.correctContinuum(x)
-
 
             # >>> set fit graphics
             if ind == -1:
@@ -2622,7 +2621,7 @@ class Spectrum():
                 t.time('convolve')
 
             # >>> correct for artificial continuum:
-            if self.parent.fit.cont_fit and self.parent.fit.cont_num > 0:
+            if self.parent.fit.cont_num > 0:
                 flux = flux * self.correctContinuum(x)
 
             # >>> correct for dispersion:

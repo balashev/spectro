@@ -1,4 +1,5 @@
 import astropy.constants as ac
+from astropy.coordinates import SkyCoord
 from astropy.cosmology import Planck15, FlatLambdaCDM, LambdaCDM
 from astropy.io import fits
 import astropy.units as u
@@ -9,6 +10,7 @@ import emcee
 import itertools
 from matplotlib import cm
 import matplotlib.pyplot as plt
+import mwdust
 import numpy as np
 import numpy.lib.recfunctions as rfn
 import lmfit
@@ -22,7 +24,7 @@ from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QP
 from scipy.stats import linregress
 
 from sklearn import linear_model
-#eimport sfdmap
+#import sfdmap
 from .tables import *
 from .utils import Timer
 from .QSOSEDfit import QSOSEDfit
@@ -251,9 +253,11 @@ class ComboMultipleBox(QToolButton):
 
 
 class ErositaWidget(QWidget):
-    def __init__(self, parent):
+    def __init__(self, parent, cat="SDSS"):
         super(ErositaWidget, self).__init__()
         self.parent = parent
+        self.cat = cat
+        self.catfile = {"SDSS": self.parent.ErositaSDSSFile, "DESI": self.parent.ErositaDESIFile}[self.cat]
         self.setStyleSheet(open(self.parent.folder + 'config/styles.ini').read())
         self.setGeometry(0, 0, 1920, 1080)
 
@@ -261,7 +265,7 @@ class ErositaWidget(QWidget):
         self.initGUI()
         self.loadTable(recalc=True)
         self.updateData()
-        self.QSOSEDfit = QSOSEDfit(catalog=self.parent.ErositaFile, plot=self.plotExt.isChecked(),
+        self.QSOSEDfit = QSOSEDfit(catalog=self.catfile, plot=self.plotExt.isChecked(),
                                    save=self.saveFig.isChecked(), mcmc_steps=1000, anneal_steps=100, corr=30, verbose=1)
 
         self.show()
@@ -275,17 +279,27 @@ class ErositaWidget(QWidget):
             print(opt, self.parent.options(opt), func(self.parent.options(opt)))
             setattr(self, opt, func(self.parent.options(opt)))
 
-        self.axis_list = ['z', 'DEC', 'RA', 'F_X_int', 'F_X', 'DET_LIKE_0', 'F_UV', 'u-b', 'r-i', 'FIRST_FLUX', 'R', 'Av_gal',
-                          'L_X', 'L_UV', 'L_UV_corr', 'L_UV_ext', #'L_UV_corr_host_photo',
-                          'bbb_slope', 'Av_int', 'Rv', 'Abump', 'EBV', 'FeII',
-                          # 'Av_int_host', 'Av_int_photo', 'Av_int_host_photo',
-                          #'chi2_av', 'chi2_av_host', 'chi2_av_photo', 'chi2_av_host_photo',
-                          'Av_host', #'Av_host_photo',
-                          'r_host', 'host_tg', 'host_tau', #'f_host', 'f_host_photo',
-                          'L_host', #'L_host_photo',
-                          'SDSS_photo_scale', 'SDSS_photo_slope', 'SDSS_var', 'alpha_SDSS', 'slope_SDSS', 'lnL',
-                          'F_OIII', 'FWHM_OIII',
-                          ]
+        if self.cat == "SDSS":
+            self.axis_list = ['z', 'DEC', 'RA', 'F_X_int', 'F_X', 'DET_LIKE_0', 'F_UV', 'u-b', 'r-i', 'FIRST_FLUX', 'R', 'Av_gal',
+                              'L_X', 'L_UV', 'L_UV_corr', 'L_UV_ext', #'L_UV_corr_host_photo',
+                              'bbb_slope', 'Av_int', 'Rv', 'Abump', 'EBV', 'FeII',
+                              # 'Av_int_host', 'Av_int_photo', 'Av_int_host_photo',
+                              #'chi2_av', 'chi2_av_host', 'chi2_av_photo', 'chi2_av_host_photo',
+                              'Av_host', #'Av_host_photo',
+                              'r_host', 'host_tg', 'host_tau', #'f_host', 'f_host_photo',
+                              'L_host', #'L_host_photo',
+                              'SDSS_photo_scale', 'SDSS_photo_slope', 'SDSS_var', 'alpha_SDSS', 'slope_SDSS', 'lnL',
+                              'F_OIII', 'FWHM_OIII',
+                              ]
+        if self.cat == "DESI":
+            self.axis_list = ['z', 'DEC', 'RA', 'Av_gal', 'F_UV_2200', 'F_UV_2500', 'F_UV_3100', '2200-3100', '2500-3100',
+                              'L_UV', 'L_UV_corr', 'L_UV_ext', 'L_UV_2200', 'L_UV_2500', 'L_UV_3100',
+                              'bbb_slope', 'Av_int', 'Rv', 'Abump', 'EBV', 'FeII',
+                              'Av_host', 'r_host', 'host_tg', 'host_tau', 'L_host',
+                              'SDSS_photo_scale', 'SDSS_photo_slope', 'SDSS_var', 'alpha_SDSS', 'slope_SDSS', 'lnL',
+                              'F_OIII', 'FWHM_OIII',
+                              ]
+
         self.axis_info = {'z': [lambda x: x, 'z'],
                           'DEC': [lambda x: x, 'DEC'],
                           'RA': [lambda x: x, 'RA'],
@@ -297,11 +311,19 @@ class ErositaWidget(QWidget):
                           'L_UV': [lambda x: np.log10(x), 'log (L UV, erg/s/Hz)'],
                           'L_UV_corr': [lambda x: x, 'log (L UV corrected, erg/s/Hz)'],
                           'L_UV_ext': [lambda x: x, 'log (L UV ext corrected, erg/s/Hz)'],
+                          'L_UV_2200': [lambda x: np.log10(x), 'log (L UV, erg/s/Hz) at 2200A'],
+                          'L_UV_2500': [lambda x: np.log10(x), 'log (L UV, erg/s/Hz) at 2500A'],
+                          'L_UV_3100': [lambda x: np.log10(x), 'log (L UV, erg/s/Hz) at 3100A'],
                           'u-b': [lambda x: x, 'u - b'],
                           'r-i': [lambda x: x, 'r - i'],
                           'FIRST_FLUX': [lambda x: np.log10(np.abs(x)), 'log (FIRST flux, mJy)'],
                           'R': [lambda x: np.log10(x), 'log R'],
                           'Av_gal': [lambda x: x, 'Av (galactic)'],
+                          'F_UV_2200': [lambda x: np.log10(x), 'Flux at 2200A'],
+                          'F_UV_2500': [lambda x: np.log10(x), 'Flux at 2500A'],
+                          'F_UV_3100': [lambda x: np.log10(x), 'Flux at 3100A'],
+                          '2200-3100': [lambda x: np.log10(x), 'The ratio of fluxes at 2200A and 3100A'],
+                          '2500-3100': [lambda x: np.log10(x), 'The ratio of fluxes at 2500A and 3100A'],
                           'bbb_slope': [lambda x: x, 'Slope correction (for big blue bump)'],
                           'FeII': [lambda x: x, 'Strength of the FeII template, a.u.'],
                           'Av_int': [lambda x: x, 'Av (intrinsic)'],
@@ -359,7 +381,7 @@ class ErositaWidget(QWidget):
         d2.addWidget(self.initPanel())
         d2.hideTitleBar()
         d3 = Dock("Table", size=(1000, 1000))
-        self.ErositaTable = QSOlistTable(self.parent, 'Erosita', folder=os.path.dirname(self.parent.ErositaFile))
+        self.ErositaTable = QSOlistTable(self.parent, 'Erosita_' + self.cat, folder=os.path.dirname(self.catfile))
         d3.addWidget(self.ErositaTable)
         area.addDock(d1, 'top')
         area.addDock(d2, 'bottom', d1)
@@ -597,29 +619,44 @@ class ErositaWidget(QWidget):
         return widget
 
     def loadTable(self, recalc=False):
-        self.df = pd.read_csv(self.parent.ErositaFile)[:]
-        try:
-            self.df.rename(columns={'Z': 'z', 'ML_FLUX_0_ero': 'F_X_int'}, inplace=True)
-        except:
-            pass
-        if recalc:
-            if 'F_X' not in self.df.columns:
-                self.df.insert(len(self.df.columns), 'F_X', np.nan)
-                self.df.insert(len(self.df.columns), 'F_X_err', np.nan)
-            gamma = 1.9
-            scale = ((2.2 / 2) ** (2 - gamma) - (0.3 / 2) ** (2 - gamma)) / (2 - gamma)
-            #print(scale, ((2 * u.eV).to(u.Hz, equivalencies=u.spectral()).value))
-            #print((1 + self.df['z']) ** gamma)
-            self.df['F_X'] = self.df['F_X_int'] / ((2e3 * u.eV).to(u.Hz, equivalencies=u.spectral()).value) / scale / (1 + self.df['z']) ** (2 - gamma)
-            self.df['F_X_err'] = self.df['ML_FLUX_ERR_0_ero'] / ((2e3 * u.eV).to(u.Hz, equivalencies=u.spectral()).value) / scale / (
-                        1 + self.df['z']) ** (2 - gamma)
-            # self.df['ML_FLUX_0'] in erg/s/cm^2
-            # self.df['F_X'] in erg/s/cm^2/Hz
+        self.df = pd.read_csv(self.catfile)[:]
+        print(self.df)
+        if self.cat == "SDSS":
+            try:
+                self.df.rename(columns={'Z': 'z', 'ML_FLUX_0_ero': 'F_X_int'}, inplace=True)
+            except:
+                pass
+            if recalc:
+                if 'F_X' not in self.df.columns:
+                    self.df.insert(len(self.df.columns), 'F_X', np.nan)
+                    self.df.insert(len(self.df.columns), 'F_X_err', np.nan)
+                gamma = 1.9
+                scale = ((2.2 / 2) ** (2 - gamma) - (0.3 / 2) ** (2 - gamma)) / (2 - gamma)
+                #print(scale, ((2 * u.eV).to(u.Hz, equivalencies=u.spectral()).value))
+                #print((1 + self.df['z']) ** gamma)
+                self.df['F_X'] = self.df['F_X_int'] / ((2e3 * u.eV).to(u.Hz, equivalencies=u.spectral()).value) / scale / (1 + self.df['z']) ** (2 - gamma)
+                self.df['F_X_err'] = self.df['ML_FLUX_ERR_0_ero'] / ((2e3 * u.eV).to(u.Hz, equivalencies=u.spectral()).value) / scale / (
+                            1 + self.df['z']) ** (2 - gamma)
+                # self.df['ML_FLUX_0'] in erg/s/cm^2
+                # self.df['F_X'] in erg/s/cm^2/Hz
+                self.shown_cols = "SDSS_NAME PLATE FIBERID z JMAG JFLUX R bbb_slope".split()
+                #self.shown_cols = self.parent.options('ero_colnames').split()
+        elif self.cat == "DESI":
+            self.shown_cols = "IND RA DEC z ZWARN SPECTYPE Av_gal".split()
+
+
         self.cols.addItems(self.df.columns)
         #self.cols.addItems(list(self.df.columns)[40:59] + list(self.df.columns)[:40] + list(self.df.columns)[:59])
-        self.shown_cols = self.parent.options('ero_colnames').split()
         self.cols.update()
+
+        print(self.shown_cols)
         self.ErositaTable.setdata(self.df[self.shown_cols].to_records(index=False))
+        self.ErositaTable.setStyleSheet("""
+            QTableWidget::item:selected {
+                background-color: #4CAF50;  /* Green highlight background */
+                color: white;               /* White text color */
+            }
+        """)
         self.mask = np.zeros(len(self.df['z']), dtype=bool)
 
     def getData(self):
@@ -631,11 +668,17 @@ class ErositaWidget(QWidget):
             elif self.ero_x_axis in ['u-b', 'r-i']:
                 self.x = self.x_lambda(self.df['PSFMAG' + str('_ubriz'.index(self.ero_x_axis.split('-')[0]))] - self.df['PSFMAG' + str('_ubriz'.index(self.ero_x_axis.split('-')[1]))])
                 self.SDSScolors = True
+            elif self.ero_x_axis in ['2200-3100', '2500-3100']:
+                self.x = self.x_lambda(self.df[f'F_UV_{self.ero_x_axis.split('-')[0]}'] / self.df[f'F_UV_{self.ero_x_axis.split('-')[1]}'])
+                self.SDSScolors = True
 
             if self.ero_y_axis in self.df.columns:
                 self.y = self.y_lambda(self.df[self.ero_y_axis])
             elif self.ero_y_axis in ['u-b', 'r-i']:
                 self.y = self.y_lambda(self.df['PSFMAG' + str('_ubriz'.index(self.ero_y_axis.split('-')[0]))] - self.df['PSFMAG' + str('_ubriz'.index(self.ero_y_axis.split('-')[1]))])
+                self.SDSScolors = True
+            elif self.ero_x_axis in ['2200-3100', '2500-3100']:
+                self.y = self.y_lambda(self.df[f'F_UV_{self.ero_y_axis.split('-')[0]}'] / self.df[f'F_UV_{self.ero_y_axis.split('-')[1]}'])
                 self.SDSScolors = True
 
             if self.ero_c_axis in self.df.columns:
@@ -696,34 +739,40 @@ class ErositaWidget(QWidget):
 
     def index(self, x=None, y=None, name=None, ind=None, ext=True):
 
-        print(x, y)
+        print(x, y, name, ind)
         if ind is None:
             if x is not None and y is not None:
                 ind = np.argmin((x - self.x) ** 2 + (y - self.y) ** 2)
             elif name is not None:
-                ind = np.where(self.df['SDSS_NAME'] == name)[0][0]
-
-        print(x, y, ind, self.df['SDSS_NAME'][ind])
+                if self.cat == "SDSS":
+                    ind = np.where(self.df['SDSS_NAME'] == name)[0][0]
+                elif self.cat == "DESI":
+                    #print(self.df['IND'], name, type(name))
+                    ind = np.where(self.df['IND'] == int(name))[0][0]
+        #print(x, y, ind)#, self.df['SDSS_NAME'][ind])
 
         if ind is not None:
-
             self.ind = ind
-            if name is None and self.ErositaTable.columnIndex('SDSS_NAME') is not None:
-                row = self.ErositaTable.getRowIndex(column='SDSS_NAME', value=self.df['SDSS_NAME'][ind])
-                self.ErositaTable.setCurrentCell(row, 0)
+            if name is None:
+                if self.cat == "SDSS" and self.ErositaTable.columnIndex('SDSS_NAME') is not None:
+                    row = self.ErositaTable.getRowIndex(column='SDSS_NAME', value=self.df['SDSS_NAME'][ind])
+                if self.cat == "DESI" and self.ErositaTable.columnIndex('IND') is not None:
+                    row = self.ErositaTable.getRowIndex(column='IND', value=str(self.df['IND'][ind]))
+                #self.ErositaTable.setCurrentCell(row, 0)
                 self.ErositaTable.selectRow(row)
                 self.ErositaTable.row_clicked(row=row)
+                self.ErositaTable.scrollToItem(self.ErositaTable.item(row, 0))
+            if self.cat == "SDSS":
+                self.set_filters(ind, clear=True)
+                if x is None and self.plotExt.isChecked():
+                    if 1:
+                        self.plot_sed(self.ind)
+                    #self.calc_line_emission(ind=self.ind, line='OIII', plot=1)
+                    #self.calc_ext(self.ind)
 
-            self.set_filters(ind, clear=True)
-            if x is None and self.plotExt.isChecked():
-                if 1:
-                    self.plot_sed(self.ind)
-                #self.calc_line_emission(ind=self.ind, line='OIII', plot=1)
-                #self.calc_ext(self.ind)
-
-            #for k, f in self.filters.items():
-            #    self.parent.plot.vb.addItem(f.scatter)
-            #    self.parent.plot.vb.addItem(f.errorbar)
+                #for k, f in self.filters.items():
+                #    self.parent.plot.vb.addItem(f.scatter)
+                #    self.parent.plot.vb.addItem(f.errorbar)
 
             self.updateData(ind=self.ind)
 
@@ -850,21 +899,24 @@ class ErositaWidget(QWidget):
 
     def calc_radioLoudness(self):
 
-        if 'R' not in self.df.columns:
-            self.df.insert(len(self.df.columns), 'R', np.nan)
-        self.df['R'] = np.nan
+        if 'FIRST_MATCHED' in self.df.columns:
+            if 'R' not in self.df.columns:
+                self.df.insert(len(self.df.columns), 'R', np.nan)
+            self.df['R'] = np.nan
 
-        mask = self.df['FIRST_MATCHED'].to_numpy() == 0
-        self.df.loc[mask, 'R'] = 1
+            mask = self.df['FIRST_MATCHED'].to_numpy() == 0
+            self.df.loc[mask, 'R'] = 1
 
-        mask = self.df['FIRST_MATCHED'].to_numpy() == 1
-        self.df.loc[mask, 'R'] = self.df['FIRST_FLUX'] * 1e-3 / self.df['F_UV'] * 1e-23
+            mask = self.df['FIRST_MATCHED'].to_numpy() == 1
+            self.df.loc[mask, 'R'] = self.df['FIRST_FLUX'] * 1e-3 / self.df['F_UV'] * 1e-23
 
     def calc_Lum(self):
 
         self.calc_radioLoudness()
 
         mask = np.isfinite(self.df['z'].to_numpy())
+        if self.cat == "DESI":
+            mask *= (self.df['ZWARN'].to_numpy() == 0)
         dl = Planck15.luminosity_distance(self.df['z'].to_numpy()).to('cm')
 
         if 'L_X' not in self.df.columns:
@@ -872,8 +924,8 @@ class ErositaWidget(QWidget):
             self.df.insert(len(self.df.columns), 'L_X_err', np.nan)
         self.df['L_X'] = np.nan
 
-        name = 'L_UV_{0:4d}'.format(int(float(self.lambdaUV.text()))).replace('_2500', '')
-        if 'L_UV' not in self.df.columns:
+        name = 'L_UV_{0:4d}'.format(int(float(self.lambdaUV.text()))) #.replace('_2500', '')
+        if name not in self.df.columns:
             self.df.insert(len(self.df.columns), name, np.nan)
             self.df.insert(len(self.df.columns), name + '_err', np.nan)
         self.df[name], self.df[name + '_err'] = np.nan, np.nan
@@ -882,10 +934,10 @@ class ErositaWidget(QWidget):
             self.df.loc[mask, 'L_X'] = 4 * np.pi * dl[mask] ** 2 * self.df['F_X'][mask] #/ (1 + self.df['Z'])
             self.df.loc[mask, 'L_X_err'] = 4 * np.pi * dl[mask] ** 2 * self.df['F_X_err'][mask]
 
-        if 'F_UV' in self.df.columns:
+        if name.replace('L', 'F') in self.df.columns:
             #self.df.loc[mask, 'L_UV'] = 4 * np.pi * dl[mask] ** 2 * self.df['F_UV'][mask] #/ (1 + self.df['Z'])
             self.df.loc[mask, name] = 4 * np.pi * dl[mask] ** 2 * self.df[name.replace('L', 'F')][mask] / (1 + self.df['z'][mask])
-            self.df.loc[mask, name + '_err'] = 4 * np.pi * dl[mask] ** 2 * self.df[name.replace('L', 'F') + '_err'][mask] / (1 + self.df['z'][mask])
+            self.df.loc[mask, name + '_err'] = 4 * np.pi * dl[mask] ** 2 * pd.to_numeric(self.df[name.replace('L', 'F') + '_err'][mask], errors='coerce') / (1 + self.df['z'][mask])
 
         if 0:
             for attr in ['']: # ['', '_host_photo']:
@@ -966,10 +1018,14 @@ class ErositaWidget(QWidget):
             self.df.insert(len(self.df.columns), 'Av_gal', np.nan)
         self.df['Av_gal'] = np.nan
 
-        m = sfdmap.SFDMap(self.parent.SFDMapPath)
+        coords = SkyCoord(ra=d['RA'] * u.deg, dec=d['DEC'] * u.deg, frame='icrs').transform_to('galactic')
+        Av_gal = 3.1 * mwdust.SFD(filter='E(B-V)')(coords.l.deg, coords.b.deg, 2)
+
+        #m = sfdmap.SFDMap(self.parent.SFDMapPath)
 
         for i, d in self.df.iterrows():
-            self.df.loc[i, 'Av_gal'] = round(3.1 * m.ebv(d['RA'], d['DEC']), 3)
+            #self.df.loc[i, 'Av_gal'] = round(3.1 * m.ebv(d['RA'], d['DEC']), 3)
+            self.df.loc[i, 'Av_gal'] = round(Av_gal, 3)
 
         self.save_data()
         self.updateData()
@@ -1150,7 +1206,7 @@ class ErositaWidget(QWidget):
             self.dataPlot.plotRegression(name='selected', remove=True)
 
     def save_data(self):
-        self.df.to_csv(self.parent.ErositaFile, index=False)
+        self.df.to_csv(self.catfile, index=False)
 
     def closeEvent(self, event):
         super(ErositaWidget, self).closeEvent(event)

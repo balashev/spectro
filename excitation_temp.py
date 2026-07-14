@@ -314,8 +314,8 @@ class ExcitationTemp():
             self.dataplot = fig.add_subplot(121)
             self.regionplot = fig.add_subplot(122)
 
-        self.plot_data(ax=self.dataplot if ax is None else ax, color=color, enegry=energy)
-        self.plot_temp(ax=self.dataplot if ax is None else ax, color=color, enegry=energy)
+        self.plot_data(ax=self.dataplot if ax is None else ax, color=color, energy=energy)
+        self.plot_temp(ax=self.dataplot if ax is None else ax, color=color, energy=energy)
 
         if ax is None:
             self.plot_post(ax=self.regionplot if ax is None else ax)
@@ -367,11 +367,11 @@ if __name__ == '__main__':
 
     n = []
 
-    species = 'CO'
+    species = 'H2'
 
     if species == 'H2':
-        n.append(a(17.57, 0.12, 0.12))
-        n.append(a(17.53, 0.12, 0.12))
+        n.append(a(20.18, 0.10, 0.10))
+        n.append(a(20.37, 0.03, 0.03))
         #n.append(a(16.73, 0.22, 0.22))
         t = ExcitationTemp(species, n, debug=True)
         t.calc(method='emcee', plot=1, verbose=1)

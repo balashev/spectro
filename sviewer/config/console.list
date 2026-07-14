@@ -1,21 +1,21 @@
-HeII
-HeI
-HeIj1
-show HeIj1
-show He I
-show HeI
-HeI
-add H2j0
-add H2j0
-add H2j0
-add H2j0
-add H2 all
-add H2j0
-show SiIIj1
-show SiIIj1
-show SiIIj1
-show OIj1
-high H2j8
-y 0 1
-y 0 10
-x 1200 1250
+rescale 0.1
+show CI
+show CIj1
+show CIj2
+stat
+stats
+show CI
+show H2 0 1
+show CI
+show H2j5
+show H2v1j5
+show H2j5v1
+show H2j6v1
+show H2j7v1
+show H2j8v1
+high H2j7v1
+show H2j9v1
+show H2j10v1
+H2j5v1
+show 12CO
+show 13CO
