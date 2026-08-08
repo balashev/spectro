@@ -301,7 +301,6 @@ mutable struct par
 end
 
 function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
-    println(p_pars)
     pars = OrderedDict{String, par}()
     if parnames != nothing
         for p in parnames
@@ -327,7 +326,6 @@ function make_pars(p_pars; tieds=Dict(), z_ref=nothing, parnames=nothing)
     for (k, p) in pars
         pars[k].fit = copy(pars[k].vary)
     end
-    println(pars)
     #jldsave("temp/pars_julia.jdl2"; data=pars)
     return pars
 end
@@ -596,13 +594,13 @@ function prepare_disp(pars, ind)
             for name in d[:, 1][(d[:, 2] .== k) .& (d[:, 3] .== ind - 1)]
                 if occursin("displ", name)
                     p = d[:, 4][(d[:, 1] .== name)][1].addinfo
-                    println(p, split(split(p, "_")[1], "..")[1], " ", split(split(p, "_")[1], "..")[2])
+                    #println(p, split(split(p, "_")[1], "..")[1], " ", split(split(p, "_")[1], "..")[2])
                     disps[end].left, disps[end].right = parse(Float64, split(split(p, "_")[1], "..")[1]), parse(Float64, split(split(p, "_")[1], "..")[2])
                 end
             end
         end
     end
-    println(disps)
+    #println(disps)
     return disps
 end
 
@@ -1284,7 +1282,7 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
     end
 end
 
-function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, method="LsqFit.lmfit", maxiter=100,
+function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, method="LsqFit.lmfit", maxiter=30,
                grid_type="minimized", grid_num=1, binned=true, telluric=false, tau_limit=0.001, accuracy=0.1, toll=1e-4)
 
     opts = pyconvert(Dict{String, Any}, opts)
@@ -1329,11 +1327,14 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, me
 
         # constraints for H2 on increasing b parameter with Energy og level increase
         if (haskey(opts, "opts"))
+            E = [[0, 118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61, 9523.82, 10800.6, 12123.66, 13485.56, 14881.29, 16304.82] * 1.42879,
+                         [4161.14, 4273.75, 4497.82, 4831.41, 5271.36, 5813.95, 6454.28, 7187.44, 8007.77, 8908.28, 9883.79, 10927.12, 12031.44, 13191.06, 14399.08, 15649.58] * 1.42879,
+                         [8086.93, 8193.81, 8406.29, 8722.7, 9139.86, 9654.15, 10261.2, 10955.68, 11732.12, 12584.8, 13507.42, 14493.58, 15537.15] * 1.42879,
+                         [11782.36, 11883.51, 12084.66, 12384.14, 12778.78, 13265.27, 13839.18, 14495.46, 15228.82] * 1.42879
+                        ]  #Energy of levels in K
+
             if (haskey(opts["opts"], "b_increase"))
                 if (opts["opts"]["b_increase"] == true)
-                    E = [[0, 118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61, 9523.82, 10800.6, 12123.66, 13485.56] * 1.42879,
-                         [4161.14, 4273.75, 4497.82, 4831.41, 5271.36, 5813.95, 6454.28, 7187.44, 8007.77, 8908.28, 9883.79, 10927.12, 12031.44, 13191.06] * 1.42879
-                        ]  #Energy of levels in K
                     Es, sys, nus, js, bs = [], [], [], [], []
                     retval = 0
                     for (k, v) in pars
@@ -1360,18 +1361,15 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, me
                             retval -= (x < 0 ? x : 0) ^ 2
                         end
                     end
+                    #println("b_incr ", retval)
+                    append!(res, retval)
                 end
-                #println("b_incr ", retval)
-                append!(res, retval)
             end
 
             # constraints for H2 on on excitation temperature to be gradually increasing with J
             if (haskey(opts["opts"], "H2_excitation"))
                 if (opts["opts"]["H2_excitation"] == true)
                     op = 0
-                    E = [[0, 118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61, 9523.82, 10800.6, 12123.66, 13485.56] * 1.42879,
-                         [4161.14, 4273.75, 4497.82, 4831.41, 5271.36, 5813.95, 6454.28, 7187.44, 8007.77, 8908.28, 9883.79, 10927.12, 12031.44, 13191.06] * 1.42879
-                        ]  #Energy of levels in K
                     Es, gs, sys, nus, js, Ns = [], [], [], [], [], []
                     retval = 0
                     for (k, v) in pars
@@ -1391,26 +1389,32 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, me
                     end
                     for s in unique(sys)
                         m1 = sys .== s
+                        #println("sys ", s)
                         for nu in unique(nus[m1])
                             m2 = nus[m1] .== nu
+                            #println("nu ", nu)
                             for o in 0:op
                                 m3 = op == 1 ? iseven.(js[m1][m2] .+ o) : isfinite.(js[m1][m2])
                                 inds = sortperm(Es[m1][m2][m3])
+                                #println(inds)
                                 T = []
                                 for i in 1:size(inds)[1]-1
-                                    #println(i, " ", Es[mask][inds[i]], " ", Es[mask][inds[i+1]], " ", bs[mask][inds[i]], " ", bs[mask][inds[i+1]])
-                                    #push!(j, js[mask][m2][i])
-                                    push!(T, (Es[m1][m2][m3][i] - Es[m1][m2][m3][i+1]) / log(10^(Ns[m1][m2][m3][i+1] - Ns[m1][m2][m3][i]) * gs[m1][m2][m3][i] / gs[m1][m2][m3][i+1]))
+                                    #println(i, " ", inds[i], " ", Es[m1][m2][m3][inds[i]], " ", Es[m1][m2][m3][inds[i+1]], " ", Ns[m1][m2][m3][inds[i]], " ", Ns[m1][m2][m3][inds[i+1]])
+                                    #push!(j, js[m1][m2][m3][inds[i]])
+                                    #println((Es[m1][m2][m3][inds[i]] - Es[m1][m2][m3][inds[i+1]]) / log(10^(Ns[m1][m2][m3][inds[i+1]] - Ns[m1][m2][m3][inds[i]]) * gs[m1][m2][m3][inds[i]] / gs[m1][m2][m3][inds[i+1]]))
+                                    push!(T, (Es[m1][m2][m3][inds[i]] - Es[m1][m2][m3][inds[i+1]]) / log(10^(Ns[m1][m2][m3][inds[i+1]] - Ns[m1][m2][m3][inds[i]]) * gs[m1][m2][m3][inds[i]] / gs[m1][m2][m3][inds[i+1]]))
                                 end
-                                #println(T)
+                                #println(s, " ", nu, " ", T)
                                 for i in 1:size(T)[1]-1
-                                    x = (T[i+1] - T[i] < 0 ? (T[i+1] / T[i] - 1) * 10 : 0) + (T[i] < 0 ? T[i] / 10 : 0)
-                                    retval -= (x < 0 ? x : 0) ^ 2
+                                    x = (T[i+1] < T[i] ? (T[i+1] / T[i] - 1) * 10 : 0) + (T[i] < 0 ? T[i] / 100 : 0)
+                                    #println("x for ", i, " ", x)
+                                    retval -= x ^ 2
                                 end
+                                retval -= T[end] < 0 ? (T[end] / 100) ^ 2 : 0
                             end
                         end
                     end
-                    #println("H2_exc ", retval)
+                    println("H2_exc ", retval)
                     append!(res, retval)
                 end
             end

@@ -650,6 +650,7 @@ class atomicData(OrderedDict):
                     self.readH2Abgrall(nu=nu, j=j[m], energy=energy)
             else:
                 self.readH2Abgrall(nu=nu, j=j, energy=energy)
+        #input()
 
     def readH2new(self, j=[0,1], cat='Ubachs'):
         """
@@ -743,6 +744,7 @@ class atomicData(OrderedDict):
                         #print(str(self[name].lines[-1]), nu_l, j_l, nu_u, j_u, l, f, g)
 
         fout.close()
+
     def writeH2(self, nu=0, j=[0,1], energy=None):
         x = np.genfromtxt(self.folder + r'/data/H2/energy_X.dat', comments='#', unpack=True)
         if energy is None:
@@ -1029,9 +1031,9 @@ class atomicData(OrderedDict):
         self.correct_lines()
         self.fromNIST()
         self.readHeI()
-        self.readH2(j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
-        self.readH2(nu=1, j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        #self.readH2(nu=2, j=[0, 1, 2, 3])
+        self.readH2(j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], energy=15000)
+        #self.readH2(nu=1, j=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+        #self.readH2(nu=2, j=[0, 1, 2, 3, 4, 5, 6, 7])
         self.readHD()
         self.readCO(kind='Morton')
         self.readH2O()

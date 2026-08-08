@@ -18,6 +18,7 @@ from matplotlib.colors import to_hex
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator, MultipleLocator, FormatStrFormatter
+from matplotlib.markers import MarkerStyle
 from multiprocessing import Process
 import mwdust
 import numpy as np
@@ -187,6 +188,19 @@ class plotSpectrum(pg.PlotWidget):
                     self.parent.QMOSTTable.editItem(self.parent.QMOSTTable.item(row, 4))
                     #except:
                         #    pass
+
+                if self.parent.ErositaWidget is not None and self.parent.ErositaWidget.isVisible() and self.parent.ErositaWidget.cat == 'DESI':
+                    self.parent.ErositaWidget.activateWindow()
+                    # try:
+                    row = self.parent.ErositaWidget.ErositaTable.currentRow()
+                    self.parent.ErositaWidget.ErositaTable.selectionModel().clearSelection()
+                    colind = self.parent.ErositaWidget.ErositaTable.columnIndex("comments")
+                    if colind > -1:
+                        index = self.parent.ErositaWidget.ErositaTable.model().index(row, colind)
+                        self.parent.ErositaWidget.ErositaTable.selectionModel().select(index, QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Current)
+                        # self.parent.QMOSTTable.selectionModel.seleItem(self.parent.QMOSTTable.item(row, 4)))
+                        self.parent.ErositaWidget.ErositaTable.editCell(row, colind)
+                        self.parent.ErositaWidget.ErositaTable.editItem(self.parent.ErositaWidget.ErositaTable.item(row, colind))
 
             if event.key() == Qt.Key.Key_Down or event.key() == Qt.Key.Key_Right:
                 if self.e_status:
@@ -414,6 +428,14 @@ class plotSpectrum(pg.PlotWidget):
                     row = 0
                 self.parent.QMOSTTable.selectionModel().clearSelection()
                 self.parent.QMOSTTable.row_clicked(row + 2 * (Qt.Key.Key_Right == event.key()) - 1)
+
+            if self.parent.ErositaWidget.ErositaTable is not None and self.parent.ErositaWidget.ErositaTable.isVisible():
+                try:
+                    row = self.parent.ErositaWidget.ErositaTable.currentRow()
+                except:
+                    row = 0
+                self.parent.ErositaWidget.ErositaTable.selectionModel().clearSelection()
+                self.parent.ErositaWidget.ErositaTable.row_clicked(row + 2 * (Qt.Key.Key_Right == event.key()) - 1)
 
             elif not self.e_status and not self.p_status:
                 self.parent.setz_abs(self.parent.z_abs + (-1 + 2 * (event.key() == Qt.Key.Key_Right))
@@ -2399,6 +2421,10 @@ class showLinesWidget(QWidget):
             color_species = {sp: tuple(int(c).to_bytes(4, byteorder='big')) for sp, c in zip(self.parent.fit.list_species(), self.species_colors.split(', '))}
         else:
             color_species = None
+        try:
+            comp_colors = [tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')]
+        except:
+            comp_colors = []
 
         if not self.regions:
             if not self.parent.normview:
@@ -2426,7 +2452,7 @@ class showLinesWidget(QWidget):
                                    add_lines=self.add_lines, add_ls=self.addlines_ls,
                                    color_spec=self.spec_color.to_bytes(4, byteorder='big'),
                                    color_total=self.fit_color.to_bytes(4, byteorder='big'),
-                                   color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')],
+                                   color=comp_colors,
                                    color_tell=self.tell_color.to_bytes(4, byteorder='big'),
                                    color_species=color_species,
                                    disp_alpha=self.disp_alpha, res_style=self.res_style, res_color=self.res_color.to_bytes(4, byteorder='big')
@@ -2612,7 +2638,7 @@ class showLinesWidget(QWidget):
                                    ls=self.comp_ls, ls_total=self.fit_ls,
                                    color_spec=self.spec_color.to_bytes(4, byteorder='big'),
                                    color_total=self.fit_color.to_bytes(4, byteorder='big'),
-                                   color=[tuple(int(c).to_bytes(4, byteorder='big')) for c in self.comp_colors.split(', ')],
+                                   color=comp_colors,
                                    color_tell=self.tell_color.to_bytes(4, byteorder='big'),
                                    color_species=color_species,
                                    disp_alpha=self.disp_alpha, res_style=self.res_style, res_color=self.res_color.to_bytes(4, byteorder='big')
@@ -2768,15 +2794,16 @@ class showLinesWidget(QWidget):
         for lines in self.parent.add_graphics.split("\n"):
             els = lines.split()
             print(els)
-            kwargs = {}
-            for el in els[5:]:
-                if "=" in el:
-                    print(el.split("="))
-                    print(parse_options(el.split("=")[1]))
-                    kwargs[el.split("=")[0]] = parse_options(el.split("=")[1])
-            print(kwargs)
-            if els[1] == 'text':
-                self.ps[int(els[0])].ax.text(parse_options(els[2]), parse_options(els[3]), els[4], **kwargs)
+            if len(els) > 0:
+                kwargs = {}
+                for el in els[5:]:
+                    if "=" in el:
+                        print(el.split("="))
+                        print(parse_options(el.split("=")[1]))
+                        kwargs[el.split("=")[0]] = parse_options(el.split("=")[1])
+                print(kwargs)
+                if els[1] == 'text':
+                    self.ps[int(els[0])].ax.text(parse_options(els[2]), parse_options(els[3]), els[4], **kwargs)
 
         if 0:
             #for fit, color in zip(['C:/science/Noterdaeme/HE0001/FeI_ESPRESSO_model.spv', 'C:/science/Noterdaeme/HE0001/FeI_UVES_model.spv'], ['tab:blue', 'tab:green']):
@@ -3407,6 +3434,7 @@ class fitMCMCWidget(QWidget):
 
         nwalkers, npars, nsteps = chain.shape[0], chain.shape[1], chain.shape[2]
         backend = emcee.backends.HDFBackend("output/mcmc.hdf5")
+        self.parent.MCMC_output = "output/mcmc.hdf5"
         backend.reset(nwalkers, npars)
 
         with backend.open("w") as f:
@@ -3420,11 +3448,13 @@ class fitMCMCWidget(QWidget):
             g["chain"][...] = chain.transpose(2, 0, 1)
             g.attrs["pars"] = [p.encode() for p in [str(p) for p in self.parent.fit.list_fit()]]
 
-    def importCluster(self):
-        fname = QFileDialog.getOpenFileName(self, 'Import MCMC model', self.parent.work_folder)
+    def importCluster(self, fname=None):
 
-        if fname[0]:
-            if fname[0].endswith('.spj'):
+        if fname is None:
+            fname = QFileDialog.getOpenFileName(self, 'Import MCMC model', self.parent.work_folder)[0]
+
+        if fname:
+            if fname.endswith('.spj'):
                 self.importJulia(fname[0])
             else:
                 self.parent.options('work_folder', os.path.dirname(fname[0]))
@@ -3569,6 +3599,7 @@ class fitMCMCWidget(QWidget):
 
         if self.parent.MCMC_output.endswith('hdf5'):
             backend = emcee.backends.HDFBackend(self.parent.MCMC_output)
+            print(backend)
             try:
                 with backend.open('r') as f:
                     g = f[backend.name]
@@ -3580,6 +3611,7 @@ class fitMCMCWidget(QWidget):
                     pars = [p.decode() for p in g.attrs['pars']]
             except:
                 pars = [str(p) for p in self.parent.fit.list_fit()]
+            print(pars)
             lnprobs = backend.get_log_prob()
             samples = backend.get_chain()
 
@@ -4099,15 +4131,16 @@ class fitMCMCWidget(QWidget):
     def set_fit_disp_num(self):
         self.parent.options('MCMC_disp_num', int(self.fit_disp_num.text()))
 
-    def loadres(self):
-        fname = QFileDialog.getOpenFileName(self, 'Load MCMC results', self.parent.work_folder)
+    def loadres(self, sig, fname=None):
+        if fname is None:
+            fname = QFileDialog.getOpenFileName(self, 'Load MCMC results', self.parent.work_folder)[0]
 
-        if fname[0]:
-            if fname[0].endswith('.spr'):
-                self.loadJulia(fname[0])
+        if fname:
+            if fname.endswith('.spr'):
+                self.loadJulia(fname)
             else:
-                self.parent.options('work_folder', os.path.dirname(fname[0]))
-                self.parent.MCMC_output = fname[0]
+                self.parent.options('work_folder', os.path.dirname(fname))
+                self.parent.MCMC_output = fname
 
 
     def load_disp(self, filename):
@@ -6107,7 +6140,8 @@ class ExportDataWidget(QWidget):
             pass
     
     def chooseFileName(self):
-        fname = QFileDialog.getSaveFileName(self, 'Export spectrum', self.parent.work_folder)
+        d = {"export": "Choose folder", "save": "Choose filename", "export2d": "Choose folder"}
+        fname = QFileDialog.getSaveFileName(self, d[self.type], self.parent.work_folder)
         if fname[0]:
             self.filename = fname[0]
             self.setfilename.setText(self.filename)
@@ -8194,9 +8228,14 @@ class sviewer(QMainWindow):
             filelist = []
             for url in event.mimeData().urls():
                 filelist.append(str(url.toLocalFile()))
-                print('drop:', str(url.toLocalFile()))
-            if str(url.toLocalFile()).endswith('.spv'):
+                print("drop:", str(url.toLocalFile()))
+            if str(url.toLocalFile()).endswith(".spv"):
                 self.openFile(str(url.toLocalFile()))
+            elif str(url.toLocalFile()).endswith(".spr"):
+                self.openFile(str(url.toLocalFile()).replace(".spr", ".spv"))
+                self.fitMCMC()
+                self.MCMC.loadres(None, fname=str(url.toLocalFile()))
+                self.MCMC.check()
             else:
                 self.importSpectrum(filelist, append=True)
         else:
@@ -9831,7 +9870,6 @@ class sviewer(QMainWindow):
                                                accuracy=self.accuracy,
                                                toll=float(self.options("fit_tolerance"))
                                                )
-
         s = self.fit.fromJulia(res, unc)
 
         if not converged:
@@ -10644,10 +10682,11 @@ class sviewer(QMainWindow):
         for sys, color in zip(self.fit.sys, [c['color'] for c in plt.rcParams["axes.prop_cycle"]]):
             label = 'sys_'+str(self.fit.sys.index(sys)+1)
             label = 'z = '+str(sys.z.str(attr='val')[:8])
+            nus = np.r_[np.unique([0 for name in sys.sp.keys() if ('v' not in name) and ('H2' in name)]), np.sort(np.unique([int(name[name.index('v')+1:]) for name in sys.sp.keys() if ('v' in name) and ('H2' in name)]))]
             if any(['H2' in name for name in sys.sp.keys()]):
                 species = 'H2'
                 num_sys += 1
-                for nu, marker in zip([0, 1], ['o', 's']):
+                for nu, marker in zip(nus, MarkerStyle.filled_markers[1:len(nus)+1]): #['o', 's', 'd', 'v', '^', ]):
                     x, y = [], []
                     for sp in sys.sp:
                         if 'H2' in sp:
@@ -10671,7 +10710,7 @@ class sviewer(QMainWindow):
 
                     if len(x) > 0:
                         p = ax.plot(x, [v.val for v in y], marker, markersize=1, color=color) #, label='sys_' + str(self.fit.sys.index(sys)))
-                        ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]], fmt=marker, color=p[0].get_color(), label=label)
+                        ax.errorbar(x, [v.val for v in y], yerr=[[v.minus for v in y], [v.plus for v in y]], fmt=marker, color=p[0].get_color(), label=label + r", $\nu=$"+str(nu))
                 #temp = self.H2ExcitationTemp(levels=[0, 1], ind=self.fit.sys.index(sys), plot=False, ax=ax)
                 if temp:
                     if levels is None:

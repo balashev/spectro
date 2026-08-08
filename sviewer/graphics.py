@@ -3336,7 +3336,8 @@ class CompositeSpectrum():
 
     def redraw(self):
         self.gline.setData(x=self.spec[0] * (1 + self.z), y=self.spec[1] * self.f * add_ext(self.spec[0], z_ext=0, Av=self.av, kind='SMC'))
-        ind_name = self.parent.compositeGal_status // 2 if self.type == 'QSO' else self.parent.compositeGal_status // 2
+        ind_name = self.parent.compositeQSO_status // 2 if self.type == 'QSO' else self.parent.compositeGal_status // 2
+        #print(ind_name)
         self.parent.statusBar.setText("Composite {2:s} at redshift z={0:7.5f} and with Av={1:5.3f}".format(self.z, self.av, self.names[ind_name]))
 
         #self.label.redraw()

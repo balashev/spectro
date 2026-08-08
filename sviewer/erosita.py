@@ -642,7 +642,7 @@ class ErositaWidget(QWidget):
                 self.shown_cols = "SDSS_NAME PLATE FIBERID z JMAG JFLUX R bbb_slope".split()
                 #self.shown_cols = self.parent.options('ero_colnames').split()
         elif self.cat == "DESI":
-            self.shown_cols = "IND RA DEC z ZWARN SPECTYPE Av_gal".split()
+            self.shown_cols = "IND RA DEC z SPECTYPE Av_gal comments".split()
 
 
         self.cols.addItems(self.df.columns)

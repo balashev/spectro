@@ -9,17 +9,22 @@ import astropy.units as u
 from dust_extinction.parameter_averages import G23
 import fileinput
 from functools import partial
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import os
+import pandas as pd
 import pyqtgraph as pg
-from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtWidgets import QTableWidget, QHeaderView, QComboBox, QLineEdit, QMessageBox
+from PyQt6.QtCore import Qt, QUrl, QEvent
+from PyQt6.QtWidgets import (QTableWidget, QHeaderView, QComboBox, QLineEdit, QMessageBox,
+                             QAbstractItemDelegate, QStyledItemDelegate, QAbstractItemView)
 from PyQt6.QtGui import QDesktopServices
 from scipy.interpolate import interp1d
 import sys
 
 from spectro.sdss import SDSS
+from statsmodels.sandbox.distributions.sppatch import expect
+
 from .external import spectres
 from .fit import fitPars
 from .lyaforest import Lyaforest_scan, plotLyalines
@@ -42,6 +47,39 @@ def _defersort(fn):
                 self._sorting = None
 
     return defersort
+
+
+class EnterKeyDelegate(QStyledItemDelegate):
+    def eventFilter(self, editor, event):
+        # Проверяем, что событие — это нажатие клавиши внутри редактора
+        if event.type() == QEvent.Type.KeyPress:
+            # Проверяем клавиши Enter (основная клавиатура и Numpad)
+            if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                table = self.parent()  # Передается при инициализации: EnterKeyDelegate(tableWidget)
+                if table.cat == "Erosita_DESI":
+                    if hasattr(table, 'indexAt'):
+                        # Находим точный индекс по физическим координатам геометрии редактора
+                        exact_index = table.indexAt(editor.geometry().center())
+                        print(editor.text())
+                        if exact_index.column() == table.columnIndex("comments"):
+                            print(f"Правильная строка: {exact_index.row()}")
+                            df = pd.read_csv(table.parent.ErositaDESIFile, dtype=str)
+                            print(table.cell_value("IND", exact_index.row()))
+                            print(df.columns)
+                            print(df.columns.get_loc("comments"))
+                            int(table.cell_value("IND", exact_index.row())) - 1
+                            print(df["IND"].astype(int), int(table.cell_value("IND", exact_index.row())))
+                            ind = df[df["IND"].astype(int) == int(table.cell_value("IND", exact_index.row()))].index.tolist()[0]
+                            #df.iloc[int(table.cell_value("IND", exact_index.row())) - 1, df.columns.get_loc("comments")] = editor.text()
+                            print(ind)
+                            try:
+                                df.at[ind, "comments"] = editor.text()
+                                df.to_csv(table.parent.ErositaDESIFile, index=False)
+                            except:
+                                table.parent.sendMessage("csv file was not updated")
+                            table.parent.activateWindow()
+
+        return super().eventFilter(editor, event)
 
 class TableWidget(pg.TableWidget):
     def __init__(self, parent):
@@ -282,9 +320,10 @@ class QSOlistTable(pg.TableWidget):
                            'ML_FLUX_ERR_0': '%.4e', 'DET_LIKE_0': '%.3f'}
         if self.cat == 'Erosita_DESI':
             self.setWindowTitle('Erosita-DESI sample')
-            self.format = {'IND': '%d', 'MROBJ': '%5d', 'RA': '%.6f', 'DEC': '%.6f', 'z': '%.6f',
+            self.format = {'IND': '%d', 'RA': '%.6f', 'DEC': '%.6f', 'z': '%.6f', 'z_err': '%.6f',
                            'ZWARN': '%d', 'SPECTYPE': '%s', 'OBJTYPE': '%s', 'Av_gal': '%.3f',
-                           }
+                           'TARGETID': '%d', 'SPARCLID': '%d', 'SPECID': '%d',
+                           'comments': '%s'}
 
         if self.cat == 'MALS':
             self.setWindowTitle('MALS galactic sample')
@@ -331,6 +370,7 @@ class QSOlistTable(pg.TableWidget):
             self.contextMenu.addSeparator()
             self.contextMenu.addAction('Show header').triggered.connect(self.showHeader)
             self.contextMenu.addAction('Open at CDS Portal').triggered.connect(self.showPortal)
+            self.setItemDelegate(EnterKeyDelegate(self))
             #self.cellChanged.connect(self.saveUVES)
 
     def setdata(self, data):
@@ -406,6 +446,21 @@ class QSOlistTable(pg.TableWidget):
         print(cat.x, cat.fl)
         cat.save('output/stack.hdf5', stack=True)
         self.parent.importSpectrum('stack', spec=[cat.x, cat.fl])
+
+    def on_close_editor(self, editor, hint):
+        # 1 (или EditNextItem) означает, что редактор закрыт нажатием Enter
+        print(editor, hint)
+        if hint == QAbstractItemDelegate.EndEditHint.SubmitModelCache:
+            current_index = self.parent().currentIndex()()
+            current_col = current_index.column()
+
+            print(current_index, current_col)
+            # Если это нужная колонка, выполняем логику
+            if self.columnIndex('comments') is not None and self.columnIndex('comments') == current_col:
+                row = current_index.row()
+                text = current_index.data()  # Получаем введенный текст
+                print(f"Enter нажат в колонке 'comments' (строка {row}). Текст: {text}")
+                # Ваш код здесь...
 
     def saveData(self):
         with open(self.folder + '/sample_saved.dat', 'w') as f:
@@ -631,6 +686,18 @@ class QSOlistTable(pg.TableWidget):
         print(row)
         if row is not None:
             self.selectRow(row)
+
+        selected_ranges = self.selectedRanges()
+
+        if selected_ranges:
+            top_row = selected_ranges[0].topRow()
+
+            # 2. Grab the item at column 0 for that row
+            item = self.item(max(0, top_row - 3), 0)
+
+            if item:
+                # 3. Scroll the item to the top
+                self.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtTop)
 
         load_spectrum = 0
         if 'SDSS' == self.cat:
@@ -901,12 +968,16 @@ class QSOlistTable(pg.TableWidget):
                 i = int(self.cell_value('IND'))
                 print(i)
                 self.parent.setz_abs(self.cell_value('z'))
-                with fits.open('D:/DESI/matched_ordered_spectra_full.fits') as hdu:
-                    x, y, err, mask = hdu[i].data[0], hdu[i].data[1], np.sqrt(1 / hdu[i].data[2]), hdu[i].data[4]
-                    ext = G23(Rv=3.1).extinguish(1 / ((np.asarray(x, dtype=np.float64) * u.AA).to('um')), Av=float(self.cell_value('Av_gal')))
-                    y = y / ext
-                    self.parent.importSpectrum(str(self.cell_value('IND')), spec=[x, y, err])
-                    self.parent.vb.enableAutoRange()
+                #with fits.open('D:/DESI/matched_ordered_spectra_full.fits') as hdu:
+                    #x, y, err, mask = hdu[i].data[0], hdu[i].data[1], np.sqrt(1 / hdu[i].data[2]), hdu[i].data[4]
+                with h5py.File("D:/DESI/desi.hdf5", "r") as h5_file:
+                    d = h5_file[str(i)][:]
+                    x, y, err, mask = d[0], d[1], d[2], d[3]
+
+                ext = G23(Rv=3.1).extinguish(1 / ((np.asarray(x, dtype=np.float64) * u.AA).to('um')), Av=float(self.cell_value('Av_gal')))
+                y = y / ext
+                self.parent.importSpectrum(str(self.cell_value('IND')), spec=[x, y, err])
+                #self.parent.vb.enableAutoRange()
 
                 if self.columnIndex('z') is not None:
                     self.parent.setz_abs(self.cell_value('z'))
@@ -919,6 +990,8 @@ class QSOlistTable(pg.TableWidget):
                         self.parent.compositeGal.calc_scale()
                         self.parent.compositeGal.redraw()
 
+                self.parent.vb.setXRange(np.min(x), np.max(x))
+                self.parent.vb.setYRange(-np.quantile(y, 0.99) / 20, np.quantile(y, 0.99))
                 self.parent.ErositaWidget.index(name=self.cell_value('IND'), ext=False)
 
         if 'MALS' == self.cat:
@@ -938,6 +1011,7 @@ class QSOlistTable(pg.TableWidget):
                         os.startfile(plotfile)
                     elif os.name == 'posix':
                         subprocess.call(('xdg-open', plotfile))
+
         if load_spectrum:
 
             self.parent.importSpectrum(filename)

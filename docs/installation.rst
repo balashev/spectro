@@ -57,7 +57,6 @@ and::
 * pytz==2024.1
 * scikit_learn==1.6.1
 * scipy==1.15.2
-* spectro==0.2.0
 * statsmodels==0.14.4
 * ultranest==4.4.0
 
@@ -67,7 +66,7 @@ For convenience, this package list is automatically stored in ``requirements.txt
 
 The exact versions of the packages listed here are not obligatory (it was generated from the working build), and the code can work with some old/new versions. However, there are sometimes inconsistencies with previous verisons of the packages, e.g. for ``matplotlib`` and ``chainconsumer``. Therefore we highly recommended to install and use the code within virtual environment (using e.g. ``venv`` or ``conda``), i.e. run following before package installation::
 
->>> conda create spectro
+>>> conda create --name spectro
 >>> conda activate spectro
 
 Config

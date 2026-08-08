@@ -952,7 +952,8 @@ class colorSpeciesBox(QHBoxLayout):
         self.addWidget(self.choseSpecies)
         self.speciesColor = pg.ColorButton(self.parent)
         self.speciesColor.setFixedSize(30, 30)
-        self.speciesColor.setColor(color=self.colors[self.ind])
+        if self.ind < len(self.colors):
+            self.speciesColor.setColor(color=self.colors[self.ind])
         self.speciesColor.sigColorChanged.connect(partial(self.setColor))
         self.addWidget(self.speciesColor)
         self.addStretch(1)

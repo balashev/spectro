@@ -1,21 +1,21 @@
-rescale 0.1
+show H232v3
+show H2j3v3
+high H2j1v3
+hide H2
+y 0 1
+x 1000 2000
+y 0 1
+CI
 show CI
+show ClI
 show CIj1
 show CIj2
-stat
-stats
-show CI
+show H2 0 1\
 show H2 0 1
-show CI
-show H2j5
-show H2v1j5
-show H2j5v1
-show H2j6v1
-show H2j7v1
-show H2j8v1
-high H2j7v1
-show H2j9v1
-show H2j10v1
-H2j5v1
-show 12CO
-show 13CO
+show SiII
+show OIj1
+show OIj2
+OI
+show OI
+show NV
+show CIV
