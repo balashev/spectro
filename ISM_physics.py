@@ -320,21 +320,21 @@ class ISM():
                 return 2.54e-14 * (2.8e-6 * self.n_e() / self.p('n') * self.p('T') ** -0.5 + 8e-10) * self.abundance('CII') * np.exp(-92 / self.p('T')) * self.p('n') ** 2
             if kind[1] in ['pyratio', '']:
                 #print("CII", self.pr.calc_cooling(species='CII', n=np.log10(self.p('n')), T=np.log10(self.p('T'))))
-                return self.pr.calc_cooling(species='CII', n=np.log10(self.p('n')), T=np.log10(self.p('T'))) * self.abundance('CII') * self.p('n')
+                return self.pr.calc_cooling(species='CII', n=np.log10(self.p('n')), T=np.log10(self.p('T')))[0] * self.abundance('CII') * self.p('n')
             if kind[1] in ['Barinovs']:
                 return 1e-24 * np.exp(-91.2 / self.p('T')) * (16 + 0.344 * np.sqrt(self.p('T')) + 47.7 / self.p('T')) * self.abundance('CII') * self.p('n') * self.p('n')
 
         if kind[0] == 'CI':
             if kind[1] in ['pyratio', '']:
                 if self.p('n') > 10:
-                    return self.pr.calc_cooling(species='CI', n=np.log10(self.p('n')), T=np.log10(self.p('T'))) * self.abundance('CI') * self.p('n')
+                    return self.pr.calc_cooling(species='CI', n=np.log10(self.p('n')), T=np.log10(self.p('T')))[0] * self.abundance('CI') * self.p('n')
                 else:
                     return 0
 
         if kind[0] == 'CO':
             if kind[1] in ['pyratio', '']:
                 if self.p('n') > 100:
-                    return self.pr.calc_cooling(species='CO', n=np.log10(self.p('n')), T=np.log10(self.p('T'))) * self.abundance('CO') * self.p('n')
+                    return self.pr.calc_cooling(species='CO', n=np.log10(self.p('n')), T=np.log10(self.p('T')))[0] * self.abundance('CO') * self.p('n')
                 else:
                     return 0
 
@@ -345,7 +345,7 @@ class ISM():
                 return 2.79e-18 * self.p('n') * self.abundance('O') * (3 / 5 * np.exp(-228 / self.p('T'))) / (1 + self.pr.species['OI'].critical_density('H', 1, 0, np.log10(self.p('T'))) / self.p('n') + 3 / 5 * np.exp(-228 / self.p('T')))
             if kind[1] in ['pyratio', '']:
                 #print("OI", np.log10(self.p('n')), np.log10(self.p('T')), self.pr.calc_cooling(species='OI', n=np.log10(self.p('n')), T=np.log10(self.p('T'))))
-                return self.pr.calc_cooling(species='OI', n=np.log10(self.p('n')), T=np.log10(self.p('T'))) * self.abundance('O') * self.p('n')
+                return self.pr.calc_cooling(species='OI', n=np.log10(self.p('n')), T=np.log10(self.p('T')))[0] * self.abundance('O') * self.p('n')
 
         if kind[0] == 'rec':
             return 4.65e-30 * self.p('T') ** 0.94 * (self.p('uv') * self.p('T') ** 0.5 / self.n_e() / self.phi_pah) ** (0.73 / self.p('T') ** 0.068) * self.n_e() * self.p('n') * self.phi_pah
@@ -438,7 +438,7 @@ class ISM():
             print(">>> calculate phase_diagram_adaptive")
 
         if len(n) == 0:
-            n = np.logspace(-2, 5, 21)
+            n = np.logspace(-4, 5, 37)
         n_init, T_init, m = self.phase_diagram(n=n, method=method, verbose=verbose)
 
         n, T = np.log10(n_init[:]), np.log10(T_init[:])
