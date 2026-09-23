@@ -1430,7 +1430,7 @@ class Spectrum():
         self.filename = name
         self.name = name
         self.resolution_linear = [resolution, resolution]
-        self.lsf_type = 'gauss'
+        self.lsf_type = 'none' if resolution == 0 else 'gauss'
         self.scaling_factor = 1
         self.date = ''
         self.wavelmin = None

@@ -1,21 +1,21 @@
-show H232v3
-show H2j3v3
-high H2j1v3
-hide H2
-y 0 1
-x 1000 2000
-y 0 1
-CI
+FeII
+FeIIj13
+show NaI
+show VI
+show NV
+show CaII
 show CI
-show ClI
 show CIj1
 show CIj2
-show H2 0 1\
+CaII
+\
+SiIIj1
+show SiIIj1
+show CIj1
+hide CIj1
+show CI
 show H2 0 1
-show SiII
-show OIj1
-show OIj2
-OI
-show OI
 show NV
-show CIV
+show NV
+show CIj1
+show CIj2

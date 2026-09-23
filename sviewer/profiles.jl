@@ -1197,7 +1197,7 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
     end
 
 
-    if (spec.lsf_type != "none")
+    if (spec.lsf_type != "none") || ((spec.lsf_type != "gauss") && spec.resolution(x[1]) == 0)
         y = 1 .- y
         y_c = zero(y)
         if occursin("gauss", spec.lsf_type)  #Gaussian function
@@ -1282,8 +1282,8 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
     end
 end
 
-function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, method="LsqFit.lmfit", maxiter=30,
-               grid_type="minimized", grid_num=1, binned=true, telluric=false, tau_limit=0.001, accuracy=0.1, toll=1e-4)
+function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, method="LsqFit.lmfit", maxiter=50,
+               grid_type="minimized", grid_num=1, binned=true, telluric=false, tau_limit=0.001, accuracy=0.03, toll=1e-6)
 
     opts = pyconvert(Dict{String, Any}, opts)
     pars = make_pars(p_pars, tieds=tieds, z_ref=true)

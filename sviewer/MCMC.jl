@@ -169,7 +169,7 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
     params = [p.val for (k, p) in pars if p.vary == 1]
 	init = pyconvert(Array{Float64}, init)
 	opts = pyconvert(Dict, opts)
-    println(opts)
+	println(opts)
 
 	#lnlike = p->begin
 	function lnlike(p)
@@ -223,93 +223,95 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
 		end
 
 		# add constraints to the fit set by opts parameter
-        if (haskey(opts, "opts"))
-            E = [[0, 118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61, 9523.82, 10800.6, 12123.66, 13485.56, 14881.29, 16304.82] * 1.42879,
-                         [4161.14, 4273.75, 4497.82, 4831.41, 5271.36, 5813.95, 6454.28, 7187.44, 8007.77, 8908.28, 9883.79, 10927.12, 12031.44, 13191.06, 14399.08, 15649.58] * 1.42879,
-                         [8086.93, 8193.81, 8406.29, 8722.7, 9139.86, 9654.15, 10261.2, 10955.68, 11732.12, 12584.8, 13507.42, 14493.58, 15537.15] * 1.42879,
-                         [11782.36, 11883.51, 12084.66, 12384.14, 12778.78, 13265.27, 13839.18, 14495.46, 15228.82] * 1.42879
-                        ]  #Energy of levels in K
+        #if (haskey(opts, "opts"))
+        E = [[0, 118.5, 354.35, 705.54, 1168.78, 1740.21, 2414.76, 3187.57, 4051.73, 5001.97, 6030.81, 7132.03, 8298.61, 9523.82, 10800.6, 12123.66, 13485.56, 14881.29, 16304.82] * 1.42879,
+                     [4161.14, 4273.75, 4497.82, 4831.41, 5271.36, 5813.95, 6454.28, 7187.44, 8007.77, 8908.28, 9883.79, 10927.12, 12031.44, 13191.06, 14399.08, 15649.58] * 1.42879,
+                     [8086.93, 8193.81, 8406.29, 8722.7, 9139.86, 9654.15, 10261.2, 10955.68, 11732.12, 12584.8, 13507.42, 14493.58, 15537.15] * 1.42879,
+                     [11782.36, 11883.51, 12084.66, 12384.14, 12778.78, 13265.27, 13839.18, 14495.46, 15228.82] * 1.42879
+                    ]  #Energy of levels in K
 
-            if (haskey(opts["opts"], "b_increase"))
-                if (opts["opts"]["b_increase"] == true)
-                    Es, sys, nus, js, bs = [], [], [], [], []
-                    for (k, v) in pars
-                        if occursin("H2j", k) & occursin("b_", k) & (strip(v.addinfo) == "")
-                            if ~occursin("v", k)
-                                j, nu = parse(Int64, k[8:end]), 0
-                            else
-                                j, nu = parse(Int64, k[8:findfirst('v', k)-1]), parse(Int64, k[findfirst('v', k)+1])
-                            end
-                            push!(nus, nu)
-                            push!(sys, parse(Int64, k[findall("_", k)[1][1]+1:findall("_", k)[2][1]-1]))
-                            push!(js, j)
-                            push!(Es, E[nu+1][j+1])
-                            push!(bs, v.val)
+        if (haskey(opts, "b_increase"))
+            if (opts["b_increase"] == true)
+                Es, sys, nus, js, bs = [], [], [], [], []
+                for (k, v) in pars
+                    if occursin("H2j", k) & occursin("b_", k) & (strip(v.addinfo) == "")
+                        if ~occursin("v", k)
+                            j, nu = parse(Int64, k[8:end]), 0
+                        else
+                            j, nu = parse(Int64, k[8:findfirst('v', k)-1]), parse(Int64, k[findfirst('v', k)+1])
                         end
-                    end
-                    for s in unique(sys)
-                        mask = sys .== s
-                        inds = sortperm(Es[mask])
-                        for i in 1:size(inds)[1]-1
-                            #println(i, " ", Es[mask][inds[i]], " ", Es[mask][inds[i+1]], " ", bs[mask][inds[i]], " ", bs[mask][inds[i+1]])
-                            x = (bs[mask][inds[i+1]] / bs[mask][inds[i]] - 1) * 20
-                            #println(x)
-                            retval -= (x < 0 ? x : 0) ^ 2
-                        end
-                    end
-                    #println("b_incr ", retval)
-                end
-            end
-
-            # constraints for H2 on on excitation temperature to be gradually increasing with J
-            if (haskey(opts["opts"], "H2_excitation"))
-                if (opts["opts"]["H2_excitation"] == true)
-                    op = 0
-                    Es, gs, sys, nus, js, Ns = [], [], [], [], [], []
-                    for (k, v) in pars
-                        if occursin("H2j", k) & occursin("N_", k) & (strip(v.addinfo) == "")
-                            if ~occursin("v", k)
-                                j, nu = parse(Int64, k[8:end]), 0
-                            else
-                                j, nu = parse(Int64, k[8:findfirst('v', k)-1]), parse(Int64, k[findfirst('v', k)+1])
-                            end
-                            push!(nus, nu)
-                            push!(sys, parse(Int64, k[findall("_", k)[1][1]+1:findall("_", k)[2][1]-1]))
-                            push!(js, j)
-                            push!(Es, E[nu+1][j+1])
-                            push!(gs, (2 * j + 1) * ((j % 2) * 2 + 1))
-                            push!(Ns, v.val)
-                        end
-                    end
-                    for s in unique(sys)
-                        m1 = sys .== s
-                        #println("sys ", s)
-                        for nu in unique(nus[m1])
-                            m2 = nus[m1] .== nu
-                            #println("nu ", nu)
-                            for o in 0:op
-                                m3 = op == 1 ? iseven.(js[m1][m2] .+ o) : isfinite.(js[m1][m2])
-                                inds = sortperm(Es[m1][m2][m3])
-                                #println(inds)
-                                T = []
-                                for i in 1:size(inds)[1]-1
-                                    #println(i, " ", inds[i], " ", Es[m1][m2][m3][inds[i]], " ", Es[m1][m2][m3][inds[i+1]], " ", Ns[m1][m2][m3][inds[i]], " ", Ns[m1][m2][m3][inds[i+1]])
-                                    #push!(j, js[m1][m2][m3][inds[i]])
-                                    #println((Es[m1][m2][m3][inds[i]] - Es[m1][m2][m3][inds[i+1]]) / log(10^(Ns[m1][m2][m3][inds[i+1]] - Ns[m1][m2][m3][inds[i]]) * gs[m1][m2][m3][inds[i]] / gs[m1][m2][m3][inds[i+1]]))
-                                    push!(T, (Es[m1][m2][m3][inds[i]] - Es[m1][m2][m3][inds[i+1]]) / log(10^(Ns[m1][m2][m3][inds[i+1]] - Ns[m1][m2][m3][inds[i]]) * gs[m1][m2][m3][inds[i]] / gs[m1][m2][m3][inds[i+1]]))
-                                end
-                                #println(s, " ", nu, " ", T)
-                                for i in 1:size(T)[1]-1
-                                    x = (T[i+1] < T[i] ? (T[i+1] / T[i] - 1) * 10 : 0) + (T[i] < 0 ? T[i] / 100 : 0)
-                                    #println("x for ", i, " ", x)
-                                    retval -= x ^ 2
-                                end
-                                retval -= T[end] < 0 ? (T[end] / 100) ^ 2 : 0
-                            end
-                        end
+                        push!(nus, nu)
+                        push!(sys, parse(Int64, k[findall("_", k)[1][1]+1:findall("_", k)[2][1]-1]))
+                        push!(js, j)
+                        push!(Es, E[nu+1][j+1])
+                        push!(bs, v.val)
                     end
                 end
+                for s in unique(sys)
+                    mask = sys .== s
+                    inds = sortperm(Es[mask])
+                    for i in 1:size(inds)[1] - 1
+                        #println(i, " ", Es[mask][inds[i]], " ", Es[mask][inds[i+1]], " ", bs[mask][inds[i]], " ", bs[mask][inds[i+1]])
+                        x = (bs[mask][inds[i+1]] / bs[mask][inds[i]] - 1) * 20
+                        #println(x)
+                        retval -= (x < 0 ? x : 0) ^ 2
+                    end
+                end
+                println("b_incr ", retval)
             end
+        end
+
+        # constraints for H2 on on excitation temperature to be gradually increasing with J
+        if (haskey(opts, "H2_excitation"))
+            if (opts["H2_excitation"] == true)
+                op = 0
+                Es, gs, sys, nus, js, Ns = [], [], [], [], [], []
+                for (k, v) in pars
+                    if occursin("H2j", k) & occursin("N_", k) & (strip(v.addinfo) == "")
+                        if ~occursin("v", k)
+                            j, nu = parse(Int64, k[8:end]), 0
+                        else
+                            j, nu = parse(Int64, k[8:findfirst('v', k)-1]), parse(Int64, k[findfirst('v', k)+1])
+                        end
+                        push!(nus, nu)
+                        push!(sys, parse(Int64, k[findall("_", k)[1][1]+1:findall("_", k)[2][1]-1]))
+                        push!(js, j)
+                        push!(Es, E[nu+1][j+1])
+                        push!(gs, (2 * j + 1) * ((j % 2) * 2 + 1))
+                        push!(Ns, v.val)
+                    end
+                end
+                for s in unique(sys)
+                    m1 = sys .== s
+                    #println("sys ", s)
+                    for nu in unique(nus[m1])
+                        m2 = nus[m1] .== nu
+                        #println("nu ", nu)
+                        for o in 0:op
+                            m3 = op == 1 ? iseven.(js[m1][m2] .+ o) : isfinite.(js[m1][m2])
+                            inds = sortperm(Es[m1][m2][m3])
+                            #println(inds)
+                            T = []
+                            for i in 1:size(inds)[1]-1
+                                #println(i, " ", inds[i], " ", Es[m1][m2][m3][inds[i]], " ", Es[m1][m2][m3][inds[i+1]], " ", Ns[m1][m2][m3][inds[i]], " ", Ns[m1][m2][m3][inds[i+1]])
+                                #push!(j, js[m1][m2][m3][inds[i]])
+                                #println((Es[m1][m2][m3][inds[i]] - Es[m1][m2][m3][inds[i+1]]) / log(10^(Ns[m1][m2][m3][inds[i+1]] - Ns[m1][m2][m3][inds[i]]) * gs[m1][m2][m3][inds[i]] / gs[m1][m2][m3][inds[i+1]]))
+                                push!(T, (Es[m1][m2][m3][inds[i]] - Es[m1][m2][m3][inds[i+1]]) / log(10^(Ns[m1][m2][m3][inds[i+1]] - Ns[m1][m2][m3][inds[i]]) * gs[m1][m2][m3][inds[i]] / gs[m1][m2][m3][inds[i+1]]))
+                            end
+                            #println(s, " ", nu, " ", T)
+                            for i in 1:size(T)[1]-1
+                                x = (T[i+1] < T[i] ? (T[i+1] - T[i]) / 10 : 0) + (T[i] < 0 ? T[i] / 10 : 0)
+                                println("x for ", i, " and nu ", nu, " ", T[i], " ", T[i+1], " ", x)
+                                retval -= x ^ 2
+                            end
+                            retval -= T[end] < 0 ? (T[end] / 100) ^ 2 : 0
+                        end
+                    end
+                end
+            end
+            println("H2_exc ", retval)
+            #append!(res, retval)
+            #end
         end
 
 		return retval

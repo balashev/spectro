@@ -164,8 +164,7 @@ class dataPlot(pg.PlotWidget):
             if name == 'selected':
                 s = np.sum(self.parent.mask)
             if name == 'shown':
-                s = np.sum(np.logical_and(np.isfinite(self.parent.x),
-                                          np.isfinite(self.parent.y)))
+                s = np.sum(np.logical_and(np.isfinite(self.parent.x), np.isfinite(self.parent.y)))
             self.selectedstat[name].setText(name + '={0:d}'.format(s))
             self.selectedstat[name].setPos(self.vb.mapSceneToView(QPointF(int(pos.right()) - 10, int(pos.bottom()) - 10 - ind * 20)))
         self.plotRegLabels(pos)
@@ -265,7 +264,7 @@ class ErositaWidget(QWidget):
         self.initGUI()
         self.loadTable(recalc=True)
         self.updateData()
-        self.QSOSEDfit = QSOSEDfit(catalog=self.catfile, plot=self.plotExt.isChecked(),
+        self.QSOSEDfit = QSOSEDfit(catalog=cat, catfile=self.catfile, plot=self.plotExt.isChecked(),
                                    save=self.saveFig.isChecked(), mcmc_steps=1000, anneal_steps=100, corr=30, verbose=1)
 
         self.show()
@@ -292,12 +291,9 @@ class ErositaWidget(QWidget):
                               'F_OIII', 'FWHM_OIII',
                               ]
         if self.cat == "DESI":
-            self.axis_list = ['z', 'DEC', 'RA', 'Av_gal', 'F_UV_2200', 'F_UV_2500', 'F_UV_3100', '2200-3100', '2500-3100',
-                              'L_UV', 'L_UV_corr', 'L_UV_ext', 'L_UV_2200', 'L_UV_2500', 'L_UV_3100',
-                              'bbb_slope', 'Av_int', 'Rv', 'Abump', 'EBV', 'FeII',
-                              'Av_host', 'r_host', 'host_tg', 'host_tau', 'L_host',
-                              'SDSS_photo_scale', 'SDSS_photo_slope', 'SDSS_var', 'alpha_SDSS', 'slope_SDSS', 'lnL',
-                              'F_OIII', 'FWHM_OIII',
+            self.axis_list = ['z', 'DEC', 'RA', 'Av_gal', 'F_UV_2200', 'F_UV_2500', 'F_UV_3100', '2200-2500', '2200-3100', '2500-3100',
+                              'L_UV', 'L_UV_corr', 'L_UV_ext', 'L_UV_2200', 'L_UV_2500', 'L_UV_3100', 'EBV_val', 'EBV_plus', 'EBV_minus',
+                              'comments',
                               ]
 
         self.axis_info = {'z': [lambda x: x, 'z'],
@@ -322,6 +318,7 @@ class ErositaWidget(QWidget):
                           'F_UV_2200': [lambda x: np.log10(x), 'Flux at 2200A'],
                           'F_UV_2500': [lambda x: np.log10(x), 'Flux at 2500A'],
                           'F_UV_3100': [lambda x: np.log10(x), 'Flux at 3100A'],
+                          '2200-2500': [lambda x: np.log10(x), 'The ratio of fluxes at 2200A and 2500A'],
                           '2200-3100': [lambda x: np.log10(x), 'The ratio of fluxes at 2200A and 3100A'],
                           '2500-3100': [lambda x: np.log10(x), 'The ratio of fluxes at 2500A and 3100A'],
                           'bbb_slope': [lambda x: x, 'Slope correction (for big blue bump)'],
@@ -516,7 +513,7 @@ class ErositaWidget(QWidget):
         self.method = QComboBox(self)
         self.method.addItems(['leastsq', 'least_squares', 'nelder', 'annealing', 'emcee', 'nested', 'nested_dyn'])
         self.method.setFixedSize(120, 30)
-        self.method.setCurrentText('emcee')
+        self.method.setCurrentText('leastsq')
 
         self.numSteps = QLineEdit()
         self.numSteps.setFixedSize(80, 30)
@@ -619,7 +616,7 @@ class ErositaWidget(QWidget):
         return widget
 
     def loadTable(self, recalc=False):
-        self.df = pd.read_csv(self.catfile)[:]
+        self.df = pd.read_csv(self.catfile, na_filter=False)[:]
         print(self.df)
         if self.cat == "SDSS":
             try:
@@ -642,7 +639,7 @@ class ErositaWidget(QWidget):
                 self.shown_cols = "SDSS_NAME PLATE FIBERID z JMAG JFLUX R bbb_slope".split()
                 #self.shown_cols = self.parent.options('ero_colnames').split()
         elif self.cat == "DESI":
-            self.shown_cols = "IND RA DEC z SPECTYPE Av_gal comments".split()
+            self.shown_cols = "cat_ind RA DEC z SPECTYPE Av_gal comments".split()
 
 
         self.cols.addItems(self.df.columns)
@@ -668,7 +665,7 @@ class ErositaWidget(QWidget):
             elif self.ero_x_axis in ['u-b', 'r-i']:
                 self.x = self.x_lambda(self.df['PSFMAG' + str('_ubriz'.index(self.ero_x_axis.split('-')[0]))] - self.df['PSFMAG' + str('_ubriz'.index(self.ero_x_axis.split('-')[1]))])
                 self.SDSScolors = True
-            elif self.ero_x_axis in ['2200-3100', '2500-3100']:
+            elif self.ero_x_axis in ['2200-3100', '2200-2500', '2500-3100']:
                 self.x = self.x_lambda(self.df[f'F_UV_{self.ero_x_axis.split('-')[0]}'] / self.df[f'F_UV_{self.ero_x_axis.split('-')[1]}'])
                 self.SDSScolors = True
 
@@ -677,14 +674,23 @@ class ErositaWidget(QWidget):
             elif self.ero_y_axis in ['u-b', 'r-i']:
                 self.y = self.y_lambda(self.df['PSFMAG' + str('_ubriz'.index(self.ero_y_axis.split('-')[0]))] - self.df['PSFMAG' + str('_ubriz'.index(self.ero_y_axis.split('-')[1]))])
                 self.SDSScolors = True
-            elif self.ero_x_axis in ['2200-3100', '2500-3100']:
+            elif self.ero_y_axis in ['2200-3100', '2200-2500', '2500-3100']:
                 self.y = self.y_lambda(self.df[f'F_UV_{self.ero_y_axis.split('-')[0]}'] / self.df[f'F_UV_{self.ero_y_axis.split('-')[1]}'])
                 self.SDSScolors = True
 
             if self.ero_c_axis in self.df.columns:
-                self.c_lambda = self.axis_info[self.ero_c_axis][0]
-                if self.ero_c_axis in self.df.columns:
-                    self.c = self.c_lambda(self.df[self.ero_c_axis])
+                if self.ero_c_axis == 'comments':
+                    self.c = np.zeros(len(self.df['z']), dtype=float)
+                    for i, k in enumerate(["z=", 'e', 's', 'w']):
+                        m = self.df["comments"].astype(str).str.contains(k, na=False)
+                        self.c[m] = i
+                    print(self.c)
+                else:
+                    self.c_lambda = self.axis_info[self.ero_c_axis][0]
+                    if self.ero_c_axis in self.df.columns:
+                        self.c = self.c_lambda(self.df[self.ero_c_axis])
+                    elif self.ero_c_axis in ['2200-3100', '2200-2500', '2500-3100']:
+                        self.c = self.y_lambda(self.df[f'F_UV_{self.ero_y_axis.split('-')[0]}'] / self.df[f'F_UV_{self.ero_y_axis.split('-')[1]}'])
             else:
                 self.c = None
 
@@ -748,7 +754,7 @@ class ErositaWidget(QWidget):
                     ind = np.where(self.df['SDSS_NAME'] == name)[0][0]
                 elif self.cat == "DESI":
                     #print(self.df['IND'], name, type(name))
-                    ind = np.where(self.df['IND'] == int(name))[0][0]
+                    ind = np.where(self.df['cat_ind'] == int(name))[0][0]
         #print(x, y, ind)#, self.df['SDSS_NAME'][ind])
 
         if ind is not None:
@@ -756,8 +762,8 @@ class ErositaWidget(QWidget):
             if name is None:
                 if self.cat == "SDSS" and self.ErositaTable.columnIndex('SDSS_NAME') is not None:
                     row = self.ErositaTable.getRowIndex(column='SDSS_NAME', value=self.df['SDSS_NAME'][ind])
-                if self.cat == "DESI" and self.ErositaTable.columnIndex('IND') is not None:
-                    row = self.ErositaTable.getRowIndex(column='IND', value=str(self.df['IND'][ind]))
+                if self.cat == "DESI" and self.ErositaTable.columnIndex('cat_ind') is not None:
+                    row = self.ErositaTable.getRowIndex(column='cat_ind', value=str(self.df['cat_ind'][ind]))
                 #self.ErositaTable.setCurrentCell(row, 0)
                 self.ErositaTable.selectRow(row)
                 self.ErositaTable.row_clicked(row=row)
@@ -1132,9 +1138,11 @@ class ErositaWidget(QWidget):
         self.QSOSEDfit.plot, self.QSOSEDfit.save = self.plotExt.isChecked(), self.saveFig.isChecked()
         self.QSOSEDfit.mcmc_steps, self.QSOSEDfit.anneal_steps = int(self.numSteps.text()), 100 #int(int(self.numSteps.text()) / 10)
         if self.QSOSEDfit.prepare(self.ind):
+            print('start fit')
             res = self.QSOSEDfit.fit(self.ind, method=self.method.currentText(), calc=calc)
             print(res)
-        if self.saveFig.isChecked():
+
+        if self.cat == 'SDSS' and self.saveFig.isChecked():
             attr = {'Av': 'Av_int', 'host_tau': 'host_tau', 'host_tg': 'host_tg', 'host_Av': 'Av_host', 'L_host': 'L_host',
                     'bbb_slope': 'bbb_slope', 'alpha_SDSS': 'alpha_SDSS', 'slope_SDSS': 'slope_SDSS', 'lnL': 'lnL',
                     'Rv': 'Rv', 'Abump': 'Abump', 'EBV': 'EBV', 'Fe_norm': 'FeII', 'L_UV_corr': 'L_UV_corr', 'L_UV_ext': 'L_UV_ext'}
@@ -1151,6 +1159,10 @@ class ErositaWidget(QWidget):
             self.updateData()
             self.save_data()
         #plt.show()
+
+    def calc_ext_simple(self):
+        pass
+
 
     def correlate(self):
         self.corr_status = 1 - self.corr_status

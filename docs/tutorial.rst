@@ -24,6 +24,14 @@ The basic ``sviewer`` spectral format is plain ``ASCII`` file, which stores spec
 
 Additionally there is possibility to load the spectrum in ``FITS`` format. The program can automatically recognize several FITS format produced by standard reduction routines, such as UVES popler, SDSS, etc. 
 
+Setting spectrum parameters
+--------------------
+Before working with absorption lines you should set the spectrum parameters, which is important for profile modelling. The main one is the resolution. The resolution in principle can be loaded autopmatically from the fits header, by this only works for the limited types of the fits, and certainly is not the case when the spectrum is loaded as plain ascii file.
+
+To set and maintain the spectrum parameters, there is ``Exposure`` widget which can be loaded by clickig ``F2`` or using ``View/Exposures...``. Within this widget, one can set the type of the Line Spread Function (LSF), resolution, as well as the the scaling factor, which is useful one the spectrum is loaded in some physical units (e.g. erg/cm^2/s/A, which results in very low numbers, which can be in some cases problematic to plot within pyqtgraph package).
+
+One can load several exposures at the graphical interface and control its parameters using this window.
+
 .. _show-lines:
 Show lines
 ----------------------

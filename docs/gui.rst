@@ -11,7 +11,11 @@ Run
 
     $ path/to/python.exe path/to/spectro/sviewer/__main__.py
 
-Alternatively, one can use convenient IDE to run the __main__.py, for example PyCharms, Spider, MScode, etc.
+Alternatively, you can run the code from the folder where specto is located
+
+    $ path/to/python.exe -m spectro.sviewer
+
+Or one can use convenient IDE to run the __main__.py, for example PyCharms, Spider, MScode, etc.
 
 
 Main window

@@ -10,7 +10,9 @@ from copy import copy
 from chainconsumer import ChainConsumer
 import dynesty
 from dynesty import plotting as dyplot
+from dust_extinction.parameter_averages import G23
 import emcee
+import h5py
 from functools import partial
 import json
 import itertools
@@ -751,10 +753,12 @@ class sed():
             return np.argmin(np.abs((params['tor_type'].value - np.arange(len(self.values)))))
 
 class QSOSEDfit():
-    def __init__(self, catalog='', plot=1, save=1, mcmc_steps=1000, anneal_steps=100, corr=10, verbose=1):
+    def __init__(self, catalog='SDSS', catfile='', kind='full', plot=1, save=1, mcmc_steps=1000, anneal_steps=100, corr=10, verbose=1):
         """
         Args:
-            catalog:        path to the file containing the Erosita catalog
+            catalog:        type of the catalog, i.e. SDSS, DESI
+            catfile:        path to the file containing the Erosita catalog
+            kind:           type of the fit, i.e. 'full', 'simple'
             plot:           plot sed
             save:           save plot figures to <path>/QS/plots
             mcmc_steps:     number of steps in mcmc
@@ -763,6 +767,9 @@ class QSOSEDfit():
             verbose:        verbose output
         """
         self.catalog = catalog
+        self.catfile = catfile
+        self.catdir = os.path.dirname(self.catfile)
+        self.kind = kind
         self.plot = plot
         self.save = save
         self.mcmc_steps = mcmc_steps
@@ -793,37 +800,63 @@ class QSOSEDfit():
         # self.host_templates = ['S0', 'Sa', 'Sb', 'Sc', 'Ell2', 'Ell5', 'Ell13']
 
     def loadTable(self, recalc=False):
-        self.df = pd.read_csv(self.catalog)
+        self.df = pd.read_csv(self.catfile)
         try:
             self.df.rename(columns={'Z': 'z', 'ML_FLUX_0_ero': 'F_X_int'}, inplace=True)
         except:
             pass
 
     def prepare(self, ind):
-        self.d = self.df.loc[ind]
-        #print(self.df.loc[ind, 'z'])
-        self.spec = self.loadSDSS(self.df.loc[ind, 'PLATE'], self.df.loc[ind, 'FIBERID'], self.df.loc[ind, 'MJD'],
-                             Av_gal=self.df.loc[ind, 'Av_gal'])
-        self.mask = self.calc_mask(self.spec, self.df.loc[ind, 'z'])
 
-        #print(self.mask, np.sum(self.mask))
-        if np.sum(self.mask) > 10:
-            self.set_filters(ind)
-            if self.plot:
-                self.plot_spec()
+        print(self.catalog, ind)
+        if self.catalog == 'SDSS':
+            self.d = self.df.loc[ind]
+            #print(self.df.loc[ind, 'z'])
+            self.spec = self.loadSDSS(self.d['PLATE'], self.d['FIBERID'], self.d['MJD'], Av_gal=self.d['Av_gal'])
+            self.mask = self.calc_mask(self.spec, self.d['z'])
 
-            self.sm = [np.asarray(self.spec[0][self.mask], dtype=np.float64), self.spec[1][self.mask], self.spec[2][self.mask]]
+            print(self.mask, np.sum(self.mask))
+            if np.sum(self.mask) > 10:
+                self.set_filters(ind)
+                if self.plot:
+                    self.plot_spec()
 
-            self.models = {}
-            for name in ['bbb', 'tor', 'host', 'gal', 'Fe', 'ext', 'ext_gal']:
-                self.models[name] = sed(name=name, xmin=self.wavemin, xmax=self.wavemax, z=self.df.loc[ind, 'z'])
-                self.models[name].set_data('spec', self.sm[0])
-                for k, f in self.filters.items():
-                    if self.filters[k].fit:
-                        self.models[name].set_data(k, f.x)
-                self.models[name].set_data('spec_full', self.spec[0])
+                self.sm = [np.asarray(self.spec[0][self.mask], dtype=np.float64), self.spec[1][self.mask], self.spec[2][self.mask]]
 
-            return True
+                self.models = {}
+                for name in ['bbb', 'tor', 'host', 'gal', 'Fe', 'ext', 'ext_gal']:
+                    self.models[name] = sed(name=name, xmin=self.wavemin, xmax=self.wavemax, z=self.d['z'])
+                    self.models[name].set_data('spec', self.sm[0])
+                    for k, f in self.filters.items():
+                        if self.filters[k].fit:
+                            self.models[name].set_data(k, f.x)
+                    self.models[name].set_data('spec_full', self.spec[0])
+
+                return True
+
+        elif self.catalog == 'DESI':
+            if self.kind == 'full':
+                self.d = self.df.loc[ind]
+                #print(self.d)
+                self.spec = self.loadDESI(self.d['cat_ind'], Av_gal=self.d['Av_gal'], rebin=5)
+
+                self.mask = self.calc_mask(self.spec, self.d['z'])
+
+                if np.sum(self.mask) > 10:
+                    if self.plot:
+                        self.fig = None
+                        self.plot_spec()
+
+                    self.sm = [np.asarray(self.spec[0][self.mask], dtype=np.float64), self.spec[1][self.mask],
+                               self.spec[2][self.mask]]
+
+                    self.models = {}
+                    for name in ['bbb', 'ext']:
+                        self.models[name] = sed(name=name, xmin=self.wavemin, xmax=self.wavemax, z=self.d['z'])
+                        self.models[name].set_data('spec', self.sm[0])
+                        self.models[name].set_data('spec_full', self.spec[0])
+
+                    return True
 
     def set_filters(self, ind, names=None, add_UV=False, add_SDSS=False):
         self.photo = {}
@@ -957,7 +990,7 @@ class QSOSEDfit():
         return 10 ** (-0.4 * self.ext_fm07(wave * (1 + z_ext), Av=params['EBV'].value * Rv, Rv=Rv, c1=-4.959, c2=2.264, c3=c3, c4=0.319, c5=6.097, x0=4.592, gamma=0.922))
 
     def loadSDSS(self, plate, fiber, mjd, Av_gal=np.nan, rebin=11):
-        filename = os.path.dirname(self.catalog) + '/spectra/spec-{0:04d}-{2:05d}-{1:04d}.fits'.format(int(plate), int(fiber), int(mjd))
+        filename = os.path.dirname(self.catfile) + '/spectra/spec-{0:04d}-{2:05d}-{1:04d}.fits'.format(int(plate), int(fiber), int(mjd))
         #print(filename)
         if os.path.exists(filename):
             qso = fits.open(filename)
@@ -974,6 +1007,28 @@ class QSOSEDfit():
                 #mask = np.sum(mask[int(rebin/2)+1:((len(mask) // rebin) - 1) * rebin + int(rebin/2)+2].reshape(len(mask) // rebin, rebin), axis=1) > 1
             return [x, y, err, mask]
 
+    def loadDESI(self, ind, Av_gal=0, rebin=0):
+        print(ind)
+
+        # with fits.open('D:/DESI/matched_ordered_spectra_full.fits') as hdu:
+        with h5py.File("D:/DESI/desi.hdf5", "r") as h5_file:
+            #meta = h5_file['meta/table'][ind]
+            #z, Av_gal = meta['z'], meta['Av_gal']
+            d = h5_file[str(ind)][:]
+            x, y, err, mask = d[0], d[1], d[2], np.logical_not(d[3])
+
+            ext = G23(Rv=3.1).extinguish(1 / ((np.asarray(x, dtype=np.float64) * u.AA).to('um')), Av=float(Av_gal))
+            print(np.sum(mask), len(x), mask)
+            y = y / ext
+            if rebin > 1:
+                y, err = spectres(x, y, x[int(rebin / 2) + 1:((len(x) // rebin) - 1) * rebin:rebin], err)
+                err *= rebin
+                mask = spectres(x, mask, x[int(rebin / 2) + 1:((len(x) // rebin) - 1) * rebin:rebin]) > 0.9
+                x = x[int(rebin / 2) + 1:((len(x) // rebin) - 1) * rebin:rebin]
+                # mask = np.sum(mask[int(rebin/2)+1:((len(mask) // rebin) - 1) * rebin + int(rebin/2)+2].reshape(len(mask) // rebin, rebin), axis=1) > 1
+
+        return [x, y, err, mask]
+
     def spec_model(self, params, x):
         return None
 
@@ -981,9 +1036,9 @@ class QSOSEDfit():
         model = np.zeros_like(self.models['bbb'].data[dtype][0])
         if mtype in ['total', 'bbb']:
             model = self.models['bbb'].data[dtype][0] * 10 ** params['bbb_norm'].value * self.extinction(x / (1 + self.d['z']), params)
-        if mtype in ['total', 'tor'] and params['tor_type'].value > -1:
+        if mtype in ['total', 'tor'] and 'tor' in params and params['tor_type'].value > -1:
             model += self.models['tor'].data[dtype][self.models['tor'].get_model_ind(params)] * 10 ** params['tor_norm'].value
-        if mtype in ['total', 'gal'] and params['host_tau'].value > -1 and params['host_tg'].value > -1:
+        if mtype in ['total', 'gal'] and 'gal' in params and params['host_tau'].value > -1 and params['host_tg'].value > -1:
             model += self.models['gal'].data[dtype][self.models['gal'].get_model_ind(params)] * 10 ** params['host_norm'].value * self.extinction_MW(x / (1 + self.d['z']), Av=params['host_Av'].value)
         #if params['host_type'].value > -1:
         #    model += self.models['host'].data[kind][params['host_type'].value] * 10 ** params['host_norm'].value * self.extinction(x / (1 + d['z']), Av=params['host_Av'].value)
@@ -1084,11 +1139,13 @@ class QSOSEDfit():
 
     def fcn2min(self, params, outliers=True):
         chi = (self.model(params, self.sm[0], 'spec') - self.sm[1]) / self.sm[2]
+        #print(np.sum(np.power(chi, 2)))
         if outliers:
             chi = chi[np.abs(chi) < np.quantile(np.abs(chi), 0.95)]
         for k, f in self.filters.items():
             if self.filters[k].fit and any([s in k for s in ['UKIDSS', 'W', '2MASS']]):
                 chi = np.append(chi, [f.weight / f.err * (f.value - f.get_value(x=f.x, y=self.model(params, f.x, k)))])
+        #print(np.sum(np.power(chi, 2)))
         return chi
 
     def fcn2min_mcmc(self, pars):
@@ -1281,121 +1338,144 @@ class QSOSEDfit():
             #print(p, v, params[p].value)
         return params
 
-    def prepare_params(self, params=None, tvary=True):
+    def prepare_params(self, params=None, tvary=True, simple=False):
 
         new = True if params is None else False
 
-        if new:
+        if self.catalog == 'DESI':
             norm_bbb = np.log10(np.nanmean(self.sm[1]) / np.nanmean(self.models['bbb'].data['spec']))
             params = lmfit.Parameters()
             params.add('bbb_norm', value=norm_bbb, min=-3, max=3)
-            params.add('bbb_slope', value=0, min=-2, max=2)
-            params.add('Fe_norm', value=0, min=-1, max=100, vary=True)
-            params.add('EBV', value=0.0, min=0.0, max=10)
-            params.add('Rv', value=2.74, min=0.5, max=6.0, vary=True)
-            params.add('tor_type', value=10, vary=True, min=0, max=self.models['tor'].n - 1)
-            params.add('tor_norm', value=np.log10(norm_bbb / np.max(self.models['bbb'].data['spec'][0]) * np.max(self.models['tor'].data['spec'][params['tor_type'].value])), min=-3, max=2)
-            #params.add('host_tau', value=0.3, vary=True, min=self.models['gal'].tau[0].value, max=Planck15.age(self.d['z']).to('Gyr').value)
-            #params.add('host_tg', value=Planck15.age(self.d['z']).to('Gyr').value / 2, vary=True, min=self.models['gal'].tg[0].value, max=min(10, Planck15.age(self.d['z']).to('Gyr').value))
-            params.add('host_tau', value=np.log10(0.2), min=self.models['gal'].tau[0],
-                       max=np.log10(Planck15.age(self.d['z']).to('Gyr').value), vary=True)
-            params.add('host_tg', value=np.log10(min(Planck15.age(self.d['z']).to('Gyr').value, 10) / 2),
-                       min=self.models['gal'].tg[0], max=min(np.log10(Planck15.age(self.d['z']).to('Gyr').value), self.models['gal'].tg[-1]), vary=True)
-            print(params['host_tg'])
-            # print('age:', np.log10(Planck15.age(self.d['z']).to('yr').value))
-            params.add('host_norm', value=np.log10(np.nanmean(self.sm[1]) / np.nanmean(
-                self.models['gal'].data['spec'][self.models['gal'].get_model_ind(params)])), min=-4, max=2)
-            params.add('host_Av', value=0.1, min=0, max=10.0)
+            params.add('EBV', value=0.01, min=-10, max=10)
+            cov_range = {'bbb_norm': [0.1, 0.1], 'EBV': [0.01, 0.1]}
+            cov = {}
+            if not new:
+                params['host_Av'].max = 5
+                # params['host_tau'].value = 0.1
+                for k in cov_range.keys():
+                    params[k].vary = True
+                    if params[k].stderr is None:
+                        params[k].stderr = np.median(cov_range[k])
+                    if params[k].vary == True:
+                        cov[k] = max([cov_range[k][0], min([cov_range[k][1], params[k].stderr])])
+            else:
+                for k in cov_range.keys():
+                    cov[k] = np.median(cov_range[k])
 
-        if params['host_norm'].value < params['bbb_norm'].value - 2:
-            params['host_norm'].value = params['bbb_norm'].value - 2
+            return params, cov
 
-        # print(self.extinction(2500, Av=params['Av'].value), np.log(self.extinction(1000, Av=params['Av'].value) / self.extinction(2500, Av=params['Av'].value)) / np.log(0.4))
-        if params['EBV'].value < 0:
-            params['bbb_norm'].value -= np.log10(self.extinction(2500, params))
-            params['bbb_slope'].value = np.log(self.extinction(1000, params) / self.extinction(2500, params)) / np.log(
-                0.4)
-            params['EBV'].value = 0.01
+        if self.catalog == 'SDSS':
+            if new:
+                norm_bbb = np.log10(np.nanmean(self.sm[1]) / np.nanmean(self.models['bbb'].data['spec']))
+                params = lmfit.Parameters()
+                params.add('bbb_norm', value=norm_bbb, min=-3, max=3)
+                params.add('bbb_slope', value=0, min=-2, max=2)
+                params.add('Fe_norm', value=0, min=-1, max=100, vary=True)
+                params.add('EBV', value=0.0, min=0.0, max=10)
+                params.add('Rv', value=2.74, min=0.5, max=6.0, vary=True)
+                params.add('tor_type', value=10, vary=True, min=0, max=self.models['tor'].n - 1)
+                params.add('tor_norm', value=np.log10(norm_bbb / np.max(self.models['bbb'].data['spec'][0]) * np.max(self.models['tor'].data['spec'][params['tor_type'].value])), min=-3, max=2)
+                #params.add('host_tau', value=0.3, vary=True, min=self.models['gal'].tau[0].value, max=Planck15.age(self.d['z']).to('Gyr').value)
+                #params.add('host_tg', value=Planck15.age(self.d['z']).to('Gyr').value / 2, vary=True, min=self.models['gal'].tg[0].value, max=min(10, Planck15.age(self.d['z']).to('Gyr').value))
+                params.add('host_tau', value=np.log10(0.2), min=self.models['gal'].tau[0],
+                           max=np.log10(Planck15.age(self.d['z']).to('Gyr').value), vary=True)
+                params.add('host_tg', value=np.log10(min(Planck15.age(self.d['z']).to('Gyr').value, 10) / 2),
+                           min=self.models['gal'].tg[0], max=min(np.log10(Planck15.age(self.d['z']).to('Gyr').value), self.models['gal'].tg[-1]), vary=True)
+                print(params['host_tg'])
+                # print('age:', np.log10(Planck15.age(self.d['z']).to('yr').value))
+                params.add('host_norm', value=np.log10(np.nanmean(self.sm[1]) / np.nanmean(
+                    self.models['gal'].data['spec'][self.models['gal'].get_model_ind(params)])), min=-4, max=2)
+                params.add('host_Av', value=0.1, min=0, max=10.0)
 
-        cov_range = {'bbb_norm': [0.1, 0.1], 'bbb_slope': [0.1, 0.1],
-                     'EBV': [0.01, 0.1], 'Rv': [0.2, 0.2],  # 'c3': [0.05, 0.3],
-                     'tor_type': [1, 5], 'tor_norm': [0.1, 0.1],
-                     'host_tau': [0.05, 0.1], 'host_tg': [0.1, 0.5],
-                     'host_norm': [0.1, 0.1],
-                     'host_Av': [0.01, 0.2]
-                     }
-        cov = {}
-        if not new:
-            params['host_Av'].max = 5
-            # params['host_tau'].value = 0.1
-            for k in cov_range.keys():
-                params[k].vary = True
-                if params[k].stderr is None:
-                    params[k].stderr = np.median(cov_range[k])
-                if params[k].vary == True:
-                    cov[k] = max([cov_range[k][0], min([cov_range[k][1], params[k].stderr])])
-        else:
-            for k in cov_range.keys():
-                cov[k] = np.median(cov_range[k])
+            if params['host_norm'].value < params['bbb_norm'].value - 2:
+                params['host_norm'].value = params['bbb_norm'].value - 2
 
-        if 'Fe_norm' in params.keys():
-            params['Fe_norm'].vary = True
-            cov['Fe_norm'] = 0.2  # cov['bbb_norm'] / 3
+            # print(self.extinction(2500, Av=params['Av'].value), np.log(self.extinction(1000, Av=params['Av'].value) / self.extinction(2500, Av=params['Av'].value)) / np.log(0.4))
+            if params['EBV'].value < 0:
+                params['bbb_norm'].value -= np.log10(self.extinction(2500, params))
+                params['bbb_slope'].value = np.log(self.extinction(1000, params) / self.extinction(2500, params)) / np.log(
+                    0.4)
+                params['EBV'].value = 0.01
 
-        if 'Abump' in params.keys():
-            params['Abump'].vary = True
-            cov['Abump'] = 0.2
+            cov_range = {'bbb_norm': [0.1, 0.1], 'bbb_slope': [0.1, 0.1],
+                         'EBV': [0.01, 0.1], 'Rv': [0.2, 0.2],  # 'c3': [0.05, 0.3],
+                         'tor_type': [1, 5], 'tor_norm': [0.1, 0.1],
+                         'host_tau': [0.05, 0.1], 'host_tg': [0.1, 0.5],
+                         'host_norm': [0.1, 0.1],
+                         'host_Av': [0.01, 0.2]
+                         }
+            cov = {}
+            if not new:
+                params['host_Av'].max = 5
+                # params['host_tau'].value = 0.1
+                for k in cov_range.keys():
+                    params[k].vary = True
+                    if params[k].stderr is None:
+                        params[k].stderr = np.median(cov_range[k])
+                    if params[k].vary == True:
+                        cov[k] = max([cov_range[k][0], min([cov_range[k][1], params[k].stderr])])
+            else:
+                for k in cov_range.keys():
+                    cov[k] = np.median(cov_range[k])
 
-        # print(cov)
-        # params.add('host_L', value=0, min=0, max=100, vary=False)
-        # cov['host_L'] = 0.1
+            if 'Fe_norm' in params.keys():
+                params['Fe_norm'].vary = True
+                cov['Fe_norm'] = 0.2  # cov['bbb_norm'] / 3
 
-        if tvary:
-            params.add('sigma', value=0.2, min=0.01, max=3)
-            cov['sigma'] = 0.02
-            # params.add('alpha_spec', value=0.0, min=-3, max=3)
-            # cov['alpha_spec'] = params['sigma'].value / 10
-            # print(self.filters)
-            # print(self.photo.items())
-            for p in set([v for k, v in self.photo.items() if self.filters[k].fit]):
-                if p != 'WISE':
-                    if np.sum([p == self.photo[k] and self.filters[k].fit for k in self.filters.keys()]) > 1:
-                        params.add('alpha_' + p, value=0, min=-3, max=3)
-                        params.add('slope_' + p, value=0, min=-3, max=3)
-                        x, y = [], []
-                        for k, f in self.filters.items():
-                            if p == self.photo[k] and self.filters[k].fit:
-                                x.append(np.log10(f.l_eff))
-                                y.append(np.log10(f.get_value(x=f.x, y=self.model_emcee(params, f.x, k)) / f.value))
-                        if len(x) > 1:
-                            res = scipy.stats.linregress(x, y)
-                            params['alpha_' + p].value = res.intercept
-                            params['slope_' + p].value = res.slope
-                            cov['alpha_' + p] = res.intercept_stderr if res.intercept_stderr != 0 else params[
-                                'sigma'].value
-                            cov['slope_' + p] = res.stderr if res.stderr != 0 else 0.02
-                    else:
-                        params.add('alpha_' + p, value=0, min=-3, max=3)
-                        params.add('slope_' + p, value=0, min=-3, max=3)
-                        for k, f in self.filters.items():
-                            if p == self.photo[k] and self.filters[k].fit:
-                                params['alpha_' + p].value = np.log10(
-                                    f.get_value(x=f.x, y=self.model_emcee(params, f.x, k)) / f.value)
-                        cov['alpha_' + p] = 0.2
-                        cov['slope_' + p] = 0.02
-                    # cov['alpha_' + p] = params['sigma'].value
-                    # cov['slope_' + p] = 0.02
+            if 'Abump' in params.keys():
+                params['Abump'].vary = True
+                cov['Abump'] = 0.2
 
-        # for p in set(self.photo.values()):
-        #    if p != 'WISE':
-        #        chi = []
-        #        for k, f in self.filters.items():
-        #            if self.photo[k] == p and self.filters[k].fit:
-        #                chi.append([f.value, f.get_value(x=f.x, y=self.model_emcee(params, f.x, k))])
-        #        if len(chi) > 0:
-        #            params['alpha_' + p].value = -(np.sum(np.asarray(chi), axis=0)[0] - np.sum(np.asarray(chi), axis=0)[1]) / len(np.sum(np.asarray(chi), axis=0)) / 2.5
-        # print(params)
-        # print(cov)
+            # print(cov)
+            # params.add('host_L', value=0, min=0, max=100, vary=False)
+            # cov['host_L'] = 0.1
+
+            if tvary:
+                params.add('sigma', value=0.2, min=0.01, max=3)
+                cov['sigma'] = 0.02
+                # params.add('alpha_spec', value=0.0, min=-3, max=3)
+                # cov['alpha_spec'] = params['sigma'].value / 10
+                # print(self.filters)
+                # print(self.photo.items())
+                for p in set([v for k, v in self.photo.items() if self.filters[k].fit]):
+                    if p != 'WISE':
+                        if np.sum([p == self.photo[k] and self.filters[k].fit for k in self.filters.keys()]) > 1:
+                            params.add('alpha_' + p, value=0, min=-3, max=3)
+                            params.add('slope_' + p, value=0, min=-3, max=3)
+                            x, y = [], []
+                            for k, f in self.filters.items():
+                                if p == self.photo[k] and self.filters[k].fit:
+                                    x.append(np.log10(f.l_eff))
+                                    y.append(np.log10(f.get_value(x=f.x, y=self.model_emcee(params, f.x, k)) / f.value))
+                            if len(x) > 1:
+                                res = scipy.stats.linregress(x, y)
+                                params['alpha_' + p].value = res.intercept
+                                params['slope_' + p].value = res.slope
+                                cov['alpha_' + p] = res.intercept_stderr if res.intercept_stderr != 0 else params[
+                                    'sigma'].value
+                                cov['slope_' + p] = res.stderr if res.stderr != 0 else 0.02
+                        else:
+                            params.add('alpha_' + p, value=0, min=-3, max=3)
+                            params.add('slope_' + p, value=0, min=-3, max=3)
+                            for k, f in self.filters.items():
+                                if p == self.photo[k] and self.filters[k].fit:
+                                    params['alpha_' + p].value = np.log10(
+                                        f.get_value(x=f.x, y=self.model_emcee(params, f.x, k)) / f.value)
+                            cov['alpha_' + p] = 0.2
+                            cov['slope_' + p] = 0.02
+                        # cov['alpha_' + p] = params['sigma'].value
+                        # cov['slope_' + p] = 0.02
+
+            # for p in set(self.photo.values()):
+            #    if p != 'WISE':
+            #        chi = []
+            #        for k, f in self.filters.items():
+            #            if self.photo[k] == p and self.filters[k].fit:
+            #                chi.append([f.value, f.get_value(x=f.x, y=self.model_emcee(params, f.x, k))])
+            #        if len(chi) > 0:
+            #            params['alpha_' + p].value = -(np.sum(np.asarray(chi), axis=0)[0] - np.sum(np.asarray(chi), axis=0)[1]) / len(np.sum(np.asarray(chi), axis=0)) / 2.5
+            # print(params)
+            # print(cov)
 
         return params, cov
 
@@ -1534,7 +1614,7 @@ class QSOSEDfit():
 
                         figqc.tight_layout()
                         if self.save:
-                            figqc.savefig(os.path.dirname(self.catalog) + '/QC/plots/' + self.d['SDSS_NAME'] + '_conv.png', bbox_inches='tight', pad_inches=0.1)
+                            figqc.savefig(self.catdir + '/QC/plots/' + self.d['SDSS_NAME'] + '_conv.png', bbox_inches='tight', pad_inches=0.1)
 
                     burnin = int(2 * sampler.iteration // 3)
                     flat_sample = sampler.get_chain(discard=burnin, thin=10, flat=True)
@@ -1546,11 +1626,11 @@ class QSOSEDfit():
             flat_sample = flat_sample[np.isfinite(flat_sample[:, -1]), :]
             # >>> saving flat_samples"
             if self.save:
-                with open(os.path.dirname(self.catalog) + '/QC/chains/' + self.d['SDSS_NAME'] + '.pickle', 'wb') as f:
+                with open(self.catdir + '/QC/chains/' + self.d['SDSS_NAME'] + '.pickle', 'wb') as f:
                     pickle.dump([pars, flat_sample], f)
 
         else:
-            with open(os.path.dirname(self.catalog) + '/QC/chains/' + self.d['SDSS_NAME'] + '.pickle', 'rb') as f:
+            with open(self.catdir + '/QC/chains/' + self.d['SDSS_NAME'] + '.pickle', 'rb') as f:
                 pars, flat_sample = pickle.load(f)
                 ln_max = np.min(flat_sample[:, -1])
                 print('ln_max:', ln_max)
@@ -1566,7 +1646,7 @@ class QSOSEDfit():
                 if 1:
                     fig = corner.corner(flat_sample, labels=[str(p).replace('_', ' ') for p in pars])
                     if self.save:
-                        fig.savefig(os.path.dirname(self.catalog) + '/QC/plots/' + self.d['SDSS_NAME'] + '_mcmc.png', bbox_inches='tight', pad_inches=0.1)
+                        fig.savefig(self.catdir + '/QC/plots/' + self.d['SDSS_NAME'] + '_mcmc.png', bbox_inches='tight', pad_inches=0.1)
                 else:
                     c = ChainConsumer()
                     #print(np.asarray(result.flatchain))
@@ -1576,7 +1656,7 @@ class QSOSEDfit():
                                 colors="#673AB7", shade_alpha=1)
                     fig = c.plotter.plot(figsize=(20, 15))
                     if self.save:
-                        fig.savefig(os.path.dirname(self.catalog) + '/QC/plots/' + self.d['SDSS_NAME'] + '_mcmc.png', bbox_inches='tight', pad_inches=0.1)
+                        fig.savefig(self.catdir + '/QC/plots/' + self.d['SDSS_NAME'] + '_mcmc.png', bbox_inches='tight', pad_inches=0.1)
 
             # >>> statistical determination:
             print("calc stats for ", self.ind)
@@ -1649,7 +1729,7 @@ class QSOSEDfit():
                         #ax[vert, hor].set_title(pars[i].replace('_', ' '))
 
                 if self.save:
-                    fig.savefig(os.path.dirname(self.catalog) + '/QC/plots/' + self.d['SDSS_NAME'] + '_post.png', bbox_inches='tight', pad_inches=0.1)
+                    fig.savefig(self.catdir + '/QC/plots/' + self.d['SDSS_NAME'] + '_post.png', bbox_inches='tight', pad_inches=0.1)
 
             else:
                 res = None
@@ -1764,6 +1844,25 @@ class QSOSEDfit():
         self.ind = ind
         self.d = self.df.loc[ind]
         res = None
+        print(method)
+
+        if method in ['leastsq', 'least_squares']:
+            params, cov = self.prepare_params()
+            #print(params, cov)
+            minner = lmfit.Minimizer(self.fcn2min, params, nan_policy='propagate', calc_covar=True, max_nfev=100)
+            result = minner.minimize(method='leastsq')
+            #print(result)
+            #lmfit.report_fit(result)
+            chi = self.fcn2min(result.params)
+            res = {}
+            for p in result.params.keys():
+                res[p] = a(result.params[p].value, result.params[p].stderr)
+
+            if self.plot:
+                self.plot_spec(params=result.params)
+                plt.show()
+
+            return res
 
         if method == 'annealing' and self.hostExt and any([f in self.filters.keys() for f in ['J_UKIDSS', 'H_UKIDSS', 'K_UKIDSS', 'J', 'H', 'K', 'W1', 'W2']]) and any([f in self.filters.keys() for f in ['W3', 'W4']]):
             print('anneal:', ind, self.d['SDSS_NAME'])
@@ -1780,7 +1879,7 @@ class QSOSEDfit():
             result, chi2_min = self.anneal_fit(anneal_steps=30, vary={'host_norm': True, 'host_tau': False, 'host_tg': False, 'host_Av': False})
             #result, chi2_min = self.anneal_fit(anneal_steps=30)
             params, cov = self.prepare_params(result.params)
-            #print(params, cov)
+            print(params, cov)
             self.params = params
             parnames = [p for p in self.params]
             ndim = len([p for p in params.values() if p.vary])
@@ -1796,10 +1895,10 @@ class QSOSEDfit():
                         sampler = dynesty.DynamicNestedSampler(self.lnlike_nest, self.ptform, ndim, nlive=100, bound='multi') #, pool=pool, queue_size=num_proc) #, bound='balls')
                     else:
                         sampler = dynesty.NestedSampler(self.lnlike_nest, self.ptform, ndim, nlive=2000, bound='multi')
-                    sampler.run_nested(maxiter=self.mcmc_steps, checkpoint_file=os.path.dirname(self.catalog) + '/QC/dynesty/' + self.d['SDSS_NAME'] + '.save', print_progress=True,
+                    sampler.run_nested(maxiter=self.mcmc_steps, checkpoint_file=self.catdir + '/QC/dynesty/' + self.d['SDSS_NAME'] + '.save', print_progress=True,
                                        dlogz_init=0.1, maxiter_init=20000) #, maxcall=500000)
                 else:
-                    sampler = dynesty.DynamicNestedSampler.restore(os.path.dirname(self.catalog) + '/QC/dynesty/' + self.d['SDSS_NAME'] + '.save')
+                    sampler = dynesty.DynamicNestedSampler.restore(self.catdir + '/QC/dynesty/' + self.d['SDSS_NAME'] + '.save')
                     # resume
                     sampler.run_nested(resume=True)
                 results = sampler.results
@@ -1808,18 +1907,19 @@ class QSOSEDfit():
 
                 # Plot a summary of the run.
                 rfig, raxes = dyplot.runplot(sampler.results)
-                rfig.savefig(os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_run.png')
+                rfig.savefig(self.catdir + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_run.png')
                 # Plot traces and 1-D marginalized posteriors.
                 tfig, taxes = dyplot.traceplot(sampler.results, quantiles=quantiles, show_titles=True, labels=parnames)
-                tfig.savefig(os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_trace.png')
+                tfig.savefig(self.catdir + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_trace.png')
                 # Plot the 2-D marginalized posteriors.
                 cfig, caxes = dyplot.cornerplot(sampler.results, quantiles=quantiles, show_titles=True, labels=parnames)
-                cfig.savefig(os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_corner.png')
+                cfig.savefig(self.catdir + '/QC/dynesty_plots/' + self.d['SDSS_NAME'] + '_corner.png')
                 #t.time('plot')
                 sample = results.samples[:]
                 weights = results.importance_weights()
+
             elif  method in ['nautilus']:
-                sampler = Sampler(self.ptform, self.lnlike_nest, n_live=1000, n_dim=ndim, filepath=os.path.dirname(self.catalog) + '/QC/nautilus/' + self.d['SDSS_NAME'] + '.hdf5', resume=not calc) #, pool=20)
+                sampler = Sampler(self.ptform, self.lnlike_nest, n_live=1000, n_dim=ndim, filepath=self.catdir + '/QC/nautilus/' + self.d['SDSS_NAME'] + '.hdf5', resume=not calc) #, pool=20)
                 if calc:
                     sampler.run(verbose=True)
 
@@ -1948,7 +2048,7 @@ class QSOSEDfit():
                     self.fig.axes[0].set_title(title)
 
                 if self.save:
-                    self.fig.savefig(os.path.dirname(self.catalog) + '/QC/dynesty_plots/' + self.df.loc[ind, 'SDSS_NAME'] + '_spec.png', bbox_inches='tight', pad_inches=0.1)
+                    self.fig.savefig(self.catdir + '/QC/dynesty_plots/' + self.df.loc[ind, 'SDSS_NAME'] + '_spec.png', bbox_inches='tight', pad_inches=0.1)
 
                 # print(self.fig)
                 # self.fig.show()
@@ -1966,7 +2066,7 @@ class QSOSEDfit():
             ndim = len([p for p in params.values() if p.vary])
             t = Timer()
 
-            sampler = Sampler(self.ptform, self.lnlike_nest, n_live=1000, n_dim=ndim, filepath=os.path.dirname(self.catalog) + '/QC/nautilus/' + self.d['SDSS_NAME'] + '.hdf5', resume=not calc)
+            sampler = Sampler(self.ptform, self.lnlike_nest, n_live=1000, n_dim=ndim, filepath=self.catdir + '/QC/nautilus/' + self.d['SDSS_NAME'] + '.hdf5', resume=not calc)
             if calc:
                 sampler.run(verbose=True)
 
@@ -2043,7 +2143,7 @@ class QSOSEDfit():
                 self.fig.axes[0].set_title(title)
 
                 if self.save:
-                    self.fig.savefig(os.path.dirname(self.catalog) + '/QC/plots/' + self.df.loc[ind, 'SDSS_NAME'] + '_spec.png', bbox_inches='tight', pad_inches=0.1)
+                    self.fig.savefig(self.catdir + '/QC/plots/' + self.df.loc[ind, 'SDSS_NAME'] + '_spec.png', bbox_inches='tight', pad_inches=0.1)
 
                 #print(self.fig)
                 #self.fig.show()
@@ -2053,7 +2153,9 @@ class QSOSEDfit():
         return res
 
     def plot_spec(self, params=None, fig=None, alpha=1):
-        if fig is None or self.fig is None:
+
+        print("figs:", fig, self.fig)
+        if fig is None and self.fig is None:
             self.fig, ax = plt.subplots(figsize=(20, 12))
         else:
             ax = self.fig.axes[0]
@@ -2080,20 +2182,23 @@ class QSOSEDfit():
                 ax.set_yscale('log')
 
         if params is not None:
-            host_min = params['host_tau'].value * (params['host_tg'].max + 1) + params['host_tg'].value
-            bbb, tor, host = self.models['bbb'].models[0], self.models['tor'].models[params['tor_type'].value], self.models['gal'].models[host_min]
+            bbb = self.models['bbb'].models[0]
+            if self.catalog == 'SDSS':
+                host_min = params['host_tau'].value * (params['host_tg'].max + 1) + params['host_tg'].value
+                tor, host = self.models['tor'].models[params['tor_type'].value], self.models['gal'].models[host_min]
 
             # >>> plot templates:
             if alpha == 1:
                 ax.plot(bbb.x, bbb.y * 10 ** params['bbb_norm'].value, '--', color='tab:blue', zorder=2, label='composite', alpha=alpha)
-            ax.plot(bbb.x, bbb.y * 10 ** params['bbb_norm'].value * self.extinction(bbb.x, params),
-                    '-', color='tab:blue', zorder=3, label='comp with ext', alpha=alpha)
-            ax.plot(tor.x, tor.y * 10 ** params['tor_norm'].value, '--', color='tab:orange', zorder=2, label='composite', alpha=alpha)
-            if self.hostExt:
-                if alpha == 1:
-                    ax.plot(host.x, host.y * 10 ** params['host_norm'].value, '--', color='tab:purple', zorder=2, label='host galaxy', alpha=alpha)
+            ax.plot(bbb.x, bbb.y * 10 ** params['bbb_norm'].value * self.extinction(bbb.x, params), '-', color='royalblue', zorder=3, label='comp with ext', alpha=alpha)
 
-                ax.plot(host.x, host.y * 10 ** params['host_norm'].value * self.extinction_MW(host.x, Av=params['host_Av'].value), '-', color='tab:purple', zorder=2, label='host galaxy', alpha=alpha)
+            if self.catalog == 'SDSS':
+                ax.plot(tor.x, tor.y * 10 ** params['tor_norm'].value, '--', color='tab:orange', zorder=2, label='composite', alpha=alpha)
+                if self.hostExt:
+                    if alpha == 1:
+                        ax.plot(host.x, host.y * 10 ** params['host_norm'].value, '--', color='tab:purple', zorder=2, label='host galaxy', alpha=alpha)
+
+                    ax.plot(host.x, host.y * 10 ** params['host_norm'].value * self.extinction_MW(host.x, Av=params['host_Av'].value), '-', color='tab:purple', zorder=2, label='host galaxy', alpha=alpha)
 
             # >>> plot filters fluxes:
             for k, f in self.filters.items():
@@ -2105,12 +2210,14 @@ class QSOSEDfit():
                 #           s=20, marker='o', c=[c/255 for c in f.filter.color])
 
             # >>> total profile:
-            temp = bbb.flux(self.spec[0] / (1 + self.d['z'])) * 10 ** params['bbb_norm'].value * self.extinction(self.spec[0] / (1 + self.d['z']), params) + tor.flux(self.spec[0] / (1 + self.d['z'])) * 10 ** params['tor_norm'].value
-            if self.hostExt:
-                temp += host.flux(self.spec[0] / (1 + self.d['z'])) * 10 ** params['host_norm'].value * self.extinction_MW(self.spec[0] / (1 + self.d['z']), Av=params['host_Av'].value)
+            temp = bbb.flux(self.spec[0] / (1 + self.d['z'])) * 10 ** params['bbb_norm'].value * self.extinction(self.spec[0] / (1 + self.d['z']), params)
+            if self.catalog == 'SDSS':
+                temp += tor.flux(self.spec[0] / (1 + self.d['z'])) * 10 ** params['tor_norm'].value
+                if self.hostExt:
+                    temp += host.flux(self.spec[0] / (1 + self.d['z'])) * 10 ** params['host_norm'].value * self.extinction_MW(self.spec[0] / (1 + self.d['z']), Av=params['host_Av'].value)
 
             ax.plot(self.spec[0] / (1 + self.d['z']), temp, '-', lw=2, color='tab:red', zorder=3, label='total profile', alpha=alpha)
-            # print(np.sum(((temp - spec[1]) / spec[2])[mask] ** 2) / np.sum(mask))
+                # print(np.sum(((temp - spec[1]) / spec[2])[mask] ** 2) / np.sum(mask))
 
     def plot_spec_nest(self, results, fig=None, alpha=1):
         if fig is None or self.fig is None:
@@ -2176,7 +2283,10 @@ class QSOSEDfit():
             mask = spec[3]
         #print(np.sum(mask))
 
-        mask *= spec[0] > 1280 * (1 + z_em)
+        if self.catalog == 'SDSS':
+            mask *= spec[0] > 1280 * (1 + z_em)
+        elif self.catalog == 'DESI':
+            mask *= (spec[0] > 1700 * (1 + z_em)) * (spec[0] < 3700 * (1 + z_em))
 
         for i in range(iter):
             m = np.zeros_like(spec[0])
@@ -2202,14 +2312,18 @@ class QSOSEDfit():
                        [9950, 10200]]
         else:
             # only strong ones
-            windows = [[1295, 1320], [1330, 1360], [1375, 1430], [1500, 1600], [1625, 1700], [1740, 1760],
-                       [1840, 1960], [2050, 2120], [2250, 2400], #[2250, 2650], #[2710, 2890],
-                       [2690, 2880], #[2940, 2990], [3280, 3330],
-                       [3820, 3920], [4240, 4440],
-                       [4920, 5080], [4720, 5080],
-                       [5130, 5400], [5500, 5620], [5780, 6020],
-                       [6300, 6850], [7600, 8050], [8250, 8300], [8400, 8600], [9000, 9400], [9500, 9700],
-                       [9950, 10200]]
+            if self.catalog == 'SDSS':
+                windows = [[1295, 1320], [1330, 1360], [1375, 1430], [1500, 1600], [1625, 1700], [1740, 1760],
+                           [1840, 1960], [2050, 2120], [2250, 2400], #[2250, 2650], #[2710, 2890],
+                           [2690, 2880], [3336, 3356], [3416, 3436], #[2940, 2990], [3280, 3330], [3416, 3436]
+                           [3820, 3920], [4240, 4440],
+                           [4920, 5080], [4720, 5080],
+                           [5130, 5400], [5500, 5620], [5780, 6020],
+                           [6300, 6850], [7600, 8050], [8250, 8300], [8400, 8600], [9000, 9400], [9500, 9700],
+                           [9950, 10200]]
+            if self.catalog == 'DESI':
+                windows = [[1840, 1960], [2690, 2880], [3336, 3356], [3416, 3436]]
+
             # only strongest ones
             #windows = [[1500, 1600], [1840, 1960], [2760, 2860], [4920, 5080],  # [4780, 5080],
             #           [6300, 6850]]
@@ -2274,12 +2388,16 @@ class jsoncat():
 
 def worker_wrapper(arg):
     ind, catfile, mcmc_steps, anneal_steps = arg
-    return run_model(ind, catfile=catfile, mcmc_steps=mcmc_steps, anneal_steps=anneal_steps, method='nautilus')
+    return run_model(ind, catalog="SDSS", catfile=catfile, mcmc_steps=mcmc_steps, anneal_steps=anneal_steps, method='nautilus')
 
-def run_model(ind, catfile=None, mcmc_steps=10000, anneal_steps=300, method='emcee', calc=1):
-    print(ind)
+def worker_wrapper_DESI(arg):
+    ind, catfile = arg
+    return run_model(ind, catalog="DESI", catfile=catfile, mcmc_steps=0, anneal_steps=0, method='leastsq')
 
-    qso = QSOSEDfit(catalog=catfile, plot=1, mcmc_steps=mcmc_steps, anneal_steps=anneal_steps, save=1, corr=50, verbose=0)
+def run_model(ind, catalog="SDSS", catfile=None, mcmc_steps=10000, anneal_steps=300, method='emcee', calc=1):
+    print(ind, catfile)
+
+    qso = QSOSEDfit(catalog=catalog, catfile=catfile, plot=0, mcmc_steps=mcmc_steps, anneal_steps=anneal_steps, save=1, corr=50, verbose=0)
     if qso.prepare(ind):
         res = qso.fit(ind, method=method, calc=calc)
     else:
@@ -2291,9 +2409,17 @@ if __name__ == "__main__":
     # by slurm (since it executes a copy)
     sys.path.append(os.getcwd())
 
-    #catfile = '/home/balashev/science/Erosita/match2_DR14Q_add.csv'
-    catfile = 'C:/science/Erosita/UV_Xray/match2_DR14Q_add.csv'
-    #catfile = 'C:/science/Erosita/UV_Xray/individual/individual_targets_add.csv'
+    #cat = "SDSS"
+    cat = "DESI"
+    if cat == "SDSS":
+        #catfile = '/home/balashev/science/Erosita/match2_DR14Q_add.csv'
+        catfile = "C:/science/Erosita/UV_Xray/match2_DR14Q_add.csv"
+        #catfile = 'C:/science/Erosita/UV_Xray/individual/individual_targets_add.csv'
+        sample_size = 7975
+    if cat == "DESI":
+        catfile = "D:/DESI/erosita_DESI_cat_final.csv"
+        sample_size = 5603
+
     path = os.path.dirname(catfile)
     #print(path)
 
@@ -2306,8 +2432,10 @@ if __name__ == "__main__":
         ind = 5
         if 0:
             res = run_model(ind, catfile=catfile, mcmc_steps=500, anneal_steps=50, method='emcee')
-        else:
+        if 0:
             res = run_model(ind, catfile=catfile, method='nautilus', calc=1) # method='nested_dyn') #
+        if 1:
+            res = run_model(ind, catalog="DESI", catfile=catfile, method='leastsq', calc=1) # method='nested_dyn') #
         print(res)
     else:
         #pars = ['bbb_norm', 'Av', 'tor_type', 'tor_norm', 'host_tau', 'host_tg', 'host_norm', 'host_Av', 'sigma', 'alpha_GALEX', 'alpha_SDSS', 'alpha_2MASS', 'alpha_UKIDSS']
@@ -2315,12 +2443,15 @@ if __name__ == "__main__":
         calc = 1
         if calc:
             if 1:
-                for i in range(1): # range(7975 // num + 1):
+                for i in range(sample_size // num, sample_size // num + 1): # range(7975 // num + 1):
                     if i % i2 + 1 == i1:
                         with Pool(num) as p:
-                            res_new = p.map(worker_wrapper, [(k, catfile, 10000, 300) for k in np.arange(i * num, min((i + 1) * num, 7975))]) #total number of AGNs 7975
+                            if cat == "SDSS":
+                                res_new = p.map(worker_wrapper, [(k, catfile, 10000, 300) for k in np.arange(i * num, min((i + 1) * num, sample_size))]) #total number of AGNs 7975
+                            if cat == "DESI":
+                                res_new = p.map(worker_wrapper_DESI, [(k, catfile) for k in np.arange(i * num, min((i + 1) * num, sample_size))])  # total number of AGNs 7975
                         print(res_new)
-                        res = jsoncat(path=path)
+                        res = jsoncat(path=path, prefix=cat)
                         res.add(res_new)
                         res.save()
             else:

@@ -421,6 +421,12 @@ class plotSpectrum(pg.PlotWidget):
                     self.vb.rbScaleBox.hide()
 
         if event.key() in [Qt.Key.Key_Right, Qt.Key.Key_Left]:
+
+            if not self.e_status and not self.p_status:
+                self.parent.setz_abs(self.parent.z_abs + (-1 + 2 * (event.key() == Qt.Key.Key_Right))
+                                     * (self.viewRange()[0][-1] - self.viewRange()[0][0]) / (np.sum(self.viewRange()[0]) / 2) / 3000 * (1 + 9 * (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier))
+                                     * (self.parent.z_abs + 1))
+
             if self.parent.QMOSTTable is not None and self.parent.QMOSTTable.isVisible():
                 try:
                     row = self.parent.QMOSTTable.currentRow()
@@ -429,18 +435,13 @@ class plotSpectrum(pg.PlotWidget):
                 self.parent.QMOSTTable.selectionModel().clearSelection()
                 self.parent.QMOSTTable.row_clicked(row + 2 * (Qt.Key.Key_Right == event.key()) - 1)
 
-            if self.parent.ErositaWidget.ErositaTable is not None and self.parent.ErositaWidget.ErositaTable.isVisible():
+            if self.parent.ErositaWidget is not None and self.parent.ErositaWidget.ErositaTable.isVisible():
                 try:
                     row = self.parent.ErositaWidget.ErositaTable.currentRow()
                 except:
                     row = 0
                 self.parent.ErositaWidget.ErositaTable.selectionModel().clearSelection()
                 self.parent.ErositaWidget.ErositaTable.row_clicked(row + 2 * (Qt.Key.Key_Right == event.key()) - 1)
-
-            elif not self.e_status and not self.p_status:
-                self.parent.setz_abs(self.parent.z_abs + (-1 + 2 * (event.key() == Qt.Key.Key_Right))
-                                     * (self.viewRange()[0][-1] - self.viewRange()[0][0]) / (np.sum(self.viewRange()[0]) / 2) / 3000 * (1 + 9 * (QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier))
-                                     * (self.parent.z_abs + 1))
 
 
     def keyReleaseEvent(self, event):
@@ -4233,16 +4234,15 @@ class fitExtWidget(QWidget):
         l.addWidget(self.z_abs_value, 1, 1)
 
         self.Av = QCheckBox('Av:', self)
-        self.Av.setChecked(False)
-        l.addWidget(self.Av, 2, 0)
-        self.Av_value = QLineEdit(self)
-        self.Av_value.setText('0.0')
         self.Av_value.returnPressed.connect(self.showExt)
         l.addWidget(self.Av_value, 2, 1)
 
         layout.addLayout(l)
         self.tab = QTabWidget()
-        self.tab.setGeometry(0, 0, 1050, 900)
+        self
+        l.addWidget(self.Av, 2, 0)
+        self.Av_value = QLineEdit(self)
+        self.Av_value.setText('0.0'.tab.setGeometry(0, 0, 1050, 900))
         # self.tab.setMinimumSize(1050, 300)
 
         for t in ['Emperical', 'Analytical']:
@@ -8400,7 +8400,7 @@ class sviewer(QMainWindow):
             if '%' in d[i] or any([x in d[i] for x in ['spect', 'Bcont', 'fitting']]):
                 if '%' in d[i]:
                     specname = d[i][1:].strip()
-                    print(specname)
+                    print("specname:", specname)
                     try:
                         ind = [s.filename for s in self.s].index(specname)
                     except:
@@ -8408,6 +8408,7 @@ class sviewer(QMainWindow):
                         try:
                             if all([slash not in specname for slash in ['/', '\\']]):
                                 specname = folder + '/' + specname
+                            print("specname2:", specname)
                             if not self.importSpectrum(specname, append=True):
                                 st = re.findall(r'spec-\d{4}-\d{5}-\d+', specname)
                                 if len(st) > 0:
@@ -8434,6 +8435,7 @@ class sviewer(QMainWindow):
                                 y.append(float(w[1]))
                                 if len(w) > 2:
                                     err.append(float(w[2]))
+                        print("specname3:", specname)
                         self.importSpectrum(specname, spec=[np.asarray(x), np.asarray(y), np.asarray(err)], append=True)
                         ind = len(self.s) - 1
 
@@ -8479,9 +8481,11 @@ class sviewer(QMainWindow):
                             if ".." in d[i].split()[1]:
                                 print(d[i].split()[1].split(".."))
                                 self.s[ind].set_resolution(float(d[i].split()[1].split("..")[0]), float(d[i].split()[1].split("..")[1]))
+                                self.s[ind].lsf_type = "gauss"
                             else:
                                 self.s[ind].set_resolution(float(d[i].split()[1]))
-
+                                self.s[ind].lsf_type = "gauss"
+                            
                         if 'lsf_type' in d[i]:
                             self.s[ind].lsf_type = d[i].split()[1]
 
@@ -11196,6 +11200,30 @@ class sviewer(QMainWindow):
             self.s[-1].set_resolution(resolution)
             self.vb.enableAutoRange()
             self.z_abs = z_abs
+            self.abs.redraw()
+            self.statusBar.setText('Spectrum is imported: ' + self.s[-1].filename)
+        return out
+
+    def loadDESI(self, ind):
+        print(ind)
+        out = True
+
+        # with fits.open('D:/DESI/matched_ordered_spectra_full.fits') as hdu:
+        with h5py.File("D:/DESI/desi.hdf5", "r") as h5_file:
+            meta = h5_file['meta'][ind]
+            z, Av_gal = meta['z'], meta['Av_gal']
+            d = h5_file[str(ind)][:]
+            x, y, err, mask = d[0], d[1], d[2], d[3]
+
+        ext = G23(Rv=3.1).extinguish(1 / ((np.asarray(x, dtype=np.float64) * u.AA).to('um')), Av=float(Av_gal))
+        y = y / ext
+
+        self.importSpectrum(ind, spec=[x, y, err])
+        # self.parent.vb.enableAutoRange()
+        if out:
+            self.s[-1].set_resolution(4000)
+            self.vb.enableAutoRange()
+            self.z_abs = z
             self.abs.redraw()
             self.statusBar.setText('Spectrum is imported: ' + self.s[-1].filename)
         return out

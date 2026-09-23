@@ -64,12 +64,12 @@ class EnterKeyDelegate(QStyledItemDelegate):
                         if exact_index.column() == table.columnIndex("comments"):
                             print(f"Правильная строка: {exact_index.row()}")
                             df = pd.read_csv(table.parent.ErositaDESIFile, dtype=str)
-                            print(table.cell_value("IND", exact_index.row()))
+                            print(table.cell_value("cat_ind", exact_index.row()))
                             print(df.columns)
                             print(df.columns.get_loc("comments"))
-                            int(table.cell_value("IND", exact_index.row())) - 1
-                            print(df["IND"].astype(int), int(table.cell_value("IND", exact_index.row())))
-                            ind = df[df["IND"].astype(int) == int(table.cell_value("IND", exact_index.row()))].index.tolist()[0]
+                            int(table.cell_value("cat_ind", exact_index.row())) - 1
+                            print(df["cat_ind"].astype(int), int(table.cell_value("cat_ind", exact_index.row())))
+                            ind = df[df["cat_ind"].astype(int) == int(table.cell_value("cat_ind", exact_index.row()))].index.tolist()[0]
                             #df.iloc[int(table.cell_value("IND", exact_index.row())) - 1, df.columns.get_loc("comments")] = editor.text()
                             print(ind)
                             try:
@@ -146,7 +146,6 @@ class expTableWidget(TableWidget):
             data = np.delete(data, (0), axis=0)
         self.setData(data)
         self.resizeColumnsToContents()
-
         self.comb = []
         for i in range(len(self.parent.s)):
             self.comb.append(QComboBox())
@@ -192,7 +191,6 @@ class expTableWidget(TableWidget):
     def cell_Changed(self, row, col):
 
         if (col == 5):
-            #print(self.cell_value('resolution'), self.cell_value('resolution').isdigit(), self.parent.s[row].resolution_linear[0])
             if ".." in self.cell_value('resolution'):
                 self.comb[row].setCurrentIndex(self.LSFtypes.index('gauss_linear'))
                 self.parent.s[row].set_resolution(int(self.cell_value('resolution').split('..')[0]), int(self.cell_value('resolution').split('..')[1]))
@@ -320,7 +318,7 @@ class QSOlistTable(pg.TableWidget):
                            'ML_FLUX_ERR_0': '%.4e', 'DET_LIKE_0': '%.3f'}
         if self.cat == 'Erosita_DESI':
             self.setWindowTitle('Erosita-DESI sample')
-            self.format = {'IND': '%d', 'RA': '%.6f', 'DEC': '%.6f', 'z': '%.6f', 'z_err': '%.6f',
+            self.format = {'cat_ind': '%d', 'RA': '%.6f', 'DEC': '%.6f', 'z': '%.6f', 'z_err': '%.6f',
                            'ZWARN': '%d', 'SPECTYPE': '%s', 'OBJTYPE': '%s', 'Av_gal': '%.3f',
                            'TARGETID': '%d', 'SPARCLID': '%d', 'SPECID': '%d',
                            'comments': '%s'}
@@ -965,7 +963,7 @@ class QSOlistTable(pg.TableWidget):
                 # self.parent.s[-1].resolution = 2000
         if 'Erosita_DESI' == self.cat:
             if colInd == 0:
-                i = int(self.cell_value('IND'))
+                i = int(self.cell_value('cat_ind'))
                 print(i)
                 self.parent.setz_abs(self.cell_value('z'))
                 #with fits.open('D:/DESI/matched_ordered_spectra_full.fits') as hdu:
@@ -976,7 +974,7 @@ class QSOlistTable(pg.TableWidget):
 
                 ext = G23(Rv=3.1).extinguish(1 / ((np.asarray(x, dtype=np.float64) * u.AA).to('um')), Av=float(self.cell_value('Av_gal')))
                 y = y / ext
-                self.parent.importSpectrum(str(self.cell_value('IND')), spec=[x, y, err])
+                self.parent.importSpectrum(str(self.cell_value('cat_ind')), spec=[x, y, err])
                 #self.parent.vb.enableAutoRange()
 
                 if self.columnIndex('z') is not None:
@@ -992,7 +990,7 @@ class QSOlistTable(pg.TableWidget):
 
                 self.parent.vb.setXRange(np.min(x), np.max(x))
                 self.parent.vb.setYRange(-np.quantile(y, 0.99) / 20, np.quantile(y, 0.99))
-                self.parent.ErositaWidget.index(name=self.cell_value('IND'), ext=False)
+                self.parent.ErositaWidget.index(name=self.cell_value('cat_ind'), ext=False)
 
         if 'MALS' == self.cat:
             if colInd == 0:

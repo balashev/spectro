@@ -2,11 +2,12 @@ import collections
 import numpy as np
 from matplotlib import cm
 import matplotlib.pyplot as plt
-from scipy.optimize import minimize, fsolve
+from scipy.optimize import minimize, fsolve, shgo, differential_evolution, direct, brute
 import os, sys
 sys.path.append(os.path.dirname(os.path.realpath(__file__))[:-8])
 from spectro.atomic import Asplund2009
 from spectro.pyratio import pyratio
+
 
 class par():
     """
@@ -130,23 +131,29 @@ class ISM():
         else:
             self.z = 0
 
+        self.T_CMB = 2.7245 * (1 + self.z)
+
         # Default values of dtg_cutoff and dtg_alpha is from the fit of Remy-Ruyer+2014.
         if 'dtg_cutoff' in kwargs.keys():
             self.dtg_cutoff = kwargs['dtg_cutoff']
         else:
             self.dtg_cutoff = 0.2
+
         if 'dtg_slope' in kwargs.keys():
             self.dtg_slope = kwargs['dtg_slope']
         else:
             self.dtg_slope = 3
+
         if 'dtg_disp' in kwargs.keys():
             self.dtg_disp = kwargs['dtg_disp']
         else:
             self.dtg_disp = 0
+
         self.initialize_pars(**kwargs)
         self.heating_types = ['photoelectric', 'cosmicray', 'photo_c', 'turb'] # , 'grav']
         #self.cooling_types = ['Lya', 'CII_Klessen', 'OI_Klessen', 'CI_pyratio', 'rec']
-        self.cooling_types = ['Lya', 'CII_Klessen', 'OI_Klessen', 'CI_pyratio', 'CO_pyratio', 'rec']
+        #self.cooling_types = ['Lya', 'CII_Klessen', 'OI_Klessen', 'CI_pyratio', 'CO_pyratio', 'rec']
+        self.cooling_types = ['Lya', 'CII_pyratio', 'OI_pyratio', 'CI_pyratio', 'CO_pyratio', 'rec']
 
         self.pr = pyratio(z=self.z, sed_type=None)
         self.pr.set_pars(['T', 'n', 'f', 'rad'])
@@ -193,7 +200,7 @@ class ISM():
         else:
             return self.dtg_cutoff * (Z / self.dtg_cutoff) ** self.dtg_slope * 10 ** (self.dtg_disp)
 
-    def ionization_state(self, species, n=0, trans=[3, 5], scale=2):
+    def ionization_state(self, species, n=0, trans=[3, 5], scale=4):
         """
         Very crude carbon abundance ratio for CII/CI/CO
         """
@@ -233,14 +240,15 @@ class ISM():
     def get_f_ioniz(self, x):
         k_eff = 1.67 * self.p('cr') * (1 - x) * ((1 - self.p('mol')) + 0.1 * (self.p('mol')) / 2) / self.p('n')
         #print("f_ioniz:", self.p('n'), self.p('T'), self.p('mol'), x, k_eff, self.alpha_rr() * (self.abundance('C') + x) * x)
-        rhs = self.alpha_rr() * (self.abundance('C') + x) * x + self.alpha_gr(self.abundance('C') + x) * x
+        rhs = self.alpha_rr() * (self.abundance('CII') + x) * x + self.alpha_gr(self.abundance('CII') + x) * x
         return k_eff - rhs
 
     def x_e(self, method='Nelder-Mead', calc=False, debug=False):
         if calc:
             if debug:
                 print(self.p('n'), self.p('T'), fsolve(self.get_f_ioniz, 1e-4, args=())[0])
-            return self.abundance('C') + fsolve(self.get_f_ioniz, 1e-4, args=())[0]
+            #return self.abundance('C') + fsolve(self.get_f_ioniz, 1e-4, args=())[0]
+            return self.abundance('CII') + fsolve(self.get_f_ioniz, 1e-4, args=())[0]
             #return (self.abundance('C') + minimize(self.get_f_ioniz, 1e-3, args=(), method=method).x[0])
         else:
             return self.pars['x_e'].value if self.pars['x_e'].fixed == None else self.pars['x_e'].fixed
@@ -266,6 +274,7 @@ class ISM():
         """
         kind = kind.split('_') + ['']
         if kind[0] == 'photoelectric':
+            #print(self.p('n'), self.abundance('dust'), self.g_PE())
             return 2.2e-24 * self.abundance('dust') * self.p('n') * self.p('uv') * self.g_PE()
 
         if kind[0] == 'cosmicray':
@@ -297,6 +306,7 @@ class ISM():
         if kind[0] == 'Lya':
             # from Klessen & Glover
             n_e = self.n_e(calc=True)
+            #print(n_e / self.p('n'))
             return 7.3e-19 * n_e * (self.p('n') - n_e) * np.exp(-118400 / self.p('T')) / (1 + (self.p('T') / 1e5) ** 0.5)
 
         if kind[0] == 'CII':
@@ -309,6 +319,7 @@ class ISM():
                 #print(self.n_e() / self.p('n'))
                 return 2.54e-14 * (2.8e-6 * self.n_e() / self.p('n') * self.p('T') ** -0.5 + 8e-10) * self.abundance('CII') * np.exp(-92 / self.p('T')) * self.p('n') ** 2
             if kind[1] in ['pyratio', '']:
+                #print("CII", self.pr.calc_cooling(species='CII', n=np.log10(self.p('n')), T=np.log10(self.p('T'))))
                 return self.pr.calc_cooling(species='CII', n=np.log10(self.p('n')), T=np.log10(self.p('T'))) * self.abundance('CII') * self.p('n')
             if kind[1] in ['Barinovs']:
                 return 1e-24 * np.exp(-91.2 / self.p('T')) * (16 + 0.344 * np.sqrt(self.p('T')) + 47.7 / self.p('T')) * self.abundance('CII') * self.p('n') * self.p('n')
@@ -333,12 +344,13 @@ class ISM():
             if kind[1] in ['Klessen']:
                 return 2.79e-18 * self.p('n') * self.abundance('O') * (3 / 5 * np.exp(-228 / self.p('T'))) / (1 + self.pr.species['OI'].critical_density('H', 1, 0, np.log10(self.p('T'))) / self.p('n') + 3 / 5 * np.exp(-228 / self.p('T')))
             if kind[1] in ['pyratio', '']:
+                #print("OI", np.log10(self.p('n')), np.log10(self.p('T')), self.pr.calc_cooling(species='OI', n=np.log10(self.p('n')), T=np.log10(self.p('T'))))
                 return self.pr.calc_cooling(species='OI', n=np.log10(self.p('n')), T=np.log10(self.p('T'))) * self.abundance('O') * self.p('n')
 
         if kind[0] == 'rec':
             return 4.65e-30 * self.p('T') ** 0.94 * (self.p('uv') * self.p('T') ** 0.5 / self.n_e() / self.phi_pah) ** (0.73 / self.p('T') ** 0.068) * self.n_e() * self.p('n') * self.phi_pah
 
-        return 0
+        return [0]
 
     def thermal_rates(self, kind='', n=[], T=[]):
         """
@@ -352,6 +364,7 @@ class ISM():
 
         """
         rate = np.zeros_like(n)
+        print('rate:', rate)
         if len(n) == 0 and len(T) != 0:
             n = np.ones_like(T) * self.p('n')
         if len(T) == 0 and len(n) != 0:
@@ -361,42 +374,148 @@ class ISM():
         for i, ni, Ti in zip(range(len(n)), n, T):
             self.update_pars(n=ni, T=Ti)
             if kind in self.cooling_types:
+                print(i, kind, self.cooling(kind=kind))
                 rate[i] = self.cooling(kind=kind)
             elif kind in self.heating_types:
                 rate[i] = self.heating(kind=kind)
         return rate
 
     def thermal_balance(self):
-        eq = 0
+        heat, cool = 0, 0
         for h in self.heating_types:
             #print(h, self.heating(h))
-            eq += self.heating(h)
+            heat += self.heating(h)
         for c in self.cooling_types:
             #print(c, self.cooling(c))
-            eq -= self.cooling(c)
-        return np.abs(eq)
+            cool += self.cooling(c)
+        #print(heat, cool, (heat/cool - 1))
+        return (heat/cool - 1) ** 2
 
     def thermal_mini(self, x):
-        self.update_pars(T=x[0])
+        self.update_pars(T=max(10 ** x[0], self.T_CMB))
         return self.thermal_balance()
 
-    def phase_diagram(self, n=[], method='Nelder-Mead'):
+    def phase_diagram(self, n=[], method='Nelder-Mead', verbose=False):
         if len(n) == 0:
-            n = np.logspace(-2, 6, 50)
+            n = np.logspace(-2, 6, 20)
         T = np.zeros_like(n)
-        T[-1] = 1e4
+        T[-1] = np.log10(1e4)
+        bounds = [(np.log10(self.T_CMB), 6)]
+        options = {}
+        if method in ['Nelder-Mead']:
+            options['fatol'] = 1e-15
+
+        if verbose:
+            print(">>> calculate phase_diagram")
+            print(f"using minimization method {method}")
+
         for i, ni in enumerate(n):
-            self.pars['n'].value = ni
-            self.update_pars(T=T[i-1])
+            self.update_pars(n=ni, T=10 ** T[i-1])
             #print(T[i-1], self.thermal_balance())
-            T[i] = minimize(self.thermal_mini, T[i-1], args=(), method=method, options={'xatol': 0.1}).x[0]
-            T[i] = max(T[i], 2.7245 * (1 + self.z))
-            #print(ni, T[i], self.thermal_balance())
+            #res = shgo(self.thermal_mini, bounds=bounds, minimizer_kwargs={'method': method, 'fatol': 1e-30})
+            #res = direct(self.thermal_mini, bounds=bounds) #, minimizer_kwargs={'method': method, 'fatol': 1e-30})
+            #res = minimize(self.thermal_mini, T[i-1], args=(), method=method, bounds=bounds, options=options)
+            #print('res:', res.x[0])
+            #res = brute(self.thermal_mini, ranges=[(T[i-1]-1, T[i-1]+1)], Ns=50)
+            res = direct(self.thermal_mini, bounds=bounds, f_min=0, f_min_rtol=1e-15)
+            res = minimize(self.thermal_mini, res.x[0], args=(), method='Nelder-Mead', bounds=bounds, options=options)
+            T[i] = res.x[0]
+            if verbose:
+                #print(res)
+                #print(res.x[0])
+                print(np.log10(ni), 10 ** T[i], self.thermal_balance())
+
+        T = 10 ** T
+
         # >> calc mask for thermally stable regions dP/dn > 0
         m = np.diff(np.concatenate([n*T, [(n*T)[-1]]])) >= 0
 
         return n, T, m
 
+    def phase_diagram_adaptive(self, n=[], method='Nelder-Mead', max_iter=7, ax=None, verbose=False):
+
+        if verbose:
+            print(">>> calculate phase_diagram_adaptive")
+
+        if len(n) == 0:
+            n = np.logspace(-2, 5, 21)
+        n_init, T_init, m = self.phase_diagram(n=n, method=method, verbose=verbose)
+
+        n, T = np.log10(n_init[:]), np.log10(T_init[:])
+        if ax is not None:
+            ax.plot(n, T)
+        if verbose:
+            print("initial grid:", n, T)
+
+        bounds = [(np.log10(self.T_CMB), 6)]
+        options = {}
+        if method in ['Nelder-Mead']:
+            options['fatol'] = 1e-12
+
+        iter = 0
+        while iter < max_iter:
+            #print(iter)
+            counter = 0
+            for i in range(len(n), 3, -1):
+                #print(i, len(n))
+                diff1, diff2 = (T[i-1] - T[i-2]) / (n[i-1] - n[i-2]), (T[i-1] - T[i-3]) / (n[i-1] - n[i-3])
+                #print(n[i-1], diff1, diff2)
+                if np.abs((diff1 / diff2 - 1)) > 0.1 and np.abs((10**T[i-1] - 10**T[i-3])) > 0.5:
+                    counter += 1
+                    ni = (n[i-1] + n[i-2]) / 2
+                    self.update_pars(n=10 ** ni, T=10 ** T[i-1])
+                    res = direct(self.thermal_mini, bounds=bounds, f_min=0, f_min_rtol=1e-15)
+                    #print(res.x[0])
+                    res = minimize(self.thermal_mini, res.x[0], args=(), method=method, bounds=bounds, options=options)
+                    if verbose:
+                        print(ni, res.x[0])
+                    Ti = res.x[0]
+                    #print(ni, Ti)
+                    n = np.insert(n, i-1, ni)
+                    T = np.insert(T, i - 1, Ti)
+            if ax is not None:
+                ax.scatter(n, T)
+            #print(n)
+            if verbose:
+                print(f"added {counter} points at {iter+1} iteration out of {max_iter+1}")
+            iter += 1 if counter else max_iter
+        return 10 ** n, 10 ** T
+
+    def phase_diagram_adaptive_run(self, n_min=-3, n_max=5, dn=0.01, method='Nelder-Mead'):
+        n, T = [n_min], [4]
+        delta = dn
+        while n[-1] < n_max:
+            n.append(n[-1] + delta)
+            self.update_pars(n=10**n[-1])
+            #print(T[i-1], self.thermal_balance())
+            T.append(np.log10(max(minimize(self.thermal_mini, 10 ** T[-1], args=(), method=method, options={'xatol': 0.1}).x[0], 2.7245 * (1 + self.z))))
+            print(n[-1], T[-1])
+            if n[-1] > n[0] + 2 * dn:
+                diff1, diff2 = (n[-1] - n[-2]) / (n[-1] * T[-1] - n[-2] * T[-2]), (n[-1] - n[-3]) / (n[-1] * T[-1] - n[-3] * T[-3])
+                print("difs:", diff1, diff2)
+                if np.abs((diff1 / diff2 - 1)) > 0.2:
+                    delta = max(dn, delta / 2)
+                else:
+                    delta = min(0.5, delta * 2)
+                print(delta)
+
+        n, T = np.asarray(n), np.asarray(T)
+        m = np.diff(np.concatenate([n * T, [(n * T)[-1]]])) >= 0
+        return 10**n, 10**T, m
+
+    def plot_rates(self, n=None, T=None, ax=None, method='L-BFGS-B'):
+        if ax is None:
+            fig, ax = plt.subplots(ncols=2, figsize=(14, 6))
+        if n is None and T is None:
+            n, T, m = self.phase_diagram(method=method)
+        ax[0].plot(np.log10(n), np.log10(n * T), '-')
+
+        for c in self.cooling_types:
+            ax[1].plot(np.log10(n), np.log10(self.thermal_rates(kind=c, n=n, T=T) / n), ls='-', label=f'${c}$')
+        for h in self.heating_types:
+            ax[1].plot(np.log10(n), np.log10(self.thermal_rates(kind=h, n=n, T=T) / n), ls='--', label=f'${h}$')
+        ax[1].legend()
+        return ax
 
 if __name__ == '__main__':
     print('executing main program code')

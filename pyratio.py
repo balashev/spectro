@@ -151,6 +151,7 @@ class speci:
         """
         read popratio data for species with given name and numbers of levels
         """
+        print(self.name)
         with open(self.parent.folder+'/data/pyratio/'+self.name+'.dat', encoding="ISO-8859-1") as f_in:
             f = 0
             n_coll = 0
@@ -223,10 +224,12 @@ class speci:
                                 line = f_in.readline().split()
                                 i = int(line[0])-1
                                 j = int(line[1])-1
+                                #print(coll, i, j, np.log10(Temp), [np.log10(float(line[k+2])) for k in range(n_2)])
                                 if i <= self.num and j <= self.num:
                                     c.append(collision(self, coll, i, j, np.array([np.log10(Temp), [np.log10(float(line[k+2])) for k in range(n_2)]])))
                         self.coll[coll] = c
-                        #print(coll, c, self.coll[coll])
+                        #print(coll, c, c.rate(0, 1, 2))
+        #input()
 
     def read_HD(self):
         """
@@ -550,6 +553,27 @@ class coll_list():
                 s.append(collision(parent, part, i, k))
         return s
 
+class AsymmetricSpline:
+    def __init__(self, x, y, k=3):
+        # Используем ext=0 для стандартной экстраполяции
+        mask = np.isfinite(y)
+        x, y = x[mask], y[mask]
+        self.spline =  interpolate.InterpolatedUnivariateSpline(x, y, k=k, ext=0)
+        self.x_min = np.min(x)
+
+    def __call__(self, x_new):
+        x_new = np.asarray(x_new)
+        res = self.spline(x_new)
+
+        left_bounds = x_new < self.x_min
+
+        if left_bounds.any():
+            if res.ndim == 0:  # Если на вход был подан скаляр
+                return np.array(-np.inf, dtype=res.dtype)
+            res[left_bounds] = -np.inf
+
+        return res
+
 class collision():
     """
     Class for individual collisions data
@@ -561,7 +585,7 @@ class collision():
         self.j = j
         self.rates = rate
         if rate is not None:
-            self.rate_int = interpolate.InterpolatedUnivariateSpline(rate[0], rate[1], k=2)
+            self.rate_int = AsymmetricSpline(rate[0], rate[1], k=2)
 
     def __str__(self):
         return "{0} collision rate with {1} for {2} --> {3}".format(self.parent.name, self.part, self.i, self.j)
@@ -971,6 +995,7 @@ class pyratio():
             for u in range(speci.num):
                 for l in range(speci.num):
                     if any(x in self.pars.keys() for x in ['n', 'e', 'H2', 'H']):
+                        #print(speci.name, u, l, self.collision_rate(speci, u, l))
                         W[u, l] += self.collision_rate(speci, u, l)
 
         if debug in [None, 'CMB', 'total']:
@@ -2595,7 +2620,7 @@ if __name__ == '__main__':
             plt.show()
 
     # >>> OI calculations
-    if 0:
+    if 1:
         pr = pyratio(z=0, pumping='simple', radiation='simple')
         pr.set_pars(['T', 'n', 'f', 'rad'])
         pr.pars['T'].range = [1, 4]
@@ -2696,7 +2721,7 @@ if __name__ == '__main__':
             plt.show()
 
     # >>> CI calculations:
-    if 1:
+    if 0:
         pr = pyratio(z=2.0)
         pr.add_spec('CI', num=3)
         pr.set_pars(['T', 'n', 'f'])
