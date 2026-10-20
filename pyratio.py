@@ -2620,7 +2620,7 @@ if __name__ == '__main__':
             plt.show()
 
     # >>> OI calculations
-    if 1:
+    if 0:
         pr = pyratio(z=0, pumping='simple', radiation='simple')
         pr.set_pars(['T', 'n', 'f', 'rad'])
         pr.pars['T'].range = [1, 4]
@@ -2721,7 +2721,36 @@ if __name__ == '__main__':
             plt.show()
 
     # >>> CI calculations:
-    if 0:
+    if 1:
+        pr = pyratio(z=2.0)
+        pr.add_spec('CI', num=3)
+        pr.set_pars(['T', 'n', 'f'])
+        pr.pars['n'].value = 2
+        pr.pars['T'].value = np.log10(10)
+        pr.pars['f'].value = 0
+        fig, axs = plt.subplots(figsize=(12, 6), ncols=2)
+        num = 100
+        if 1:
+            n, T = np.linspace(0.7, 4.8, num), np.linspace(0.5, 3.5, num)
+            X, Y = np.meshgrid(n, T)
+            z1, z2 = np.zeros_like(X), np.zeros_like(X)
+            for i, ni in enumerate(n):
+                for k, Tk in enumerate(T):
+                    pr.pars['n'].value, pr.pars['T'].value = ni, Tk
+                    pop = pr.predict()
+                    #z[k, i] = pop[1] - np.log10(np.sum(np.power(10, pop)))
+                    z1[k, i], z2[k, i] = pop[1], pop[2]
+            for z, ax in zip([z1, z2], axs):
+                cs = ax.contourf(X, Y, z, levels=np.linspace(-3, 0.5, 100))
+                ax.contour(X, Y, z, levels=[-2.0, -1.0, -0.5, 0.0], linestyles='--', colors='k')
+                fig.colorbar(cs)
+                ax.text(0.95, 0.95, f"n_{1 + (ax == axs[1])} / n_0", transform=ax.transAxes, va='top', ha='right')
+                ax.set_xlabel(r"$\log n_{\rm H}\,[\rm cm^{-3}]$")
+                ax.set_ylabel(r"$\log T\,[\rm K]$")
+            plt.show()
+
+    # >>> CI calculations:
+    if 1:
         pr = pyratio(z=2.0)
         pr.add_spec('CI', num=3)
         pr.set_pars(['T', 'n', 'f'])
@@ -2730,20 +2759,18 @@ if __name__ == '__main__':
         pr.pars['f'].value = 0
         fig, ax = plt.subplots()
         print(pr.predict())
-        num = 100
-        if 1:
-            n, T = np.linspace(0.7, 4.8, num), np.linspace(0.5, 3.5, num)
-            X, Y = np.meshgrid(n, T)
-            z = np.zeros_like(X)
+        num = 15
+        n, T = np.linspace(0.7, 4.8, num), np.linspace(0.5, 3.5, num)
+        X, Y = np.meshgrid(n, T)
+        z1, z2 = np.zeros_like(X), np.zeros_like(X)
+        for k, Tk in enumerate(T):
             for i, ni in enumerate(n):
-                for k, Tk in enumerate(T):
-                    pr.pars['n'].value, pr.pars['T'].value = ni, Tk
-                    pop = pr.predict()
-                    #z[k, i] = pop[1] - np.log10(np.sum(np.power(10, pop)))
-                    z[k, i] = pop[1]
-            cs = ax.contourf(X, Y, z, levels=100)
-            ax.contour(X, Y, z, levels=[-2.0, -1.0, -0.5, 0.0], linestyles='--', colors='k')
-            fig.colorbar(cs)
-            ax.set_xlabel(r"$\log n_{\rm H} [\rm cm^{-3}]$")
-            ax.set_ylabel(r"$\log T, K$")
-            plt.show()
+                pr.pars['n'].value, pr.pars['T'].value = ni, Tk
+                pop = pr.predict()
+                z1[k, i], z2[k, i] = pop[1], pop[2]
+            ax.plot(z1[k, :], z2[k, :], label="T={:.1f}".format(10 ** Tk))
+
+        ax.set_xlabel(r"log N(CIj1) / N(CI)")
+        ax.set_ylabel(r"log N(CIj2) / N(CI)")
+        fig.legend()
+        plt.show()

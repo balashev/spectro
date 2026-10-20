@@ -692,7 +692,7 @@ function pyratio_predict(pr, pars)
     else
         TCMB = 2.726 * (pars["z_" * pr.ind].val + 1)
     end
-    W = W .+ cmb_rate(pr.pars["displ_"*string(d.ind)].valBij, pr.Eij, TCMB) .* escape_prob(pars["Ntot_" * pr.ind].val)
+    W = W .+ cmb_rate(pr.Bij, pr.Eij, TCMB) .* escape_prob(pars["Ntot_" * pr.ind].val)
 
     if "rad" in pr.pars
         W = W .+ pr.rad_rate .* 10 ^ pars["rad_" * pr.ind].val .* escape_prob(pars["Ntot_" * pr.ind].val)

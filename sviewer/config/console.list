@@ -1,21 +1,21 @@
-FeII
-FeIIj13
-show NaI
-show VI
-show NV
-show CaII
-show CI
-show CIj1
-show CIj2
-CaII
-\
-SiIIj1
+show HeIj1
+show SiII
+cont 1
+show OIj1
+show OIj2
+show OI
+OI
 show SiIIj1
-show CIj1
-hide CIj1
-show CI
-show H2 0 1
+show ClI
+show PII
+show SiII
+show FeII
+show SI
 show NV
+hide alll
+hide all
+
+show HI
+show HI
 show NV
-show CIj1
-show CIj2
+cont 1

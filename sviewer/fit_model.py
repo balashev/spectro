@@ -484,7 +484,7 @@ class fitModelWidget(QWidget):
         self.treeWidget.setItemWidget(item.cont_m, 11, combo)
         setattr(self, item.name, item)
         item.setExpanded(True) #self.parent.fit.cont_num > 0)
-        print(self.parent.fit.cont_num)
+        #print(self.parent.fit.cont_num)
         for i in range(self.parent.fit.cont[ind].num):
             print(i, text, 'cont_' + str(ind) + '_' + str(i))
             self.addChild(text, 'cont_' + str(ind) + '_' + str(i), text_val='cont_' + str(ind) + '_' + str(i))
@@ -496,7 +496,7 @@ class fitModelWidget(QWidget):
         item.setChildIndicatorPolicy(QTreeWidgetItem.ChildIndicatorPolicy.ShowIndicator)
         item.name = text
         ind = int(text.split('_')[1])
-        print(ind)
+        #print(ind)
         if not hasattr(self.parent.fit, 'displ_' + str(ind)):
             self.parent.fit.add('displ_' + str(ind))
         item.disp_m = QTreeWidgetItem(item)
@@ -531,9 +531,9 @@ class fitModelWidget(QWidget):
             sign = [text_val + ': ', 'range: ', '....', 'step: ']
 
         if not hasattr(self.parent.fit, name):
-            print(name)
+            #print(name)
             self.parent.fit.add(name)
-            print(self.parent.fit.list_names())
+            #print(self.parent.fit.list_names())
             if 'hcont' in name:
                 self.parent.fit.setValue('hcont', 0, 'vary')
         setattr(self, name, QTreeWidgetItem(getattr(self, parent)))
@@ -713,7 +713,7 @@ class fitModelWidget(QWidget):
                         sp = list(['exp_' + str(i) for i in range(len(self.parent.s))])
                         combo.addItems(sp)
                         s = '_'.join(getattr(disp, 'addinfo').split('_')[1:])
-                        print(s)
+                        #print(s)
                         if s != '' and s in sp:
                             combo.setCurrentText(s)
                         else:
@@ -898,13 +898,13 @@ class fitModelWidget(QWidget):
 
         if item.name == 'cont':
             self.parent.fit.cont_num = int(self.cont_num.text())
-            print(self.parent.fit.cont_num)
+            #print(self.parent.fit.cont_num)
             if item.isExpanded():
                 self.parent.fit.add('hcont')
             else:
                 self.parent.fit.remove('hcont')
             for i in reversed(range(self.parent.fit.cont_num)):
-                print(i)
+                #print(i)
                 getattr(self, 'region_' + str(i)).setExpanded(item.isExpanded())
                 if item.isExpanded():
                     self.addContParent(self.cont, 'region_' + str(i), expanded=self.parent.fit.cont_num > 0)
@@ -1082,7 +1082,7 @@ class fitModelWidget(QWidget):
         if name != 'None':
             self.parent.fit.add('iso', addinfo=name)
             self.addChild('iso_p', 'iso')
-            print(self.parent.fit.list_names())
+            #print(self.parent.fit.list_names())
         if self.refr:
             self.refresh()
 
@@ -1155,12 +1155,12 @@ class fitModelWidget(QWidget):
 
     def onChanged(self, s, attr):
         if s in ['mu', 'iso', 'zero'] or any([c in s for c in ['me', 'cont', 'res', 'cf', 'disp', 'sts', 'stNu', 'stNl']]):
-            print(s, attr, hasattr(self.parent.fit, s))
+            #print(s, attr, hasattr(self.parent.fit, s))
             if hasattr(self.parent.fit, s):
                 setattr(getattr(self.parent.fit, s), attr, float(getattr(self, s + '_' + attr).text()))
 
         if 'res' in s:
-            print(getattr(self.parent.fit, s).addinfo, getattr(self.parent.fit, s).addinfo[4:])
+            #print(getattr(self.parent.fit, s).addinfo, getattr(self.parent.fit, s).addinfo[4:])
             self.parent.s[int(getattr(self.parent.fit, s).addinfo[4:])].set_resolution(self.parent.fit.getValue(s))
 
         if self.refr:
@@ -1291,8 +1291,10 @@ class fitModelSysWidget(QFrame):
                 item = QTreeWidgetItem(self.Ncons)
                 if not Ncons_vary:
                     self.fit.sys[self.ind].add(s)
+
             for i in [1, 3, 5, 7, 9]:
                 item.setTextAlignment(i, self.parent.alignMode)
+
             for k in range(4):
                 item.setText(2 * k + 3, sign[k].replace('val', name))
                 var = s if attr[k] == 'val' else None
@@ -1383,7 +1385,7 @@ class fitModelSysWidget(QFrame):
                     item.setTextAlignment(i, self.parent.alignMode)
                 for k in range(4):
                     if s != 'b' and k == 0:
-                        print(species + '_s_label')
+                        #print(species + '_s_label')
                         setattr(self, species + '_s_label', QLabel(name))
                         getattr(self, species + '_s_label').setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                         self.treeWidget.setItemWidget(item, 2 * k + 3, getattr(self, species + '_s_label'))
@@ -1522,8 +1524,11 @@ class fitModelSysWidget(QFrame):
         self.refresh()
 
     def onChanged(self, s, attr, species=None):
+        #print('onChanged:', s, attr, species)
         if s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
             setattr(getattr(self.fit.sys[self.ind], s), attr, float(getattr(self, s + '_' + attr).text()))
+            self.refresh(what=s, excl=s + "_" + attr)
+
         if species is not None:
             t = self.fit.sys[self.ind].sp[species].type
             s_in = {'b': 'b', 's': (t == 'abs') * 'N' + (t == 'em') * 'I'}[s]
@@ -1566,7 +1571,7 @@ class fitModelSysWidget(QFrame):
         self.refresh(what='me', ind='all')
 
     def refresh(self, excl='', what='all', ind=None):
-        #print('refresh', excl, self.ind)
+        #print('refresh', what, excl, self.ind)
         if ind == None:
             ind = self.ind
 
@@ -1616,12 +1621,7 @@ class fitModelSysWidget(QFrame):
 
                     #except:
                     #    pass
-
             self.updateTieds()
-
-            #if self.parent.parent.chooseFit is not None:
-            #    self.parent.parent.chooseFit.update()
-
 
 class fitResultsWidget(QWidget):
     def __init__(self, parent):

@@ -8,7 +8,7 @@ import corner
 from chainconsumer import ChainConsumer
 import emcee
 import itertools
-from matplotlib import cm
+from matplotlib import colormaps as cm
 import matplotlib.pyplot as plt
 import mwdust
 import numpy as np
@@ -292,7 +292,7 @@ class ErositaWidget(QWidget):
                               ]
         if self.cat == "DESI":
             self.axis_list = ['z', 'DEC', 'RA', 'Av_gal', 'F_UV_2200', 'F_UV_2500', 'F_UV_3100', '2200-2500', '2200-3100', '2500-3100',
-                              'L_UV', 'L_UV_corr', 'L_UV_ext', 'L_UV_2200', 'L_UV_2500', 'L_UV_3100', 'EBV_val', 'EBV_plus', 'EBV_minus',
+                              'L_UV', 'L_UV_corr', 'L_UV_ext', 'L_UV_2200', 'L_UV_2500', 'L_UV_3100', 'EBV', 'EBV_plus', 'EBV_minus',
                               'comments',
                               ]
 
@@ -681,9 +681,9 @@ class ErositaWidget(QWidget):
             if self.ero_c_axis in self.df.columns:
                 if self.ero_c_axis == 'comments':
                     self.c = np.zeros(len(self.df['z']), dtype=float)
-                    for i, k in enumerate(["z=", 'e', 's', 'w']):
+                    for i, k in enumerate(["z=", 'e', 's', 'w', 'l', 'NAL', 'm', 'DLA']):
                         m = self.df["comments"].astype(str).str.contains(k, na=False)
-                        self.c[m] = i
+                        self.c[m] = i + 3
                     print(self.c)
                 else:
                     self.c_lambda = self.axis_info[self.ero_c_axis][0]

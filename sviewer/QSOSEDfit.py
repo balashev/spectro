@@ -2418,7 +2418,7 @@ if __name__ == "__main__":
         sample_size = 7975
     if cat == "DESI":
         catfile = "D:/DESI/erosita_DESI_cat_final.csv"
-        sample_size = 5603
+        sample_size = 5226
 
     path = os.path.dirname(catfile)
     #print(path)
@@ -2439,11 +2439,11 @@ if __name__ == "__main__":
         print(res)
     else:
         #pars = ['bbb_norm', 'Av', 'tor_type', 'tor_norm', 'host_tau', 'host_tg', 'host_norm', 'host_Av', 'sigma', 'alpha_GALEX', 'alpha_SDSS', 'alpha_2MASS', 'alpha_UKIDSS']
-        num = 10
+        num = 20
         calc = 1
         if calc:
             if 1:
-                for i in range(sample_size // num, sample_size // num + 1): # range(7975 // num + 1):
+                for i in range(sample_size // num + 1): # range(7975 // num + 1):
                     if i % i2 + 1 == i1:
                         with Pool(num) as p:
                             if cat == "SDSS":

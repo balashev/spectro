@@ -49,6 +49,7 @@ from ..absorption_systems import vel_offset
 from ..atomic import *
 from ..plot_spec import *
 from ..profiles import add_LyaForest, add_ext, add_ext_bump, add_LyaCutoff, convolveflux, tau, dv90
+from ..pyratio import pyratio
 from ..stats import distr1d, distr2d
 from ..XQ100 import load_QSO
 from .console import *
@@ -10677,15 +10678,14 @@ class sviewer(QMainWindow):
         def data_CO(nu, j):
             we, we_xe, Be, De = 2169.81358, 13.28831, 1.93128087, 6.12147e-06
             return (nu + .5) * we - (nu + .5) ** 2 * we_xe + Be * j * (j + 1) - De * j * (j + 1)
-
+        data_CI = [0.0, 16.42, 43.41]
         fig, ax = plt.subplots(figsize=(6, 7))
         num_sys = 0
         text = []
         species = ''
-        print(levels)
         for sys, color in zip(self.fit.sys, [c['color'] for c in plt.rcParams["axes.prop_cycle"]]):
-            label = 'sys_'+str(self.fit.sys.index(sys)+1)
-            label = 'z = '+str(sys.z.str(attr='val')[:8])
+            label = 'sys_' + str(self.fit.sys.index(sys) + 1)
+            label = 'z = ' + str(sys.z.str(attr='val')[:8])
             nus = np.r_[np.unique([0 for name in sys.sp.keys() if ('v' not in name) and ('H2' in name)]), np.sort(np.unique([int(name[name.index('v')+1:]) for name in sys.sp.keys() if ('v' in name) and ('H2' in name)]))]
             if any(['H2' in name for name in sys.sp.keys()]):
                 species = 'H2'
@@ -10698,9 +10698,10 @@ class sviewer(QMainWindow):
                                 v, j = int(sp[sp.index('v')+1:]), int(sp[sp.index('j')+1:sp.index('v')])
                             else:
                                 v, j = 0, int(sp[sp.index('j')+1:])
+                            #print(sp, v, j)
                             if v == nu:
                                 m = np.logical_and(data_H2[0] == v, data_H2[1] == j)
-                                x.append(float(data_H2[2][m]))
+                                x.append(float(data_H2[2][m][0]))
                                 #x.append(self.atomic[sp].energy)
                                 if sys.sp[sp].N.unc.val != 0:
                                     y.append(deepcopy(sys.sp[sp].N.unc).log()) # - np.log10(self.atomic[sp].statw()))
@@ -10726,6 +10727,7 @@ class sviewer(QMainWindow):
                 species = 'CO'
                 num_sys += 1
                 x, y = [], []
+                label = 'z = ' + str(sys.z.str(attr='val')[:8])
                 for sp in sys.sp:
                     if sp.startswith('CO'):
                         if 'v' in sp:
@@ -10749,11 +10751,43 @@ class sviewer(QMainWindow):
                 if temp:
                     text.append(self.ExcitationTemp(levels=levels if levels is not None else [0, 1, 2], ind=self.fit.sys.index(sys), plot=False, ax=ax))
 
+            if any(['CI' in name for name in sys.sp.keys()]):
+                species = 'CI'
+                num_sys += 1
+                label = 'z = ' + str(sys.z.str(attr='val')[:8])
+                if all([sp in sys.sp for sp in ['CI', 'CIj1', 'CIj2']]):
+                    if all([sys.sp[sp].N.unc is not None for sp in ['CI', 'CIj1', 'CIj2']]):
+                        x = sys.sp['CIj1'].N.unc / sys.sp['CI'].N.unc
+                        y = sys.sp['CIj2'].N.unc / sys.sp['CI'].N.unc
+                        print(x, y)
+                        ax.errorbar(x.val, y.val, xerr=[[x.minus], [x.plus]], yerr=[[y.minus], [y.plus]], fmt='o',label=label)
+                    else:
+                        x = sys.sp['CIj1'].N.val / sys.sp['CI'].N.val
+                        y = sys.sp['CIj2'].N.val / sys.sp['CI'].N.val
+                        ax.plot(x, y, 'o', label=label)
 
         #if len(text) > 0:
         #    adjust_text([t[2] for t in text], [t[0] for t in text], [t[1] for t in text], ax=ax)
-        ax.set_xlabel(r'Energy, cm$^{-1}$')
-        ax.set_ylabel(r'$\log\, N$ / g')
+        if species in ["H2", "CO"]:
+            ax.set_xlabel(r'Energy, cm$^{-1}$')
+            ax.set_ylabel(r'$\log\, N$ / g')
+        elif species in ["CI"]:
+            pr = pyratio(z=2.0)
+            pr.add_spec('CI', num=3)
+            pr.set_pars(['T', 'n', 'f'])
+            pr.pars['f'].value = 0
+            num = 15
+            n = np.linspace(0.7, 4.8, num)
+            z1, z2 = np.zeros_like(n), np.zeros_like(n)
+            for k, Tk in enumerate([50, 100, 500, 1000]):
+                for i, ni in enumerate(n):
+                    pr.pars['n'].value, pr.pars['T'].value = ni, np.log10(Tk)
+                    pop = pr.predict()
+                    z1[i], z2[i] = pop[1], pop[2]
+                ax.plot(z1, z2, label="T={:.1f}".format(Tk))
+            ax.set_xlabel(r"log N(CIj1) / N(CI)")
+            ax.set_ylabel(r"log N(CIj2) / N(CI)")
+            #fig.legend()
         ax.xaxis.set_minor_locator(AutoMinorLocator(5))
         #ax.xaxis.set_major_locator(self.x_locator)
         ax.yaxis.set_minor_locator(AutoMinorLocator(5))

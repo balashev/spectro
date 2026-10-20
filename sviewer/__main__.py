@@ -9,7 +9,6 @@ import sys, os
 sys.path.append(os.sep.join(os.path.normpath(os.path.realpath(__file__)).split(os.sep)[:-3]))
 import spectro.sviewer.sviewer as sv
 
-
 if __name__ == '__main__':
     app = QApplication(sys.argv)
 

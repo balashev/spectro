@@ -23,7 +23,7 @@ from scipy.interpolate import interp1d
 import sys
 
 from spectro.sdss import SDSS
-from statsmodels.sandbox.distributions.sppatch import expect
+#from statsmodels.sandbox.distributions.sppatch import expect
 
 from .external import spectres
 from .fit import fitPars

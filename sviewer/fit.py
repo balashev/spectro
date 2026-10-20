@@ -327,7 +327,7 @@ class fitSystem:
                 self.pr.pars['CMB'].value = self.CMB.val
             for k in self.pr.species.keys():
                 col = self.pr.predict(name=k, level=-1, logN=self.Ntot.val)
-                #print("python:", col)
+                print("python:", k, col)
                 for s in self.sp.keys():
                     if k in s and 'Ntot' in self.sp[s].N.addinfo:
                         self.sp[s].N.val = col[self.pr.species[k].names.index(s)]
@@ -697,7 +697,7 @@ class fitPars:
                         elif s.b.addinfo == 'consist':
                             s.b.val = doppler(k, sys.turb.val, sys.kin.val)
 
-                if what in ['all', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
+                if what in ['all', 'Ncons', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB']:
                     if hasattr(sys, 'Ntot'):
                         sys.pyratio()
                         what = 'all'
