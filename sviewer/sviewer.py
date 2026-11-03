@@ -628,10 +628,14 @@ class plotSpectrum(pg.PlotWidget):
                     if self.mousePoint.y() != self.mousePoint_saved.y():
                         sp = self.parent.fit.sys[self.parent.comp].sp[self.parent.abs.reference.line.name]
                         # sp.b.set(sp.b.val + (self.mousePoint_saved.x() / self.mousePoint.x() - 1) * 299794.26)
+                        delta = np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * 2 * np.abs((self.mousePoint_saved.y() - self.mousePoint.y()) / (self.viewRange()[1][-1] - self.viewRange()[1][0]))
                         if sp.type == "abs":
-                            sp.N.set(sp.N.val + np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * 2 * np.abs((self.mousePoint_saved.y() - self.mousePoint.y()) / (self.viewRange()[1][-1] - self.viewRange()[1][0])))
+                            if 'Ntot' not in sp.N.addinfo:
+                                sp.N.set(sp.N.val + delta)
+                            else:
+                                self.parent.fit.sys[self.parent.comp].Ntot.set(self.parent.fit.sys[self.parent.comp].Ntot.val + delta)
                         elif sp.type == "em":
-                            sp.I.set(sp.I.val - np.sign(self.mousePoint_saved.y() - self.mousePoint.y()) * 2 * np.abs((self.mousePoint_saved.y() - self.mousePoint.y()) / (self.viewRange()[1][-1] - self.viewRange()[1][0])))
+                            sp.I.set(sp.I.val - delta)
                     try:
                         self.parent.fitModel.refresh()
                     except:
@@ -9753,7 +9757,7 @@ class sviewer(QMainWindow):
                     pg1 = np.linspace(self.fit.getValue(p1, 'min'), self.fit.getValue(p1, 'max'), num)
                     pg2 = np.linspace(self.fit.getValue(p2, 'min'), self.fit.getValue(p2, 'max'), num)
                 else:
-                    if 1:
+                    if 0:
                         pg1 = np.linspace(self.fit.getValue(p1, 'val') - 3 * self.fit.getValue(p1, 'step'), self.fit.getValue(p1, 'val') + 3 * self.fit.getValue(p1, 'step'), 20)
                         pg2 = np.linspace(self.fit.getValue(p2, 'val') - 3 * self.fit.getValue(p2, 'step'), self.fit.getValue(p2, 'val') + 3 * self.fit.getValue(p2, 'step'), 20)
                     else:
@@ -10542,7 +10546,6 @@ class sviewer(QMainWindow):
             s.g_cont.setData(x=s.cont.x, y=s.cont.y)
 
     def fitMinEnvelope(self, res=200):
-
         s = self.s[self.s.ind]
         x, y = s.spec.x(), s.spec.y()
         if 1:

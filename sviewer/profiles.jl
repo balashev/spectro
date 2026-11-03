@@ -833,7 +833,7 @@ function prepare_COS(s)
 end
 
 function get_resolution(si)
-    println(si.lsf_type, " ", occursin("espresso", pyconvert(String, si.lsf_type)))
+    #println(si.lsf_type, " ", occursin("espresso", pyconvert(String, si.lsf_type)))
     if occursin("espresso", pyconvert(String, si.lsf_type))
         return linear_interpolation(pyconvert(Vector{Float64}, si.espresso_lsf[0]), pyconvert(Vector{Float64}, si.espresso_lsf[1]), extrapolation_bc=Flat())
     else

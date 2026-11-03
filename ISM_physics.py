@@ -260,10 +260,10 @@ class ISM():
     def g_PE(self):
         psi = self.p('uv') * self.p('T') ** 0.5 / self.n_e() / self.phi_pah
         #print(self.p('T'), self.p('T') ** 0.5 , self.n_e(), self.p('n'), psi)
-        # Bialy+2019 - BE CAREFULL - A POSSIBLE TYPO:
+        # Bialy+2019 - BE CAREFUL - TYPO in the index -13 --> -3 following Bakes & Tielens 1994:
         #return 0.049 / (1 + 5.9e-13 * psi ** 0.73) + 0.037 * (self.p('T') / 10 ** 4) ** 0.7 / (1 + 3.4e-4 * psi)
-        # Wolfire+2003:
-        return 0.049 / (1 + 4.0e-3 * psi ** 0.73) + 0.037 * (self.p('T') / 10 ** 4) ** 0.7 / (1 + 2.0e-4 * psi)
+        # Wolfire+2003 with Draine field scaling:
+        return 0.049 / (1 + 5.9e-3 * psi ** 0.73) + 0.037 * (self.p('T') / 10 ** 4) ** 0.7 / (1 + 3.4e-4 * psi)
         #return 0.049 / (1 + (psi / 1925) ** 0.73) + 0.037 * (self.p('T') / 10 ** 4) ** 0.7 / (1 + psi / 5000)
 
     def heating(self, kind=''):
@@ -348,7 +348,7 @@ class ISM():
                 return self.pr.calc_cooling(species='OI', n=np.log10(self.p('n')), T=np.log10(self.p('T')))[0] * self.abundance('O') * self.p('n')
 
         if kind[0] == 'rec':
-            return 4.65e-30 * self.p('T') ** 0.94 * (self.p('uv') * self.p('T') ** 0.5 / self.n_e() / self.phi_pah) ** (0.73 / self.p('T') ** 0.068) * self.n_e() * self.p('n') * self.phi_pah
+            return 4.65e-30 * self.p('T') ** 0.94 * (1.7 * self.p('uv') * self.p('T') ** 0.5 / self.n_e() / self.phi_pah) ** (0.73 / self.p('T') ** 0.068) * self.n_e() * self.p('n') * self.phi_pah * self.abundance('dust')
 
         return [0]
 
@@ -432,13 +432,14 @@ class ISM():
 
         return n, T, m
 
-    def phase_diagram_adaptive(self, n=[], method='Nelder-Mead', max_iter=7, ax=None, verbose=False):
+    def phase_diagram_adaptive(self, n=[], method='Nelder-Mead', max_iter=5, ax=None, verbose=False):
 
         if verbose:
             print(">>> calculate phase_diagram_adaptive")
 
         if len(n) == 0:
             n = np.logspace(-4, 5, 37)
+            #n = np.logspace(-3, 4, 8)
         n_init, T_init, m = self.phase_diagram(n=n, method=method, verbose=verbose)
 
         n, T = np.log10(n_init[:]), np.log10(T_init[:])
@@ -504,6 +505,7 @@ class ISM():
         return 10**n, 10**T, m
 
     def plot_rates(self, n=None, T=None, ax=None, method='L-BFGS-B'):
+        fig = None
         if ax is None:
             fig, ax = plt.subplots(ncols=2, figsize=(14, 6))
         if n is None and T is None:
@@ -515,7 +517,8 @@ class ISM():
         for h in self.heating_types:
             ax[1].plot(np.log10(n), np.log10(self.thermal_rates(kind=h, n=n, T=T) / n), ls='--', label=f'${h}$')
         ax[1].legend()
-        return ax
+        ax[1].set_ylim([-30, -24])
+        return fig
 
 if __name__ == '__main__':
     print('executing main program code')

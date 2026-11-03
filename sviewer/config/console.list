@@ -1,13 +1,3 @@
-show HeIj1
-show SiII
-cont 1
-show OIj1
-show OIj2
-show OI
-OI
-show SiIIj1
-show ClI
-show PII
 show SiII
 show FeII
 show SI
@@ -19,3 +9,13 @@ show HI
 show HI
 show NV
 cont 1
+x 3500 4500
+show CO
+hide CI
+show FeII
+hide FeII
+show OIj1
+show OIj2
+show OI
+save CI
+load CI
