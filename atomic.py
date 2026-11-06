@@ -15,10 +15,8 @@ if __name__ == '__main__':
     import sys
     sys.path.append('C:/science/spectro/')
     from spectro.a_unc import a
-    from spectro.sviewer.utils import Timer
 else:
     from .a_unc import a
-    from .sviewer.utils import Timer
 
 def vactoair(vac):
     """
@@ -455,6 +453,12 @@ class atomicData(OrderedDict):
         lines = []
         #t = Timer('list')
 
+        # Return independent line objects from the species cache.
+        if linelist is None and all(e in self.lines for e in els):
+            for e in els:
+                lines += copy.deepcopy(self.lines[e])
+            return lines
+
         with h5py.File(self.folder + r'/data/atomic.hdf5', 'r') as data:
             #t.time('in')
             for e in els:
@@ -466,13 +470,8 @@ class atomicData(OrderedDict):
                     #print(name)
                     #t.time(name + 'in')
                     if name in self.keys():
-                        d = data[name]
-                        #print('ref', data[name]['ref'])
-                        for i, ref in enumerate(d['ref']):
-                            #print(i, ref)
-                            #t.time(name + 'in')
-                            lin = d['lines'][str(i)]
-                            #t.time(name + 'load')
+                        for i, ref in enumerate(data[name]['ref']):
+                            lin = data[name]['lines'][str(i)]
                             l = line(name, lin[0][0], lin[0][1], lin[0][2], q=lin[0][3], ref=lin[0][4])
                             #t.time(name + 'create')
                             for attr in ['j_l', 'nu_l', 'j_u', 'nu_u']:
@@ -888,7 +887,7 @@ class atomicData(OrderedDict):
                 mask = CO['level'] == i
                 for l in CO[mask]:
                     self[name].lines.append(line(name, l['lambda'], l['f'], l['gamma'], ref='', j_l=i, nu_l=0, j_u=i + l['PQR'], nu_u=l['band']))
-                    self[name].lines[-1].band = l['name'].decode('UTF-8')
+                    self[name].lines[-1].band = l['name']
 
         if kind == 'Morton':
             #CO = np.genfromtxt(self.folder + r'/data/CO/CO_data_Morton.dat', skip_header=1, names=True, dtype=None)

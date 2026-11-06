@@ -25,6 +25,8 @@ from spectro.profiles import tau, voigt
 from spectro.stats import distr1d, distr2d
 from spectro.sviewer.utils import printProgressBar, Timer, flux_to_mag
 
+FEII_SPLUPS_BT_DESCALED = True  # Fe II CHIANTI upsilons descaled (Burgess & Tully 1992)
+
 def smooth_step(x, delta):
     x = np.clip(x/delta, 0, 1)
     return x**3 * (x * (x*6 - 15) + 10)
@@ -151,7 +153,6 @@ class speci:
         """
         read popratio data for species with given name and numbers of levels
         """
-        print(self.name)
         with open(self.parent.folder+'/data/pyratio/'+self.name+'.dat', encoding="ISO-8859-1") as f_in:
             f = 0
             n_coll = 0
@@ -314,8 +315,6 @@ class speci:
                     if tr['Ju'] < self.fullnum + 1 and tr['Jl'] < self.fullnum + 1:
                         if self.A[inds[tr['Ju'] - 1], inds[tr['Jl'] - 1]] == 0:
                             self.A[inds[tr['Ju'] - 1], inds[tr['Jl'] - 1]] = Ai[tr['Ju'] - 1] * tr['br']
-                        else:
-                            print(inds[tr['Ju'] - 1], tr['Jl'] - 1, self.A[inds[tr['Ju'] - 1], inds[tr['Jl'] - 1]], Ai[tr['Ju'] - 1] * tr['br'])
 
         elif source == 'bautista':
             E = np.genfromtxt(folder + 'FeII/table3.dat', delimiter='|', dtype=[('J', 'i4'), ('term', '|S14'), ('name', '|S10'), ('energy', '<f8')])
@@ -351,13 +350,49 @@ class speci:
                                 [np.log10(temp), [np.log10(float(l[k])) for k in range(2, len(temp)+2)]])))
 
         elif coll_source == 'chianti':
-            c = np.genfromtxt(folder + r'FeII/fe_2.splups', comments='%', delimiter=(3, 3, 3, 3, 3, 10, 10, 10, 10, 10, 10, 10, 10))
-            temp = np.linspace(3.7, 4.7, 6)
-            for l in c:
-                #print(l[2]-1, l[3]-1, [np.log10(float(l[k])) for k in range(7, len(temp)+7)])
-                if l[2] < self.num+1 and l[3] < self.num+1:
-                    coll.append(collision(self, 'e', int(l[2]) - 1, int(l[3]) - 1, np.array(
-                                [temp, [np.log10(float(l[k])) for k in range(7, len(temp)+7)]])))
+            # CHIANTI .splups holds Burgess-Tully scaled spline nodes, not collision strengths
+            # (Burgess & Tully 1992, A&A 254, 436)
+            logtemp = np.linspace(3.7, 4.7, 101)
+            temperature = 10 ** logtemp
+            with open(folder + 'FeII/fe_2.splups') as f:
+                for line in f:
+                    if not line.strip() or line.lstrip().startswith('%'):
+                        continue
+                    lower, upper, ttype = int(line[6:9]), int(line[9:12]), int(line[12:15])
+                    if lower > self.num or upper > self.num:
+                        continue
+                    fields = [float(line[k:k+10]) for k in range(15, 95, 10)]
+                    de, c = fields[1:3]
+                    if de <= 0 or c <= 0:
+                        raise ValueError('Invalid Fe II Burgess-Tully parameters')
+                    energy_gap = (self.E[upper - 1] - self.E[lower - 1]) / 109737.3156816  # Rydberg constant, cm^-1 (CODATA)
+                    if abs(energy_gap / de - 1) > .01:
+                        raise ValueError('Fe II .splups indices disagree with NIST level ordering')
+                    points = np.asarray(fields[3:], dtype=float)
+                    x = np.linspace(0., 1., len(points))
+                    u = temperature / (157887.5124 * de)  # hydrogen ionization energy in K (CODATA)
+                    if ttype in (1, 4):
+                        scaled_t = 1. - np.log(c) / np.log(u + c)
+                    elif ttype in (2, 3, 5, 6):
+                        scaled_t = u / (u + c)
+                    else:
+                        raise ValueError(f'Unknown Fe II .splups scaling type {ttype}')
+                    ups = interpolate.splev(np.clip(scaled_t, 0., 1.),
+                                            interpolate.splrep(x, points, k=min(3, len(points)-1), s=0))
+                    if ttype == 1:
+                        ups *= np.log(u + np.e)
+                    elif ttype == 3:
+                        ups /= u + 1.
+                    elif ttype == 4:
+                        ups *= np.log(u + c)
+                    elif ttype == 5:
+                        ups /= u
+                    elif ttype == 6:
+                        ups = 10 ** ups
+                    if not np.all(np.isfinite(ups) & (ups > 0)):
+                        raise ValueError(f'Nonpositive Fe II upsilon for {lower}->{upper}')
+                    coll.append(collision(self, 'e', lower - 1, upper - 1,
+                                          np.array([logtemp, np.log10(ups)]), extrapolate_low=True))
         self.coll['e'] = coll
         self.coll['e'].make_table(self.num + 1)
 
@@ -504,9 +539,7 @@ class coll_list():
         self.c.append(object)
 
     def make_table(self, num):
-        self.f = np.empty([num, num])
-        for i in range(num):
-            self.f[i, i] = 0
+        self.f = np.zeros([num, num])
         for k, s in enumerate(self.c):
             self.f[s.i, s.j] = k + 1
             self.f[s.j, s.i] = -(k + 1)
@@ -578,14 +611,17 @@ class collision():
     """
     Class for individual collisions data
     """
-    def __init__(self, parent, part, i, j, rate=None):
+    def __init__(self, parent, part, i, j, rate=None, extrapolate_low=False):
         self.parent = parent
         self.part = part
         self.i = i
         self.j = j
         self.rates = rate
         if rate is not None:
-            self.rate_int = AsymmetricSpline(rate[0], rate[1], k=2)
+            if extrapolate_low:
+                self.rate_int = interpolate.InterpolatedUnivariateSpline(rate[0], rate[1], k=2)
+            else:
+                self.rate_int = AsymmetricSpline(rate[0], rate[1], k=2)
 
     def __str__(self):
         return "{0} collision rate with {1} for {2} --> {3}".format(self.parent.name, self.part, self.i, self.j)
@@ -593,23 +629,19 @@ class collision():
     def rate(self, T, sign=1):
         if self.rates is None:
             return 0
-
-        #l, u = max(self.i, self.j), min(self.i, self.j)
-        #if self.i > self.j:
-        #    u, l = l, u
-
+        T = np.asarray(T)
+        log_rate = self.rate_int(T)
         if self.part == 'e':
-            c1 = self.parent.const2 * 10 ** (- T * 0.5) / self.parent.g[self.i] * np.exp(-(self.parent.E[self.j] - self.parent.E[self.i]) / 0.695 / 10**T)
-        else:
-            c1 = 1
-
+            # Evaluate de-excitation directly, avoiding exp(-x) * exp(x).
+            level = self.i if sign == 1 else self.j
+            rate = 10 ** log_rate * self.parent.const2 * 10 ** (-T * 0.5) / self.parent.g[level]
+            if sign == 1:
+                rate *= np.exp(-(self.parent.E[self.j] - self.parent.E[self.i]) / .695 / 10 ** T)
+            return rate
         if sign == 1:
-            Bf = 1
-        else:
-            Bf = self.parent.g[self.i] / self.parent.g[self.j] * np.exp(-(self.parent.E[self.i] - self.parent.E[self.j]) / 0.695 / 10 ** T)
-            #Bf = self.parent.g[u] / self.parent.g[l] * np.exp(-(self.parent.E[u] - self.parent.E[l]) / 0.695 / 10**T)
-
-        return 10 ** self.rate_int(T) * c1 * Bf
+            return 10 ** log_rate
+        return np.exp(np.log(10.) * log_rate + np.log(self.parent.g[self.i] / self.parent.g[self.j])
+                      + (self.parent.E[self.j] - self.parent.E[self.i]) / .695 / 10 ** T)
 
     def plot(self, ax=None, label=None, sign=1):
         if self.rates is not None:
@@ -631,6 +663,7 @@ class par():
                             'rad'  - Scaling constant of radiation filed iether:
                                         flux in the units of standard field (in case of sed_type: 'Habing', 'Draine', 'Mathis')
                                         flux at 1kpc distance for source specified by agn keyword (in case of sed_type: 'AGN', 'QSO', 'GRB')
+                            'UV'   - fixed presence flag enabling full UV pumping
                             'H'    - atomic hydrogen density
                             'e'    - electron density
                             'H2'   - molecular hydrogen density
@@ -680,6 +713,14 @@ class par():
             self.init = 0
             self.range = [-4, 6]
             self.init_range = 0.3
+
+        # Presence of UV enables full pumping; rad sets the field strength.
+        if name == 'UV':
+            self.label = 'UV pumping'
+            self.init = 0
+            self.range = [0, 0]
+            self.init_range = 0
+            self.prior = a(0, 0, 0)
             
        # >>> electron number density
         if name == 'e':
@@ -835,6 +876,8 @@ class pyratio():
     def get_vary(self):
         self.vary = []
         for p in self.pars.items():
+            if p[0] == 'UV':
+                continue
             if p[1].prior is not None and p[1].prior.plus == 0 and p[1].prior.minus == 0:
                 p[1].value = p[1].prior.val
             else:
@@ -1017,7 +1060,7 @@ class pyratio():
                 if self.radiation == 'full':
                     for u in range(speci.num):
                         for l in range(speci.num):
-                            W[u, l] += speci.Bij[u, l] * self.rad_field(speci.Eij[u, l]) * self.radiative_trapping(logN=logN)
+                            W[u, l] += speci.Bij[u, l] * self.rad_field(speci.Eij[u, l], include_CMB='CMB' not in self.pars) * self.radiative_trapping(logN=logN)
 
                 if self.radiation == 'simple':
                     W += self.species[name].rad_rate * 10 ** self.pars['rad'].value * self.radiative_trapping(logN=logN)
@@ -1136,7 +1179,7 @@ class pyratio():
         #print(self.species[name].rad_rate, self.species[name].Aij)
 
 
-    def rad_field(self, e, sed_type=None):
+    def rad_field(self, e, sed_type=None, include_CMB=True):
         """
         radiation field density in [erg/cm^3/Hz]
         parameters:
@@ -1155,13 +1198,19 @@ class pyratio():
         else:
             s = sed_type
 
-        e = np.asarray(e)
+        e = np.asarray(e, dtype=float)
         field = np.zeros_like(e)
         m = e != 0
 
-        if sed_type is None and self.CMB or 'CMB' == s:
+        # Direct CMB rates are added separately when the CMB parameter is present.
+        if include_CMB and ((sed_type is None and self.CMB) or 'CMB' == s):
             temp = self.pars['CMB'].value if 'CMB' in self.pars.keys() else 2.72548 * (1 + self.z)
-            field[m] += self.Planck1 * e[m] ** 3 / (np.exp(self.Planck2 / temp * e[m]) - 1)
+            if temp < 0:
+                raise ValueError('CMB temperature cannot be negative')
+            if temp > 0:
+                x = self.Planck2 / temp * e[m]
+                field[m] += np.where(x < 700, self.Planck1 * e[m] ** 3 /
+                                     np.expm1(np.minimum(x, 700)), 0.)
 
         if sed_type is None and self.EBL or 'EBL' == s:
             field[m] += self.ebl(e[m]) * 4 * np.pi / ac.c.cgs.value
