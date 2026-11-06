@@ -1011,7 +1011,8 @@ class QSOSEDfit():
         print(ind)
 
         # with fits.open('D:/DESI/matched_ordered_spectra_full.fits') as hdu:
-        with h5py.File("D:/DESI/desi.hdf5", "r") as h5_file:
+        filename = os.path.join(self.catdir, 'desi.hdf5')
+        with h5py.File(filename, 'r') as h5_file:
             #meta = h5_file['meta/table'][ind]
             #z, Av_gal = meta['z'], meta['Av_gal']
             d = h5_file[str(ind)][:]
@@ -1019,7 +1020,7 @@ class QSOSEDfit():
 
             ext = G23(Rv=3.1).extinguish(1 / ((np.asarray(x, dtype=np.float64) * u.AA).to('um')), Av=float(Av_gal))
             print(np.sum(mask), len(x), mask)
-            y = y / ext
+            y, err = y / ext, err / ext
             if rebin > 1:
                 y, err = spectres(x, y, x[int(rebin / 2) + 1:((len(x) // rebin) - 1) * rebin:rebin], err)
                 err *= rebin

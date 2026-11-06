@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 from mendeleev import element
 import numpy as np
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import (QFont, QTextCursor)
-from PyQt6.QtWidgets import (QTextEdit)
+from PyQt6.QtGui import QFontDatabase, QTextCursor
+from PyQt6.QtWidgets import QApplication, QTextEdit
 import pyqtgraph as pg
 from statsmodels.stats.weightstats import DescrStatsW
 
@@ -14,18 +14,31 @@ from ..atomic import metallicity, depletion, abundance
 from .lines import Doublet
 from .utils import Timer, roman
 
+NOT_COMMAND = object()   # exec_command result for text that is not a console command (evaluated as Python instead)
+
 
 class Console(QTextEdit):
     def __init__(self, parent):
         self.parent = parent
         QTextEdit.__init__(self)
-        font = QFont("courier new", 8)
-        font.setStyleHint(QFont.StyleHint.TypeWriter)
-        self.document().setDefaultFont(font)
+        size = self.parent.options('console_font_size')
+        self.set_font_size(float(size) if size else QApplication.font().pointSizeF())
         self.displayPrompt()
         self.initStyle()
         self.addhistory()
         self.t = Timer("Console:")
+
+    def set_font_size(self, size):
+        """System fixed-width font at `size` points (points follow the screen scaling)."""
+        font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        font.setPointSizeF(max(6., min(size, 40.)))
+        self.setFont(font)
+        self.document().setDefaultFont(font)
+
+    def resize_font(self, step):
+        """Ctrl+= / Ctrl+-: change the font size by one point and store it in options.ini."""
+        self.set_font_size(self.font().pointSizeF()+step)
+        self.parent.options('console_font_size', f'{self.font().pointSizeF():g}')
 
     def initStyle(self):
         self.setStyleSheet("""
@@ -99,6 +112,11 @@ class Console(QTextEdit):
                self.promptColumnNumber <= self.textCursor().columnNumber()
 
     def keyPressEvent(self, event):
+        control = event.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier)
+        if control and event.key() in (Qt.Key.Key_Equal, Qt.Key.Key_Plus, Qt.Key.Key_Minus):
+            event.accept()
+            return self.resize_font(-1 if event.key() == Qt.Key.Key_Minus else 1)
+
         # Run the command if enter was pressed.
         if event.key() == Qt.Key.Key_Enter or event.key() == Qt.Key.Key_Return:
             event.accept()
@@ -110,13 +128,14 @@ class Console(QTextEdit):
                 result = ""
                 try:
                     result = self.exec_command(command)
-                    if result == None:
+                    if result is NOT_COMMAND:
                         result = eval(str(command), globals(), locals())
-                    else:
-                        pass
+                    elif result is None:
+                        result = ''
                 except Exception as error:
                     result = str(error)
-                self.append(str(result))
+                if str(result) != '':
+                    self.append(str(result))
                 self.moveCursor(QTextCursor.MoveOperation.End)
             self.displayPrompt()
             return
@@ -429,7 +448,7 @@ class Console(QTextEdit):
                 print(self.parent.s[self.parent.s.ind].spec.raw.err[mask])
                 self.parent.s.redraw()
 
-        if args[0] == 'cont':
+        elif args[0] == 'cont':
             mask = np.ones_like(self.parent.s[self.parent.s.ind].spec.raw.x, dtype=bool)
             self.parent.s[self.parent.s.ind].set_spline([self.parent.s[self.parent.s.ind].spec.raw.x[mask][0], self.parent.s[self.parent.s.ind].spec.raw.x[mask][-1]], [float(args[1]), float(args[1])])
 
@@ -675,7 +694,7 @@ class Console(QTextEdit):
             self.parent.s.setSpec(int(args[0]))
 
         else:
-            return None
+            return NOT_COMMAND
 
     def select_lines(self, args):
         if isinstance(args, str):

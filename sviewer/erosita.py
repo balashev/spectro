@@ -723,7 +723,7 @@ class ErositaWidget(QWidget):
     def addExternalCatalog(self, name, show=True):
         if name == 'Risaliti2015':
             if show:
-                self.ext[name] = np.genfromtxt(os.path.dirname(self.parent.ErositaFile) + '/Risaliti2015/table2.dat',
+                self.ext[name] = np.genfromtxt(os.path.dirname(self.catfile) + '/Risaliti2015/table2.dat',
                                      names=['name', 'ra', 'dec', 'z', 'L_UV', 'L_X', 'F_UV', 'eF_UV', 'F_X', 'eF_X', 'group'])
                 for attr in ['L_UV', 'L_X', 'F_UV', 'F_X']:
                     self.ext[name][attr] = 10 ** self.ext[name][attr]
@@ -864,7 +864,7 @@ class ErositaWidget(QWidget):
         return self.df['PLATE'][ind], self.df['MJD'][ind], self.df['FIBERID'][ind]
 
     def loadSDSS(self, plate, fiber, mjd, Av_gal=np.nan):
-        filename = os.path.dirname(self.parent.ErositaFile) + '/spectra/spec-{0:04d}-{2:05d}-{1:04d}.fits'.format(int(plate), int(fiber), int(mjd))
+        filename = os.path.dirname(self.catfile) + '/spectra/spec-{0:04d}-{2:05d}-{1:04d}.fits'.format(int(plate), int(fiber), int(mjd))
         if os.path.exists(filename):
             qso = fits.open(filename)
             ext = self.extinction(10 ** qso[1].data['loglam'][:], Av_gal) #G03_SMCBar().extinguish(1e4 / np.asarray(10 ** qso[1].data['loglam'][:], dtype=np.float64), Av=Av_gal) if ~np.isnan(Av_gal) else np.ones_like(qso[1].data['loglam'])
@@ -1124,10 +1124,10 @@ class ErositaWidget(QWidget):
                 try:
                     if self.method.currentText() == 'emcee':
                         for attr in ['_mcmc', '_post', '_spec']:
-                            os.startfile(os.path.dirname(self.parent.ErositaFile) + '/QC/plots/' + self.df['SDSS_NAME'][ind] + attr + '.png')
+                            os.startfile(os.path.dirname(self.catfile) + '/QC/plots/' + self.df['SDSS_NAME'][ind] + attr + '.png')
                     elif 'nested' in self.method.currentText():
                         for attr in ['_corner', '_spec']:
-                            os.startfile(os.path.dirname(self.parent.ErositaFile) + '/QC/dynesty_plots/' + self.df['SDSS_NAME'][ind] + attr + '.png')
+                            os.startfile(os.path.dirname(self.catfile) + '/QC/dynesty_plots/' + self.df['SDSS_NAME'][ind] + attr + '.png')
                 except:
                     print("there is no proceeded data")
                     self.parent.sendMessage(f"There is no proceeded data for {self.df['SDSS_NAME'][ind]}")

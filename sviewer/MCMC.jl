@@ -13,7 +13,7 @@ using Statistics
 @everywhere using ForwardDiff
 @everywhere using SpecialFunctions
 @everywhere using Statistics
-@everywhere include("profiles.jl")
+@everywhere include($(joinpath(@__DIR__, "profiles.jl")))
 using VectorizedStatistics
 
 function initJulia(filename, spec, pars, add, parnames; sampler="Affine", prior=nothing, nwalkers=100, nsteps=1000, nthreads=1, thinning=1, init=nothing, opts=0)
@@ -304,7 +304,9 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
                                 println("x for ", i, " and nu ", nu, " ", T[i], " ", T[i+1], " ", x)
                                 retval -= x ^ 2
                             end
-                            retval -= T[end] < 0 ? (T[end] / 100) ^ 2 : 0
+                            if !isempty(T)
+                                retval -= T[end] < 0 ? (T[end] / 100) ^ 2 : 0
+                            end
                         end
                     end
                 end
@@ -340,7 +342,7 @@ function fitMCMC(spec, pars, add, parnames; sampler="Affine", prior=nothing, nwa
 			#addprocs_slurm(nthreads, nodes=nthreads ÷ 96 + 1, exename="/home/balashev/julia-1.8.5/bin/julia")
 		end
 
-		@everywhere include("profiles.jl")
+		@everywhere include($(joinpath(@__DIR__, "profiles.jl")))
 
 		println("procs: ", nprocs())
 	end
@@ -720,7 +722,7 @@ function fit_disp(x, samples, spec, ppar, add; sys=1, tieds=Dict(), opts=Dict(),
 		if nthreads > 1
 			addprocs(nthreads - 1)
 		end
-		@everywhere include("profiles.jl")
+		@everywhere include($(joinpath(@__DIR__, "profiles.jl")))
 		println("procs: ", nprocs())
 	end
 

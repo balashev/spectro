@@ -363,18 +363,18 @@ class ISM():
         Returns:
 
         """
-        rate = np.zeros_like(n)
-        print('rate:', rate)
         if len(n) == 0 and len(T) != 0:
             n = np.ones_like(T) * self.p('n')
         if len(T) == 0 and len(n) != 0:
-            T = np.ones_like(T) * self.p('T')
+            T = np.ones_like(n) * self.p('T')
         if len(n) == 0 and len(T) == 0:
             n, T = [self.p('n')], [self.p('T')]
+        if len(n) != len(T):
+            raise ValueError('Density and temperature grids must have equal lengths')
+        rate = np.zeros(len(n), dtype=float)
         for i, ni, Ti in zip(range(len(n)), n, T):
             self.update_pars(n=ni, T=Ti)
             if kind in self.cooling_types:
-                print(i, kind, self.cooling(kind=kind))
                 rate[i] = self.cooling(kind=kind)
             elif kind in self.heating_types:
                 rate[i] = self.heating(kind=kind)

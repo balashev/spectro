@@ -10,7 +10,7 @@ from astropy import units as u
 from dust_extinction.averages import G03_SMCBar
 from dust_extinction.parameter_averages import G23
 import matplotlib.pyplot as plt
-from numba import jit
+from numba import jit, njit
 import numpy as np
 from scipy.integrate import simpson
 from scipy.interpolate import interp1d
@@ -27,6 +27,11 @@ else:
 #sys.path.append('D:/science/python/')
 #from spectro.sviewer.utils import timer
 
+
+
+_C_CGS = float(const.c.cgs.value)
+_C_KMS = float(const.c.to('km/s').value)
+_E2_ME_C = float(const.e.gauss.value ** 2 / const.m_e.cgs.value / _C_CGS)
 
 #==============================================================================
 # Voigt Real and Imaginery fucntion and partial derivatives
@@ -120,7 +125,7 @@ class tau:
             - gu, gl   : int
                             statistical weights of upper and lower levels
         """
-        e2_me_c = const.e.gauss.value ** 2 / const.m_e.cgs.value / const.c.cgs.value
+        e2_me_c = _E2_ME_C
         if A is not None:
             self.f = (self.l * 1e-8) ** 2 / 8 / np.pi ** 2 / e2_me_c * A * gu / gl
 
@@ -140,7 +145,7 @@ class tau:
         Return doppler broadening of the line
         :return:
         """
-        self.doppler = self.l * self.b * 1e5 / const.c.cgs.value
+        self.doppler = self.l * self.b * 1e5 / _C_CGS
         return self.doppler
 
     def update(self):
@@ -179,9 +184,9 @@ class tau:
         if vel:
             u = x / self.b  # dimensionless
         else:
-            u = (x / (1 + self.z) / self.l - 1) * const.c.to('km/s').value / self.b
+            u = (x / (1 + self.z) / self.l - 1) * _C_KMS / self.b
 
-        xlim = self.xrange(tlim=tlim) * const.c.to('km/s').value / self.b
+        xlim = self.xrange(tlim=tlim) * _C_KMS / self.b
 
         mask = np.logical_and(u > -xlim, u < xlim)
 
@@ -238,7 +243,7 @@ class tau:
         return:
             offset from line center in units of lambda_{ik}
         """
-        return self.voigt_range(tlim=tlim) * self.b / const.c.to('km/s').value + instr * self.x_instr() # * (1 + self.z)
+        return self.voigt_range(tlim=tlim) * self.b / _C_KMS + instr * self.x_instr() # * (1 + self.z)
 
     def getrange(self, instr=3, tlim=0.001, vel=False):
         """
@@ -254,7 +259,7 @@ class tau:
         dx = self.xrange(tlim=tlim, instr=instr)
 
         if vel:
-            self.range = [-dx * const.c.to('km/s').value, dx * const.c.to('km/s').value]
+            self.range = [-dx * _C_KMS, dx * _C_KMS]
         else:
             self.range = [self.l * (1 - dx) * (1 + self.z), self.l * (1 + dx) * (1 + self.z)]
 
@@ -264,10 +269,10 @@ class tau:
         if vel:
             delt = self.b / num
         else:
-            delt = self.l * (1 + self.z) * self.b / const.c.to('km/s').value / num
+            delt = self.l * (1 + self.z) * self.b / _C_KMS / num
 
         if self.resolution not in [None, 0]:
-            delt *= np.min([self.x_instr() / self.b * const.c.to('km/s').value, 1])
+            delt *= np.min([self.x_instr() / self.b * _C_KMS, 1])
 
         return delt
 
@@ -384,7 +389,7 @@ def convolveflux(l, f, res, vel=False, kind='astropy', verbose=False, debug=Fals
 
 # jit decorator tells Numba to compile this function.
 # The argument types will be inferred by Numba when function is called.
-@jit(forceobj=True, looplift=True)
+@njit(cache=True)
 def gauss(x, s):
     return 1 / np.sqrt(2 * np.pi) / s * np.exp(-.5 * (x / s) ** 2)
 
@@ -394,7 +399,7 @@ def errf(x):
     t = 1 / (1 + 0.47047 * np.abs(x))
     return np.sign(x) * (1 - t * (a[0] + t * (a[1] + t * a[2])) * np.exp(-x**2))
 
-@jit(forceobj=True, looplift=True)
+@njit(cache=True)
 def errf_v2(x):
     a = [-1.26551223, 1.00002368, 0.37409196, 0.09678418, -0.18628806, 0.27886807, -1.13520398, 1.48851587, -0.82215223, 0.17087277]
     t = 1 / (1 + 0.5 * np.abs(x))
@@ -453,7 +458,7 @@ def convolve_res(l, f, R):
 
     return fc
 
-@jit(forceobj=True, looplift=True)
+@njit(cache=True)
 def convolve_res2(l, f, R):
     """
     Convolve flux with instrument function specified by resolution R
@@ -500,15 +505,112 @@ def convolve_res2(l, f, R):
 
     return 1 - fc
 
-#@jit
-def makegrid(x, n):
-    ind = np.argwhere(n)
-    l = x[ind]
-    for k, i in zip(range(len(ind)-2, -1, -1), reversed(ind[:-1])):
-        d = (x[i+1] - x[i]) / (int(n[i]) + 1)
-        l = np.insert(l, np.ones(int(n[i][0]), dtype=int) * (k+1), x[i] + d * (np.arange(int(n[i])) + 1))
 
-    return l
+@njit(cache=True)
+def build_convolve_res2_operator(l, R):
+    """Precompute the direct-LSF weights of convolve_res2 for a fixed grid and resolution.
+    Entry order (duplicates included) keeps the summation order of convolve_res2."""
+    delta = 3.0
+    n = len(l)
+    resolutions = np.broadcast_to(np.asarray(R), l.shape)
+    counts = np.zeros(n, dtype=np.int64)
+
+    il = 0
+    for i in range(n):
+        x = l[i]
+        sig = x / resolutions[i] / 2.355
+        k = il
+        while k > 0 and l[k - 1] >= x - delta * sig:
+            k -= 1
+        while l[k] < x - delta * sig:
+            k += 1
+        il = k
+        count = 1
+        while k < n - 1 and l[k + 1] < x + delta * sig:
+            count += 2
+            k += 1
+        count += 1
+        counts[i] = count
+
+    row_ptr = np.empty(n + 1, dtype=np.int64)
+    row_ptr[0] = 0
+    for i in range(n):
+        row_ptr[i + 1] = row_ptr[i] + counts[i]
+    cols = np.empty(row_ptr[-1], dtype=np.int64)
+    weights = np.empty(row_ptr[-1], dtype=np.float64)
+
+    il = 0
+    for i in range(n):
+        x = l[i]
+        sig = x / resolutions[i] / 2.355
+        k = il
+        while k > 0 and l[k - 1] >= x - delta * sig:
+            k -= 1
+        while l[k] < x - delta * sig:
+            k += 1
+        il = k
+        pos = row_ptr[i]
+        cols[pos] = il
+        weights[pos] = (1.0 - errf_v2((x - l[il]) / np.sqrt(2.0) / sig)) / 2.0
+        pos += 1
+        while k < n - 1 and l[k + 1] < x + delta * sig:
+            dl = l[k + 1] - l[k]
+            cols[pos] = k + 1
+            weights[pos] = gauss(l[k + 1] - x, sig) / 2.0 * dl
+            pos += 1
+            cols[pos] = k
+            weights[pos] = gauss(l[k] - x, sig) / 2.0 * dl
+            pos += 1
+            k += 1
+        cols[pos] = k
+        weights[pos] = (1.0 - errf_v2(np.abs(l[k] - x) / np.sqrt(2.0) / sig)) / 2.0
+
+    return row_ptr, cols, weights
+
+
+@njit(cache=True)
+def apply_convolve_res2_operator(f, row_ptr, cols, weights):
+    """Apply a precomputed ``convolve_res2`` operator to one flux array."""
+    absorption = 1.0 - f
+    out = np.empty_like(f)
+    for i in range(len(f)):
+        total = 0.0
+        for pos in range(row_ptr[i], row_ptr[i + 1]):
+            total += absorption[cols[pos]] * weights[pos]
+        out[i] = 1.0 - total
+    return out
+
+@njit(cache=True)
+def _makegrid_compiled(x, n):
+    """Build the adaptive grid with integer subdivision counts."""
+    ind = np.nonzero(n != 0)[0]
+    m = ind.size
+    if m == 0:
+        return np.empty(0, dtype=x.dtype)
+
+    total = m
+    for j in range(m - 1):
+        total += int(n[ind[j]])
+
+    out = np.empty(total, dtype=x.dtype)
+    pos = 0
+    for j in range(m):
+        i = ind[j]
+        out[pos] = x[i]
+        pos += 1
+        if j < m - 1:
+            count = int(n[i])
+            if count > 0:
+                d = (x[i + 1] - x[i]) / (count + 1)
+                for q in range(count):
+                    out[pos] = x[i] + d * (q + 1)
+                    pos += 1
+    return out
+
+
+def makegrid(x, n):
+    """Create the adaptive wavelength grid used by the Python fitter."""
+    return _makegrid_compiled(np.asarray(x), np.asarray(n))
 
 def add_LyaForest(x, z_em=0, factor=1, kind='trans'):
     """
@@ -812,4 +914,4 @@ if __name__ == '__main__':
     
     
     
-        
+
