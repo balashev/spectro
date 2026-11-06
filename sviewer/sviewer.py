@@ -12,6 +12,7 @@ import corner
 import ctypes
 import emcee
 import h5py
+import json
 #from importlib import reload
 from lmfit import Minimizer, Parameters, report_fit, fit_report, conf_interval, printfuncs, Model
 from matplotlib.colors import to_hex
@@ -32,7 +33,7 @@ from PyQt6.QtWidgets import (QApplication, QMessageBox, QMainWindow, QWidget,
                              QSplitter, QFrame, QLineEdit, QLabel, QPushButton, QCheckBox,
                              QGridLayout, QTabWidget, QFormLayout, QHBoxLayout, QRadioButton,
                              QTreeWidget, QComboBox, QTreeWidgetItem, QAbstractItemView,
-                             QStatusBar, QMenu, QButtonGroup, QMessageBox, QToolButton, QColorDialog)
+                             QStatusBar, QMenu, QButtonGroup, QMessageBox, QToolButton, QColorDialog, QInputDialog)
 from PyQt6.QtCore import Qt, QPointF, QRectF, QEvent, QUrl, QTimer, pyqtSignal, QObject, QPropertyAnimation, QDir, QItemSelectionModel
 from PyQt6.QtGui import QDesktopServices, QPainter, QFont, QColor, QIcon
 from scipy.interpolate import interp1d, UnivariateSpline
@@ -43,6 +44,9 @@ from scipy.stats import gaussian_kde
 from shutil import copyfile
 import subprocess
 import tarfile
+import tempfile
+import time
+import zipfile
 #from threading import Thread
 from ..a_unc import a
 from ..absorption_systems import vel_offset
@@ -57,6 +61,8 @@ from .external import spectres
 from .erosita import *
 from .fit_model import *
 from .fit import *
+from .coverage_compare import (CoverageComparisonDialog, fit_all_coverage_models,
+                               select_comparison_modes, export_coverage_records_csv, best_record)
 from .graphics import *
 from .lines import *
 from .sdss_fit import *
@@ -64,6 +70,13 @@ from .tables import *
 from .obs_tool import *
 from .colorcolor import *
 from .utils import *
+from .coverage_models import (sync_single_coverage_region_to_fit,
+                              split_line_optical_depths, assigned_coverage_region,
+                              combine_split_optical_depths,
+                              format_coverage_assignment,
+                              parse_coverage_assignment, selected_fit_wavelength_bounds,
+                              spatial_realization_label, CoverageDeadlineExceeded)
+from .source_models import source_model_label, source_from_fit, source_wavelengths_from_observed, half_light_from_r_lambda
 
 class plotSpectrum(pg.PlotWidget):
     """
@@ -703,6 +716,8 @@ class plotSpectrum(pg.PlotWidget):
             self.parent.s.chi2()
             #self.vb.removeItem(self.vb._rbScaleBox)
             self.vb.setMouseMode(self.vb.PanMode)
+            if self.parent.bfLinesOpen():
+                self.parent.bfLines.selection_changed(self.mousePoint_saved.x(), self.mousePoint.x(), remove=bool(self.d_status))
 
         if self.u_status:
             if self.u_status == 1 and self.mousePoint.x() == self.mousePoint_saved.x() and self.mousePoint.y() == self.mousePoint_saved.y():
@@ -1401,7 +1416,7 @@ class preferencesWidget(QWidget):
         self.tab.setGeometry(0, 0, 1050, 900)
         #self.tab.setMinimumSize(1050, 300)
         
-        for t in ['Appearance', 'Fit', 'Colors']:
+        for t in ['Appearance', 'Fit', 'Colors', 'BF']:
             self.tab.addTab(self.initTabGUI(t), t)
 
         self.tab.currentChanged.connect(self.setTabIndex)
@@ -1600,10 +1615,38 @@ class preferencesWidget(QWidget):
             self.blindMode.stateChanged.connect(partial(self.setChecked, 'blindMode'))
             self.grid.addWidget(self.blindMode, ind, 0)
 
+        if window == 'BF':
+            from .bf_panel import PREFERENCES
+            for ind, (key, text, kind, tip) in enumerate(PREFERENCES):
+                label = QLabel(text + ':'); label.setToolTip(tip)
+                self.grid.addWidget(label, ind, 0)
+                edit = QLineEdit(str(self.parent.options(key) or ''))
+                edit.setToolTip(tip); edit.setMinimumWidth(320)
+                edit.editingFinished.connect(partial(self.setBF, key, edit, kind))
+                self.grid.addWidget(edit, ind, 1)
+                if kind == 'folder':
+                    browse = QPushButton('...')
+                    browse.clicked.connect(partial(self.browseBF, key, edit))
+                    self.grid.addWidget(browse, ind, 2)
+
         layout.addLayout(self.grid)
         layout.addStretch()
         frame.setLayout(layout)
         return frame
+
+    def setBF(self, key, edit, kind):
+        """Store a BF preference; a number that does not parse is reverted."""
+        text = edit.text().strip()
+        if kind not in ('folder', str):
+            try: kind(text)
+            except ValueError: return edit.setText(str(self.parent.options(key) or ''))
+        self.parent.options(key, text)
+
+    def browseBF(self, key, edit):
+        folder = QFileDialog.getExistingDirectory(self, 'Choose folder', edit.text())
+        if folder:
+            edit.setText(folder)
+            self.parent.options(key, folder)
 
     def setDisplay(self):
         self.parent.options("display", self.display.currentIndex())
@@ -2195,11 +2238,18 @@ class showLinesWidget(QWidget):
         self.showButton = QPushButton("Show")
         self.showButton.setFixedSize(110, 30)
         self.showButton.clicked.connect(partial(self.showPlot, False))
+        self.coverageCompareButton = QPushButton("Coverage fits")
+        self.coverageCompareButton.setFixedSize(120, 30)
+        self.coverageCompareButton.setToolTip(
+            "Open the coverage-model comparison table and comparison plot"
+        )
+        self.coverageCompareButton.clicked.connect(self.parent.showCoverageComparison)
         expButton = QPushButton("Export to :")
         expButton.setFixedSize(110, 30)
         expButton.clicked.connect(partial(self.showPlot, True))
 
         l.addWidget(self.showButton)
+        l.addWidget(self.coverageCompareButton)
         l.addWidget(expButton)
         l.addStretch(1)
         layout.addLayout(l)
@@ -2827,7 +2877,7 @@ class showLinesWidget(QWidget):
                     print(p.name, ind)
                     s = self.parent.s[ind]
 
-                    if self.corr_cheb and self.parent.fit.cont_fit:
+                    if self.corr_cheb and self.parent.fit.cont_num > 0:
                         cheb = interp1d(s.spec.raw.x[s.cont_mask], s.correctContinuum(s.spec.raw.x[s.cont_mask]), fill_value='extrapolate')
                     else:
                         cheb = interp1d(s.spec.raw.x[s.cont_mask], np.ones_like(s.spec.raw.x[s.cont_mask]), fill_value=1)
@@ -3430,7 +3480,7 @@ class fitMCMCWidget(QWidget):
             self.MCMC(init=init, filename=fname[0])
 
     def loadJulia(self, filename):
-        self.parent.julia.include("MCMC.jl")
+        self.parent.julia.include(self.parent.folder + "MCMC.jl")
 
         chain, lns = self.parent.julia.readMCMC(filename, convert=True)
         chain, lns = np.asarray(chain), np.asarray(lns)
@@ -3461,14 +3511,14 @@ class fitMCMCWidget(QWidget):
 
         if fname:
             if fname.endswith('.spj'):
-                self.importJulia(fname[0])
+                self.importJulia(fname)
             else:
                 self.parent.options('work_folder', os.path.dirname(fname[0]))
                 self.parent.MCMC_output = fname[0]
 
     def importJulia(self, filename):
         print(filename)
-        self.parent.julia.include("MCMC.jl")
+        self.parent.julia.include(self.parent.folder + "MCMC.jl")
         pars = self.parent.julia.readJulia(filename)
         print(pars)
 
@@ -3527,7 +3577,7 @@ class fitMCMCWidget(QWidget):
 
         if self.sampler.currentText() in ['Affine', 'ESS', 'UltraNest', 'Hamiltonian']:
 
-            self.parent.julia.include("MCMC.jl")
+            self.parent.julia.include(self.parent.folder + "MCMC.jl")
 
             if filename is not None:
 
@@ -3823,7 +3873,7 @@ class fitMCMCWidget(QWidget):
                             if 'total' in r:
                                 inds = np.where(['N_{0:d}_{1:s}'.format(i, r.split('total')[0]) in str(s) for s in pars])[0]
                                 print(r, inds)
-                                d[r] = np.log10(np.sum(10 ** samples[:, inds], axis=2)).flatten()
+                                d[r] = np.log10(np.sum(10 ** samples[:, inds], axis=1)).flatten()
                             else:
                                 print(r, np.where([str(s) == 'N_{0:d}_{1:s}'.format(i, r) for s in pars])[0])
                                 d[r] = samples[:, np.where([str(s) == 'N_{0:d}_{1:s}'.format(i, r) for s in pars])[0]].flatten()
@@ -3851,7 +3901,7 @@ class fitMCMCWidget(QWidget):
             kis = np.random.randint(samples.shape[0], size=5000)
             for k in kis:
                 #print(k, i)
-                for xi, p in zip(samples[kis, :], pars):
+                for xi, p in zip(samples[k, :], pars):
                     self.parent.fit.setValue(p, xi)
                 self.parent.fit.update()
                 values.append([p.val for p in self.parent.fit.list()])
@@ -4066,9 +4116,9 @@ class fitMCMCWidget(QWidget):
             num = int(self.parent.options('MCMC_disp_num'))
 
             if self.parent.fitType == 'julia':
-                self.parent.julia.include("MCMC.jl")
+                self.parent.julia.include(self.parent.folder + "MCMC.jl")
                 filename = self.parent.options("filename_saved").replace(".spv", ".spd")
-                self.parent.julia.fit_disp([s.fit.line.norm.x if s.fit.line.norm.n > 0 else [] for s in self.parent.s], samples[burnin:, :, :], self.parent.julia_spec, self.parent.fit.list(),
+                self.parent.julia.fit_disp([s.fit.line.norm.x if s.fit.line.norm.n > 0 else [] for s in self.parent.s], samples, self.parent.julia_spec, self.parent.fit.list(),
                                            self.parent.julia_add, sys=len(self.parent.fit.sys), tieds=self.parent.fit.tieds, opts=opts,
                                            nthreads=int(self.parent.options('MCMC_threads')), nums=int(self.parent.options('MCMC_disp_num')),
                                            savename=filename)
@@ -4150,7 +4200,7 @@ class fitMCMCWidget(QWidget):
 
 
     def load_disp(self, filename):
-        self.parent.julia.include("MCMC.jl")
+        self.parent.julia.include(self.parent.folder + "MCMC.jl")
         self.fit_disp(calc=False, filename=filename)
 
     def loaddisp(self):
@@ -4239,15 +4289,16 @@ class fitExtWidget(QWidget):
         l.addWidget(self.z_abs_value, 1, 1)
 
         self.Av = QCheckBox('Av:', self)
+        self.Av.setChecked(False)
+        l.addWidget(self.Av, 2, 0)
+        self.Av_value = QLineEdit(self)
+        self.Av_value.setText('0.0')
         self.Av_value.returnPressed.connect(self.showExt)
         l.addWidget(self.Av_value, 2, 1)
 
         layout.addLayout(l)
         self.tab = QTabWidget()
-        self
-        l.addWidget(self.Av, 2, 0)
-        self.Av_value = QLineEdit(self)
-        self.Av_value.setText('0.0'.tab.setGeometry(0, 0, 1050, 900))
+        self.tab.setGeometry(0, 0, 1050, 900)
         # self.tab.setMinimumSize(1050, 300)
 
         for t in ['Emperical', 'Analytical']:
@@ -7205,6 +7256,8 @@ class buttonpanel(QFrame):
             if self.parent.plot.restframe:
                 self.parent.plot.updateVelocityAxis()
             self.parent.abs.redraw()
+            if self.parent.bfLinesOpen():
+                self.parent.bfLines.schedule_refresh()
         except:
             pass
 
@@ -7275,9 +7328,9 @@ class sviewer(QMainWindow):
         self.settings = {}
         self.message = None
         self.julia = None
-        if platform.system() == 'Windows':
+        if platform.system() in ('Windows', 'Darwin'):
             self.config = 'config/options.ini'
-        elif platform.system() in ('Linux', 'Darwin'):
+        elif platform.system() == 'Linux':
             self.config = 'config/options_linux.ini'
         self.developer = os.path.isfile(self.folder + 'config/developer.ini')
         self.SDSSdata = []
@@ -7308,6 +7361,11 @@ class sviewer(QMainWindow):
         self.observability = None
         self.exp = None
         self.fitResults = None
+        self.coverageComparison = None
+        self.bfLines = None
+        self.coverageComparisonResults = []
+        self.coverageComparisonHistory = {}
+        self.coverageComparisonSource = 'achromatic'
         self.fitres = None
         self.showlines = None
         self.MCMC = None
@@ -7485,6 +7543,8 @@ class sviewer(QMainWindow):
         exportDataAction.setStatusTip('Export data')
         exportDataAction.triggered.connect(self.showExportDataDialog)
 
+
+
         exportSettingsAction = QAction('&Export settings...', self)
         exportSettingsAction.setStatusTip('Export settings')
         exportSettingsAction.triggered.connect(self.showExportSettingsDialog)
@@ -7660,6 +7720,23 @@ class sviewer(QMainWindow):
         fitLM.setStatusTip('Fit by Levenberg-Marquadt method')
         fitLM.triggered.connect(self.fitLM)
 
+
+        fitCoverageModels = QAction('Compare coverage models', self)
+        fitCoverageModels.setStatusTip('Choose source-coverage models, fit them on the same pixels, and compare AIC/BIC')
+        fitCoverageModels.triggered.connect(self.fitAllCoverageModels)
+
+        fitBFLines = QAction('BF lines', self)
+        fitBFLines.setStatusTip('Show/hide the bottom-flux (BF) line panel: s-selection and label double-click mark BF lines')
+        fitBFLines.setShortcut('F10')
+        fitBFLines.triggered.connect(lambda: self.showBFLines())
+
+        fitBF = QAction('BF analysis', self)
+        fitBF.setStatusTip('Covering and population fits of the BF lines (spectro.bf)')
+        fitBF.triggered.connect(self.showBFPanel)
+
+
+
+
         fitMCMC = QAction('&Fit MCMC...', self)
         fitMCMC.setStatusTip('Fit by MCMC method')
         fitMCMC.setShortcut('F5')
@@ -7681,9 +7758,6 @@ class sviewer(QMainWindow):
         stopFit.setStatusTip('Stop fitting process')
         stopFit.triggered.connect(self.stopFit)
 
-        tempFit = QAction('&Temp Fit', self)
-        tempFit.setStatusTip('Tempopary button for specific actions')
-        tempFit.triggered.connect(self.bootFit)
 
         fitCheb = QAction('&Fit Cheb', self)
         fitCheb.setStatusTip('Adjust continuum by Chebyshev polynomials')
@@ -7743,12 +7817,14 @@ class sviewer(QMainWindow):
         fitMenu.addAction(fitResults)
         fitMenu.addSeparator()
         fitMenu.addAction(fitLM)
+        fitMenu.addAction(fitCoverageModels)
+        fitMenu.addAction(fitBFLines)
+        fitMenu.addAction(fitBF)
         fitMenu.addAction(fitMCMC)
         fitMenu.addAction(fitGrid)
         fitMenu.addAction(fitCont)
         fitMenu.addAction(resAnal)
         fitMenu.addAction(stopFit)
-        fitMenu.addAction(tempFit)
         fitMenu.addSeparator()
         fitMenu.addAction(fitCheb)
         fitMenu.addAction(fitGP)
@@ -8161,8 +8237,14 @@ class sviewer(QMainWindow):
                     s[i] = "{0:20}  :  {1:} \n".format(opt, value)
                 break
         else:
-            return None
-            #return 'option {0} was not found'.format(opt)
+            if opt == 'ErositaSDSSFile' and value is None:
+                return self.options('ErositaFile', config=config) or ''
+            defaults = {'ErositaSDSSFile': '', 'ErositaDESIFile': '', 'QMOSTfolder': '', 'DESIfile': '', 'MCMC_cutlikelihood': ''}
+            if opt in defaults and value is not None:
+                setattr(self, opt, value)
+                s.append("{0:20}  :  {1:} \n".format(opt, value))
+            else:
+                return defaults.get(opt)
 
         with open(self.folder + 'config/options.ini', 'w') as f:
             for line in s:
@@ -8322,10 +8404,19 @@ class sviewer(QMainWindow):
         if self.plot.restframe:
             self.plot.updateVelocityAxis()
         self.abs.redraw()
+        if self.bfLinesOpen():
+            self.bfLines.schedule_refresh()
 
     def load_espresso_lsf(self):
-        self.espresso_lsf = np.genfromtxt("data/ESPRESSO/2023-02-20_ESPRESSO_S2D_LFC_FP_A.dat", unpack=True)[:2]
-        self.espresso_lsf[1] = 299792.47 / self.espresso_lsf[1]
+        filename = self.folder + 'data/ESPRESSO/2023-02-20_ESPRESSO_S2D_LFC_FP_A.dat'
+        table = np.loadtxt(filename, usecols=(0, 1))
+        invalid = ~np.isfinite(table).all(axis=1) | (table[:, 1] <= 0)
+        if np.any(invalid):
+            raise ValueError(f'ESPRESSO width table has {invalid.sum()} invalid rows; supply a validated wavelength/FWHM table')
+        table = table[np.argsort(table[:, 0])]
+        if np.any(np.diff(table[:, 0]) <= 0):
+            raise ValueError('ESPRESSO width table has duplicate wavelengths; an order/slice calibration is required')
+        self.espresso_lsf = np.array([table[:, 0], 299792.47 / table[:, 1]])
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -8360,6 +8451,10 @@ class sviewer(QMainWindow):
 
         if self.fitResults is not None:
             self.fitResults.close()
+        if self.coverageComparison is not None:
+            self.coverageComparison.close()
+        self.coverageComparisonResults = []
+        self.coverageComparisonHistory = {}
 
         if self.photo is not None:
             for f in self.photo:
@@ -8490,7 +8585,7 @@ class sviewer(QMainWindow):
                             else:
                                 self.s[ind].set_resolution(float(d[i].split()[1]))
                                 self.s[ind].lsf_type = "gauss"
-                            
+
                         if 'lsf_type' in d[i]:
                             self.s[ind].lsf_type = d[i].split()[1]
 
@@ -9305,6 +9400,604 @@ class sviewer(QMainWindow):
         self.exportData = ExportDataWidget(self, 'export')
         self.exportData.show()
 
+
+    def exportCoverageBundle(self, filename, comparison_record=None):
+        """Write coverage profiles, comparison results, and a full-state .spv into one ZIP.
+        ``comparison_record`` names the comparison snapshot activated by the caller, if any."""
+        if not self.coverageComparisonResults:
+            raise ValueError(
+                'No Compare Coverage Models results are stored. Run Fit > Compare coverage models first.'
+            )
+        filename = os.path.abspath(str(filename))
+        if not filename.lower().endswith('.zip'):
+            filename += '.zip'
+        os.makedirs(os.path.dirname(filename) or '.', exist_ok=True)
+        archive_stem = os.path.splitext(os.path.basename(filename))[0]
+        if archive_stem.endswith('_coverage_bundle'):
+            bundle_stem = archive_stem[:-16]
+        else:
+            bundle_stem = archive_stem
+        bundle_stem = bundle_stem or 'spectro'
+
+        original_save_opt = list(self.save_opt)
+        original_work_folder = self.work_folder
+        original_filename_saved = self.options('filename_saved')
+        try:
+            with tempfile.TemporaryDirectory(prefix='spectro_coverage_bundle_') as tmp:
+                spv_path = os.path.join(tmp, bundle_stem + '.spv')
+                profile_path = os.path.join(tmp, bundle_stem + '_profiles.csv')
+                compare_path = os.path.join(tmp, bundle_stem + '_coverage_compare.csv')
+                manifest_path = os.path.join(tmp, bundle_stem + '_manifest.json')
+
+                # Self-contained .spv: 'others' includes regions, doublets and all line/tick entries;
+                # 'spectrum' embeds the data.
+                self.save_opt = [
+                    'spectrum', 'cont', 'points', 'fit', 'fit_results',
+                    'others', 'settings',
+                ]
+                self.saveFile(spv_path, save_name=True)
+                profile_outputs = self.exportCoverageProfiles(profile_path)
+                export_coverage_records_csv(self.coverageComparisonResults, compare_path)
+
+                # Profile JSONs should remain valid after the ZIP is moved/extracted.
+                with open(profile_outputs['config']) as fh:
+                    profile_config = json.load(fh)
+                profile_config['highres_csv'] = os.path.basename(profile_outputs['highres'])
+                with open(profile_outputs['config'], 'w') as fh:
+                    json.dump(profile_config, fh, indent=2)
+
+                with open(profile_outputs['metadata']) as fh:
+                    profile_meta = json.load(fh)
+                profile_meta['data_csv'] = os.path.basename(profile_outputs['data'])
+                profile_meta['highres_csv'] = os.path.basename(profile_outputs['highres'])
+                profile_meta['config_json'] = os.path.basename(profile_outputs['config'])
+                with open(profile_outputs['metadata'], 'w') as fh:
+                    json.dump(profile_meta, fh, indent=2)
+
+                audit = profile_meta.get('coverage_assignment_audit', {})
+                preferred = best_record(self.coverageComparisonResults, 'BIC')
+                manifest = {
+                    'format': 'spectro-coverage-bundle-v1',
+                    'created_local': time.strftime('%Y-%m-%dT%H:%M:%S'),
+                    'current_source_model': self.fit.source_model(),
+                    'current_coverage_mode': self.fit.coverage_model(),
+                    'current_coverage_topology': profile_meta.get('coverage_topology', 'current'),
+                    'coverage_assignment_audit': audit,
+                    'comparison_rows': len(self.coverageComparisonResults),
+                    'preferred_completed_BIC': (
+                        {
+                            'source': preferred.source,
+                            'mode': preferred.mode,
+                            'BIC': preferred.bic,
+                        } if preferred is not None else None
+                    ),
+                    'exported_comparison_snapshot': (
+                        {
+                            'source': comparison_record.source,
+                            'mode': comparison_record.mode,
+                            'topology': comparison_record.topology,
+                            'beta': comparison_record.beta,
+                            'R_lambda_ref_over_R_abs': comparison_record.r_ref,
+                            'R_half_ref_over_R_abs': getattr(comparison_record, 'r_half', float('nan')),
+                            'offset_over_R_abs': comparison_record.offset,
+                            'chi2': comparison_record.chi2,
+                            'BIC': comparison_record.bic,
+                        } if comparison_record is not None else None
+                    ),
+                    'files': {
+                        'spv': os.path.basename(spv_path),
+                        'profile_data': os.path.basename(profile_outputs['data']),
+                        'profile_highres': os.path.basename(profile_outputs['highres']),
+                        'profile_config': os.path.basename(profile_outputs['config']),
+                        'profile_metadata': os.path.basename(profile_outputs['metadata']),
+                        'coverage_compare': os.path.basename(compare_path),
+                    },
+                    'spv_note': 'Saved with spectrum, continuum, selected points, fit, fit results, other data, settings, and all current line/tick entries.',
+                }
+                with open(manifest_path, 'w') as fh:
+                    json.dump(manifest, fh, indent=2)
+
+                members = [
+                    spv_path, profile_outputs['data'], profile_outputs['highres'],
+                    profile_outputs['config'], profile_outputs['metadata'],
+                    compare_path, manifest_path,
+                ]
+                with zipfile.ZipFile(filename, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+                    for path in members:
+                        archive.write(path, arcname=os.path.basename(path))
+        finally:
+            self.save_opt = original_save_opt
+            self.work_folder = original_work_folder
+            self.options('work_folder', original_work_folder)
+            if original_filename_saved is not None:
+                self.options('filename_saved', original_filename_saved)
+
+        return {'archive': filename}
+
+
+    def exportCoverageProfiles(self, filename):
+        r"""Export each fitted window (pixels, ``use`` mask) with intrinsic optical depths ``tauK`` per system,
+        evaluated before source coverage and the LSF; ``lambda_src_A`` is in the observed frame (only ratios enter)."""
+        c_kms = 299792.458
+        s = self.s[self.s.ind]
+        if len(s.spec.x()) == 0:
+            raise ValueError('No active spectrum is loaded.')
+
+        fit_mask = np.asarray(s.fit_mask.x(), dtype=bool)
+        if fit_mask.size != len(s.spec.x()) or not np.any(fit_mask):
+            raise ValueError('No fitted pixels are selected. Select the line windows first.')
+        if len(self.fit.sys) < 1:
+            raise ValueError('The current fit contains no velocity systems.')
+
+        self.fit.update(redraw=False)
+        self.s.prepareFit(all=False)
+        fit_lines = list(getattr(s, 'fit_lines', []))
+        if not fit_lines:
+            raise ValueError('No absorption lines are active in the selected fit windows.')
+
+        s.calcFit(recalc=True, redraw=False)
+        x_high = np.asarray(s.fit.line.norm.x, dtype=float).copy()
+        model_final_high = np.asarray(s.fit.line.norm.y, dtype=float).copy()
+        if x_high.size == 0 or model_final_high.shape != x_high.shape:
+            raise ValueError('Spectro did not produce a high-resolution fit model.')
+
+        nsys_bridge = len(self.fit.sys)
+        active_lines_bridge = []
+        for line in fit_lines:
+            try:
+                sys_id = int(line.sys)
+            except Exception:
+                continue
+            prof = np.asarray(getattr(line, 'profile', []), dtype=float)
+            if 0 <= sys_id < nsys_bridge and prof.shape == x_high.shape:
+                active_lines_bridge.append(line)
+
+        total_high_dict, full_high_dict, region_high_dict = split_line_optical_depths(
+            x_high, active_lines_bridge, fit=self.fit
+        )
+        tau_high = np.zeros((nsys_bridge, x_high.size), dtype=float)
+        tau_full_high = np.zeros_like(tau_high)
+        tau_region_high = {
+            int(region): np.zeros_like(tau_high)
+            for region in range(int(getattr(self.fit, 'cf_num', 0)))
+        }
+        for k, arr in total_high_dict.items():
+            if 0 <= int(k) < nsys_bridge:
+                tau_high[int(k)] = np.maximum(np.asarray(arr, dtype=float), 0.0)
+        for k, arr in full_high_dict.items():
+            if 0 <= int(k) < nsys_bridge:
+                tau_full_high[int(k)] = np.maximum(np.asarray(arr, dtype=float), 0.0)
+        for region, by_system in region_high_dict.items():
+            tau_region_high.setdefault(int(region), np.zeros_like(tau_high))
+            for k, arr in by_system.items():
+                if 0 <= int(k) < nsys_bridge:
+                    tau_region_high[int(region)][int(k)] = np.maximum(np.asarray(arr, dtype=float), 0.0)
+
+        model_pre_lsf_high = np.asarray(
+            s._combine_line_profiles(x_high, active_lines_bridge), dtype=float
+        )
+        model_pre_lsf_channels_high = np.asarray(
+            combine_split_optical_depths(
+                x_high, total_high_dict, full_high_dict, region_high_dict, self.fit
+            ),
+            dtype=float,
+        )
+        channel_bridge_max = float(np.nanmax(np.abs(
+            model_pre_lsf_channels_high - model_pre_lsf_high
+        )))
+        model_post_lsf_raw_high = s.convolveInstrument(x_high, model_pre_lsf_high)
+
+        x_all = np.asarray(s.spec.x(), dtype=float)
+        y_all = np.asarray(s.spec.y(), dtype=float)
+        e_all = np.asarray(s.spec.err(), dtype=float)
+        pre_lsf_inter = interp1d(x_high, model_pre_lsf_high, bounds_error=False, fill_value=1.0)
+        post_lsf_raw_inter = interp1d(x_high, model_post_lsf_raw_high, bounds_error=False, fill_value=1.0)
+        model_pre_lsf_obs = np.asarray(pre_lsf_inter(x_all), dtype=float)
+        model_post_lsf_raw_obs = np.asarray(post_lsf_raw_inter(x_all), dtype=float)
+        model_final_obs = np.asarray(s.fit.line.norm.inter(x_all), dtype=float)
+        selected = np.flatnonzero(fit_mask)
+        if selected.size == 0:
+            raise ValueError('No fitted pixels are selected.')
+
+        finite_dx = np.diff(x_all[np.isfinite(x_all)])
+        finite_dx = finite_dx[finite_dx > 0]
+        dx_med = float(np.median(finite_dx)) if finite_dx.size else 0.05
+        gap_A = max(25.0 * dx_med, 1.0)
+        breaks = np.flatnonzero(np.diff(x_all[selected]) > gap_A) + 1
+        selected_groups = [g for g in np.split(selected, breaks) if g.size]
+
+        nsys = len(self.fit.sys)
+        records = []
+        windows_meta = []
+        all_window_lambdas = []
+
+        for iw, group in enumerate(selected_groups):
+            lo, hi = int(group[0]), int(group[-1])
+            inds = np.arange(lo, hi + 1, dtype=int)
+            x = x_all[inds]
+            tau_by_system = np.zeros((nsys, x.size), dtype=float)
+            tau_full_by_system = np.zeros_like(tau_by_system)
+            tau_region_by_system = {
+                int(region): np.zeros_like(tau_by_system)
+                for region in range(int(getattr(self.fit, 'cf_num', 0)))
+            }
+            line_strength = {}
+            line_profiles = {}
+
+            for line in fit_lines:
+                try:
+                    sys_id = int(line.sys)
+                except Exception:
+                    continue
+                if not 0 <= sys_id < nsys:
+                    continue
+                species = str(line.name).split()[0]
+                try:
+                    sys = self.fit.sys[sys_id]
+                    line.b = sys.sp[species].b.val
+                    line.logN = sys.sp[species].N.val
+                    line.z = sys.z.val
+                    line.tau = tau(line, resolution=s.resolution())
+                    prof = np.asarray(
+                        line.tau.calctau(
+                            x, vel=False, verbose=False, convolve=None,
+                            tlim=getattr(self, 'tau_limit', 0.01)
+                        ),
+                        dtype=float,
+                    )
+                except Exception:
+                    continue
+                if prof.shape != x.shape:
+                    continue
+                tau_by_system[sys_id] += prof
+                region_id = assigned_coverage_region(line, fit=self.fit)
+                if region_id is None:
+                    tau_full_by_system[sys_id] += prof
+                else:
+                    tau_region_by_system.setdefault(int(region_id), np.zeros_like(tau_by_system))
+                    tau_region_by_system[int(region_id)][sys_id] += prof
+                label = str(getattr(line, 'name', str(line)))
+                line_strength[label] = line_strength.get(label, 0.0) + float(np.nansum(prof))
+                if label not in line_profiles:
+                    line_profiles[label] = np.zeros_like(prof)
+                line_profiles[label] += prof
+
+            if line_strength:
+                top_label = max(line_strength, key=line_strength.get)
+                top_prof = line_profiles[top_label]
+                peak_index = int(np.nanargmax(top_prof)) if np.any(np.isfinite(top_prof)) else x.size // 2
+            else:
+                top_label = 'window_{:02d}'.format(iw)
+                peak_index = x.size // 2
+
+            lambda_eff = float(x[peak_index])
+            if not np.isfinite(lambda_eff) or lambda_eff <= 0:
+                lambda_eff = float(np.nanmedian(x))
+            all_window_lambdas.append(lambda_eff)
+            velocity = c_kms * (x / lambda_eff - 1.0)
+            safe_label = top_label.replace(',', '_').replace(' ', '_')
+            window_name = 'W{:02d}_{}'.format(iw, safe_label)
+
+            for j, ii in enumerate(inds):
+                row = {
+                    'line': window_name,
+                    'lambda_src_A': lambda_eff,
+                    'obs_wavelength_A': float(x[j]),
+                    'velocity_kms': float(velocity[j]),
+                    'flux': float(y_all[ii]),
+                    'sigma': float(e_all[ii]),
+                    'use': int(bool(fit_mask[ii])),
+                    'model_pre_lsf': float(model_pre_lsf_obs[ii]),
+                    'model_post_lsf_raw': float(model_post_lsf_raw_obs[ii]),
+                    'model_final_spectro': float(model_final_obs[ii]),
+                }
+                for k in range(nsys):
+                    row['tau{}'.format(k)] = float(max(tau_by_system[k, j], 0.0))
+                    row['tau_full_sys{}'.format(k)] = float(max(tau_full_by_system[k, j], 0.0))
+                    for region_id in sorted(tau_region_by_system):
+                        row['tau_lfr{}_sys{}'.format(region_id, k)] = float(
+                            max(tau_region_by_system[region_id][k, j], 0.0)
+                        )
+                records.append(row)
+
+            windows_meta.append({
+                'window': window_name,
+                'dominant_line': top_label,
+                'lambda_observed_equivalent_A': lambda_eff,
+                'left_A': float(x[0]),
+                'right_A': float(x[-1]),
+                'n_pixels_total': int(inds.size),
+                'n_pixels_fit': int(np.sum(fit_mask[inds])),
+            })
+
+        if not records:
+            raise ValueError('No coverage-profile rows could be constructed.')
+
+        out = os.path.abspath(filename)
+        base, _ = os.path.splitext(out)
+        cfg_path = base + '_config.json'
+        meta_path = base + '_meta.json'
+        highres_path = base + '_highres.csv'
+        os.makedirs(os.path.dirname(out) or '.', exist_ok=True)
+
+        coverage_region_ids = sorted(set(
+            list(range(int(getattr(self.fit, 'cf_num', 0))))
+            + [int(r) for r in tau_region_high.keys()]
+        ))
+        tau_total_fields = ['tau{}'.format(k) for k in range(nsys)]
+        tau_channel_fields = ['tau_full_sys{}'.format(k) for k in range(nsys)]
+        for region_id in coverage_region_ids:
+            tau_channel_fields.extend(
+                ['tau_lfr{}_sys{}'.format(region_id, k) for k in range(nsys)]
+            )
+        fieldnames = ['line', 'lambda_src_A', 'obs_wavelength_A', 'velocity_kms',
+                      'flux', 'sigma', 'use', 'model_pre_lsf',
+                      'model_post_lsf_raw', 'model_final_spectro'] + tau_total_fields + tau_channel_fields
+        pd.DataFrame.from_records(records, columns=fieldnames).to_csv(out, index=False)
+
+        try:
+            resolution_bridge = float(s.resolution())
+        except Exception:
+            resolution_bridge = 0.0
+        fwhm_kms_bridge = c_kms / resolution_bridge if resolution_bridge > 0 else 0.0
+        high_records = []
+        for wm in windows_meta:
+            lam = float(wm['lambda_observed_equivalent_A'])
+            margin_A = max(1.0, 8.0 * lam * fwhm_kms_bridge / c_kms)
+            mh = (x_high >= float(wm['left_A']) - margin_A) & (x_high <= float(wm['right_A']) + margin_A)
+            inds_h = np.flatnonzero(mh)
+            for ih in inds_h:
+                row = {
+                    'line': wm['window'],
+                    'lambda_src_A': lam,
+                    'wavelength_A': float(x_high[ih]),
+                    'velocity_kms': float(c_kms * (x_high[ih] / lam - 1.0)),
+                    'model_pre_lsf': float(model_pre_lsf_high[ih]),
+                    'model_pre_lsf_from_channels': float(model_pre_lsf_channels_high[ih]),
+                    'model_post_lsf_raw': float(model_post_lsf_raw_high[ih]),
+                    'model_final_spectro': float(model_final_high[ih]),
+                }
+                for k in range(nsys):
+                    row['tau{}'.format(k)] = float(max(tau_high[k, ih], 0.0))
+                    row['tau_full_sys{}'.format(k)] = float(max(tau_full_high[k, ih], 0.0))
+                    for region_id in coverage_region_ids:
+                        arr = tau_region_high.get(int(region_id))
+                        value = 0.0 if arr is None else float(max(arr[k, ih], 0.0))
+                        row['tau_lfr{}_sys{}'.format(region_id, k)] = value
+                high_records.append(row)
+        high_fields = ['line', 'lambda_src_A', 'wavelength_A', 'velocity_kms',
+                       'model_pre_lsf', 'model_pre_lsf_from_channels',
+                       'model_post_lsf_raw', 'model_final_spectro'] + tau_total_fields + tau_channel_fields
+        pd.DataFrame.from_records(high_records, columns=high_fields).to_csv(highres_path, index=False)
+
+        system_meta = []
+        for k in range(nsys):
+            loga = None
+            if hasattr(self.fit, 'covasys_{}'.format(k)):
+                try:
+                    loga = float(self.fit.getValue('covasys_{}'.format(k)))
+                except Exception:
+                    loga = None
+            a_value = 10.0 ** loga if loga is not None else 1.0
+            sm = {'system': k, 'log10_a': loga, 'a': a_value}
+            try:
+                sm['z'] = float(self.fit.sys[k].z.val)
+            except Exception:
+                pass
+            sp_meta = {}
+            try:
+                for sp_name, sp in self.fit.sys[k].sp.items():
+                    sp_meta[str(sp_name)] = {
+                        'b': float(sp.b.val),
+                        'logN': float(sp.N.val),
+                    }
+            except Exception:
+                pass
+            sm['species'] = sp_meta
+            system_meta.append(sm)
+
+        coverage_regions_meta = []
+        for region_id in coverage_region_ids:
+            name = 'cf_{}'.format(region_id)
+            if not hasattr(self.fit, name):
+                continue
+            cfpar = getattr(self.fit, name)
+            entry = {
+                'region': int(region_id),
+                'left_A': None if getattr(cfpar, 'left', None) is None else float(cfpar.left),
+                'right_A': None if getattr(cfpar, 'right', None) is None else float(cfpar.right),
+                'assignment': str(getattr(cfpar, 'addinfo', 'all')),
+                'cf': float(self.fit.getValue(name)),
+            }
+            for prefix in ['cova', 'covd', 'covr', 'cov1', 'cov2', 'covov']:
+                pname = '{}_{}'.format(prefix, region_id)
+                if hasattr(self.fit, pname):
+                    try:
+                        entry[prefix] = float(self.fit.getValue(pname))
+                    except Exception:
+                        pass
+            coverage_regions_meta.append(entry)
+
+        lambda0 = float(np.exp(np.mean(np.log(np.asarray(all_window_lambdas, dtype=float)))))
+        try:
+            resolution = float(s.resolution())
+        except Exception:
+            resolution = 0.0
+        lsf_fwhm = c_kms / resolution if resolution > 0 else 0.0
+
+        config = {
+            'format': 'spectro-coverage-profile-config-v1',
+            'lambda0_A': lambda0,
+            'highres_csv': highres_path,
+            'spectro_coverage_mode': self.fit.coverage_model(),
+            'spectro_source_model': self.fit.source_model(),
+            'spectro_source_model_label': source_model_label(self.fit.source_model(), self.fit.srcbeta.val),
+            'source_profile_family': ('achromatic' if self.fit.source_model() == 'achromatic' else 'powerlaw_temperature_disk'),
+            'ss73_preset': bool(self.fit.source_model() == 'ss73' and np.isclose(float(self.fit.srcbeta.val), 0.75, rtol=0.0, atol=1e-12)),
+            'source_parameters': {
+                'beta': float(self.fit.srcbeta.val),
+                'R_ref_over_R_abs': float(self.fit.srcrref.val),
+                'R_lambda_ref_over_R_abs': float(self.fit.srcrref.val),
+                'R_half_ref_over_R_abs': (
+                    float(half_light_from_r_lambda(self.fit.srcrref.val, self.fit.srcbeta.val))
+                    if self.fit.source_model() == 'ss73' else None
+                ),
+                'lambda_ref_A': float(self.fit.srclref.val),
+                'beta_free': bool(self.fit.srcbeta.vary and self.fit.source_model() == 'ss73'),
+                'R_lambda_ref_free': bool(self.fit.srcrref.vary and self.fit.source_model() == 'ss73'),
+            },
+            'spectral_parameter_count': int(len(self.fit.list_fit())),
+            'lsf_fwhm_kms': lsf_fwhm,
+            'wavelength_frame': 'observed ratio-equivalent; beta uses only lambda/lambda0',
+            'systems': [
+                {'system': row['system'], 'log10_a': row['log10_a'], 'a': row['a']}
+                for row in system_meta
+            ],
+            'note': 'Disk geometry and absorber-map assumptions are intentionally not set here.',
+        }
+        with open(cfg_path, 'w') as fh:
+            json.dump(config, fh, indent=2)
+
+        valid_chi = fit_mask & np.isfinite(y_all) & np.isfinite(e_all) & (e_all > 0)
+        spectro_export_chi2 = float(np.sum(((y_all[valid_chi] - model_final_obs[valid_chi]) / e_all[valid_chi]) ** 2))
+        raw_vs_final_max = float(np.nanmax(np.abs(model_post_lsf_raw_high - model_final_high)))
+
+        coverage_audit = self.coverageAssignmentAudit(prepared=True)
+        topology_rows = coverage_audit.get('topology', [])
+        parsed_systems = []
+        for row in topology_rows:
+            try:
+                systems, _ = parse_coverage_assignment(row.get('assignment', 'all_all'))
+            except Exception:
+                systems = None
+            parsed_systems.append(systems)
+        if len(topology_rows) == 1 and parsed_systems == [None]:
+            coverage_topology = 'common'
+        elif (
+            len(topology_rows) == len(self.fit.sys)
+            and len(self.fit.sys) > 0
+            and sorted(s[0] for s in parsed_systems if s is not None and len(s) == 1)
+                == list(range(len(self.fit.sys)))
+            and all(s is not None and len(s) == 1 for s in parsed_systems)
+        ):
+            coverage_topology = 'by_system'
+        else:
+            coverage_topology = 'current/manual'
+
+        source_scale_diagnostic = None
+        if self.fit.source_model() == 'ss73' and windows_meta:
+            source = source_from_fit(self.fit)
+            observed_rep = np.asarray(
+                [row['lambda_observed_equivalent_A'] for row in windows_meta], dtype=float
+            )
+            source_rep, _ = source_wavelengths_from_observed(observed_rep, self.fit)
+            fractions = [
+                float(source.flux_fraction_inside_radius(1.0, wavelength))
+                for wavelength in source_rep
+            ]
+            source_scale_diagnostic = {
+                'quantity': 'circular source flux fraction inside R_abs=1',
+                'min': float(np.min(fractions)),
+                'max': float(np.max(fractions)),
+                'per_window': [
+                    {'window': windows_meta[i]['window'], 'fraction': fractions[i]}
+                    for i in range(len(fractions))
+                ],
+                'warning': (
+                    'The power-law disk result is strongly dependent on source/absorber scale. '
+                    'Use R_half(lambda_ref)/R_abs for comparisons across beta; the legacy R_lambda scale '
+                    'does not represent the same half-light radius at different beta.'
+                    if min(fractions) < 0.9 else ''
+                ),
+            }
+
+        config['coverage_topology'] = coverage_topology
+        config['spatial_realization'] = (
+            'legacy analytic achromatic' if self.fit.source_model() == 'achromatic'
+            else spatial_realization_label(self.fit.coverage_model())
+        )
+        config['note'] = (
+            'Spectro source/coverage state is recorded here; source and absorber geometry follow the selected covering model.'
+        )
+        with open(cfg_path, 'w') as fh:
+            json.dump(config, fh, indent=2)
+
+        metadata = {
+            'format': 'spectro-coverage-profiles-v1',
+            'data_csv': out,
+            'highres_csv': highres_path,
+            'config_json': cfg_path,
+            'exposure_index': int(self.s.ind),
+            'resolution_R': resolution,
+            'lsf_fwhm_kms': lsf_fwhm,
+            'tau_stage': 'intrinsic pre-coverage pre-LSF',
+            'coverage_mode': self.fit.coverage_model(),
+            'coverage_topology': coverage_topology,
+            'source_model': self.fit.source_model(),
+            'source_model_label': source_model_label(self.fit.source_model(), self.fit.srcbeta.val),
+            'source_profile_family': ('achromatic' if self.fit.source_model() == 'achromatic' else 'powerlaw_temperature_disk'),
+            'ss73_preset': bool(self.fit.source_model() == 'ss73' and np.isclose(float(self.fit.srcbeta.val), 0.75, rtol=0.0, atol=1e-12)),
+            'source_parameters': {
+                'beta': float(self.fit.srcbeta.val),
+                'R_ref_over_R_abs': float(self.fit.srcrref.val),
+                'R_lambda_ref_over_R_abs': float(self.fit.srcrref.val),
+                'R_half_ref_over_R_abs': (
+                    float(half_light_from_r_lambda(self.fit.srcrref.val, self.fit.srcbeta.val))
+                    if self.fit.source_model() == 'ss73' else None
+                ),
+                'lambda_ref_A': float(self.fit.srclref.val),
+                'wavelength_frame': 'absorber-rest ratio proxy; common redshift factors cancel',
+                'spatial_realization': (
+                    'legacy analytic achromatic' if self.fit.source_model() == 'achromatic'
+                    else spatial_realization_label(self.fit.coverage_model())
+                ),
+            },
+            'spectral_parameter_count': int(len(self.fit.list_fit())),
+            'coverage_regions': coverage_regions_meta,
+            'coverage_assignment_audit': coverage_audit,
+            'source_scale_diagnostic': source_scale_diagnostic,
+            'tau_channels': {
+                'tauK': 'total intrinsic opacity of system K from all active transitions',
+                'tau_full_sysK': 'system-K opacity treated as homogeneous full coverage in legacy LFR semantics',
+                'tau_lfrR_sysK': 'system-K opacity assigned to LFR/coverage region R',
+            },
+            'global_system_xpl_semantics': (
+                'For mode powerlaw_sysa_global, LFR channels are ignored in the forward model: '
+                'all active transition opacity is summed per system before applying one x-PL exponent a_k; Cf=1.'
+            ),
+            'bridge_stages': {
+                'model_pre_lsf': 'after nonlinear coverage transform, before instrumental LSF',
+                'model_post_lsf_raw': 'after Spectro direct LSF convolution, before optional continuum/dispersion/telluric modifiers',
+                'model_final_spectro': 'final Spectro model on its adaptive grid / sampled at observed pixels',
+            },
+            'spectro_export_chi2': spectro_export_chi2,
+            'highres_grid_points_total': int(x_high.size),
+            'highres_rows_written': int(len(high_records)),
+            'max_abs_raw_post_lsf_minus_final_highres': raw_vs_final_max,
+            'max_abs_channel_reconstruction_minus_pre_lsf_highres': channel_bridge_max,
+            'wavelength_note': (
+                'lambda_src_A currently contains observed-frame representative wavelengths. '
+                'A common redshift factor cancels from lambda/lambda0 and therefore from beta; '
+                'replace both consistently by source-rest wavelengths for physical-radius work.'
+            ),
+            'n_systems': nsys,
+            'n_windows': len(windows_meta),
+            'n_fit_pixels': int(np.sum(fit_mask)),
+            'windows': windows_meta,
+            'systems': system_meta,
+        }
+        with open(meta_path, 'w') as fh:
+            json.dump(metadata, fh, indent=2)
+
+        return {
+            'data': out,
+            'config': cfg_path,
+            'metadata': meta_path,
+            'highres': highres_path,
+            'n_windows': len(windows_meta),
+            'n_fit_pixels': int(np.sum(fit_mask)),
+        }
+
     def showExportSettingsDialog(self):
 
         fname = QFileDialog.getSaveFileName(self, 'Export settings', self.work_folder +  "/config.ini", "Config Files (*.ini)")
@@ -9464,10 +10157,38 @@ class sviewer(QMainWindow):
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
+    def _showToolWindow(self, widget):
+        """Show a tool window unmaximized, sized to fit the available screen."""
+        if widget is None:
+            return
+        widget.showNormal()
+        widget.adjustSize()
+        screen = widget.screen() if hasattr(widget, 'screen') else None
+        if screen is None:
+            screen = QApplication.primaryScreen()
+        if screen is not None:
+            available = screen.availableGeometry()
+            hint = widget.sizeHint()
+            current = widget.size()
+            wanted_w = max(hint.width(), current.width(), 640)
+            wanted_h = max(hint.height(), current.height(), 480)
+            max_w = max(640, int(available.width() * 0.92))
+            max_h = max(480, int(available.height() * 0.90))
+            width = min(wanted_w, max_w)
+            height = min(wanted_h, max_h)
+            widget.resize(width, height)
+            widget.move(
+                available.x() + max(0, (available.width() - width) // 2),
+                available.y() + max(0, (available.height() - height) // 2),
+            )
+        widget.show()
+        widget.raise_()
+        widget.activateWindow()
+
     def showExpList(self):
         if self.exp is None:
             self.exp = expTableWidget(self)
-            self.exp.show()
+            self._showToolWindow(self.exp)
         else:
             self.exp.close()
 
@@ -9518,6 +10239,7 @@ class sviewer(QMainWindow):
     def showPreferences(self):
         if self.preferences is None:
             self.preferences = preferencesWidget(self)
+            self._showToolWindow(self.preferences)
         else:
             self.preferences.close()
 
@@ -9525,7 +10247,7 @@ class sviewer(QMainWindow):
         if self.showlines is None:
             self.showlines = showLinesWidget(self)
             if show:
-                self.showlines.show()
+                self._showToolWindow(self.showlines)
         else:
             self.showlines.close()
 
@@ -9638,11 +10360,13 @@ class sviewer(QMainWindow):
                 self.abs.redraw()
             except:
                 pass
+            if self.bfLinesOpen():
+                self.bfLines.refresh()
 
     def setFitModel(self):
         if self.fitModel is None:
             self.fitModel = fitModelWidget(self)
-            self.fitModel.show()
+            self._showToolWindow(self.fitModel)
         else:
             self.fitModel.close()
 
@@ -9837,6 +10561,8 @@ class sviewer(QMainWindow):
         pass
 
     def fitJulia_parall(self, **kwargs):
+        self.fit.checkJulia()
+        self.fit.checkJuliaFit()
         # Pass the function to execute
         #self.thread_id += 1
         worker = Worker(self.execute_fit_in_parallel,
@@ -9862,6 +10588,8 @@ class sviewer(QMainWindow):
         self.threadpool.start(worker)
 
     def fitJulia(self, **kwargs):
+        self.fit.checkJulia()
+        self.fit.checkJuliaFit()
 
         #self.reload_julia()
         self.s.prepareFit(all=False)
@@ -9893,26 +10621,580 @@ class sviewer(QMainWindow):
 
         self.showFit(all=False)
 
-    def fitAbs(self, timer=True, redraw=True):
-        t = Timer(verbose=True) if 1 else False
+    def fitAbs(
+        self,
+        timer=True,
+        redraw=True,
+        return_result=False,
+        quiet=False,
+        progress_label=None,
+        progress_every=25,
+        stagnation_patience=None,
+        stagnation_rel_tol=1e-5,
+        stagnation_abs_tol=0.0,
+        stagnation_min_evals=75,
+        profile_detailed=False,
+        profile_every=None,
+        profile_slow_seconds=5.0,
+        profile_top_lines=3,
+        timeout_seconds=None,
+    ):
+        if self.fit.coverage_model() == 'powerlaw_sysa_global' and (
+            not self.fit.cf_fit or self.fit.cf_num == 0
+        ):
+            self.configureCoverageLFRs('common', reset_vary=True)
+        topology = 'current'
+        try:
+            if self.fitModel is not None:
+                topology = self.fitModel.inferCoverageTopology()
+        except Exception:
+            pass
+        if topology in {'common', 'by system'}:
+            self.configureCoverageLFRs(topology.replace(' ', '_'), reset_vary=False)
+        else:
+            sync_single_coverage_region_to_fit(self)
+        if not quiet and self.fit.cf_fit and self.fit.coverage_model() not in {
+            'full', 'powerlaw_sysa_global'
+        }:
+            audit = self.coverageAssignmentAudit()
+            if audit['unassigned']:
+                names = ', '.join(audit['unassigned'][:5])
+                if len(audit['unassigned']) > 5:
+                    names += ', ...'
+                self.sendMessage(
+                    f"Coverage warning: {len(audit['unassigned'])} fitted line/system entries "
+                    f"are outside the active LFR assignment and use full coverage: {names}"
+                )
+        if not quiet:
+            self.coverageComparisonResults = []
+            if self.coverageComparison is not None:
+                self.coverageComparison.close()
+        t = Timer(verbose=True)
+
+        progress_state = {
+            "eval": 0,
+            "best_chi2": np.inf,
+            "best_params": None,
+            "best_history": [],
+            "early_stopped": False,
+            "early_stop_reported": False,
+            "timed_out": False,
+            "timeout_reported": False,
+            "started": time.perf_counter(),
+            "last_print": 0.0,
+            "profile_records": [],
+            "last_residual": None,
+        }
+        try:
+            initial_residual = np.asarray(self.s.chi(), dtype=float)
+            if initial_residual.size:
+                progress_state["last_residual"] = initial_residual.copy()
+        except Exception:
+            pass
+        comparison_deadline = (
+            progress_state["started"] + float(timeout_seconds)
+            if timeout_seconds is not None else None
+        )
+        self.fit._comparison_deadline = comparison_deadline
+
+        def mark_timeout():
+            progress_state["timed_out"] = True
+            if progress_label and not progress_state["timeout_reported"]:
+                progress_state["timeout_reported"] = True
+                elapsed = time.perf_counter() - progress_state["started"]
+                print(
+                    f"[fit] TIMEOUT {progress_label} | "
+                    f"elapsed={elapsed/60.0:.1f} min; best evaluated parameters will be retained",
+                    flush=True,
+                )
+
+        def timeout_residual():
+            last = progress_state.get("last_residual")
+            if last is not None and np.asarray(last).size:
+                return np.asarray(last, dtype=float).copy()
+            try:
+                current = np.asarray(self.s.chi(), dtype=float)
+                if current.size:
+                    return current
+            except Exception:
+                pass
+            return np.array([1e12], dtype=float)
+
+        if progress_label:
+            print(
+                f"[fit] START {progress_label} | "
+                f"free parameters={len(self.fit.list_fit())}",
+                flush=True,
+            )
+
+        def progress_parameter_text():
+            """Compact coverage-parameter snapshot for terminal diagnostics."""
+            bits = []
+            for par in self.fit.list_fit():
+                name = str(par)
+                if not name.startswith(("cf_", "cova_", "covd_", "covasys_", "covr_", "cov1_", "cov2_", "covov_")):
+                    continue
+                try:
+                    value = float(par.val)
+                except Exception:
+                    continue
+                bits.append(f"{name}={value:.5g}")
+                if name.startswith("cova_"):
+                    try:
+                        bits.append(f"a={10.0**value:.5g}")
+                    except Exception:
+                        pass
+            return " ".join(bits)
+
+        def _profile_seconds(value):
+            try:
+                return f"{float(value):.4f}s"
+            except Exception:
+                return "n/a"
+
+        def print_profile_eval(record, reason="scheduled"):
+            """Print one detailed objective-evaluation timing breakdown."""
+            if not profile_detailed or record is None:
+                return
+            stages = record.get("stages", {})
+            total = float(stages.get("total", 0.0))
+            print(
+                f"[profile] BEGIN {progress_label} | eval={record.get('eval')} "
+                f"reason={reason} total={total:.4f}s",
+                flush=True,
+            )
+            order = (
+                ("parameter_sync", "params"),
+                ("fit_update", "fit.update"),
+                ("prepare_fit", "prepareFit"),
+                ("calc_fit", "calcFit"),
+                ("residual", "chi"),
+            )
+            text = " ".join(
+                f"{label}={_profile_seconds(stages.get(key, 0.0))}"
+                for key, label in order
+            )
+            print(f"[profile] objective | {text}", flush=True)
+            manager = record.get("prepareFit_manager", {})
+            if manager:
+                print(
+                    f"[profile] prepareFit manager | "
+                    f"fit.update={_profile_seconds(manager.get('fit_update_seconds', 0.0))} "
+                    f"find-lines dispatch={_profile_seconds(manager.get('find_lines_dispatch_seconds', 0.0))}",
+                    flush=True,
+                )
+
+            top_n = max(0, int(profile_top_lines))
+            for exp_index in sorted(record.get("spectra", {})):
+                exp = record["spectra"][exp_index]
+                find = exp.get("findFitLines", {})
+                calc = exp.get("calcFit", {})
+                print(
+                    f"[profile] exp={exp_index} | fitted_pixels={find.get('fitted_pixels', 0)} "
+                    f"candidate_lines={find.get('candidate_lines', 0)} "
+                    f"selected_lines={find.get('selected_lines', calc.get('active_lines', 0))} "
+                    f"grid_points={calc.get('grid_points', 0)} "
+                    f"resolution={calc.get('resolution', 'n/a')}",
+                    flush=True,
+                )
+                if find:
+                    print(
+                        f"[profile] exp={exp_index} prepare | "
+                        f"findFitLines={_profile_seconds(find.get('total_seconds', 0.0))} "
+                        f"tau_range={_profile_seconds(find.get('range_seconds', 0.0))} "
+                        f"LFR_assign={_profile_seconds(find.get('coverage_assignment_seconds', 0.0))} "
+                        f"pixel_test={_profile_seconds(find.get('selection_seconds', 0.0))}",
+                        flush=True,
+                    )
+                if calc:
+                    calc_order = (
+                        ("tau_setup_seconds", "tau_setup"),
+                        ("grid_mask_seconds", "grid_mask"),
+                        ("makegrid_seconds", "makegrid"),
+                        ("calctau_seconds", "calctau"),
+                        ("coverage_seconds", "coverage"),
+                        ("convolution_seconds", "convolve"),
+                        ("continuum_seconds", "continuum"),
+                        ("dispersion_seconds", "dispersion"),
+                        ("telluric_seconds", "telluric"),
+                        ("set_fit_seconds", "set_fit"),
+                    )
+                    calc_text = " ".join(
+                        f"{label}={_profile_seconds(calc.get(key, 0.0))}"
+                        for key, label in calc_order
+                    )
+                    print(
+                        f"[profile] exp={exp_index} calc | total={_profile_seconds(calc.get('total_seconds', 0.0))} "
+                        f"{calc_text}",
+                        flush=True,
+                    )
+                    print(
+                        f"[profile] exp={exp_index} counts | "
+                        f"tau_setup={calc.get('n_tau_setup', 0)} "
+                        f"calctau={calc.get('n_calctau', 0)} "
+                        f"active_lines={calc.get('active_lines', 0)}",
+                        flush=True,
+                    )
+
+                    regions = calc.get("coverage_regions", [])
+                    if regions:
+                        print(
+                            f"[profile] exp={exp_index} coverage grouping | "
+                            f"grouping={_profile_seconds(calc.get('coverage_grouping_seconds', 0.0))} "
+                            f"total={_profile_seconds(calc.get('coverage_total_seconds', calc.get('coverage_seconds', 0.0)))} "
+                            f"regions={len(regions)}",
+                            flush=True,
+                        )
+                    for region in regions:
+                        print(
+                            f"[profile] exp={exp_index} region={region.get('region')} | "
+                            f"mode={region.get('mode')} systems={region.get('systems')} "
+                            f"points={region.get('n_points')} "
+                            f"transmission={_profile_seconds(region.get('total_seconds', 0.0))}",
+                            flush=True,
+                        )
+                        for moment in region.get("powerlaw_moments", []):
+                            print(
+                                f"[profile] exp={exp_index} region={region.get('region')} "
+                                f"{moment.get('label')} | a={moment.get('a', float('nan')):.6g} "
+                                f"shape={moment.get('shape', float('nan')):.6g} "
+                                f"tau=[{moment.get('tau_min', float('nan')):.3g},"
+                                f"{moment.get('tau_max', float('nan')):.3g}] "
+                                f"n={moment.get('n_points', 0)} "
+                                f"gamma={_profile_seconds(moment.get('gamma_seconds', 0.0))} "
+                                f"hyp1f1={_profile_seconds(moment.get('hyp_seconds', 0.0))}"
+                                f"(n={moment.get('n_hyp_rescue', 0)}) "
+                                f"quad={_profile_seconds(moment.get('quadrature_seconds', 0.0))}"
+                                f"(n={moment.get('n_quad_fallback', 0)}) "
+                                f"total={_profile_seconds(moment.get('total_seconds', 0.0))}",
+                                flush=True,
+                            )
+
+                    if top_n:
+                        for key, title in (
+                            ("slow_range_lines", "tau-range"),
+                            ("slow_tau_setup_lines", "tau-setup"),
+                            ("slow_grid_lines", "grid"),
+                            ("slow_calctau_lines", "calctau"),
+                        ):
+                            rows = find.get(key, []) if key == "slow_range_lines" else calc.get(key, [])
+                            for row in rows[:top_n]:
+                                if float(row.get("seconds", 0.0)) <= 0.001:
+                                    continue
+                                print(
+                                    f"[profile] exp={exp_index} slow-{title} | "
+                                    f"{row.get('seconds', 0.0):.4f}s "
+                                    f"sys{row.get('system')} {row.get('line')}",
+                                    flush=True,
+                                )
+            print(f"[profile] END   {progress_label} | eval={record.get('eval')}", flush=True)
+
+        def print_profile_summary():
+            """Aggregate profiler records over the whole optimizer run."""
+            records = progress_state.get("profile_records", [])
+            if not profile_detailed or not records:
+                return
+            n = len(records)
+            total_objective = sum(float(r.get("stages", {}).get("total", 0.0)) for r in records)
+            max_record = max(records, key=lambda r: float(r.get("stages", {}).get("total", 0.0)))
+            print(
+                f"[profile-summary] {progress_label} | evaluations={n} "
+                f"objective_total={total_objective:.3f}s "
+                f"mean={total_objective/max(n,1):.3f}s "
+                f"max={float(max_record.get('stages', {}).get('total', 0.0)):.3f}s"
+                f"@eval{max_record.get('eval')}",
+                flush=True,
+            )
+            stage_names = (
+                ("parameter_sync", "params"),
+                ("fit_update", "fit.update"),
+                ("prepare_fit", "prepareFit"),
+                ("calc_fit", "calcFit"),
+                ("residual", "chi"),
+            )
+            parts = []
+            for key, label in stage_names:
+                value = sum(float(r.get("stages", {}).get(key, 0.0)) for r in records)
+                pct = 100.0 * value / total_objective if total_objective > 0 else 0.0
+                parts.append(f"{label}={value:.3f}s({pct:.1f}%)")
+            print("[profile-summary] objective | " + " ".join(parts), flush=True)
+
+            calc_keys = (
+                ("tau_setup_seconds", "tau_setup"),
+                ("grid_mask_seconds", "grid_mask"),
+                ("makegrid_seconds", "makegrid"),
+                ("calctau_seconds", "calctau"),
+                ("coverage_seconds", "coverage"),
+                ("convolution_seconds", "convolve"),
+                ("continuum_seconds", "continuum"),
+                ("dispersion_seconds", "dispersion"),
+                ("telluric_seconds", "telluric"),
+                ("set_fit_seconds", "set_fit"),
+            )
+            calc_totals = {key: 0.0 for key, _ in calc_keys}
+            prepare_manager_update = 0.0
+            prepare_manager_dispatch = 0.0
+            find_total = 0.0
+            find_range = 0.0
+            gamma_total = hyp_total = quad_total = 0.0
+            hyp_count = quad_count = 0
+            tau_setup_count = tau_shape_reuse_count = 0
+            calctau_count = profile_rescale_count = 0
+            lsf_cache_hits = lsf_operator_builds = 0
+            lsf_operator_build_seconds = 0.0
+            partial_refresh_evals = fast_intrinsic_evals = 0
+            for record in records:
+                partial_refresh_evals += int(bool(record.get('partial_transition_refresh', False)))
+                fast_intrinsic_evals += int(bool(record.get('intrinsic_reuse_fastpath', False)))
+                manager = record.get("prepareFit_manager", {})
+                prepare_manager_update += float(manager.get("fit_update_seconds", 0.0))
+                prepare_manager_dispatch += float(manager.get("find_lines_dispatch_seconds", 0.0))
+                for exp in record.get("spectra", {}).values():
+                    find = exp.get("findFitLines", {})
+                    find_total += float(find.get("total_seconds", 0.0))
+                    find_range += float(find.get("range_seconds", 0.0))
+                    calc = exp.get("calcFit", {})
+                    for key in calc_totals:
+                        calc_totals[key] += float(calc.get(key, 0.0))
+                    tau_setup_count += int(calc.get('n_tau_setup', 0))
+                    tau_shape_reuse_count += int(calc.get('n_tau_shape_reuse', 0))
+                    calctau_count += int(calc.get('n_calctau', 0))
+                    profile_rescale_count += int(calc.get('n_profile_rescale', 0))
+                    lsf_cache_hits += int(bool(calc.get('lsf_operator_cache_hit', False)))
+                    if float(calc.get('lsf_operator_build_seconds', 0.0)) > 0.0:
+                        lsf_operator_builds += 1
+                        lsf_operator_build_seconds += float(calc.get('lsf_operator_build_seconds', 0.0))
+                    for region in calc.get("coverage_regions", []):
+                        for moment in region.get("powerlaw_moments", []):
+                            gamma_total += float(moment.get("gamma_seconds", 0.0))
+                            hyp_total += float(moment.get("hyp_seconds", 0.0))
+                            quad_total += float(moment.get("quadrature_seconds", 0.0))
+                            hyp_count += int(moment.get("n_hyp_rescue", 0))
+                            quad_count += int(moment.get("n_quad_fallback", 0))
+            print(
+                f"[profile-summary] prepareFit internals | "
+                f"fit.update={prepare_manager_update:.3f}s "
+                f"dispatch={prepare_manager_dispatch:.3f}s "
+                f"findFitLines={find_total:.3f}s tau_range={find_range:.3f}s",
+                flush=True,
+            )
+            calc_sum = sum(calc_totals.values())
+            calc_parts = []
+            for key, label in calc_keys:
+                value = calc_totals[key]
+                pct = 100.0 * value / calc_sum if calc_sum > 0 else 0.0
+                calc_parts.append(f"{label}={value:.3f}s({pct:.1f}%)")
+            print("[profile-summary] calcFit internals | " + " ".join(calc_parts), flush=True)
+            print(
+                f"[profile-summary] reuse | intrinsic_fast={fast_intrinsic_evals}/{n} "
+                f"partial_transition_refresh={partial_refresh_evals}/{n} "
+                f"tau_shape_reuse={tau_shape_reuse_count}/{tau_setup_count} "
+                f"profile_rescale={profile_rescale_count} calctau={calctau_count} "
+                f"lsf_cache_hits={lsf_cache_hits} lsf_builds={lsf_operator_builds} "
+                f"lsf_build_time={lsf_operator_build_seconds:.3f}s",
+                flush=True,
+            )
+            print(
+                f"[profile-summary] powerlaw evaluator | gamma={gamma_total:.3f}s "
+                f"hyp1f1={hyp_total:.3f}s(rescued_points={hyp_count}) "
+                f"quadrature={quad_total:.3f}s(fallback_points={quad_count})",
+                flush=True,
+            )
+
+        fit_parameter_lookup = self.fit.pars()
+        # Ties and physical constraints can change parameters outside params.
+        dependent_parameters = bool(self.fit.tieds) or any(
+            sp.b.addinfo or sp.N.addinfo
+            for system in self.fit.sys for sp in system.sp.values()
+        )
+
+        def _decode_lmfit_name(name):
+            return str(name).replace('l4', '****').replace('l3', '***').replace('l2', '**').replace('l1', '*')
+
+        def _coverage_source_only(names):
+            """True when intrinsic Voigt profiles and their wavelength grid are unchanged."""
+            if not names:
+                return True
+            for name in names:
+                if name.startswith(('cf_', 'cova_', 'covd_', 'covasys_', 'covr_', 'cov1_', 'cov2_', 'covov_')):
+                    continue
+                if name in {'srcbeta', 'srcrref', 'srclref'}:
+                    continue
+                return False
+            return True
 
         def fcn2min(params):
+            eval_no = progress_state["eval"] + 1
+            objective_started = time.perf_counter()
+            if comparison_deadline is not None and objective_started >= comparison_deadline:
+                mark_timeout()
+                return timeout_residual()
+            profile_record = None
+            if profile_detailed and progress_label:
+                profile_record = {"eval": eval_no, "stages": {}, "spectra": {}}
+                self._fit_profile_eval = profile_record
+
+            stage_started = time.perf_counter()
+            current_values = {}
             for p in params:
-                name = params[p].name.replace('l4', '****').replace('l3', '***').replace('l2', '**').replace('l1', '*') #this line is added since lmfit doesn't recognize '*' mark\
-                self.fit.setValue(name, self.fit.pars()[name].ref(params[p].value))
+                name = _decode_lmfit_name(params[p].name)
+                current_values[name] = float(params[p].value)
+                self.fit.setValue(name, fit_parameter_lookup[name].ref(params[p].value))
+            previous_values = progress_state.get("last_param_values")
+            if previous_values is None:
+                changed_names = set(current_values)
+            else:
+                changed_names = {
+                    name for name, value in current_values.items()
+                    if name not in previous_values or not np.isclose(value, previous_values[name], rtol=0.0, atol=1e-14)
+                }
+            fast_intrinsic_reuse = bool(previous_values is not None and not dependent_parameters
+                                        and _coverage_source_only(changed_names))
+            if profile_record is not None:
+                profile_record["stages"]["parameter_sync"] = time.perf_counter() - stage_started
+                profile_record["intrinsic_reuse_fastpath"] = fast_intrinsic_reuse
+                profile_record["changed_parameters"] = sorted(changed_names)
+
+            stage_started = time.perf_counter()
             self.fit.update(redraw=False)
+            if profile_record is not None:
+                profile_record["stages"]["fit_update"] = time.perf_counter() - stage_started
             if timer:
                 t.time(None)
 
-            self.s.prepareFit(all=False)
-            self.s.calcFit(recalc=True, redraw=self.animateFit)
+            stage_started = time.perf_counter()
+            partial_intrinsic_reuse = False
+            if not fast_intrinsic_reuse:
+                if previous_values is not None and not dependent_parameters:
+                    try:
+                        partial_intrinsic_reuse = bool(
+                            self.s.prepareFitChanged(changed_names, all=False, update_fit=False)
+                        )
+                    except Exception:
+                        partial_intrinsic_reuse = False
+                if not partial_intrinsic_reuse:
+                    self.s.prepareFit(all=False, update_fit=False)
+            if profile_record is not None:
+                profile_record["stages"]["prepare_fit"] = time.perf_counter() - stage_started
+                profile_record["partial_transition_refresh"] = bool(partial_intrinsic_reuse)
+
+            stage_started = time.perf_counter()
+            try:
+                # Unchanged transitions keep their intrinsic profiles; calcFit
+                # recalculates them if the wavelength grid changes.
+                self.s.calcFit(recalc=False, redraw=self.animateFit)
+            except CoverageDeadlineExceeded:
+                if profile_record is not None:
+                    profile_record["stages"]["calc_fit"] = time.perf_counter() - stage_started
+                    profile_record["stages"]["total"] = time.perf_counter() - objective_started
+                    progress_state["profile_records"].append(profile_record)
+                    self._fit_profile_eval = None
+                mark_timeout()
+                return timeout_residual()
+            if profile_record is not None:
+                profile_record["stages"]["calc_fit"] = time.perf_counter() - stage_started
+            progress_state["last_param_values"] = current_values
 
             if timer:
                 tim = t.time('out')
                 if self.animateFit:
                     t.sleep(max(0, 0.02-tim))
 
-            return self.s.chi()
+            stage_started = time.perf_counter()
+            residual = np.asarray(self.s.chi(), dtype=float)
+            if profile_record is not None:
+                profile_record["stages"]["residual"] = time.perf_counter() - stage_started
+                profile_record["stages"]["total"] = time.perf_counter() - objective_started
+                progress_state["profile_records"].append(profile_record)
+                self._fit_profile_eval = None
+            progress_state["last_residual"] = residual.copy()
+            if progress_label:
+                progress_state["eval"] += 1
+                finite = residual[np.isfinite(residual)]
+                chi2_now = float(np.sum(finite**2)) if finite.size else np.nan
+                if np.isfinite(chi2_now) and chi2_now < progress_state["best_chi2"]:
+                    progress_state["best_chi2"] = chi2_now
+                    progress_state["best_params"] = {
+                        key: float(params[key].value) for key in params
+                    }
+                progress_state["best_history"].append(progress_state["best_chi2"])
+                elapsed = time.perf_counter() - progress_state["started"]
+                due_by_count = (
+                    progress_every is not None
+                    and int(progress_every) > 0
+                    and progress_state["eval"] % int(progress_every) == 0
+                )
+                due_by_time = elapsed - progress_state["last_print"] >= 30.0
+                if progress_state["eval"] == 1 or due_by_count or due_by_time:
+                    best = progress_state["best_chi2"]
+                    best_text = f"{best:.6g}" if np.isfinite(best) else "nan"
+                    now_text = f"{chi2_now:.6g}" if np.isfinite(chi2_now) else "nan"
+                    par_text = progress_parameter_text()
+                    suffix = f" | {par_text}" if par_text else ""
+                    print(
+                        f"[fit] {progress_label} | eval={progress_state['eval']} "
+                        f"chi2={now_text} best={best_text} "
+                        f"elapsed={elapsed/60.0:.1f} min{suffix}",
+                        flush=True,
+                    )
+                    progress_state["last_print"] = elapsed
+
+                if profile_record is not None:
+                    detailed_every = profile_every if profile_every is not None else progress_every
+                    due_profile_count = (
+                        detailed_every is not None
+                        and int(detailed_every) > 0
+                        and progress_state["eval"] % int(detailed_every) == 0
+                    )
+                    slow_eval = float(profile_record["stages"].get("total", 0.0)) >= float(profile_slow_seconds)
+                    if progress_state["eval"] == 1 or due_profile_count or due_by_time or slow_eval:
+                        reason = "slow" if slow_eval and not (progress_state["eval"] == 1 or due_profile_count or due_by_time) else "scheduled"
+                        print_profile_eval(profile_record, reason=reason)
+
+            return residual
+
+        def comparison_iter_cb(params, iteration, resid, *args, **kwargs):
+            """Abort comparison fits on the per-model deadline or a chi2 plateau."""
+            elapsed = time.perf_counter() - progress_state["started"]
+            if timeout_seconds is not None and elapsed >= float(timeout_seconds):
+                mark_timeout()
+                return True
+
+            if stagnation_patience is None:
+                return False
+            if progress_state["early_stopped"]:
+                return True
+
+            patience = max(1, int(stagnation_patience))
+            if progress_state["eval"] < int(stagnation_min_evals):
+                return False
+            history = progress_state["best_history"]
+            if len(history) <= patience:
+                return False
+
+            old_best = float(history[-patience - 1])
+            best = float(history[-1])
+            if not (np.isfinite(old_best) and np.isfinite(best)):
+                return False
+            improvement = old_best - best
+            threshold = max(
+                float(stagnation_abs_tol),
+                float(stagnation_rel_tol) * max(abs(best), 1.0),
+            )
+            if improvement > threshold:
+                return False
+
+            progress_state["early_stopped"] = True
+            if progress_label and not progress_state["early_stop_reported"]:
+                progress_state["early_stop_reported"] = True
+                print(
+                    f"[fit] EARLY STOP {progress_label} | "
+                    f"best chi2 changed by {improvement:.6g} over the last "
+                    f"{patience} evaluations (threshold={threshold:.6g}); "
+                    f"best={best:.6g}",
+                    flush=True,
+                )
+            return True
 
         # create a set of Parameters
         params = Parameters()
@@ -9927,24 +11209,62 @@ class sviewer(QMainWindow):
             params.add(p, value=value, min=pmin, max=pmax)
 
         # do fit, here with leastsq model
-        minner = Minimizer(fcn2min, params,  nan_policy='propagate', calc_covar=True)
-        #kws = {'options': {'maxiter': 2000}}
-        if 0:
-            chi0 = fcn2min(params)
-            print('chi0', np.sum(chi0**2))
-            for p in params.keys():
-                params[p].value += (params[p].max - params[p].min) / 1000
-                chi = fcn2min(params)
-                print(p, (params[p].max - params[p].min) / 1000, np.sum(chi**2))
-                if np.allclose(chi0, chi):
-                    print('not shifted', p)
+        minner = Minimizer(
+            fcn2min,
+            params,
+            nan_policy='propagate',
+            calc_covar=True,
+            iter_cb=comparison_iter_cb if (stagnation_patience is not None or timeout_seconds is not None) else None,
+        )
+        try:
+            result = minner.minimize(method=self.fit_method)
+        finally:
+            self.fit._comparison_deadline = None
+        print_profile_summary()
 
-        result = minner.minimize(method=self.fit_method)
+        if hasattr(self, '_fit_profile_eval'):
+            self._fit_profile_eval = None
 
-        print(result.message)
-        self.console.set(result.message)
-        print(dir(result))
-        print(vars(result))
+        # leastsq can return a final vector worse than an earlier trial, so labelled
+        # comparison fits restore the best evaluated point before statistics are recomputed.
+        restore_best = bool(progress_label) and bool(progress_state["best_params"])
+        if restore_best:
+            for key, value in progress_state["best_params"].items():
+                if key in result.params:
+                    result.params[key].value = value
+            message = str(getattr(result, "message", ""))
+            if progress_state["timed_out"]:
+                result.success = False
+                result.aborted = True
+                result.timed_out = True
+                note = "comparison timed out; best evaluated parameters restored for diagnostics"
+            elif progress_state["early_stopped"]:
+                result.success = True
+                result.aborted = False
+                result.timed_out = False
+                note = "comparison stopped after chi2 plateau; best evaluated parameters restored"
+            else:
+                result.timed_out = False
+                note = "best evaluated comparison parameters restored"
+            result.message = f"{message}; {note}" if message else note
+        else:
+            result.timed_out = bool(progress_state["timed_out"])
+
+        if progress_label:
+            elapsed = time.perf_counter() - progress_state["started"]
+            nfev = int(getattr(result, "nfev", progress_state["eval"]))
+            best = progress_state["best_chi2"]
+            best_text = f"{best:.6g}" if np.isfinite(best) else "nan"
+            print(
+                f"[fit] END   {progress_label} | nfev={nfev} "
+                f"best_chi2={best_text} elapsed={elapsed/60.0:.1f} min "
+                f"success={bool(getattr(result, 'success', True))}",
+                flush=True,
+            )
+
+        if not quiet:
+            print(result.message)
+            self.console.set(result.message)
         # calculate final result
         #print(result.success, result.var_names, result.params, result.covar, result.errorbars, result.message)
         #final = data + result.residual
@@ -9954,22 +11274,257 @@ class sviewer(QMainWindow):
         #ci = conf_interval(minner, result)
         #printfuncs.report_ci(ci)
 
-        self.showFit(all=False)
+        self.fit.fromLMfit(result, quiet=quiet)
 
-        self.fit.fromLMfit(result)
+        if redraw:
+            self.showFit(all=False)
+        else:
+            self.fit.update(redraw=False)
+            self.s.prepareFit(all=False, update_fit=False)
+            self.s.calcFit(recalc=True, redraw=False)
 
-        if not self.blindMode:
+        # Fill fit statistics missing from aborted leastsq results (fit_report needs them).
+        residual_for_stats = np.asarray(getattr(result, 'residual', []), dtype=float).ravel()
+        residual_for_stats = residual_for_stats[np.isfinite(residual_for_stats)]
+        if not hasattr(result, 'ndata'):
+            result.ndata = int(residual_for_stats.size)
+        if not hasattr(result, 'nvarys'):
+            result.nvarys = int(len(getattr(result, 'var_names', []) or []))
+        if not hasattr(result, 'nfree'):
+            result.nfree = int(max(int(result.ndata) - int(result.nvarys), 0))
+        if not hasattr(result, 'chisqr'):
+            result.chisqr = float(np.sum(residual_for_stats ** 2)) if residual_for_stats.size else float('nan')
+        if not hasattr(result, 'redchi'):
+            result.redchi = (
+                float(result.chisqr) / float(result.nfree)
+                if int(result.nfree) > 0 and np.isfinite(result.chisqr) else float('nan')
+            )
+        if not hasattr(result, 'aic'):
+            result.aic = float(result.chisqr + 2.0 * result.nvarys) if np.isfinite(result.chisqr) else float('nan')
+        if not hasattr(result, 'bic'):
+            result.bic = (
+                float(result.chisqr + result.nvarys * np.log(max(int(result.ndata), 1)))
+                if np.isfinite(result.chisqr) else float('nan')
+            )
+
+        report = fit_report(result)
+        if not self.blindMode and not quiet:
             report_fit(result)
-            self.console.set(fit_report(result))
+            self.console.set(report)
 
-        return fit_report(result)
+        return result if return_result else report
+
+    def configureCoverageLFRs(self, topology='common', reset_vary=False):
+        had_fit_model = self.fitModel is not None
+        topology = str(topology).lower().replace(' ', '_')
+        if topology in {'current', 'manual'}:
+            return self.coverageAssignmentAudit()
+        if topology not in {'common', 'by_system'}:
+            raise ValueError("Coverage topology must be 'common', 'by_system', or 'current'.")
+        if topology == 'by_system' and not self.fit.sys:
+            raise ValueError('No absorption systems are present.')
+
+        bounds = selected_fit_wavelength_bounds(self.s)
+        if bounds is None:
+            raise ValueError('No selected fit pixels were found for automatic LFR setup.')
+        left, right = bounds
+        pad = max((right - left) * 2e-6, 1e-6)
+        left -= pad
+        right += pad
+
+        old = []
+        for i in range(self.fit.cf_num):
+            if not hasattr(self.fit, f'cf_{i}'):
+                continue
+            row = {'assignment': self.fit.getValue(f'cf_{i}', 'addinfo')}
+            for prefix in ('cf', 'cova', 'covd', 'covr', 'cov1', 'cov2', 'covov'):
+                name = f'{prefix}_{i}'
+                if hasattr(self.fit, name):
+                    row[prefix] = float(self.fit.getValue(name))
+            old.append(row)
+
+        n = 1 if topology == 'common' else max(1, len(self.fit.sys))
+        while len(self.plot.pcRegions) > n:
+            self.plot.remove_pcRegion(len(self.plot.pcRegions) - 1)
+        while len(self.plot.pcRegions) < n:
+            self.plot.add_pcRegion(float(left), float(right))
+
+        for i in range(n):
+            systems = None if topology == 'common' else [i]
+            assignment = format_coverage_assignment(systems, None)
+            cf = getattr(self.fit, f'cf_{i}')
+            cf.left = left
+            cf.right = right
+            cf.addinfo = assignment
+
+            seed = None
+            if topology == 'by_system':
+                for row in old:
+                    old_systems, _ = parse_coverage_assignment(row['assignment'])
+                    if old_systems == (i,):
+                        seed = row
+                        break
+            if seed is None and i < len(old):
+                seed = old[i]
+            if seed is None and old:
+                seed = old[0]
+            if seed is not None:
+                for prefix in ('cf', 'cova', 'covd', 'covr', 'cov1', 'cov2', 'covov'):
+                    name = f'{prefix}_{i}'
+                    if prefix in seed and hasattr(self.fit, name):
+                        self.fit.setValue(name, seed[prefix], 'val', check=False)
+
+            region = self.plot.pcRegions[i]
+            region.x1, region.x2 = left, right
+            region.value = 1.0 - float(cf.val)
+            region.redraw()
+
+        self.fit.cf_fit = True
+        self.fit.cf_num = n
+        self.fit.configure_coverage_parameters(reset_vary=reset_vary)
+        try:
+            if self.fitModel is not None:
+                self.fitModel.updateCF()
+        except Exception:
+            pass
+        self.fit.update(redraw=False)
+        self.s.prepareFit(all=False)
+        changed = False
+        for spectrum in self.s:
+            for line in getattr(spectrum, 'fit_lines', []):
+                if assigned_coverage_region(line, fit=self.fit) is not None:
+                    continue
+                target = 0 if topology == 'common' else int(line.sys)
+                if target < 0 or target >= n or not hasattr(self.fit, f'cf_{target}'):
+                    continue
+                center = float(line.l()) * (1.0 + float(line.z))
+                cf = getattr(self.fit, f'cf_{target}')
+                new_left = min(float(cf.left), center - pad)
+                new_right = max(float(cf.right), center + pad)
+                if new_left != cf.left or new_right != cf.right:
+                    cf.left, cf.right = new_left, new_right
+                    region = self.plot.pcRegions[target]
+                    region.x1, region.x2 = new_left, new_right
+                    region.redraw()
+                    changed = True
+        if changed:
+            self.s.prepareFit(all=False)
+        audit = self.coverageAssignmentAudit(prepared=True)
+        if had_fit_model and self.fitModel is None:
+            self.setFitModel()
+        return audit
+
+    def coverageAssignmentAudit(self, prepared=False):
+        if not prepared:
+            self.fit.update(redraw=False)
+            self.s.prepareFit(all=False)
+        assigned = []
+        unassigned = []
+        regions = {i: 0 for i in range(self.fit.cf_num)}
+        seen = set()
+        for exp_index, spectrum in enumerate(self.s):
+            for line in getattr(spectrum, 'fit_lines', []):
+                try:
+                    key = (exp_index, int(line.sys), str(line), round(float(line.l()), 6))
+                except Exception:
+                    continue
+                if key in seen:
+                    continue
+                seen.add(key)
+                region = assigned_coverage_region(line, fit=self.fit)
+                label = f'exp{exp_index}:sys{int(line.sys)}:{str(line)}'
+                if region is None:
+                    unassigned.append(label)
+                else:
+                    assigned.append(label)
+                    regions[region] = regions.get(region, 0) + 1
+        return {
+            'assigned': assigned,
+            'unassigned': unassigned,
+            'regions': regions,
+            'topology': [
+                {
+                    'region': i,
+                    'left': float(getattr(self.fit, f'cf_{i}').left),
+                    'right': float(getattr(self.fit, f'cf_{i}').right),
+                    'assignment': getattr(self.fit, f'cf_{i}').addinfo,
+                }
+                for i in range(self.fit.cf_num)
+                if hasattr(self.fit, f'cf_{i}')
+            ],
+        }
+
+    def fitAllCoverageModels(self):
+        """Choose and fit source-coverage laws on the same pixels."""
+        try:
+            selection = select_comparison_modes(self)
+        except Exception as exc:
+            QMessageBox.warning(self, 'Coverage-model comparison', str(exc))
+            return
+        if selection is None:
+            return
+        modes, topology, sources = selection
+        try:
+            QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+            records = fit_all_coverage_models(
+                self, modes=modes, topology=topology, sources=sources
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, 'Coverage-model comparison', str(exc))
+            return
+        finally:
+            QApplication.restoreOverrideCursor()
+
+        if not records:
+            self.sendMessage('Coverage-model comparison was cancelled before any fit completed.')
+            return
+        self.showCoverageComparison()
+
+
+
+
+    def showCoverageComparison(self):
+        """Open or focus the stored coverage-model comparison results."""
+        if not self.coverageComparisonResults:
+            QMessageBox.information(
+                self,
+                'Coverage-model comparison',
+                'No comparison results are available. Run Fit > Compare coverage models first.',
+            )
+            return
+        if self.coverageComparison is None:
+            self.coverageComparison = CoverageComparisonDialog(
+                self, self.coverageComparisonResults
+            )
+        else:
+            self.coverageComparison.set_records(self.coverageComparisonResults)
+        self._showToolWindow(self.coverageComparison)
+
+    def showBFLines(self, show=None):
+        """Show/hide the BF lines panel in splitter_fit (F10); hidden, it keeps its list but takes no mouse input."""
+        if show is None:
+            show = not self.bfLinesOpen()
+        if self.bfLines is None:
+            from .bf_panel import BFLinesPanel
+            self.bfLines = BFLinesPanel(self)
+            self.splitter_fit.insertWidget(1, self.bfLines)
+            self.splitter_fit.setSizes([1800, 900])
+        self.bfLines.setVisible(show)
+        if self.bfLinesOpen():
+            self.bfLines.refresh()
+
+    def bfLinesOpen(self):
+        return self.bfLines is not None and not self.bfLines.isHidden()
+
+    def showBFPanel(self):
+        """Fit > BF analysis: opens the BF lines panel and the analysis window."""
+        self.showBFLines(True)
+        self.bfLines.open_analysis()
 
     def fitMCMC(self):
         if self.MCMC is None:
             self.MCMC = fitMCMCWidget(self)
-            self.MCMC.show()
-        else:
-            self.MCMC.activateWindow()
+        self._showToolWindow(self.MCMC)
 
     def stopFit(self):
         """
@@ -9982,47 +11537,14 @@ class sviewer(QMainWindow):
         if self.thread.is_alive():
             self.thread.join()
 
-    def bootFit(self):
-        print('boot')
-        if 1:
-            res = []
-        else:
-            with open('temp/res.pickle', 'rb') as f:
-                res = pickle.load(f)
-            print(res)
-        if 1:
-            for i in range(100):
-                print(i)
-                self.normalize(False)
-                self.openFile("C:/science/Noterdaeme/HE0001/MgII_boot.spv")
-                self.s.remove(self.s.ind)
-                self.generate(template='const', z=self.fit.sys[0].z.val, fit=True, xmin=4054, xmax=4078, resolution=55000, snr=20,
-                             lyaforest=0.0, lycutoff=False, Av=0.0, Av_bump=0.0, z_Av=0.0, redraw=True)
-                self.normalize(True)
-                self.console.exec_command('x 4054 4078')
-                s = self.s[self.s.ind]
-                s.add_points(4060.350, 1.5, 4060.60, -0.5, remove=False, redraw=False)
-                s.add_points(4070.770, 1.5, 4071, -0.5, remove=False, redraw=False)
-                # self.parent.s[i].add_points(self.mousePoint_saved.x(), self.mousePoint_saved.y(), self.mousePoint.x(), self.mousePoint.y(), remove=False)
-                s.set_fit_mask()
-                s.update_points()
-                s.set_res()
-                self.fit.cf_0.val = 0.95
-                self.fitAbs(timer=False)
-                print(self.fit.list_fit())
-                print([self.fit.getValue(str(p)) for p in self.fit.list_fit()])
-                res.append([self.fit.getValue(str(p)) for p in self.fit.list_fit()])
-            with open('temp/res.pickle', 'wb') as f:
-                pickle.dump(res, f)
-        print(res)
 
     def showFitResults(self):
         if not self.blindMode:
             if self.fitResults is None:
                 self.fitResults = fitResultsWidget(self)
-                self.fitResults.show()
             else:
                 self.fitResults.refresh()
+            self._showToolWindow(self.fitResults)
         else:
             self.sendMessage("Blind mode is on. Disable it in Preference menu (F11)")
 
@@ -11246,16 +12768,18 @@ class sviewer(QMainWindow):
         out = True
 
         # with fits.open('D:/DESI/matched_ordered_spectra_full.fits') as hdu:
-        with h5py.File("D:/DESI/desi.hdf5", "r") as h5_file:
+        filename = self.options('DESIfile') or os.path.join(os.path.dirname(self.ErositaDESIFile), 'desi.hdf5')
+        with h5py.File(filename, 'r') as h5_file:
             meta = h5_file['meta'][ind]
             z, Av_gal = meta['z'], meta['Av_gal']
             d = h5_file[str(ind)][:]
             x, y, err, mask = d[0], d[1], d[2], d[3]
 
         ext = G23(Rv=3.1).extinguish(1 / ((np.asarray(x, dtype=np.float64) * u.AA).to('um')), Av=float(Av_gal))
-        y = y / ext
+        y, err = y / ext, err / ext
 
-        self.importSpectrum(ind, spec=[x, y, err])
+        out = self.importSpectrum(str(ind), spec=[x, y, err]) is not False
+        self.s[-1].bad_mask.set(x=np.asarray(mask, dtype=bool))
         # self.parent.vb.enableAutoRange()
         if out:
             self.s[-1].set_resolution(4000)
