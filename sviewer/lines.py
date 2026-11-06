@@ -21,7 +21,7 @@ class absSystemIndicator():
 
     def add(self, lines, color=None, va='down'):
         print(len(lines))
-        self.parent.vb.blockSignals(True)
+        blocked = self.parent.vb.blockSignals(True)
         try:
             for line in lines:
                 if line not in self.linelist:
@@ -29,7 +29,7 @@ class absSystemIndicator():
                     self.parent.vb.addItem(l, ignoreBounds=True)
                     self.lines.append(l)
         finally:
-            self.parent.vb.blockSignals(False)
+            self.parent.vb.blockSignals(blocked)
         self.redraw()
 
     def remove(self, lines=None, el=None):
@@ -258,6 +258,9 @@ class LineLabel(pg.TextItem):
             #self.parent.parent.line_reper = self.line
             self.parent.parent.plot.updateVelocityAxis()
             self.parent.redraw()
+            if getattr(self.parent.parent, 'bfLinesOpen', lambda: False)():
+                bf = self.parent.parent.bfLines
+                bf.z_changed() if ev.isFinish() else bf.schedule_refresh()
             ev.accept()
 
         elif QApplication.keyboardModifiers() == Qt.KeyboardModifier.AltModifier or self.info:
@@ -279,6 +282,8 @@ class LineLabel(pg.TextItem):
             if not self.active:
                 if str(self.line) in [' '.join(l.split()[:2]) for l in self.parent.parent.lines]:
                     self.parent.parent.lines.pop([' '.join(l.split()[:2]) for l in self.parent.parent.lines].index(str(self.line)))
+            if getattr(self.parent.parent, 'bfLinesOpen', lambda: False)():
+                self.parent.parent.bfLines.toggle_label(self)
             ev.accept()
         else:
             if QApplication.keyboardModifiers() == Qt.KeyboardModifier.ShiftModifier:
@@ -726,7 +731,8 @@ class pcRegion():
             self.parent.parent.fit.cf_fit = True
         try:
             self.parent.parent.fitModel.cf.setExpanded(self.parent.parent.fit.cf_fit)
-            self.parent.parent.fitModel.addChild('cf', 'cf_' + str(ind))
+            self.parent.parent.fitModel.addChild('cf', 'cf_' + str(ind), text_val='Cf / high-zone fraction ' + str(ind))
+            self.parent.parent.fitModel.addCoverageChildren(ind)
         except:
             pass
         self.parent.parent.fit.cf_num += 1
@@ -779,8 +785,18 @@ class pcRegion():
         if self.ind < len(self.parent.pcRegions):
             for i in range(self.ind, len(self.parent.pcRegions)):
                 self.parent.pcRegions[i].setInd(i)
-                cf = getattr(self.parent.parent.fit, 'cf_' + str(i + 1))
-                setattr(self.parent.parent.fit, 'cf_' + str(i), par(self, 'cf_' + str(i), cf.val, 0, 1, cf.step, left=cf.left, right=cf.right, addinfo=cf.addinfo))
+                fit = self.parent.parent.fit
+                cf = getattr(fit, 'cf_' + str(i + 1))
+                setattr(fit, 'cf_' + str(i), par(fit, 'cf_' + str(i), cf.val, 0, 1, cf.step,
+                                                   left=cf.left, right=cf.right, addinfo=cf.addinfo,
+                                                   vary=cf.vary, fit=cf.fit))
+                for prefix in ['cova', 'covd', 'covr', 'cov1', 'cov2', 'covov']:
+                    source_name, target_name = f'{prefix}_{i + 1}', f'{prefix}_{i}'
+                    if hasattr(fit, source_name):
+                        source = getattr(fit, source_name)
+                        setattr(fit, target_name,
+                                par(fit, target_name, source.val, source.min, source.max, source.step,
+                                    addinfo=source.addinfo, vary=source.vary, fit=source.fit))
                 self.parent.pcRegions[i].redraw()
 
         self.parent.parent.fit.remove('cf_' + str(len(self.parent.pcRegions)))
