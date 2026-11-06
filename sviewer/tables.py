@@ -213,9 +213,18 @@ class expTableWidget(TableWidget):
             self.parent.s.redraw()
 
     def LSFchanged(self, i):
+        previous = self.parent.s[i].lsf_type
+        if self.comb[i].currentText() == 'espresso' and self.parent.espresso_lsf is None:
+            try:
+                self.parent.load_espresso_lsf()
+            except ValueError as exc:
+                blocked = self.comb[i].blockSignals(True)
+                self.comb[i].setCurrentText(previous)
+                self.comb[i].blockSignals(blocked)
+                QMessageBox.warning(self, 'ESPRESSO LSF', str(exc))
+                return
         self.parent.s[i].lsf_type = self.comb[i].currentText()
-        if (self.parent.s[i].lsf_type == 'espresso') and self.parent.espresso_lsf is None:
-            self.parent.load_espresso_lsf()
+        if self.parent.s[i].lsf_type == 'espresso':
             self.parent.s[i].espresso_lsf = self.parent.espresso_lsf
             print("LSFchanged:", self.parent.s[i].espresso_lsf)
 
@@ -966,15 +975,8 @@ class QSOlistTable(pg.TableWidget):
                 i = int(self.cell_value('cat_ind'))
                 print(i)
                 self.parent.setz_abs(self.cell_value('z'))
-                #with fits.open('D:/DESI/matched_ordered_spectra_full.fits') as hdu:
-                    #x, y, err, mask = hdu[i].data[0], hdu[i].data[1], np.sqrt(1 / hdu[i].data[2]), hdu[i].data[4]
-                with h5py.File("D:/DESI/desi.hdf5", "r") as h5_file:
-                    d = h5_file[str(i)][:]
-                    x, y, err, mask = d[0], d[1], d[2], d[3]
-
-                ext = G23(Rv=3.1).extinguish(1 / ((np.asarray(x, dtype=np.float64) * u.AA).to('um')), Av=float(self.cell_value('Av_gal')))
-                y = y / ext
-                self.parent.importSpectrum(str(self.cell_value('cat_ind')), spec=[x, y, err])
+                self.parent.loadDESI(i)
+                x, y = self.parent.s[-1].spec.raw.x, self.parent.s[-1].spec.raw.y
                 #self.parent.vb.enableAutoRange()
 
                 if self.columnIndex('z') is not None:
