@@ -3,16 +3,23 @@ from collections import OrderedDict
 from functools import partial
 from io import StringIO
 import numpy as np
-from PyQt6.QtCore import Qt, QSize, QLocale
+from PyQt6.QtCore import Qt, QSize, QLocale, QSignalBlocker
 from PyQt6.QtGui import QIcon, QDoubleValidator, QAction
 from PyQt6.QtWidgets import (QCheckBox, QComboBox, QFrame,
                              QHBoxLayout, QLabel, QLineEdit, QMenu, QPushButton,
                              QTabBar, QTabWidget, QTextEdit, QTreeWidget,
                              QTreeWidgetItem, QScrollArea, QVBoxLayout,
-                             QWidget, QToolButton, QHeaderView
+                             QWidget, QToolButton, QHeaderView, QMessageBox
                              )
 import pyqtgraph as pg
 from .utils import Timer
+from .coverage_models import (
+    COVERAGE_MODE_LABELS,
+    coverage_mode_index,
+    format_coverage_assignment,
+    parse_coverage_assignment,
+    sync_single_coverage_region_to_fit,
+)
 from ..a_unc import a
 
 class FLineEdit(QLineEdit):
@@ -34,10 +41,15 @@ class FLineEdit(QLineEdit):
                 validator.setDecimals(8)
             if self.name[:1] in ['b', 'N', 'm', 'c', 'r', 'l', 's']:
                 validator.setDecimals(4)
+            if self.name.startswith(('cf_', 'cov', 'src')):
+                validator.setDecimals(15)
             self.setValidator(validator)
 
     def setLength(self, l=None):
         if l is None:
+            if self.name.startswith(('cf_', 'cov', 'src')):
+                self.setMaxLength(24)
+                return
             if any([self.name.startswith(s) for s in ['z', 'd', 'mu']]):
                 self.setMaxLength(10)
             if any([self.name.startswith(s) for s in ['b', 'N', 'me', 'c', 'r', 'l', 's']]):
@@ -48,7 +60,7 @@ class FLineEdit(QLineEdit):
     def calcFit(self):
         if self.var in ['N', 'b', 'z', 'kin', 'turb', 'v', 'c', 'Ntot', 'logn', 'logT', 'rad', 'CMB']:
             self.parent.parent.s.reCalcFit() #self.parent.tab.currentIndex())
-        elif self.var in ['mu', 'zero', 'iso'] or any([x in self.var for x in ['me', 'displ', 'disps', 'dispz', 'res', 'st']]):
+        elif self.var in ['mu', 'zero', 'iso'] or any([x in self.var for x in ['me', 'displ', 'disps', 'dispz', 'res', 'st', 'cf', 'cov']]):
             self.parent.parent.s.prepareFit()
             self.parent.parent.s.calcFit()
 
@@ -122,10 +134,12 @@ class chooseSystemPC(QToolButton):
             self.sys[i].triggered.connect(partial(self.set, sys=i))
             self.toolmenu.addAction(self.sys[i])
             self.sys[i].setCheckable(True)
-            if str(i) in self.parent.parent.fit.getValue(self.name, 'addinfo').split('_')[0].split('sys'):
+            systems, _ = parse_coverage_assignment(
+                self.parent.parent.fit.getValue(self.name, 'addinfo')
+            )
+            if systems is not None and i in systems:
                 self.sys[i].setChecked(True)
-            #print(self.parent.parent.fit.getValue(self.name, 'addinfo'), self.parent.parent.fit.getValue(self.name, 'addinfo').startswith('all'))
-            if self.parent.parent.fit.getValue(self.name, 'addinfo').startswith('all') and hasattr(self, 'setall'):
+            if systems is None and hasattr(self, 'setall'):
                 self.setall.setChecked(True)
             self.setText(self.currentText())
 
@@ -149,11 +163,21 @@ class chooseSystemPC(QToolButton):
             #        getattr(self.parent, 'cf_' + str(i) + '_applied').update()
             if hasattr(self, 'setall'):
                 self.setall.setChecked(False)
+            if not any(action.isChecked() for action in self.sys):
+                self.sys[sys].setChecked(True)
 
         self.setText(self.currentText())
-        exp = self.parent.parent.fit.getValue(self.name, 'addinfo').split('_')
-        exp = '_'+exp[1] if len(exp) > 1 else '_all'
-        self.parent.parent.fit.setValue(self.name, self.currentText() + exp, 'addinfo')
+        _, exposure = parse_coverage_assignment(
+            self.parent.parent.fit.getValue(self.name, 'addinfo')
+        )
+        systems = None if self.currentText() == 'all' else [
+            i for i, action in enumerate(self.sys) if action.isChecked()
+        ]
+        self.parent.parent.fit.setValue(
+            self.name,
+            format_coverage_assignment(systems, exposure),
+            'addinfo',
+        )
 
 class fitModelWidget(QWidget):
     def __init__(self, parent):
@@ -169,8 +193,7 @@ class fitModelWidget(QWidget):
         self.tab.setTabBar(self.tabBar)
         self.tabBar.setMouseTracking(False)
         self.tabBar.setMovable(True)
-        self.tab.setGeometry(0, 0, 800, 1000)
-        self.tab.setMinimumSize(900, 700)
+        self.tab.setMinimumSize(560, 380)
         self.tabIndex = 1
         #t = Timer('fitmodel')
         self.tabNum = len(self.parent.fit.sys)
@@ -253,6 +276,12 @@ class fitModelWidget(QWidget):
         self.sortSys = QPushButton("Sort systems")
         self.sortSys.setFixedSize(120, 30)
         self.sortSys.clicked[bool].connect(self.sortSystem)
+        self.compareCoverage = QPushButton("Compare coverage models")
+        self.compareCoverage.setFixedSize(180, 30)
+        self.compareCoverage.setToolTip(
+            "Choose coverage laws, fit them on the same pixels, and compare AIC/BIC"
+        )
+        self.compareCoverage.clicked.connect(self.parent.fitAllCoverageModels)
         self.okButton = QPushButton("OK")
         self.okButton.setFixedSize(70, 30)
         self.okButton.clicked[bool].connect(self.close)
@@ -261,6 +290,7 @@ class fitModelWidget(QWidget):
         hbox.addWidget(self.dupSys)
         hbox.addWidget(self.delSys)
         hbox.addWidget(self.sortSys)
+        hbox.addWidget(self.compareCoverage)
         hbox.addStretch(1)
         hbox.addWidget(self.okButton)
 
@@ -275,13 +305,15 @@ class fitModelWidget(QWidget):
         layout_right = QVBoxLayout()
         layout_right.addWidget(QLabel('additional ties: '))
         self.tieWindow = QTextEdit()
-        self.tieWindow.setFixedSize(400, 100)
+        self.tieWindow.setMinimumSize(240, 70)
+        self.tieWindow.setMaximumHeight(140)
         self.tieWindow.textChanged.connect(partial(self.updateTieWindow, init=False))
         self.updateTieWindow(init=True)
         layout_right.addWidget(self.tieWindow)
         layout_right.addWidget(QLabel('exclude lines: '))
         self.excludeWindow = QTextEdit()
-        self.excludeWindow.setFixedSize(400, 80)
+        self.excludeWindow.setMinimumSize(240, 60)
+        self.excludeWindow.setMaximumHeight(120)
         self.excludeWindow.textChanged.connect(partial(self.updateExcludeWindow, init=False))
         layout_right.addWidget(self.excludeWindow)
         self.updateExcludeWindow(init=True)
@@ -290,14 +322,15 @@ class fitModelWidget(QWidget):
         #layout_right.addStretch(1)
 
         l = QHBoxLayout()
-        l.addLayout(layout_left)
-        l.addLayout(layout_right)
+        l.addLayout(layout_left, 1)
+        l.addLayout(layout_right, 1)
+        l.setContentsMargins(8, 8, 8, 8)
+        l.setSpacing(8)
 
         self.setLayout(l)
-
-        self.setGeometry(100, 100, 1900, 1200)
+        self.resize(1450, 850)
+        self.setMinimumSize(760, 560)
         self.setWindowTitle('Fit model')
-        self.show()
         self.refresh()
         self.refr = True
 
@@ -306,7 +339,7 @@ class fitModelWidget(QWidget):
         self.treeWidget.move(0, 0)
         self.treeWidget.setHeaderHidden(True)
         self.treeWidget.setColumnCount(12)
-        self.treeWidget.setMinimumSize(900, 500)
+        self.treeWidget.setMinimumSize(520, 340)
         #for i, w in enumerate([110, 10, 30, 70, 80, 70, 80, 10, 80, 70, 100, 60]):
         #    self.treeWidget.setColumnWidth(i, w)
 
@@ -387,15 +420,44 @@ class fitModelWidget(QWidget):
         self.cf = self.addParent(self.treeWidget, 'Covering factors', expanded=self.parent.fit.cf_fit)
         self.cf.name = 'cf'
 
+        self.cf_model_m = QTreeWidgetItem(self.cf)
+        self.cf_model_m.setTextAlignment(3, self.alignMode)
+        self.cf_model_m.setText(3, 'model: ')
+        self.cf_model = QComboBox(self)
+        self.cf_model.setMinimumWidth(190)
+        self.cf_model.addItems(COVERAGE_MODE_LABELS)
+        self.cf_model.setCurrentIndex(coverage_mode_index(self.parent.fit.covmode.val))
+        self.cf_model.currentIndexChanged.connect(self.coverageModelChanged)
+        self.treeWidget.setItemWidget(self.cf_model_m, 4, self.cf_model)
+        self.updateCoverageModelAvailability()
+
         self.cf_m = QTreeWidgetItem(self.cf)
         self.cf_m.setTextAlignment(3, self.alignMode)
-        self.cf_m.setText(3, 'num: ')
+        self.cf_m.setText(3, 'LFR num: ')
         self.cf_num = FLineEdit(self, str(self.parent.fit.cf_num))
         self.cf_num.setFixedSize(30, 30)
+        self.cf_num.setToolTip('Number of LFR coverage regions, not number of fitted lines.')
         self.cf_num.returnPressed.connect(self.numCfChanged)
         self.treeWidget.setItemWidget(self.cf_m, 4, self.cf_num)
+
+        self.cf_topology_m = QTreeWidgetItem(self.cf)
+        self.cf_topology_m.setTextAlignment(3, self.alignMode)
+        self.cf_topology_m.setText(3, 'LFR setup: ')
+        self.cf_topology = QComboBox(self)
+        self.cf_topology.addItems(['current', 'common', 'by system'])
+        self.cf_topology.setToolTip(
+            'common: one LFR for all systems and fit windows; '
+            'by system: one LFR per kinematic system; current: keep manual LFRs.'
+        )
+        self.cf_topology.setCurrentText(self.inferCoverageTopology())
+        self.cf_topology.currentTextChanged.connect(self.coverageTopologyChanged)
+        self.treeWidget.setItemWidget(self.cf_topology_m, 4, self.cf_topology)
+
         for i in range(self.parent.fit.cf_num):
-            self.addChild('cf', 'cf_' + str(i), text_val='cf ' + str(i))
+            self.addChild('cf', 'cf_' + str(i), text_val='Cf ' + str(i))
+            self.addCoverageChildren(i)
+        self.addSystemCoverageChildren()
+        self.updateCoverageParameterVisibility()
         self.cf.setExpanded(self.parent.fit.cf_fit)
 
         self.disp = self.addParent(self.treeWidget, 'Dispersion', expanded=self.parent.fit.disp_num > 0)
@@ -578,6 +640,206 @@ class fitModelWidget(QWidget):
         if not getattr(self, parent).isExpanded():
             self.parent.fit.remove(name)
 
+    def addCoverageChildren(self, ind):
+        """Expose experimental model parameters for one covering region."""
+        self.parent.fit.ensure_coverage_parameters(ind)
+        labels = {
+            f'cova_{ind}': f'log10(a) {ind}',
+            f'covd_{ind}': f'offset d/R_abs {ind}',
+            f'covr_{ind}': f'tau-low / tau-high {ind}',
+            f'cov1_{ind}': f'Cf component 1 {ind}',
+            f'cov2_{ind}': f'Cf component 2 {ind}',
+            f'covov_{ind}': f'normalized overlap {ind}',
+        }
+        for name, label in labels.items():
+            if not hasattr(self, name):
+                self.addChild('cf', name, text_val=label)
+
+    def addSystemCoverageChildren(self):
+        """Expose system-level x-PL exponents used by the chromatic mode."""
+        self.parent.fit.ensure_system_powerlaw_parameters()
+        for system_id in range(len(self.parent.fit.sys)):
+            name = f'covasys_{system_id}'
+            if not hasattr(self, name):
+                self.addChild('cf', name, text_val=f'log10(a) sys{system_id}')
+
+    def coverageVisibleParameters(self):
+        """Parameter prefixes that belong to the selected coverage law."""
+        return {
+            'full': set(),
+            'ppc': {'cf'},
+            'powerlaw': {'cova'},
+            'powerlaw_ppc': {'cf', 'cova'},
+            'powerlaw_ppc_sysa': {'cf', 'covasys'},
+            'powerlaw_sysa_global': {'covasys'},
+            'powerlaw_radial': {'cova', 'covd'},
+            'powerlaw_radial_ppc': {'cf', 'cova', 'covd'},
+            'two_zone': {'cf', 'covr'},
+            'cfov': {'cov1', 'cov2', 'covov'},
+        }[self.parent.fit.coverage_model()]
+
+    def updateCoverageParameterVisibility(self):
+        """Hide coverage parameters unused by the selected model.
+        ``cf_i`` rows stay as LFR editors; their value is hidden when the model has no numeric Cf."""
+        if not hasattr(self, 'cf'):
+            return
+
+        active = self.coverageVisibleParameters()
+        mode = self.parent.fit.coverage_model()
+
+        if hasattr(self, 'cf_m'):
+            self.cf_m.setHidden(mode in {'full', 'powerlaw_sysa_global'})
+        if hasattr(self, 'cf_topology_m'):
+            self.cf_topology_m.setHidden(mode in {'full', 'powerlaw_sysa_global'})
+
+        for ind in range(self.parent.fit.cf_num):
+            cf_name = f'cf_{ind}'
+            cf_item = getattr(self, cf_name, None)
+            if cf_item is not None:
+                cf_item.setHidden(mode in {'full', 'powerlaw_sysa_global'})
+                uses_cf = 'cf' in active
+                vary_widget = getattr(self, cf_name + '_vary', None)
+                val_widget = getattr(self, cf_name + '_val', None)
+                if vary_widget is not None:
+                    vary_widget.setVisible(uses_cf)
+                if val_widget is not None:
+                    val_widget.setVisible(uses_cf)
+
+                cf_item.setText(0, '' if uses_cf else f'LFR {ind}')
+                if mode == 'two_zone':
+                    cf_item.setText(3, f'high-zone fraction {ind}: ')
+                elif uses_cf:
+                    cf_item.setText(3, f'Cf {ind}: ')
+                else:
+                    cf_item.setText(3, '')
+
+            prefix_to_name = {
+                'cova': f'cova_{ind}',
+                'covd': f'covd_{ind}',
+                'covr': f'covr_{ind}',
+                'cov1': f'cov1_{ind}',
+                'cov2': f'cov2_{ind}',
+                'covov': f'covov_{ind}',
+            }
+            for prefix, name in prefix_to_name.items():
+                item = getattr(self, name, None)
+                if item is not None:
+                    item.setHidden(prefix not in active)
+
+        self.addSystemCoverageChildren()
+        uses_system_a = 'covasys' in active
+        for system_id in range(len(self.parent.fit.sys)):
+            item = getattr(self, f'covasys_{system_id}', None)
+            if item is not None:
+                item.setHidden(not uses_system_a)
+
+    def updateCoverageModelAvailability(self):
+        """Enable two-component geometry modes only for exactly two systems."""
+        if not hasattr(self, 'cf_model'):
+            return
+        enabled = len(self.parent.fit.sys) == 2
+        model = self.cf_model.model()
+        restricted = {
+            'cfov': 'Fit a free projected overlap of the two kinematic systems.',
+        }
+        restricted_indices = []
+        for mode, tooltip in restricted.items():
+            idx = coverage_mode_index(mode)
+            restricted_indices.append(idx)
+            item = model.item(idx) if hasattr(model, 'item') else None
+            if item is not None:
+                item.setEnabled(enabled)
+                item.setToolTip(
+                    'Requires exactly two kinematic systems.' if not enabled else tooltip
+                )
+
+        if hasattr(self, 'compareCoverage'):
+            self.compareCoverage.setEnabled(
+                bool(self.parent.fit.cf_fit and self.parent.fit.cf_num > 0)
+            )
+
+        if not enabled and self.cf_model.currentIndex() in restricted_indices:
+            fallback = coverage_mode_index('ppc')
+            self.cf_model.blockSignals(True)
+            self.cf_model.setCurrentIndex(fallback)
+            self.cf_model.blockSignals(False)
+            self.parent.fit.set_coverage_model(fallback)
+            self.parent.fit.configure_coverage_parameters(reset_vary=True)
+            if self.refr:
+                try:
+                    self.parent.s.prepareFit()
+                    self.parent.s.calcFit(recalc=True)
+                except Exception:
+                    pass
+
+    def coverageModelChanged(self, index):
+        restricted = {coverage_mode_index('cfov')}
+        if index in restricted and len(self.parent.fit.sys) != 2:
+            QMessageBox.information(
+                self,
+                'Two-component covering model',
+                'This covering model requires exactly two kinematic systems. Add or remove a component first.',
+            )
+            self.updateCoverageModelAvailability()
+            return
+        self.parent.fit.set_coverage_model(index)
+        self.parent.fit.ensure_system_powerlaw_parameters()
+        self.parent.fit.configure_coverage_parameters(reset_vary=True)
+        mode = self.parent.fit.coverage_model()
+        if mode != 'full' and self.parent.fit.cf_num == 0:
+            topology = 'common' if mode in {
+                'cfov', 'powerlaw_ppc_sysa', 'powerlaw_sysa_global'
+            } else ('by_system' if len(self.parent.fit.sys) > 1 else 'common')
+            try:
+                self.parent.configureCoverageLFRs(topology, reset_vary=True)
+            except Exception:
+                pass
+        self.addSystemCoverageChildren()
+        self.updateCoverageParameterVisibility()
+        if self.parent.fit.coverage_model() not in {'full', 'ppc'} and self.parent.fitType == 'julia':
+            self.parent.fitType = 'regular'
+            self.parent.options('fitType', 'regular')
+            self.parent.sendMessage('Alternative coverage models use the Python backend; switched to py:regular.')
+        self.refresh()
+        self.parent.s.prepareFit()
+        self.parent.s.calcFit(recalc=True)
+
+    def inferCoverageTopology(self):
+        fit = self.parent.fit
+        if fit.cf_num == 1 and hasattr(fit, 'cf_0'):
+            systems, exposure = parse_coverage_assignment(fit.cf_0.addinfo)
+            if systems is None and exposure is None:
+                return 'common'
+        if fit.cf_num == len(fit.sys) and fit.cf_num > 0:
+            ok = True
+            for i in range(fit.cf_num):
+                if not hasattr(fit, f'cf_{i}'):
+                    ok = False
+                    break
+                systems, exposure = parse_coverage_assignment(getattr(fit, f'cf_{i}').addinfo)
+                if systems != (i,) or exposure is not None:
+                    ok = False
+                    break
+            if ok:
+                return 'by system'
+        return 'current'
+
+    def coverageTopologyChanged(self, text):
+        if text == 'current':
+            return
+        try:
+            self.parent.configureCoverageLFRs(text.replace(' ', '_'), reset_vary=True)
+            if self.parent.fitModel is None:
+                self.parent.setFitModel()
+                return
+            self.cf_num.setText(str(self.parent.fit.cf_num))
+            self.refresh()
+        except Exception as exc:
+            QMessageBox.warning(self, 'LFR setup', str(exc))
+            self.cf_topology.blockSignals(True)
+            self.cf_topology.setCurrentText('current')
+            self.cf_topology.blockSignals(False)
+
     def setApplied(self, name):
         combo = getattr(self, name + '_applied_exp')
         sp1 = combo.currentText()
@@ -586,8 +848,21 @@ class fitModelWidget(QWidget):
 
         if 'cf' in name:
             sp = getattr(self, name + '_applied').currentText()
-            self.parent.fit.setValue(name, sp + '_' + sp1, 'addinfo')
-            self.parent.fit.getValue(name, 'addinfo')
+            systems = None
+            if sp != 'all':
+                import re
+                systems = [int(v) for v in re.findall(r'sys(\d+)', sp)]
+            exposure = None
+            if sp1.startswith('exp'):
+                try:
+                    exposure = int(sp1[3:])
+                except ValueError:
+                    exposure = None
+            self.parent.fit.setValue(
+                name,
+                format_coverage_assignment(systems, exposure),
+                'addinfo',
+            )
         elif 'region' in name:
             self.parent.fit.cont[int(name.split('_')[1])].exp = int(getattr(self, name + '_applied_exp').currentText().split('_')[1])
             self.parent.fit.cont[int(name.split('_')[1])].update()
@@ -637,20 +912,40 @@ class fitModelWidget(QWidget):
     def removeCf(self, name):
         self.parent.plot.remove_pcRegion(int(name.split('_')[1]))
 
+    @staticmethod
+    def _set_line_edit_text(widget, text):
+        """Refresh a field without writing rounded display text back to the fit."""
+        previous = widget.blockSignals(True)
+        try:
+            widget.setText(str(text))
+        finally:
+            widget.blockSignals(previous)
+
     def updateCF(self, excl=''):
         try:
             self.cf.setExpanded(self.parent.fit.cf_fit)
             self.cf_num.setText(str(self.parent.fit.cf_num))
+            self.cf_model.blockSignals(True)
+            self.cf_model.setCurrentIndex(coverage_mode_index(self.parent.fit.covmode.val))
+            self.cf_model.blockSignals(False)
+            self.cf_topology.blockSignals(True)
+            self.cf_topology.setCurrentText(self.inferCoverageTopology())
+            self.cf_topology.blockSignals(False)
         except:
             pass
+        self.updateCoverageModelAvailability()
+        self.updateCoverageParameterVisibility()
         if self.parent.fit.cf_fit:
             for cf in self.parent.fit.list():
-                if 'cf' in str(cf):
+                if str(cf).startswith('cf_'):
                     try:
                         names = ['val', 'left', 'right']
                         for attr in names:
                             if str(cf) + '_' + attr != excl:
-                                getattr(self, str(cf) + '_' + attr).setText(str(getattr(cf, attr)))
+                                self._set_line_edit_text(
+                                    getattr(self, str(cf) + '_' + attr),
+                                    getattr(cf, attr),
+                                )
 
                         combo = getattr(self, cf.name + '_applied')
                         combo.update()
@@ -658,13 +953,36 @@ class fitModelWidget(QWidget):
                         combo.clear()
                         sp = list(['exp' + str(i) for i in range(len(self.parent.s))])
                         combo.addItems(['all'] + sp)
-                        s = getattr(cf, 'addinfo').split('_')[1]
-                        if s != '' and s in sp:
-                            combo.setCurrentText(s)
+                        _, exposure = parse_coverage_assignment(getattr(cf, 'addinfo'))
+                        applied = 'all' if exposure is None else f'exp{exposure}'
+                        if applied in sp:
+                            combo.setCurrentText(applied)
                         else:
                             combo.setCurrentIndex(0)
                     except:
                         pass
+            for i in range(self.parent.fit.cf_num):
+                for name in self.parent.fit.coverage_parameter_names(i):
+                    if hasattr(self.parent.fit, name) and hasattr(self, name + '_val'):
+                        par = getattr(self.parent.fit, name)
+                        for attr in ['val', 'min', 'max', 'step']:
+                            if name + '_' + attr != excl:
+                                self._set_line_edit_text(
+                                    getattr(self, name + '_' + attr), par.str(attr)
+                                )
+                        getattr(self, name + '_vary').setChecked(par.vary)
+
+            self.addSystemCoverageChildren()
+            for system_id in range(len(self.parent.fit.sys)):
+                name = f'covasys_{system_id}'
+                if hasattr(self.parent.fit, name) and hasattr(self, name + '_val'):
+                    par = getattr(self.parent.fit, name)
+                    for attr in ['val', 'min', 'max', 'step']:
+                        if name + '_' + attr != excl:
+                            self._set_line_edit_text(
+                                getattr(self, name + '_' + attr), par.str(attr)
+                            )
+                    getattr(self, name + '_vary').setChecked(par.vary)
 
     def updateZero(self, excl=''):
         for p in self.parent.fit.list():
@@ -791,12 +1109,24 @@ class fitModelWidget(QWidget):
     def updateTieWindow(self, init=False):
         if init == False:
             text = self.tieWindow.toPlainText()
-            self.parent.fit.tieds = {}
+            ties = {}
             for line in text.split('\n'):
-                if not line.startswith('#'):
-                    l = line.strip().split()
-                    if len(l) == 2:
-                        self.parent.fit.addTieds(l[0], l[1])
+                raw = line.strip()
+                if not raw or raw.startswith('#'):
+                    continue
+                tokens = raw.replace('=', ' ').replace('->', ' ').split()
+                if tokens and tokens[0].lower() == 'tie':
+                    tokens = tokens[1:]
+                if len(tokens) == 3 and tokens[1].lower() == 'to':
+                    tokens = [tokens[0], tokens[2]]
+                if len(tokens) == 2:
+                    try:
+                        self.parent.fit.getPar(tokens[0])
+                        self.parent.fit.getPar(tokens[1])
+                        ties[tokens[0]] = tokens[1]
+                    except Exception:
+                        pass
+            self.parent.fit.replaceTieds(ties)
             self.update()
         else:
             head = '# tie par1 to par2 by: <par1> <par2>'
@@ -840,6 +1170,9 @@ class fitModelWidget(QWidget):
         if hasattr(self.parent, 'chooseFit') and self.parent.chooseFit != None:
             self.parent.chooseFit.update()
         self.onTabChanged()
+        self.addSystemCoverageChildren()
+        self.updateCoverageModelAvailability()
+        self.updateCoverageParameterVisibility()
 
     def delSystem(self, update=0):
         self.tabNum -= 1
@@ -854,6 +1187,8 @@ class fitModelWidget(QWidget):
         if hasattr(self.parent, 'chooseFit') and self.parent.chooseFit != None:
             self.parent.chooseFit.update()
         self.onTabChanged()
+        self.updateCoverageModelAvailability()
+        self.updateCoverageParameterVisibility()
 
     def sortSystem(self, update=0):
         self.swap = -self.swap
@@ -885,7 +1220,9 @@ class fitModelWidget(QWidget):
 
     def varyChanged(self, name=''):
         if hasattr(self.parent.fit, name):
-            setattr(getattr(self.parent.fit, name), 'vary', getattr(self, name + '_vary').isChecked())
+            getattr(self.parent.fit, name).set(
+                getattr(self, name + '_vary').isChecked(), attr='vary'
+            )
         if self.refr:
             self.refresh('varyChanged')
 
@@ -933,6 +1270,7 @@ class fitModelWidget(QWidget):
             for i in range(self.parent.fit.cf_num):
                 if self.cf.isExpanded():
                     self.parent.fit.add('cf_'+str(i))
+                    self.addCoverageChildren(i)
                 else:
                     self.parent.fit.remove('cf_'+str(i))
 
@@ -1096,11 +1434,18 @@ class fitModelWidget(QWidget):
                 if k > self.parent.fit.cf_num and not isinstance(self.parent.vb.viewRange()[0][0], int):
                     #self.parent.fit.add('cf_'+str(i))
                     self.parent.plot.add_pcRegion(self.parent.vb.viewRange()[0][0], self.parent.vb.viewRange()[0][1])
+                    if i == 0:
+                        sync_single_coverage_region_to_fit(self.parent)
                 else:
                     self.parent.fit.remove('cf_' + str(i))
                     getattr(self, 'cf').removeChild(getattr(self, 'cf_' + str(i)))
                     self.parent.plot.remove_pcRegion(i)
             self.parent.fit.cf_num = k
+            for i in range(self.parent.fit.cf_num):
+                if hasattr(self.parent.fit, f'cf_{i}'):
+                    self.addCoverageChildren(i)
+            self.updateCoverageModelAvailability()
+            self.updateCoverageParameterVisibility()
             if self.refr:
                 self.refresh()
 
@@ -1154,10 +1499,12 @@ class fitModelWidget(QWidget):
         self.parent.fit.disp[ind].update()
 
     def onChanged(self, s, attr):
-        if s in ['mu', 'iso', 'zero'] or any([c in s for c in ['me', 'cont', 'res', 'cf', 'disp', 'sts', 'stNu', 'stNl']]):
+        if s in ['mu', 'iso', 'zero'] or any([c in s for c in ['me', 'cont', 'res', 'cf', 'cov', 'disp', 'sts', 'stNu', 'stNl']]):
             #print(s, attr, hasattr(self.parent.fit, s))
             if hasattr(self.parent.fit, s):
-                setattr(getattr(self.parent.fit, s), attr, float(getattr(self, s + '_' + attr).text()))
+                text = getattr(self, s + '_' + attr).text().strip()
+                if text not in ['', '-', '+', '.', '-.', '+.']:
+                    setattr(getattr(self.parent.fit, s), attr, float(text))
 
         if 'res' in s:
             #print(getattr(self.parent.fit, s).addinfo, getattr(self.parent.fit, s).addinfo[4:])
@@ -1264,7 +1611,7 @@ class fitModelSysWidget(QFrame):
         self.treeWidget = QTreeWidget()
         self.treeWidget.move(0, 0)
         self.treeWidget.setHeaderHidden(True)
-        self.treeWidget.setMinimumSize(900, 500)
+        self.treeWidget.setMinimumSize(500, 320)
         layout.addWidget(self.treeWidget)
 
         self.species = {}
@@ -1490,13 +1837,17 @@ class fitModelSysWidget(QFrame):
     def varyChanged(self):
         for s in ['z', 'turb', 'kin', 'Ntot', 'logn', 'logT', 'logf', 'rad', 'CMB', 'sts', 'stNl', 'stNu']:
             if hasattr(self.fit.sys[self.ind], s):
-                setattr(getattr(self.fit.sys[self.ind], s), 'vary', getattr(self, s + '_vary').isChecked())
-            #print('state:', getattr(getattr(self.fit.sys[self.ind], s), 'vary'))
+                getattr(self.fit.sys[self.ind], s).set(
+                    getattr(self, s + '_vary').isChecked(), attr='vary'
+                )
 
         if len(self.fit.sys[self.ind].sp) > 0:
             for k, v in self.fit.sys[self.ind].sp.items():
                 for s in ['b'] + (v.type == 'abs') * ['N'] + (v.type == 'em') * ['I']:
-                    setattr(getattr(self.fit.sys[self.ind].sp[k], s), 'vary', getattr(self, k + '_' + {'b': 'b', 'N': 's', 'I': 's'}[s] + '_vary').isChecked())
+                    getattr(self.fit.sys[self.ind].sp[k], s).set(
+                        getattr(self, k + '_' + {'b': 'b', 'N': 's', 'I': 's'}[s] + '_vary').isChecked(),
+                        attr='vary',
+                    )
 
         self.refresh()
 
@@ -1571,6 +1922,7 @@ class fitModelSysWidget(QFrame):
         self.refresh(what='me', ind='all')
 
     def refresh(self, excl='', what='all', ind=None):
+        blockers = [QSignalBlocker(w) for w in self.findChildren(QWidget)]
         #print('refresh', what, excl, self.ind)
         if ind == None:
             ind = self.ind
