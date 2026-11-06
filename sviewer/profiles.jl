@@ -11,6 +11,7 @@ using Polynomials
 using PythonCall
 using Roots
 using SpecialFunctions
+include(joinpath(@__DIR__, "coverage_models.jl"))
 
 function argclose2(x, value)
     return argmin(abs.(x .- value))
@@ -630,6 +631,7 @@ function prepare_coll(pr, s)
 end
 
 function prepare_add(fit, pars)
+    fit.checkJulia()
     add = Dict()
     if any(occursin("Ntot", pyconvert(String, k)) for k in keys(pars))
         add["pyratio"] = Dict()
@@ -867,6 +869,11 @@ function prepare(s, pars, add, COS)
         #spec[i] = spectrum.spec(si.spec.norm.x, si.spec.norm.y, si.spec.norm.err, si.mask.norm.x .== 1, si.lsf_type, si.resolution, prepare_lines(si.fit_lines), NaN, NaN, NaN, prepare_cheb(pars, i), Vector(undef, 0), BitArray(0), Spline2D(COS[i][1], COS[i][2], COS[i][3]; kx=3, ky=3, s=0.0), COS[i][4])
         spec[i].bins = append!(pushfirst!((spec[i].x[2:end] + spec[i].x[1:end-1]) / 2, (spec[i].x[1] + (spec[i].x[1] - spec[i].x[2]) / 2)), (spec[i].x[end] + (spec[i].x[end] - spec[i].x[end-1]) / 2))
         spec[i].bin_mask = vcat(spec[i].mask[1:end-1], [false, false]) .|| vcat([false, false], spec[i].mask[2:end])
+        if haskey(pars, "covmode") && pars["covmode"].val == 0
+            for line in spec[i].lines
+                line.cf = -1
+            end
+        end
     end
     update_pars(pars, spec, add)
     return spec
@@ -1097,6 +1104,42 @@ function make_grid(spec, lines; grid_type="uniform", grid_num=1, binned=true, ta
     return x[i_min:i_max]
 end
 
+# Region parameters as assembled by coverage_models.combine_line_profiles (Python).
+function coverage_pars(pars, region, tau_by_system)
+    val(name, default) = haskey(pars, name) ? pars[name].val : default
+    cf = pars["cf_" * string(region)].val
+    return Dict{String, Any}("cf" => cf, "log10_a" => val("cova_$region", 0.0), "tau_ratio" => val("covr_$region", 0.1),
+                             "cf1" => val("cov1_$region", cf), "cf2" => val("cov2_$region", cf), "cfov_norm" => val("covov_$region", 1.0),
+                             "log10_a_by_system" => Dict{Int, Float64}(k => pars["covasys_$k"].val for k in keys(tau_by_system) if haskey(pars, "covasys_$k")))
+end
+
+# Advanced covering modes: per-region, per-system optical depths through CoverageModels,
+# mirroring coverage_models.combine_line_profiles (achromatic source).
+function coverage_spectrum(lines, x, pars)
+    mode = CoverageModels.coverage_mode_name(pars["covmode"].val)
+    tau = Dict{Int, Dict{Int, Vector{Float64}}}()   # region (-1: full coverage) => system => tau
+    for line in lines
+        line.type == "abs" || throw(ArgumentError("covering mode $mode supports absorption lines only"))
+        region = mode == "powerlaw_sysa_global" ? 0 : (line.cf > -1 && haskey(pars, "cf_" * string(line.cf))) ? line.cf : -1
+        i_min, i_max = binsearch(x, line.l - line.dx * line.ld, type="min"), binsearch(x, line.l + line.dx * line.ld, type="max")
+        t = line.stack == -1 ? line_profile(line, x[i_min:i_max], optical_depth=true) : -log.(line_profile(line, x[i_min:i_max]))
+        @views get!(get!(tau, region, Dict{Int, Vector{Float64}}()), line.sys, zeros(length(x)))[i_min:i_max] .+= t
+    end
+    y = ones(length(x))
+    for (region, tau_by_system) in tau
+        if mode == "powerlaw_sysa_global"
+            loga = Dict{Int, Float64}(k => pars["covasys_$k"].val for k in keys(tau_by_system) if haskey(pars, "covasys_$k"))
+            length(loga) == length(tau_by_system) || throw(ArgumentError("Global system x-PL is missing covasys parameters"))
+            y .*= CoverageModels.region_transmission(mode, tau_by_system, Dict{String, Any}("log10_a_by_system" => loga))
+        elseif region == -1
+            y .*= exp.(-sum(values(tau_by_system)))
+        else
+            y .*= CoverageModels.region_transmission(mode, tau_by_system, coverage_pars(pars, region, tau_by_system))
+        end
+    end
+    return clamp.(y, 0, 1)
+end
+
 function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", grid_num=1, binned=true, out="all", telluric=false, tau_limit=0.005, accuracy=0.2, optical_depth=false)
 
     #println(spec.name)
@@ -1111,11 +1154,15 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
     #println(comp, " ",size(spec.lines))
     #println(sum(line_mask))
     if sum(line_mask) == 0
-        return pylist([spec.x[1], spec.x[end]]), pylist([1, 1]), pylist([0, 0]), pylist([0, 0])
+        return [spec.x[1], spec.x[end]], [1., 1.], [0., 0.], [0., 0.]
     end
 
     if x == nothing
         x = make_grid(spec, spec.lines[line_mask], grid_type=grid_type, grid_num=grid_num, binned=binned, tau_limit=tau_limit, accuracy=accuracy)
+    else
+        for line in spec.lines[line_mask]
+            line.dx = line_range(line, tau_limit)
+        end
     end
 
     if timeit == 1
@@ -1141,6 +1188,8 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
             y = exp.(-y)
         end
         y += g
+    elseif haskey(pars, "covmode") && !(CoverageModels.coverage_mode_name(pars["covmode"].val) in ("full", "ppc"))
+        y = coverage_spectrum(spec.lines[line_mask], x, pars)
     else
         y = zero(x)
         cfs, inds = [], []
@@ -1190,6 +1239,7 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
     for d in spec.disp
         #println(d.left, " ", d.right)
         m = (x .> d.left) .& (x .< d.right)
+        sum(m) < 2 && continue
         inter = LinearInterpolation(x[m], y[m], extrapolation_bc=Flat())
         #println(d, " ", pars["displ_"*string(d.ind)].val, " ", pars["disps_"*string(d.ind)].val)
         #println(sum(m))
@@ -1197,10 +1247,10 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
     end
 
 
-    if (spec.lsf_type != "none") || ((spec.lsf_type != "gauss") && spec.resolution(x[1]) == 0)
+    if spec.lsf_type != "none" && spec.resolution(x[1]) > 0
         y = 1 .- y
         y_c = zero(y)
-        if occursin("gauss", spec.lsf_type)  #Gaussian function
+        if occursin("gauss", spec.lsf_type) || spec.lsf_type == "espresso"  #Gaussian function
             for (i, xi) in enumerate(x)
                 #println(xi, " ", spec.resolution(xi))
                 sigma_r = xi / spec.resolution(xi) / 1.66511
@@ -1269,11 +1319,11 @@ function calc_spectrum(spec, pars; comp=0, x=nothing, grid_type="minimized", gri
                 binned[l] = 1 - binned[l] / (x[inds[k+1]] - x[inds[k]]) / 2
             end
         else
-            binned = linear_interpolation(x, y_c, extrapolation_bc=Flat())[spec.x[spec.mask]]
+            binned = linear_interpolation(x, y_c, extrapolation_bc=Flat()).(spec.x[spec.mask])
         end
 
         if out == "all"
-            return pylist(x), pylist(y_c), pylist(spec.x[spec.mask]), pylist(binned)
+            return x, y_c, spec.x[spec.mask], binned
         elseif out == "binned"
             return binned
         elseif out == "init"
@@ -1410,7 +1460,9 @@ function fitLM(spec, p_pars, add; tieds=Dict(), opts=Dict(), blindMode=false, me
                                     #println("x for ", i, " ", x)
                                     retval -= x ^ 2
                                 end
-                                retval -= T[end] < 0 ? (T[end] / 100) ^ 2 : 0
+                                if !isempty(T)
+                                    retval -= T[end] < 0 ? (T[end] / 100) ^ 2 : 0
+                                end
                             end
                         end
                     end
