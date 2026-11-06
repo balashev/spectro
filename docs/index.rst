@@ -17,6 +17,7 @@ Contents
    console
    mainmenu
    fitmodel
+   bf
    mcmc
    plotlines
    preferences
